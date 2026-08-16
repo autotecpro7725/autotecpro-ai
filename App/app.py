@@ -1,9 +1,7 @@
-# AutoTecPro AI v69104 — REBUILT FROM v69050 IMAGE AUTHORITY
-# Date: 2026-08-16
-# Recovery policy: v69050 production runtime is the behavioral baseline.
-# No v69060+ file-citation recovery, console-profile hardcoding, legacy F450 image bridge,
-# or v69093+ active-package QA override is permitted in this rollback release.
-# Vehicle/menu values must come from learned Technical knowledge, not Python constants.
+# AutoTecPro AI v69105 — rebuilt from the user-supplied v69050 production baseline.
+# Technical/Sales/Marketing image authority and runtime behavior remain v69050-exact.
+# Only presentation is added: Technical settings-table guidance and professional Customer Reply Draft layout.
+# No vehicle/menu value (F450/F460/etc.) is hard-coded by this release.
 
 # AutoTecPro AI v69024 — Source-Zone Website Knowledge Provenance; v69023 workspace stability + protected Graphic engine preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
@@ -5022,6 +5020,107 @@ def table_to_html(table_lines):
     return "\n".join(html_rows)
 
 
+def _professionalize_customer_reply_draft_v69102(text):
+    """Make only the Customer Reply Draft scan-ready without changing facts.
+
+    Providers occasionally return the entire draft as one quoted wall of text.
+    This display-only pass preserves every word, but separates a greeting,
+    customer-facing sentence groups, and the closing into short blockquote
+    paragraphs.  Content outside the named draft section is byte-preserved.
+    """
+    source = str(text or "")
+    if not source.strip():
+        return source
+    lines = source.splitlines()
+    output = []
+    index = 0
+    heading_re = re.compile(
+        r"^(?P<prefix>#{1,6}\s+|\*\*)"
+        r"(?P<title>Customer Reply(?: Draft)?|Reply to Customer)"
+        r"(?P<suffix>\*\*:?|:?)\s*$",
+        flags=re.I,
+    )
+    while index < len(lines):
+        heading_match = heading_re.match(lines[index].strip())
+        if not heading_match:
+            output.append(lines[index])
+            index += 1
+            continue
+        output.append(lines[index])
+        index += 1
+        body = []
+        while index < len(lines):
+            if re.match(r"^#{1,6}\s+\S", lines[index].strip()):
+                break
+            body.append(lines[index])
+            index += 1
+
+        raw_paragraphs, current = [], []
+        for raw in body:
+            clean = re.sub(r"^>\s?", "", raw.strip()).strip()
+            if not clean:
+                if current:
+                    raw_paragraphs.append(" ".join(current).strip())
+                    current = []
+                continue
+            current.append(clean)
+        if current:
+            raw_paragraphs.append(" ".join(current).strip())
+
+        paragraphs = []
+        for paragraph in raw_paragraphs:
+            greeting = re.match(
+                r"^(?P<greet>(?:Hi|Hello|Dear)\b[^,]{0,80},)\s*(?P<rest>.*)$",
+                paragraph,
+                flags=re.I,
+            )
+            if greeting:
+                paragraphs.append(greeting.group("greet").strip())
+                paragraph = greeting.group("rest").strip()
+            if not paragraph:
+                continue
+            closing = re.search(
+                r"\s+(?P<closing>(?:Best|Kind|Warm) regards,?|Sincerely,?)\s+"
+                r"(?P<signature>AutoTecPro(?: Support| Team)?(?:\s+Team)?)\s*$",
+                paragraph,
+                flags=re.I,
+            )
+            closing_text = ""
+            if closing:
+                closing_text = (
+                    closing.group("closing").strip()
+                    + " " + closing.group("signature").strip()
+                )
+                paragraph = paragraph[:closing.start()].strip()
+            sentences = [
+                item.strip() for item in re.split(
+                    r"(?<=[.!?])\s+(?=[A-Z0-9])", paragraph
+                ) if item.strip()
+            ]
+            if len(sentences) <= 2:
+                if paragraph:
+                    paragraphs.append(paragraph)
+            else:
+                for sentence_index in range(0, len(sentences), 2):
+                    paragraphs.append(
+                        " ".join(sentences[sentence_index:sentence_index + 2])
+                    )
+            if closing_text:
+                paragraphs.append(closing_text)
+
+        while output and not output[-1].strip():
+            output.pop()
+        output.append("")
+        for paragraph in paragraphs:
+            output.append(f"> {paragraph}")
+            output.append("")
+        while output and not output[-1].strip():
+            output.pop()
+        if index < len(lines):
+            output.append("")
+    return "\n".join(output)
+
+
 def normalize_assistant_markdown(text):
     """Repair common AI Markdown layout issues without changing response facts.
 
@@ -5029,7 +5128,9 @@ def normalize_assistant_markdown(text):
     repairs and renumbers inline numbered lists, creates scan-friendly tables in
     structured sections, and preserves the original factual wording.
     """
-    value = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    value = _professionalize_customer_reply_draft_v69102(
+        str(text or "").replace("\r\n", "\n").replace("\r", "\n")
+    )
     normalized_lines = []
 
     for raw_line in value.split("\n"):
@@ -36836,6 +36937,43 @@ RESPONSE PRESENTATION RULES:
   or code fences. Preserve all facts, uncertainty, warnings, and required steps.
 """
 
+def _technical_settings_table_instructions_v69091():
+    """Require a compact settings table without changing retrieval authority."""
+    return """
+
+TECHNICAL CAR MODEL / PROTOCOL / A-C SETTINGS PRESENTATION:
+- Apply this block only when the user asks for a radio Car Model setting,
+  protocol setting, A/C setting, CANBUS setting, or the menu values needed to
+  configure an AutoTecPro unit.
+- After a short descriptive heading and one brief fitment sentence, the first
+  factual block MUST be a compact Markdown table with exactly these columns:
+  | Setting Field | Select |
+- Include every value supported by the active newest Technical evidence. Use
+  these rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
+  Series or Screen Size only when those values are necessary to distinguish
+  the correct configuration.
+- Put one setting in each row. Keep the Select value concise and preserve the
+  exact capitalization, punctuation, spelling, and menu wording found in the
+  evidence.
+- Never invent a value, fill an unknown cell with a guess, or copy a conflicting
+  value from superseded evidence. Omit an unsupported optional row. If a
+  required setting is not confirmed, put **Requires Verification** in that row
+  and explain what must be checked after the table.
+- When the original climate panel changes the correct A/C selection, list the
+  verified choices in the A/C Type row and explain how to choose between them
+  immediately after the table.
+- Follow the table with a short ## Menu Path numbered list when verified setup
+  steps are available. Add ## Important Note only for a material warning,
+  ambiguity, or fitment distinction.
+- Do not repeat the same answer in a second prose block. Do not expose internal
+  evidence conflicts, supersession mechanics, diagnostic labels, or retrieval
+  implementation details to staff.
+- This is a presentation rule only. It does not change evidence ownership,
+  newest-source authority, vehicle/year/product/variant gates, automatic-image
+  recovery, image selection, image publication, or provenance requirements.
+"""
+
+
 @st.cache_data(ttl=3600, max_entries=32, show_spinner=False)
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
@@ -36951,7 +37089,7 @@ sections from the workflow above without forcing unrelated order sections.
 Never invent technical information.
 If documentation is unavailable, clearly say so.
 Do not output HTML or code-fence formatting.
-""" + _workspace_response_formatting_rules()
+""" + _technical_settings_table_instructions_v69091() + _workspace_response_formatting_rules()
 
     if is_sales_workspace(selected_assistant):
         return """
