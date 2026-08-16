@@ -1,4 +1,4 @@
-# AutoTecPro AI v69096 — atomic newest authority + first-turn learned images
+# AutoTecPro AI v69098 — active-package first-turn image hydration
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69097"
+ATP_BUILD_VERSION_V69062 = "v69098"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -115,7 +115,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69093-active-product-runtime-binding+destination-scoped-save+"
     "v69095-ford150-learned-image-identity+"
     "v69096-atomic-newest-authority-first-turn-images+"
-    "v69097-v69050-locked-related-image-publication"
+    "v69097-v69050-locked-related-image-publication+"
+    "v69098-active-package-first-turn-image-hydration"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -59057,7 +59058,23 @@ def _website_durable_payloads_for_supporting_pages_v69045(
         filename = str(row.get("filename") or "").strip()
         file_id = str(row.get("file_id") or "").strip()
         text_value = str(row.get("text") or "")
-        if filename and not filename.startswith("website_"):
+        # v69098: the newest-product runtime binder deliberately replaces the
+        # provider filename with ``active_admin_product_package``.  The row is
+        # still the complete, destination-verified website package (and carries
+        # its exact vector file id/source URL), so rejecting it solely because
+        # the synthetic filename no longer starts with ``website_`` breaks the
+        # first automatic-image turn.  Explicit photo follow-ups worked only
+        # because their fresh file_search rows retained the old filename.
+        # Accept the active row here; the Technical destination marker and exact
+        # canonical source-page checks below remain mandatory.
+        active_package_row_v69098 = bool(
+            row.get("active_product_authority_v69093")
+        )
+        if (
+            filename
+            and not filename.startswith("website_")
+            and not active_package_row_v69098
+        ):
             continue
         explicit_destinations_v69045 = {
             str(value or "").strip()
@@ -59148,7 +59165,18 @@ def _website_bind_exact_supporting_page_payloads_v69047(
     for row in ordered[:16]:
         file_id = str(row.get("file_id") or "").strip()
         filename = str(row.get("filename") or "").strip()
-        if not file_id or (filename and not filename.startswith("website_")):
+        # v69098: see the durable-page bridge above.  Active product rows use a
+        # synthetic filename after newest-authority binding, but are accepted
+        # only when this function re-proves exact Technical ownership and source
+        # page identity from their complete file text.
+        active_package_row_v69098 = bool(
+            row.get("active_product_authority_v69093")
+        )
+        if not file_id or (
+            filename
+            and not filename.startswith("website_")
+            and not active_package_row_v69098
+        ):
             continue
         chunks = [str(row.get("text") or "")]
         combined = chunks[0]
