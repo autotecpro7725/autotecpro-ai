@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69102"
+ATP_BUILD_VERSION_V69062 = "v69103"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -120,7 +120,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69099-precise-classified-role-image-selection+"
     "v69100-dynamic-image-local-topic-authority+"
     "v69101-destination-image-local-authority-and-resumable-save+"
-    "v69102-super-duty-no-sync-console-image-and-professional-draft"
+    "v69102-super-duty-no-sync-console-image-and-professional-draft+"
+    "v69103-newest-admin-package-overrides-compiled-console-default"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -815,9 +816,11 @@ def _technical_bind_console_qa_provenance_v69084(image_records, qa_result):
         if key in {
             "schema_version", "status", "reason_code", "profile_id",
             "authority_source", "physical_vehicle_family",
-            "console_car_model", "manual_ac_selection",
+            "console_car_model", "protocol_selection", "manual_ac_selection",
             "automatic_ac_selection", "shared_screen_sizes",
             "provider_file_search_row_count",
+            "newest_admin_package_bound_v69103",
+            "newest_admin_protocol_status_v69103",
         }
     }
     output = []
@@ -847,10 +850,18 @@ def _observe_live_technical_console_authority_v69084(
     profile = _technical_console_menu_profile_v69084(prompt_text)
     if not profile:
         return
+    qa = dict(qa_result or {})
+    # Runtime attestation must validate the same newest-package values that
+    # factual QA published, not reconstruct the old prompt-only default.
+    for key in (
+        "protocol_selection", "console_car_model", "manual_ac_selection",
+        "automatic_ac_selection", "shared_screen_sizes", "authority_source",
+    ):
+        if qa.get(key):
+            profile[key] = qa.get(key)
     exact_answer, answer_reason = (
         _technical_console_menu_answer_is_exact_v69084(answer_text, profile)
     )
-    qa = dict(qa_result or {})
     factual_pass = bool(
         exact_answer
         and qa.get("status") in {"passed", "corrected"}
@@ -40151,11 +40162,14 @@ def _technical_console_menu_profile_v69084(prompt_text):
     """Return a narrowly scoped, AutoTecPro-confirmed radio-menu profile.
 
     The physical vehicle and the value selected inside an aftermarket radio are
-    separate identities.  v69102 keeps the established 2009-2014 F-150 profile
-    and adds the exact 2009-2016 F-250/F-350/F-450 No-SYNC profile.  The latter
+    separate identities.  v69103 keeps the established 2009-2014 F-150 profile
+    and recognizes the exact 2009-2016 F-250/F-350/F-450 No-SYNC profile.  The latter
     is inferred without an explicit No-SYNC token only for 2009-2012, before the
     overlapping SYNC-2 product range.  A 2013-2016 request must carry verified
     No-SYNC case context, so the existing variant safety gate is not loosened.
+    Its protocol is deliberately not compiled into source: the newest active
+    Admin package is the factual authority and is applied by
+    ``_technical_console_menu_profile_from_rows_v69103``.
     """
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not prompt:
@@ -40216,8 +40230,8 @@ def _technical_console_menu_profile_v69084(prompt_text):
     )
     return {
         "schema_version": 1,
-        "profile_id": "ford_super_duty_no_sync_2009_2016_f450_console_v69102",
-        "authority_source": "autotecpro_confirmed_super_duty_no_sync_profile_v69102",
+        "profile_id": "ford_super_duty_no_sync_2009_2016_f450_console_v69103",
+        "authority_source": "newest_active_admin_package_required_v69103",
         "physical_vehicle_make": "Ford",
         "physical_vehicle_family": physical_label,
         "physical_vehicle_families": sorted(families),
@@ -40225,13 +40239,122 @@ def _technical_console_menu_profile_v69084(prompt_text):
         "request_years": sorted(years),
         "console_make": "Ford",
         "console_car_model": "F450",
-        "protocol_selection": "Simple",
+        # Never restore a historical protocol from application code.  A
+        # reviewed resubmission for this connected product must be able to
+        # replace the previous value immediately.
+        "protocol_selection": "",
         "manual_ac_selection": "F450 LO",
         "automatic_ac_selection": "F450 HI",
         "shared_screen_sizes": ["12.1", "14.4", "17", "17.2"],
         "factory_system": "No-SYNC",
         "source_profile": "super_duty_no_sync_2009_2016",
     }
+
+
+def _technical_console_protocol_candidates_v69103(text_value):
+    """Extract affirmative Protocol field values from reviewed webpage text.
+
+    Only field/table/select syntax is authoritative.  Free prose, nearby image
+    text, and negative statements such as ``do not use Simple`` cannot create a
+    protocol candidate.
+    """
+    text_value = str(text_value or "")
+    if not text_value.strip():
+        return []
+    patterns = (
+        r"(?im)^\s*\|\s*protocol(?:\s+name)?\s*\|\s*\**([^|\r\n*]{2,40})",
+        r"(?im)^\s*(?:[-*]\s*)?protocol(?:\s+name)?\s*[:=\-]\s*\**([A-Za-z][A-Za-z0-9_ /-]{1,38})",
+        r"(?i)\b(?:select|choose|set)\s+(?:the\s+)?protocol\s*(?:to|as|:|=)\s*\**([A-Za-z][A-Za-z0-9_-]{1,30})",
+    )
+    output = []
+    seen = set()
+    for pattern in patterns:
+        for match in re.finditer(pattern, text_value):
+            line_start = text_value.rfind("\n", 0, match.start()) + 1
+            prefix = text_value[line_start:match.start()].casefold()
+            if re.search(r"\b(?:do\s+not|don't|never|incorrect|wrong)\b", prefix):
+                continue
+            candidate = re.sub(
+                r"[\s|*`#]+$", "", str(match.group(1) or "").strip()
+            )
+            candidate = re.split(
+                r"\s+(?:and|then|for|with|before|after|because)\b|[.;,]",
+                candidate,
+                maxsplit=1,
+                flags=re.I,
+            )[0].strip(" -*`|:")
+            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{1,30}", candidate):
+                continue
+            key = candidate.casefold()
+            if key in {
+                "requires", "verification", "unknown", "none", "not", "use",
+                "protocol", "setting", "settings",
+            }:
+                continue
+            if key not in seen:
+                seen.add(key)
+                output.append(candidate)
+    return output
+
+
+def _technical_console_menu_profile_from_rows_v69103(profile, result_rows):
+    """Overlay the newest active Admin package onto a console profile.
+
+    The reviewed ``WEBPAGE TEXT`` section is examined before and independently
+    from image-analysis records.  If the newest package is contradictory, the
+    protocol remains unresolved and the protected QA path fails closed instead
+    of falling back to a historical vector-store record or compiled default.
+    """
+    resolved = dict(profile or {})
+    rows = [
+        dict(row) for row in list(result_rows or [])
+        if isinstance(row, dict)
+        and bool(row.get("active_product_authority_v69093"))
+    ]
+    if not resolved or not rows:
+        return resolved
+
+    candidates = []
+    seen = set()
+    authority_file_ids = []
+    for row in rows[:12]:
+        file_id = str(row.get("file_id") or "").strip()
+        if file_id:
+            authority_file_ids.append(file_id)
+        complete_text = str(
+            row.get("_website_complete_file_text_v69074")
+            or row.get("text")
+            or ""
+        )
+        # The Admin-reviewed page body is factual authority. Image analysis is
+        # retrieval metadata and may describe an older screenshot on the page.
+        reviewed_text = re.split(
+            r"(?im)^WEBSITE IMAGE KNOWLEDGE\s*$", complete_text, maxsplit=1
+        )[0]
+        if re.search(r"(?im)^WEBPAGE TEXT\s*$", reviewed_text):
+            reviewed_text = re.split(
+                r"(?im)^WEBPAGE TEXT\s*$", reviewed_text, maxsplit=1
+            )[-1]
+        for value in _technical_console_protocol_candidates_v69103(reviewed_text):
+            key = value.casefold()
+            if key not in seen:
+                seen.add(key)
+                candidates.append(value)
+
+    resolved["newest_admin_package_bound_v69103"] = True
+    resolved["newest_admin_authority_file_ids_v69103"] = authority_file_ids
+    if len(candidates) == 1:
+        resolved["protocol_selection"] = candidates[0]
+        resolved["authority_source"] = "newest_active_admin_webpage_text_v69103"
+        resolved["newest_admin_protocol_status_v69103"] = "resolved"
+    elif not candidates:
+        resolved["protocol_selection"] = ""
+        resolved["newest_admin_protocol_status_v69103"] = "missing"
+    else:
+        resolved["protocol_selection"] = ""
+        resolved["newest_admin_protocol_status_v69103"] = "conflict"
+        resolved["newest_admin_protocol_candidates_v69103"] = candidates
+    return resolved
 
 
 def _technical_console_menu_canonical_answer_v69084(profile):
@@ -40285,7 +40408,7 @@ def _technical_console_menu_canonical_answer_v69084(profile):
 
 
 def _technical_console_menu_answer_is_exact_v69084(answer_text, profile):
-    """Require Xinbasi plus both climate variants; reject F150 as a menu value."""
+    """Require the current package values; reject stale/physical menu values."""
     answer = re.sub(r"\s+", " ", clean_visible_chat_text(
         str(answer_text or "")
     )).strip().casefold()
@@ -40306,6 +40429,12 @@ def _technical_console_menu_answer_is_exact_v69084(answer_text, profile):
     protocol = str(
         (profile or {}).get("protocol_selection") or ""
     ).casefold()
+    if not protocol and (
+        str((profile or {}).get("source_profile") or "")
+        == "super_duty_no_sync_2009_2016"
+        or bool((profile or {}).get("newest_admin_package_bound_v69103"))
+    ):
+        return False, "NEWEST_PROTOCOL_AUTHORITY_UNAVAILABLE"
     wrong_menu_patterns = (
         r"\bf[-\s]?150\s+(?:hi|lo)\b",
         r"(?:car\s*model|a\s*/?\s*c\s*model|menu\s*(?:value|profile))"
@@ -40320,7 +40449,14 @@ def _technical_console_menu_answer_is_exact_v69084(answer_text, profile):
     if any(value not in answer for value in required):
         return False, "REQUIRED_CONSOLE_VALUES_MISSING"
     if protocol and protocol not in answer:
-        return False, "PROTOCOL_XINBASI_MISSING"
+        return False, "REQUIRED_PROTOCOL_MISSING"
+    answer_protocols = _technical_console_protocol_candidates_v69103(
+        clean_visible_chat_text(str(answer_text or ""))
+    )
+    if protocol and answer_protocols and any(
+        value.casefold() != protocol for value in answer_protocols
+    ):
+        return False, "CONFLICTING_PROTOCOL_VALUE"
     required_sizes = [
         str(value).casefold() for value in list(
             (profile or {}).get("shared_screen_sizes") or []
@@ -40349,13 +40485,22 @@ def _technical_console_menu_factual_qa_v69084(
             "status": "not_applicable",
             "reason_code": "NO_MATCHING_CONSOLE_PROFILE",
         }
+    rows = [row for row in list(result_rows or []) if isinstance(row, dict)]
+    profile = _technical_console_menu_profile_from_rows_v69103(profile, rows)
     exact, reason = _technical_console_menu_answer_is_exact_v69084(
         answer, profile
     )
-    rows = [row for row in list(result_rows or []) if isinstance(row, dict)]
+    protocol_resolved = bool(str(profile.get("protocol_selection") or "").strip())
+    protected_unresolved = bool(not protocol_resolved and (
+        str(profile.get("source_profile") or "")
+        == "super_duty_no_sync_2009_2016"
+        or bool(profile.get("newest_admin_package_bound_v69103"))
+    ))
     qa = {
         "schema_version": 1,
-        "status": "passed" if exact else "corrected",
+        "status": (
+            "passed" if exact else "limited" if protected_unresolved else "corrected"
+        ),
         "reason_code": reason,
         "profile_id": profile.get("profile_id"),
         "authority_source": profile.get("authority_source"),
@@ -40366,6 +40511,12 @@ def _technical_console_menu_factual_qa_v69084(
         "automatic_ac_selection": profile.get("automatic_ac_selection"),
         "shared_screen_sizes": list(profile.get("shared_screen_sizes") or []),
         "provider_file_search_row_count": len(rows),
+        "newest_admin_package_bound_v69103": bool(
+            profile.get("newest_admin_package_bound_v69103")
+        ),
+        "newest_admin_protocol_status_v69103": str(
+            profile.get("newest_admin_protocol_status_v69103") or ""
+        ),
     }
     corrected = answer if exact else _technical_console_menu_canonical_answer_v69084(
         profile
@@ -58209,6 +58360,9 @@ def _technical_console_menu_legacy_image_records_v69085(
     if str(assistant or "") != "🔧 Technical Support":
         return []
     profile = _technical_console_menu_profile_v69084(prompt_text)
+    profile = _technical_console_menu_profile_from_rows_v69103(
+        profile, result_rows
+    )
     exact_answer, _reason = _technical_console_menu_answer_is_exact_v69084(
         answer_text, profile
     )
@@ -75963,15 +76117,32 @@ else:
 
         if assistant == "🔧 Technical Support" and str(answer or "").strip():
             provider_answer_before_qa_v69084 = str(answer or "")
+            technical_factual_rows_v69103 = list(
+                st.session_state.get("_technical_file_search_results_v69012")
+                or []
+            )
+            technical_factual_rows_v69103.extend(
+                list(locals().get("technical_image_prefetch_cached_rows_v69016") or [])
+            )
+            technical_factual_rows_v69103.extend(
+                list(locals().get("turn_active_product_rows_v69094") or [])
+            )
+            active_technical_factual_rows_v69103 = [
+                dict(row) for row in technical_factual_rows_v69103
+                if isinstance(row, dict)
+                and bool(row.get("active_product_authority_v69093"))
+            ]
+            if active_technical_factual_rows_v69103:
+                # Once the newest connected-product package is bound, stale
+                # ordinary rows cannot influence either factual QA or images.
+                technical_factual_rows_v69103 = (
+                    active_technical_factual_rows_v69103
+                )
             answer, technical_factual_qa_v69084 = (
                 _technical_console_menu_factual_qa_v69084(
                     technical_image_request_prompt_v69079,
                     answer,
-                    list(
-                        st.session_state.get(
-                            "_technical_file_search_results_v69012"
-                        ) or []
-                    ),
+                    technical_factual_rows_v69103,
                 )
             )
             if answer != provider_answer_before_qa_v69084:
