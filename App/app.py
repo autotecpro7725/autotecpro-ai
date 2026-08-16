@@ -1,4 +1,4 @@
-# AutoTecPro AI v69099 — precise classified-role image selection
+# AutoTecPro AI v69101 — destination image-local authority + resumable website saves
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69099"
+ATP_BUILD_VERSION_V69062 = "v69101"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -117,7 +117,9 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69096-atomic-newest-authority-first-turn-images+"
     "v69097-v69050-locked-related-image-publication+"
     "v69098-active-package-first-turn-image-hydration+"
-    "v69099-precise-classified-role-image-selection"
+    "v69099-precise-classified-role-image-selection+"
+    "v69100-dynamic-image-local-topic-authority+"
+    "v69101-destination-image-local-authority-and-resumable-save"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -10927,9 +10929,20 @@ def _wait_for_vector_store_file(
                 return "completed"
             if status in {"failed", "cancelled"}:
                 error_value = getattr(record, "last_error", None)
-                raise RuntimeError(
+                terminal_error_v69101 = RuntimeError(
                     f"OpenAI indexing {status}: {error_value or 'unknown error'}"
                 )
+                setattr(
+                    terminal_error_v69101,
+                    "vector_index_terminal_failure_v69101",
+                    True,
+                )
+                setattr(
+                    terminal_error_v69101,
+                    "vector_index_status_v69101",
+                    status,
+                )
+                raise terminal_error_v69101
         except TypeError:
             # Older SDK compatibility: attachment succeeded but this SDK does
             # not expose the same retrieve signature.
@@ -52650,6 +52663,41 @@ def _knowledge_product_remove_prior_image_rows_v69090(prior_rows, active_authori
     return {"removed": removed, "pending_row_ids": pending, "completed": not pending}
 
 
+def _knowledge_product_authority_manifest_checked_v69101(
+    database_choice, authority
+):
+    """Read one authority manifest without converting provider failure to empty.
+
+    The legacy reader is intentionally best-effort for chat. A save transaction
+    cannot use that behavior: treating a failed read as "no row" can insert a
+    duplicate manifest or report success without proving newest-authority state.
+    """
+    issue = _knowledge_product_authority_issue_v69090(database_choice, authority)
+    if not issue or issue.endswith(":"):
+        return {}
+    rows = (
+        supabase.table("learned_knowledge")
+        .select("id,solution,approved_answer,updated_at")
+        .eq("source_type", KNOWLEDGE_PRODUCT_AUTHORITY_SOURCE_V69090)
+        .eq("issue", issue)
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    if not rows:
+        return {}
+    raw = str(rows[0].get("solution") or rows[0].get("approved_answer") or "")
+    if raw.startswith(KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090):
+        raw = raw[len(KNOWLEDGE_PRODUCT_AUTHORITY_PREFIX_V69090):]
+    payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise RuntimeError("Product authority manifest is not a JSON object.")
+    payload["_row_id_v69090"] = rows[0].get("id")
+    return payload
+
+
 def _knowledge_product_authority_commit_v69090(
     database_choice, authority, *, file_ids, source_type, source_name
 ):
@@ -52658,7 +52706,26 @@ def _knowledge_product_authority_commit_v69090(
     clean_ids = sorted({str(value or "").strip() for value in (file_ids or []) if str(value or "").strip()})
     if not product_id or not clean_ids:
         raise RuntimeError("Product authority cannot activate without a product identity and completed vector files.")
-    prior = _knowledge_product_authority_manifest_v69090(database_choice, authority)
+    def read_manifest_v69101():
+        last_error_v69101 = None
+        for attempt_v69101 in range(3):
+            try:
+                return _knowledge_product_authority_manifest_checked_v69101(
+                    database_choice, authority
+                )
+            except Exception as error_v69101:
+                last_error_v69101 = error_v69101
+                if (
+                    not _website_transient_provider_error_v69082(error_v69101)
+                    or attempt_v69101 >= 2
+                ):
+                    raise
+                time.sleep(0.20 * (2 ** attempt_v69101))
+        raise last_error_v69101 or RuntimeError(
+            "Product authority manifest read did not complete."
+        )
+
+    prior = read_manifest_v69101()
     payload = {
         "schema_version": 1,
         "database_choice": str(database_choice or ""),
@@ -52693,18 +52760,97 @@ def _knowledge_product_authority_commit_v69090(
         "updated_at": now_iso(),
     }
     clean_row = filter_payload_for_table("learned_knowledge", row)
-    row_id = prior.get("_row_id_v69090")
-    if row_id:
-        result = (
-            supabase.table("learned_knowledge")
-            .update(clean_row)
-            .eq("id", row_id)
-            .execute()
+    # These columns are not optional for authority. The generic schema helper's
+    # conservative fallback omits them when its RPC is temporarily unavailable;
+    # silently dropping one made a save appear successful while the new package
+    # could not override the old one. The existing authority query already
+    # requires these columns, so fail explicitly if the deployed schema lacks one.
+    for required_key_v69101 in (
+        "issue", "source_type", "solution", "approved_answer", "updated_at"
+    ):
+        clean_row[required_key_v69101] = row[required_key_v69101]
+
+    last_error_v69101 = None
+    verified_v69101 = {}
+    for attempt_v69101 in range(3):
+        row_id = str(prior.get("_row_id_v69090") or "").strip()
+        try:
+            if row_id:
+                result = (
+                    supabase.table("learned_knowledge")
+                    .update(clean_row)
+                    .eq("id", row_id)
+                    .execute()
+                )
+            else:
+                result = (
+                    supabase.table("learned_knowledge")
+                    .insert(clean_row)
+                    .execute()
+                )
+            if result is None:
+                raise RuntimeError(
+                    "Product authority activation returned no persistence result."
+                )
+        except Exception as error_v69101:
+            last_error_v69101 = error_v69101
+            # A response can be interrupted after Postgres commits. Read back
+            # before retrying so an uncertain insert never creates a duplicate.
+            try:
+                verified_v69101 = read_manifest_v69101()
+            except Exception:
+                raise error_v69101
+            if (
+                sorted(verified_v69101.get("active_file_ids") or []) == clean_ids
+                and str(verified_v69101.get("database_choice") or "")
+                == str(database_choice or "")
+            ):
+                break
+            if (
+                not _website_transient_provider_error_v69082(error_v69101)
+                or attempt_v69101 >= 2
+            ):
+                raise
+            prior = verified_v69101
+            time.sleep(0.25 * (2 ** attempt_v69101))
+            continue
+
+        # A write response is not authority proof. Verify the exact active file
+        # set from durable storage before old vectors can be detached.
+        for verify_attempt_v69101 in range(3):
+            verified_v69101 = read_manifest_v69101()
+            if (
+                sorted(verified_v69101.get("active_file_ids") or []) == clean_ids
+                and str(verified_v69101.get("database_choice") or "")
+                == str(database_choice or "")
+            ):
+                break
+            time.sleep(0.18 * (verify_attempt_v69101 + 1))
+        if (
+            sorted(verified_v69101.get("active_file_ids") or []) == clean_ids
+            and str(verified_v69101.get("database_choice") or "")
+            == str(database_choice or "")
+        ):
+            break
+        last_error_v69101 = RuntimeError(
+            "Product authority activation could not be verified after write."
         )
+        # Do not issue a second insert after a successful response. A delayed
+        # read must be retried by the idempotent outer save instead.
+        raise last_error_v69101
     else:
-        result = safe_insert_row("learned_knowledge", clean_row)
-    if result is None:
-        raise RuntimeError("Product authority activation could not be persisted.")
+        raise last_error_v69101 or RuntimeError(
+            "Product authority activation could not be persisted."
+        )
+
+    if not (
+        sorted(verified_v69101.get("active_file_ids") or []) == clean_ids
+        and str(verified_v69101.get("database_choice") or "")
+        == str(database_choice or "")
+    ):
+        raise last_error_v69101 or RuntimeError(
+            "Product authority activation verification failed."
+        )
     diagnostic_log(
         "product_authority_activated_v69090",
         destination=str(database_choice or ""),
@@ -55866,82 +56012,21 @@ def _website_image_universal_relation_score_v69014(
     ):
         return -1250.0
 
-    query_role = _website_image_query_role_v68884(prompt_text)
-    if query_role:
-        if not _website_image_final_payload_gate_v68885(prompt_text, payload):
-            return -1000.0
-        base = _website_image_rank_v68883(prompt_text, payload)
-    else:
-        base = 0.0
-
-    exact_subtitle_pass_v69080, exact_subtitle_score_v69080, _ = (
-        _website_image_exact_subtitle_relation_v69080(
+    relation_pass, relation_score, _relation_reason = (
+        _website_image_local_structured_relation_v69082(
             prompt_text, answer_text, payload
         )
     )
+    if not relation_pass:
+        return -700.0
 
-    prompt_tokens = set(_website_image_tokens_v68883(prompt_text))
-    answer_tokens = set(_website_image_tokens_v68883(answer_text))
-    section_text = " ".join((
-        str(payload.get("section_subtitle_v69067") or ""),
-        str(payload.get("section_heading") or ""),
-        str(payload.get("nearby_instruction_text") or ""),
-        str(payload.get("caption") or ""),
-        str(payload.get("visual_analysis") or ""),
-    ))
-    section_tokens = set(_website_image_tokens_v68883(section_text))
-    heading_tokens = set(_website_image_tokens_v68883(payload.get("section_heading") or ""))
-    subtitle_tokens_v69080 = set(_website_image_tokens_v68883(
-        payload.get("section_subtitle_v69067") or ""
-    ))
-
-    prompt_overlap = prompt_tokens & section_tokens
-    answer_overlap = answer_tokens & section_tokens
-    heading_prompt_overlap = prompt_tokens & heading_tokens
-    heading_answer_overlap = answer_tokens & heading_tokens
-    subtitle_prompt_overlap_v69080 = prompt_tokens & subtitle_tokens_v69080
-    subtitle_answer_overlap_v69080 = answer_tokens & subtitle_tokens_v69080
-
-    # Page/source metadata is fitment evidence, never enough by itself to prove
-    # image relevance. A candidate needs section-local relationship evidence.
-    if not section_tokens:
-        return -800.0
-    if query_role:
-        if (
-            not exact_subtitle_pass_v69080
-            and not prompt_overlap
-            and len(answer_overlap) < 2
-        ):
-            return -700.0
-    else:
-        # Universal/new topics need stronger section-local proof than a generic
-        # verb such as "connect". Require either two direct question concepts,
-        # or a heading concept plus supporting overlap with the actual answer.
-        if not exact_subtitle_pass_v69080 and not (
-            len(prompt_overlap) >= 2
-            or (len(heading_prompt_overlap) >= 1 and len(answer_overlap) >= 2)
-        ):
-            return -700.0
-
-    score = float(base)
-    score += 6.0 * len(prompt_overlap)
-    score += 1.5 * min(len(answer_overlap), 12)
-    score += 4.0 * len(heading_prompt_overlap)
-    score += 2.0 * min(len(heading_answer_overlap), 6)
-    score += 5.0 * len(subtitle_prompt_overlap_v69080)
-    score += 2.0 * min(len(subtitle_answer_overlap_v69080), 6)
-    if exact_subtitle_pass_v69080:
-        score += float(exact_subtitle_score_v69080)
+    # Vector relevance may rank candidates that already passed image-local
+    # authority, but it can never create that authority.  In particular,
+    # section_heading and nearby_instruction_text are absent from this decision.
+    score = float(relation_score)
     score += max(0.0, min(float(file_score or 0.0), 1.0)) * 10.0
-
-    # Strong phrase alignment between the question/answer and section heading is
-    # particularly useful for new topics that have never been hard-coded.
-    heading = re.sub(r"\s+", " ", str(payload.get("section_heading") or "")).strip().casefold()
-    combined = re.sub(r"\s+", " ", (str(prompt_text or "") + " " + str(answer_text or ""))).casefold()
-    heading_words = [w for w in _website_image_tokens_v68883(heading) if len(w) >= 4]
-    if heading_words and sum(1 for w in heading_words if w in combined) >= min(2, len(heading_words)):
-        score += 10.0
-
+    if bool(payload.get("subtitle_exact_image_binding_v69073")):
+        score += 8.0
     return score
 
 
@@ -55994,6 +56079,11 @@ def _website_image_relation_signature_v69080(value):
         "models": "model", "protocols": "protocol",
         "applications": "app", "application": "app", "apps": "app",
         "radios": "radio", "logos": "logo", "buttons": "button",
+        "diagrams": "diagram", "adapters": "adapter",
+        "plugs": "connector", "pinouts": "pinout",
+        "microphones": "microphone", "amplifiers": "amplifier",
+        "amps": "amplifier", "speakers": "speaker",
+        "dates": "date", "times": "time", "gps": "navigation",
     }
     stop = {
         "what", "whats", "which", "where", "when", "why", "how", "does",
@@ -56009,6 +56099,115 @@ def _website_image_relation_signature_v69080(value):
         if token and token not in stop:
             output.add(token)
     return output
+
+
+def _website_image_prompt_topic_signature_v69100(prompt_text):
+    """Return the inquiry topic after removing fitment/product identity.
+
+    v69100 deliberately keeps arbitrary technical nouns.  This is what lets a
+    newly learned subtitle such as ``Mini USB LVDS Adapter`` or ``Time and Date
+    Setup`` participate without adding another hard-coded category.  Vehicle,
+    year, product code, finish/variant, and common request boilerplate are not
+    topic evidence.
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return set()
+    prompt_signature = _website_image_relation_signature_v69080(prompt)
+    identity_text = " ".join(
+        list(_website_identity_brand_set_v69022(prompt))
+        + list(_website_identity_vehicle_families_v69022(prompt))
+        + [str(year) for year in sorted(_website_identity_years_v69022(prompt))]
+        + sorted(_website_image_product_codes_v69020(prompt))
+        + sorted(_technical_product_variants_v69077(prompt))
+    )
+    identity_signature = _website_image_relation_signature_v69080(identity_text)
+    size_tokens = set(re.findall(
+        r"\b(?:7|8|9|10\.1|10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|"
+        r"15\.1|15\.6|17|17\.2)\b",
+        prompt.casefold(),
+    ))
+    boilerplate = {
+        "autotecpro", "tesla", "style", "technical", "support",
+        "inquiry", "information",
+    }
+    return prompt_signature - identity_signature - size_tokens - boilerplate
+
+
+def _website_image_weak_topic_tokens_v69100():
+    """Tokens that cannot prove a new image topic on their own."""
+    return {
+        "car", "carmodel", "model", "vehicle", "product", "system", "unit",
+        "screen", "display", "radio", "setting", "install", "technical",
+        "support", "factory", "original", "android", "style",
+    }
+
+
+def _website_image_local_evidence_v69100(payload):
+    """Extract publication evidence owned by the image itself.
+
+    Section headings and nearby prose are intentionally absent.  They remain
+    useful for vector retrieval, but v69100 never lets them authorize display.
+    The accepted sources are an image's exact/local subtitle, its own caption or
+    asset name, visual analysis, and structured visual-QA fields.
+    """
+    if not isinstance(payload, dict):
+        return {
+            "subtitle": set(), "caption": set(), "visual": set(),
+            "structured": set(), "asset": set(), "union": set(),
+            "has_visual_qa": False, "relationship": "",
+        }
+
+    subtitle = re.sub(
+        r"\s+", " ", str(payload.get("section_subtitle_v69067") or "")
+    ).strip()
+    heading = re.sub(
+        r"\s+", " ", str(payload.get("section_heading") or "")
+    ).strip()
+    caption = re.sub(
+        r"\s+", " ", str(payload.get("caption") or "")
+    ).strip()
+    # Some legacy chat reconstructions used the broad section heading as the
+    # display name.  Do not let that round-trip back in disguised as a caption.
+    if caption and heading and caption.casefold() == heading.casefold():
+        caption = ""
+
+    visual = re.sub(
+        r"\s+", " ", str(payload.get("visual_analysis") or "")
+    ).strip()
+    structured = _website_image_structured_metadata_v69022(payload)
+    visible_text = structured.get("visible_text") or []
+    if not isinstance(visible_text, list):
+        visible_text = [visible_text]
+    structured_text = " ".join(
+        [
+            str(structured.get("visual_summary") or ""),
+            str(structured.get("topic") or ""),
+            str(structured.get("system_or_variant") or ""),
+        ]
+        + [str(value or "") for value in visible_text]
+    )
+    image_url = str(payload.get("image_url") or "").strip()
+    try:
+        asset_text = unquote(urlparse(image_url).path.rsplit("/", 1)[-1])
+    except Exception:
+        asset_text = image_url.rsplit("/", 1)[-1]
+
+    signatures = {
+        "subtitle": _website_image_relation_signature_v69080(subtitle),
+        "caption": _website_image_relation_signature_v69080(caption),
+        "visual": _website_image_relation_signature_v69080(visual),
+        "structured": _website_image_relation_signature_v69080(structured_text),
+        "asset": _website_image_relation_signature_v69080(asset_text),
+    }
+    signatures["union"] = set().union(*signatures.values())
+    signatures["has_visual_qa"] = bool(visual or structured_text.strip())
+    signatures["relationship"] = str(
+        payload.get("image_relationship_v69017")
+        or structured.get("relationship")
+        or ""
+    ).strip().casefold()
+    return signatures
 
 
 def _website_image_exact_subtitle_relation_v69080(
@@ -56044,58 +56243,46 @@ def _website_image_exact_subtitle_relation_v69080(
         return False, 0.0, "EMPTY_PROMPT"
 
     query_role = _website_image_query_role_v68884(prompt)
-    if query_role:
-        # Classified roles (camera type, wiring type, Car Model/A-C, and so on)
-        # may not use the generic subtitle bridge to bypass their strict role and
-        # visual-state authority.
-        if not _website_image_final_payload_gate_v68885(prompt, payload):
-            return False, 0.0, "CLASSIFIED_ROLE_GATE_REJECTED"
-        role_score = max(
-            0.0, float(_website_image_role_score_v68884(query_role, payload))
-        )
-        return True, 80.0 + min(role_score, 40.0), "CLASSIFIED_EXACT_SUBTITLE"
-
-    prompt_signature = _website_image_relation_signature_v69080(prompt)
     answer_signature = _website_image_relation_signature_v69080(answer)
     subtitle_signature = _website_image_relation_signature_v69080(subtitle)
-    if not prompt_signature or not subtitle_signature:
+    prompt_topic = _website_image_prompt_topic_signature_v69100(prompt)
+    if not prompt_topic or not subtitle_signature:
         return False, 0.0, "EMPTY_TOPIC_SIGNATURE"
-
-    identity_text = " ".join(
-        list(_website_identity_brand_set_v69022(prompt))
-        + list(_website_identity_vehicle_families_v69022(prompt))
-        + [str(year) for year in sorted(_website_identity_years_v69022(prompt))]
-        + sorted(_website_image_product_codes_v69020(prompt))
-        + sorted(_technical_product_variants_v69077(prompt))
-    )
-    identity_signature = _website_image_relation_signature_v69080(identity_text)
-    size_tokens = set(re.findall(
-        r"\b(?:7|8|9|10\.1|10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|"
-        r"15\.1|15\.6|17\.2)\b",
-        prompt.casefold(),
-    ))
-    prompt_topic = prompt_signature - identity_signature - size_tokens
 
     # These words are meaningful for classified roles, but too broad to prove a
     # brand-new subtitle topic by themselves.  A pair may still establish a
     # relationship (for example, "factory radio" or "screen setting").
-    weak = {
-        "car", "carmodel", "model", "vehicle", "product", "system", "unit",
-        "screen", "display", "radio", "setting", "install", "technical",
-        "support", "factory", "original", "android", "style",
-    }
+    weak = _website_image_weak_topic_tokens_v69100()
     direct = prompt_topic & subtitle_signature
     strong_direct = direct - weak
     answer_to_subtitle = answer_signature & subtitle_signature
     prompt_to_answer = prompt_topic & answer_signature
     strong_answer_bridge = (answer_to_subtitle - weak)
 
-    direct_pass = bool(strong_direct) or len(direct) >= 2
+    direct_pass = (
+        bool(direct) if query_role
+        else bool(strong_direct) or len(direct) >= 2
+    )
     answer_bridge_pass = bool(
-        prompt_to_answer and len(strong_answer_bridge) >= 2
+        direct and prompt_to_answer and len(strong_answer_bridge) >= 2
     )
     if not (direct_pass or answer_bridge_pass):
         return False, 0.0, "SUBTITLE_TOPIC_NOT_RELATED"
+
+    if query_role:
+        # A classified image must pass its established vehicle/section/visual
+        # authority *and* match its own exact subtitle.  Nearby prose alone no
+        # longer turns an unrelated exact-bound image into a role match.
+        if not _website_image_final_payload_gate_v68885(prompt, payload):
+            return False, 0.0, "CLASSIFIED_ROLE_GATE_REJECTED"
+        role_score = max(
+            0.0, float(_website_image_role_score_v68884(query_role, payload))
+        )
+        return (
+            True,
+            80.0 + min(role_score, 40.0) + 8.0 * len(direct),
+            "CLASSIFIED_EXACT_SUBTITLE",
+        )
 
     score = (
         55.0
@@ -56107,7 +56294,8 @@ def _website_image_exact_subtitle_relation_v69080(
 
 
 def _website_image_local_structured_relation_v69082(
-    prompt_text, answer_text, payload
+    prompt_text, answer_text, payload,
+    allow_legacy_classified_v69100=False,
 ):
     """Prove image-local topic relevance for old and new learned packages.
 
@@ -56117,8 +56305,8 @@ def _website_image_local_structured_relation_v69082(
     a short bold label that was not in the old hard-coded subtitle vocabulary.
 
     It never treats a page URL/title as image authority.  The relationship must be
-    present in the image-local subtitle, heading, caption, structured visual QA, or
-    visual analysis.  Classified/high-risk roles must still pass the complete
+    present in the image-local subtitle, caption, asset name, structured visual QA,
+    or visual analysis.  Classified/high-risk roles must still pass the complete
     v68885 role/visual gate.  Callers continue to enforce destination ownership,
     vehicle, year, product, answer conflict and final publication gates.
     """
@@ -56144,62 +56332,67 @@ def _website_image_local_structured_relation_v69082(
         return False, 0.0, "EMPTY_PROMPT"
 
     query_role = _website_image_query_role_v68884(prompt)
-    if query_role and not _website_image_final_payload_gate_v68885(
-        prompt, payload
+    strict_role_pass = bool(
+        not query_role
+        or _website_image_final_payload_gate_v68885(prompt, payload)
+    )
+    if query_role and not strict_role_pass and not bool(
+        allow_legacy_classified_v69100
     ):
         return False, 0.0, "CLASSIFIED_ROLE_GATE_REJECTED"
 
-    structured = _website_image_structured_metadata_v69022(payload)
-    structured_text = json.dumps(
-        structured, ensure_ascii=False, sort_keys=True, default=str
-    ) if structured else ""
-    anchor_text = " ".join((
-        str(payload.get("section_subtitle_v69067") or ""),
-        str(payload.get("section_heading") or ""),
-        str(payload.get("caption") or ""),
-        str(payload.get("visual_analysis") or ""),
-        structured_text,
-    ))
-    anchor_signature = _website_image_relation_signature_v69080(anchor_text)
+    local = _website_image_local_evidence_v69100(payload)
+    anchor_signature = set(local.get("union") or set())
     if not anchor_signature:
         return False, 0.0, "NO_IMAGE_LOCAL_TOPIC_EVIDENCE"
 
-    prompt_signature = _website_image_relation_signature_v69080(prompt)
     answer_signature = _website_image_relation_signature_v69080(answer)
-    identity_text = " ".join(
-        list(_website_identity_brand_set_v69022(prompt))
-        + list(_website_identity_vehicle_families_v69022(prompt))
-        + [str(year) for year in sorted(_website_identity_years_v69022(prompt))]
-        + sorted(_website_image_product_codes_v69020(prompt))
-        + sorted(_technical_product_variants_v69077(prompt))
-    )
-    identity_signature = _website_image_relation_signature_v69080(identity_text)
-    size_tokens = set(re.findall(
-        r"\b(?:7|8|9|10\.1|10\.4|12\.1|13\.6|13\.8|14\.4|14\.46|"
-        r"15\.1|15\.6|17\.2)\b",
-        prompt.casefold(),
-    ))
-    prompt_topic = prompt_signature - identity_signature - size_tokens
-    weak = {
-        "car", "carmodel", "model", "vehicle", "product", "system", "unit",
-        "screen", "display", "radio", "setting", "install", "technical",
-        "support", "factory", "original", "android", "style",
-    }
+    prompt_topic = _website_image_prompt_topic_signature_v69100(prompt)
+    weak = _website_image_weak_topic_tokens_v69100()
+
+    # A v69050-era classified record can lack today's section metadata.  Its
+    # compatibility path is retained only when the role is proved by caption,
+    # filename, or visual QA.  A non-exact subtitle is not enough in this mode.
+    if query_role and not strict_role_pass:
+        legacy_signature = set().union(
+            set(local.get("caption") or set()),
+            set(local.get("visual") or set()),
+            set(local.get("structured") or set()),
+            set(local.get("asset") or set()),
+        )
+        if not legacy_signature:
+            return False, 0.0, "LEGACY_CLASSIFIED_NO_IMAGE_LOCAL_EVIDENCE"
+        if not _website_image_visual_state_gate_v68885(prompt, payload):
+            return False, 0.0, "LEGACY_CLASSIFIED_VISUAL_REJECTED"
+        anchor_signature = legacy_signature
+
     direct = prompt_topic & anchor_signature
     strong_direct = direct - weak
     answer_bridge = (answer_signature & anchor_signature) - weak
 
     if query_role:
-        if not _website_image_section_role_match_v68890(query_role, payload):
-            return False, 0.0, "CLASSIFIED_LOCAL_ROLE_NOT_RELATED"
-        role_score = max(
-            0.0, float(_website_image_role_score_v68884(query_role, payload))
+        if not direct:
+            return False, 0.0, "CLASSIFIED_IMAGE_LOCAL_TOPIC_NOT_RELATED"
+        reason = (
+            "CLASSIFIED_LOCAL_STRUCTURED"
+            if strict_role_pass else "CLASSIFIED_LEGACY_IMAGE_LOCAL"
         )
-        return True, 62.0 + min(role_score, 36.0), "CLASSIFIED_LOCAL_STRUCTURED"
+        return True, 62.0 + 10.0 * len(direct), reason
+
+    if not prompt_topic:
+        relationship = str(local.get("relationship") or "")
+        generic_visual = _website_image_explicit_visual_request_v68888(prompt)
+        if (
+            generic_visual
+            and bool(local.get("has_visual_qa"))
+            and relationship not in {"unrelated"}
+        ):
+            return True, 24.0, "GENERIC_VISUAL_LOCAL_EVIDENCE"
+        return False, 0.0, "EMPTY_DYNAMIC_TOPIC"
 
     direct_pass = bool(strong_direct) or len(direct) >= 2
     bridge_pass = bool(
-        prompt_topic & answer_signature and len(answer_bridge) >= 2
+        direct and prompt_topic & answer_signature and len(answer_bridge) >= 2
     )
     if not (direct_pass or bridge_pass):
         return False, 0.0, "LOCAL_TOPIC_NOT_RELATED"
@@ -56207,10 +56400,7 @@ def _website_image_local_structured_relation_v69082(
     confidence = _website_safe_float_v69067(
         payload.get("context_confidence_v69067"), 0.0
     )
-    has_visual_qa = bool(
-        str(payload.get("visual_analysis") or "").strip()
-        or structured
-    )
+    has_visual_qa = bool(local.get("has_visual_qa"))
     if confidence < 0.55 and not has_visual_qa:
         return False, 0.0, "LOCAL_RELATION_NOT_VERIFIED"
 
@@ -56236,7 +56426,9 @@ def _website_image_dedicated_search_query_v69014(prompt_text, answer_text=""):
         "Use file_search to find learned AutoTecPro source files/sections containing one or more "
         "images directly related to the Technical answer below. This is UNIVERSAL: do not require "
         "a predefined topic such as car model, camera, harness, audio, climate, or wiring. Match the "
-        "exact section/nearby instructions that support the answer. Prefer records containing "
+        "exact image-local subtitle/caption/visual evidence that supports the answer. "
+        "Nearby instructions may help retrieve a file but MUST NOT authorize an image. "
+        "Prefer records containing "
         "AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, SECTION_SUBTITLE_V69067, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
         "ATP_WEB_IMAGE_JSON, or legacy raw HTML <img> tags inside that same relevant section. "
         "Do not select an image merely because it is on the same vehicle page. Do not broaden to "
@@ -57177,6 +57369,24 @@ def _website_image_final_authority_v68885(
         "aftermarket_camera", "dashboard_fitment", "wiring_diagram",
         "wiring_connection", "harness", "power_harness",
     }
+    technical_local_guard_v69100 = (
+        str(globals().get("assistant") or "") == "🔧 Technical Support"
+    )
+
+    def technical_local_relation_v69100(image_record):
+        if not technical_local_guard_v69100:
+            return True, 0.0, "NON_TECHNICAL_UNCHANGED"
+        payload = _website_image_payload_for_chat_record_v69005(image_record)
+        if not payload:
+            payload = _website_model_control_payload_v69010(image_record)
+        if not payload:
+            return False, 0.0, "IMAGE_LOCAL_PAYLOAD_UNAVAILABLE"
+        return _website_image_local_structured_relation_v69082(
+            effective_prompt_v69020,
+            answer_text,
+            payload,
+            allow_legacy_classified_v69100=True,
+        )
 
     # v69021: precedence comes only from deterministic candidates that survive
     # every current authority. Reference-tier deterministic images do not exclude
@@ -57184,6 +57394,11 @@ def _website_image_final_authority_v68885(
     surviving_exact_deterministic_keys = set()
     for item in deterministic_images:
         if not _website_model_control_gate_v68885(effective_prompt_v69020, item):
+            continue
+        local_pass_v69100, _local_score_v69100, _local_reason_v69100 = (
+            technical_local_relation_v69100(item)
+        )
+        if not local_pass_v69100:
             continue
         if not _website_image_resolved_record_gate_v69022(
             effective_prompt_v69020, answer_text, item
@@ -57221,6 +57436,15 @@ def _website_image_final_authority_v68885(
 
         if not _website_model_control_gate_v68885(effective_prompt_v69020, image):
             continue
+        local_pass_v69100, local_score_v69100, local_reason_v69100 = (
+            technical_local_relation_v69100(image)
+        )
+        if not local_pass_v69100:
+            diagnostic_log(
+                "technical_image_local_publication_rejected_v69100",
+                reason_code=str(local_reason_v69100 or "LOCAL_TOPIC_REJECTED"),
+            )
+            continue
         if not _website_image_resolved_record_gate_v69022(
             effective_prompt_v69020, answer_text, image
         ):
@@ -57245,6 +57469,15 @@ def _website_image_final_authority_v68885(
             image = dict(image)
             image["website_publication_tier_v69021"] = "exact_instructional"
             image["website_reference_only_v69021"] = False
+        if technical_local_guard_v69100:
+            image = dict(image)
+            image["website_dynamic_local_authority_v69100"] = True
+            image["website_dynamic_local_reason_v69100"] = str(
+                local_reason_v69100 or "IMAGE_LOCAL_TOPIC_RELATED"
+            )
+            image["website_dynamic_local_score_v69100"] = round(
+                float(local_score_v69100 or 0.0), 3
+            )
 
         if key and key in seen:
             continue
@@ -59465,9 +59698,10 @@ def _workspace_image_semantic_authority_v69062(
     """Prove image-local topic relevance after destination/fitment authority.
 
     Page title and completed-answer text can establish product identity, but they
-    can never make a visually unrelated image eligible. Eligibility comes from
-    the image-local section, nearby text, caption, visual analysis or structured
-    image metadata. This removes v69060's whole-file ordering dependency.
+    can never make a visually unrelated image eligible. Eligibility comes only
+    from the image's own subtitle, caption/asset name, visual analysis or
+    structured image metadata. Section headings and nearby prose remain useful
+    for retrieval but can never authorize publication.
     """
     if not isinstance(payload, dict):
         return False, -1000.0, "INVALID_PAYLOAD", {}
@@ -59513,11 +59747,26 @@ def _workspace_image_semantic_authority_v69062(
             "product_gate": "reject", "topic_gate": "not_evaluated",
         }
 
+    image_url_v69101 = str(payload.get("image_url") or "").strip()
+    try:
+        asset_name_v69101 = unquote(
+            urlparse(image_url_v69101).path.rsplit("/", 1)[-1]
+        )
+    except Exception:
+        asset_name_v69101 = image_url_v69101.rsplit("/", 1)[-1]
+    caption_v69101 = str(payload.get("caption") or "")
+    heading_v69101 = str(payload.get("section_heading") or "")
+    if (
+        caption_v69101.strip()
+        and heading_v69101.strip()
+        and caption_v69101.strip().casefold()
+        == heading_v69101.strip().casefold()
+    ):
+        caption_v69101 = ""
     local_parts = {
         "subtitle": str(payload.get("section_subtitle_v69067") or ""),
-        "heading": str(payload.get("section_heading") or ""),
-        "nearby": str(payload.get("nearby_instruction_text") or ""),
-        "caption": str(payload.get("caption") or ""),
+        "caption": caption_v69101,
+        "asset": asset_name_v69101,
         "visual": str(payload.get("visual_analysis") or ""),
         "metadata": json.dumps(
             payload.get("image_structured_metadata_v69017") or {},
@@ -59623,6 +59872,14 @@ def _workspace_image_semantic_authority_v69062(
             prompt, answer, payload
         )
     )
+    dynamic_local_pass_v69101, dynamic_local_score_v69101, dynamic_local_reason_v69101 = (
+        _website_image_local_structured_relation_v69082(
+            prompt,
+            answer,
+            payload,
+            allow_legacy_classified_v69100=False,
+        )
+    )
 
     local_topic_hits = {
         topic for topic in topic_groups
@@ -59634,6 +59891,12 @@ def _workspace_image_semantic_authority_v69062(
         # appeared in ``topic_groups`` without weakening destination or fitment.
         requested_topics.add("exact_subtitle")
         local_topic_hits.add("exact_subtitle")
+    elif dynamic_local_pass_v69101:
+        # v69101 gives Sales and Marketing the same arbitrary, image-owned
+        # subtitle/caption/visual relationship already proven in Technical.
+        # This cannot be satisfied by a page heading or nearby instruction.
+        requested_topics.add("dynamic_image_local")
+        local_topic_hits.add("dynamic_image_local")
     topic_hits = requested_topics & local_topic_hits
     lexical_overlap = topic_tokens & local_tokens
     caption_overlap = topic_tokens & caption_tokens
@@ -59642,6 +59905,16 @@ def _workspace_image_semantic_authority_v69062(
     # A generic Sales/Marketing product inquiry still needs image-local proof
     # that the asset depicts the product. Same-page ownership alone is not proof.
     if not requested_topics:
+        # A prompt with a meaningful but unfamiliar subject is not a generic
+        # product-overview request. It must have passed the dynamic image-local
+        # subtitle/caption/visual relation above. Falling through here previously
+        # converted requests such as "JBL fiber optic adapter" into "screen" and
+        # allowed an unrelated same-product UI screenshot to publish.
+        if topic_tokens:
+            return False, -725.0, "UNCLASSIFIED_LOCAL_TOPIC_NOT_RELATED", {
+                "vehicle_gate": "pass", "year_gate": "pass",
+                "product_gate": "pass", "topic_gate": "reject",
+            }
         requested_topics = {"product_overview"}
         topic_hits = requested_topics & local_topic_hits
 
@@ -59702,6 +59975,11 @@ def _workspace_image_semantic_authority_v69062(
         + max(0.0, min(float(role_score), 30.0))
         + row_score * 8.0
         + (float(exact_subtitle_score_v69080) if exact_subtitle_pass_v69080 else 0.0)
+        + (
+            float(dynamic_local_score_v69101)
+            if dynamic_local_pass_v69101 and not exact_subtitle_pass_v69080
+            else 0.0
+        )
     )
     # The subtitle-to-next-logical-image binding is the nearest ingestion-time
     # DOM authority. It may rank only after the unchanged vehicle/year/product,
@@ -59716,6 +59994,8 @@ def _workspace_image_semantic_authority_v69062(
     return True, semantic_score, (
         exact_subtitle_reason_v69080
         if exact_subtitle_pass_v69080
+        else dynamic_local_reason_v69101
+        if dynamic_local_pass_v69101
         else "EXACT_DESTINATION_AND_FITMENT"
     ), {
         "vehicle_gate": "pass", "year_gate": "pass",
@@ -60926,7 +61206,9 @@ def _website_image_related_evidence_lookup_v69025r2(
     it automatically. Identity/provenance remains mandatory. Topic-specific evidence is
     preferred. v69062 locks v69050's exact visual authority: a recognized
     Technical visual role fails closed and can never downgrade to a generic
-    same-product/dashboard reference.
+    same-product/dashboard reference. v69100 additionally requires the image's
+    own subtitle, caption, asset identity, visual analysis, or structured visual
+    QA to prove the topic; broad nearby prose is retrieval context only.
     """
     if str(assistant or "") != "🔧 Technical Support":
         return []
@@ -61010,6 +61292,7 @@ def _website_image_related_evidence_lookup_v69025r2(
         "rejected_fitment": 0,
         "rejected_product": 0,
         "rejected_strength": 0,
+        "rejected_image_local_topic_v69100": 0,
         "rejected_topic_visual_v69062": 0,
         "blocked_generic_role_fallback_v69062": 0,
         "record_build_failed": 0,
@@ -61108,6 +61391,24 @@ def _website_image_related_evidence_lookup_v69025r2(
             audit_v69047["rejected_strength"] += 1
             continue
 
+        local_pass_v69100, local_score_v69100, local_reason_v69100 = (
+            _website_image_local_structured_relation_v69082(
+                prompt,
+                answer,
+                payload,
+                allow_legacy_classified_v69100=bool(
+                    allow_v69050_related_reference_v69097
+                ),
+            )
+        )
+        if not local_pass_v69100:
+            audit_v69047["rejected_image_local_topic_v69100"] += 1
+            if isinstance(coordinator, _ImageSearchCoordinatorV69062):
+                coordinator.reject(
+                    str(local_reason_v69100 or "IMAGE_LOCAL_TOPIC_REJECTED")
+                )
+            continue
+
         authority = str(payload.get("ingestion_authority_version_v69024") or "").strip().casefold()
         if authority.startswith("v69025-"):
             identity_score += 8.0
@@ -61121,24 +61422,9 @@ def _website_image_related_evidence_lookup_v69025r2(
             "product_content": 3.0,
         }.get(source_zone, 0.0)
 
-        evidence_text = " ".join((
-            str(payload.get("section_subtitle_v69067") or ""),
-            str(payload.get("section_heading") or ""),
-            str(payload.get("nearby_instruction_text") or ""),
-            str(payload.get("caption") or ""),
-            str(payload.get("visual_analysis") or ""),
-            json.dumps(payload.get("image_structured_metadata_v69017") or {}, ensure_ascii=False),
-        ))
-        evidence_cf = evidence_text.casefold()
-        evidence_tokens = set(_website_image_tokens_v68883(evidence_text))
-        lexical_overlap = len(query_topic_tokens & evidence_tokens)
-        topic_hits = 0
-        for topic in requested_topics:
-            if any(term in evidence_cf for term in topic_groups[topic]):
-                topic_hits += 1
-
-        role_score = _website_image_role_score_v68884(query_role, payload) if query_role else 0.0
-        topic_score = (lexical_overlap * 2.5) + (topic_hits * 18.0) + max(-12.0, min(float(role_score), 24.0))
+        # v69100: only already-proved image-local evidence contributes topic
+        # score.  Do not reintroduce nearby/heading overlap at this late stage.
+        topic_score = float(local_score_v69100)
         file_search_score_v69032 = max(
             0.0,
             min(float(payload.get("_technical_file_search_score_v69032") or 0.0), 1.0),
@@ -61150,12 +61436,13 @@ def _website_image_related_evidence_lookup_v69025r2(
             and "v69073-semantic-subtitle-next-logical-image-group" in str(
                 payload.get("context_binding_version_v69067") or ""
             )
-            and _website_image_section_role_match_v68890(query_role, payload)
+            and str(local_reason_v69100) == "CLASSIFIED_EXACT_SUBTITLE"
         ):
             total_score += 36.0
 
-        # A topic-specific related image must carry real section/caption/visual evidence.
-        is_topic_related = bool(topic_hits) or lexical_overlap >= 1 or role_score >= 8.0
+        is_topic_related = str(local_reason_v69100) != (
+            "GENERIC_VISUAL_LOCAL_EVIDENCE"
+        )
         bucket = topic_ranked if is_topic_related else general_ranked
         bucket.append((total_score, payload, is_topic_related))
 
@@ -61437,6 +61724,40 @@ def _website_transient_provider_error_v69082(error):
     ))
 
 
+def _website_mark_save_failure_v69101(
+    error, stage, reason_code, *, retryable=False, preserve_attached=False
+):
+    """Attach redacted, structured transaction state to an existing error."""
+    try:
+        setattr(error, "failure_stage_v69082", str(stage or "").strip().upper())
+        setattr(
+            error,
+            "reason_codes_v69077",
+            [str(reason_code or stage or "WEBSITE_SAVE_FAILED").strip().upper()],
+        )
+        setattr(error, "retryable_v69082", bool(retryable))
+        setattr(
+            error,
+            "preserve_attached_file_v69101",
+            bool(preserve_attached),
+        )
+    except Exception:
+        pass
+    return error
+
+
+def _website_save_failure_v69101(
+    message, stage, reason_code, *, retryable=False, preserve_attached=False
+):
+    return _website_mark_save_failure_v69101(
+        RuntimeError(str(message or "Website save failed.")),
+        stage,
+        reason_code,
+        retryable=retryable,
+        preserve_attached=preserve_attached,
+    )
+
+
 def _website_upload_and_wait_v69082(
     package_bytes, filename, vector_store_id,
 ):
@@ -61449,7 +61770,11 @@ def _website_upload_and_wait_v69082(
     """
     raw = bytes(package_bytes or b"")
     if not raw:
-        raise RuntimeError("Website knowledge package is empty.")
+        raise _website_save_failure_v69101(
+            "Website knowledge package is empty.",
+            "PACKAGE_BUILD",
+            "EMPTY_WEBSITE_PACKAGE",
+        )
     file_id = ""
     for attempt in range(3):
         artifact = ManagedUploadedFile(raw, filename, "text/plain")
@@ -61466,12 +61791,23 @@ def _website_upload_and_wait_v69082(
                 status_code=getattr(error, "status_code", None),
             )
             if not retryable or attempt >= 2:
-                setattr(error, "failure_stage_v69082", "VECTOR_ATTACH")
-                raise
+                raise _website_mark_save_failure_v69101(
+                    error,
+                    "VECTOR_ATTACH",
+                    (
+                        "TRANSIENT_VECTOR_ATTACH_FAILURE"
+                        if retryable else "VECTOR_ATTACH_REJECTED"
+                    ),
+                    retryable=retryable,
+                )
             time.sleep(0.35 * (2 ** attempt))
 
     if not file_id:
-        raise RuntimeError("OpenAI did not return a website vector file ID.")
+        raise _website_save_failure_v69101(
+            "OpenAI did not return a website vector file ID.",
+            "VECTOR_ATTACH",
+            "VECTOR_FILE_ID_MISSING",
+        )
 
     try:
         status = _wait_for_vector_store_file(
@@ -61486,21 +61822,50 @@ def _website_upload_and_wait_v69082(
                 vector_store_id, file_id, timeout_seconds=60
             )
     except Exception as error:
+        status_code_v69101 = getattr(error, "status_code", None)
         try:
-            client.vector_stores.files.delete(
-                vector_store_id=vector_store_id, file_id=file_id
+            status_code_v69101 = (
+                int(status_code_v69101)
+                if status_code_v69101 is not None else None
             )
         except Exception:
-            pass
-        try:
-            client.files.delete(file_id)
-        except Exception:
-            pass
-        try:
-            setattr(error, "failure_stage_v69082", "VECTOR_INDEX")
-        except Exception:
-            pass
-        raise
+            status_code_v69101 = None
+        terminal_v69101 = bool(
+            getattr(error, "vector_index_terminal_failure_v69101", False)
+        )
+        transient_v69101 = bool(
+            _website_transient_provider_error_v69082(error)
+        )
+        preserve_attached_v69101 = bool(
+            not terminal_v69101
+            and (
+                transient_v69101
+                or status_code_v69101 is None
+                or status_code_v69101 not in {400, 401, 403, 404}
+            )
+        )
+        if not preserve_attached_v69101:
+            try:
+                client.vector_stores.files.delete(
+                    vector_store_id=vector_store_id, file_id=file_id
+                )
+            except Exception:
+                pass
+            try:
+                client.files.delete(file_id)
+            except Exception:
+                pass
+        raise _website_mark_save_failure_v69101(
+            error,
+            "VECTOR_INDEX_STATUS",
+            (
+                "VECTOR_INDEX_TERMINAL_FAILURE"
+                if terminal_v69101
+                else "VECTOR_INDEX_STATUS_UNAVAILABLE"
+            ),
+            retryable=bool(preserve_attached_v69101),
+            preserve_attached=preserve_attached_v69101,
+        )
     return file_id, str(status or "queued").casefold()
 
 
@@ -61523,23 +61888,35 @@ def save_website_knowledge_package(
         reviewed_content if reviewed_content is not None else extraction.get("content")
     )
     if len(reviewed) < 120:
-        raise ValueError("The reviewed website content is too short to save.")
+        raise _website_save_failure_v69101(
+            "The reviewed website content is too short to save.",
+            "INPUT_VALIDATION",
+            "REVIEWED_CONTENT_TOO_SHORT",
+        )
 
-    selected_vector_store_id = {
+    selected_vector_store_id = str({
         "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
         "Sales Database": SALES_VECTOR_STORE_ID,
         "Marketing Database": MARKETING_VECTOR_STORE_ID,
         "Graphic Marketing Database": GRAPHIC_VECTOR_STORE_ID,
-    }[database_choice]
+    }.get(database_choice) or "").strip()
+    if not selected_vector_store_id.startswith("vs_"):
+        raise _website_save_failure_v69101(
+            "The selected website destination is not configured.",
+            "DESTINATION_CONFIGURATION",
+            "DESTINATION_VECTOR_STORE_NOT_CONFIGURED",
+        )
     product_authority_v69090 = dict(
         extraction.get("product_authority_v69090") or {}
     )
     if database_choice in {
         "Technical Support Database", "Sales Database", "Marketing Database"
     } and not str(product_authority_v69090.get("product_authority_id") or "").strip():
-        raise ValueError(
+        raise _website_save_failure_v69101(
             "Connected Product could not be established. Confirm the product in "
-            "Admin before approving this webpage."
+            "Admin before approving this webpage.",
+            "PRODUCT_AUTHORITY_VALIDATION",
+            "CONNECTED_PRODUCT_AUTHORITY_MISSING",
         )
     # v69096: every supported learned-knowledge destination may activate an
     # indexed package whose image pixels passed QA even when the secondary
@@ -61551,53 +61928,154 @@ def save_website_knowledge_package(
         "Technical Support Database", "Sales Database", "Marketing Database"
     }
 
-    if include_images and image_analysis_override_v69029 is not None:
-        image_analysis = dict(image_analysis_override_v69029 or {})
-        image_analysis["shared_analysis_reused_v69029"] = True
-    else:
-        image_analysis = (
-            analyze_website_images(
-                extraction,
-                database_choice,
-                selected_urls=selected_image_urls,
-            )
-            if include_images
-            else {
-                "images": [],
-                "attempted": 0,
-                "skipped": 0,
-                "failures": 0,
-                "discovered": 0,
-                "limited": False,
-            }
-        )
-
-    version_hash_v68892 = _website_knowledge_version_hash_v68892(
-        extraction,
-        database_choice,
-        reviewed,
-        image_analysis,
-    )
-    package_extraction = dict(extraction)
-    package_extraction["website_version_hash_v68892"] = version_hash_v68892
-    filename = website_knowledge_filename(package_extraction)
-
-    # Stable exact duplicate check happens before package timestamp can vary.
-    if vector_store_has_filename(selected_vector_store_id, filename):
-        exact_existing_file_ids_v69093 = (
-            _vector_store_file_ids_for_filename_v69093(
-                selected_vector_store_id, filename
-            )
-        )
-        if include_images:
-            exact_images_v69069 = list(image_analysis.get("images") or [])
-            snapshot_complete_v69069, snapshot_detail_v69069 = (
-                _website_image_snapshot_complete_v69069(
+    try:
+        if include_images and image_analysis_override_v69029 is not None:
+            image_analysis = dict(image_analysis_override_v69029 or {})
+            image_analysis["shared_analysis_reused_v69029"] = True
+        else:
+            image_analysis = (
+                analyze_website_images(
                     extraction,
                     database_choice,
-                    exact_images_v69069,
+                    selected_urls=selected_image_urls,
                 )
+                if include_images
+                else {
+                    "images": [],
+                    "attempted": 0,
+                    "skipped": 0,
+                    "failures": 0,
+                    "discovered": 0,
+                    "limited": False,
+                }
             )
+    except Exception as error_v69101:
+        raise _website_mark_save_failure_v69101(
+            error_v69101,
+            "IMAGE_ANALYSIS",
+            "IMAGE_ANALYSIS_NOT_COMPLETED",
+            retryable=_website_transient_provider_error_v69082(error_v69101),
+        )
+
+    try:
+        version_hash_v68892 = _website_knowledge_version_hash_v68892(
+            extraction,
+            database_choice,
+            reviewed,
+            image_analysis,
+        )
+        package_extraction = dict(extraction)
+        package_extraction["website_version_hash_v68892"] = version_hash_v68892
+        filename = website_knowledge_filename(package_extraction)
+    except Exception as error_v69101:
+        raise _website_mark_save_failure_v69101(
+            error_v69101,
+            "PACKAGE_BUILD",
+            "PACKAGE_IDENTITY_BUILD_FAILED",
+        )
+
+    # Stable exact duplicate check happens before package timestamp can vary.
+    # v69101 proves indexing status before archive/index or authority mutation.
+    # A prior timed-out attachment is resumed by its exact filename/file ID and
+    # is never uploaded a second time while still processing.
+    exact_existing_file_ids_v69093 = _website_exact_file_ids_checked_v69101(
+        selected_vector_store_id, filename
+    )
+    exact_file_states_v69101 = _website_exact_file_states_v69101(
+        selected_vector_store_id, exact_existing_file_ids_v69093
+    ) if exact_existing_file_ids_v69093 else {
+        "completed": [], "pending": [], "terminal": [], "unknown": [],
+        "statuses": {},
+    }
+    terminal_removed_v69101 = set()
+    for terminal_file_id_v69101 in exact_file_states_v69101.get("terminal") or []:
+        _website_remove_vector_file_v68892(
+            selected_vector_store_id, terminal_file_id_v69101
+        )
+        terminal_removed_v69101.add(terminal_file_id_v69101)
+    if (
+        not exact_file_states_v69101.get("completed")
+        and exact_file_states_v69101.get("pending")
+    ):
+        for pending_file_id_v69101 in exact_file_states_v69101.get("pending") or []:
+            try:
+                _wait_for_vector_store_file(
+                    selected_vector_store_id,
+                    pending_file_id_v69101,
+                    timeout_seconds=15,
+                )
+            except Exception as error_v69101:
+                if getattr(
+                    error_v69101,
+                    "vector_index_terminal_failure_v69101",
+                    False,
+                ):
+                    _website_remove_vector_file_v68892(
+                        selected_vector_store_id, pending_file_id_v69101
+                    )
+                    terminal_removed_v69101.add(pending_file_id_v69101)
+                    continue
+                raise _website_mark_save_failure_v69101(
+                    error_v69101,
+                    "VECTOR_INDEX_STATUS",
+                    "VECTOR_INDEX_STATUS_UNAVAILABLE",
+                    retryable=True,
+                    preserve_attached=True,
+                )
+        exact_file_states_v69101 = _website_exact_file_states_v69101(
+            selected_vector_store_id,
+            [
+                value_v69101 for value_v69101 in exact_existing_file_ids_v69093
+                if value_v69101 not in terminal_removed_v69101
+            ],
+        )
+    if (
+        not exact_file_states_v69101.get("completed")
+        and exact_file_states_v69101.get("pending")
+    ):
+        raise _website_save_failure_v69101(
+            "The exact reviewed package is still indexing. Its attached file was "
+            "preserved; retrying resumes the same file without duplication.",
+            "VECTOR_INDEX_PENDING",
+            "VECTOR_INDEX_PENDING",
+            retryable=True,
+            preserve_attached=True,
+        )
+    if (
+        not exact_file_states_v69101.get("completed")
+        and exact_file_states_v69101.get("unknown")
+    ):
+        raise _website_save_failure_v69101(
+            "The exact reviewed package exists but completed indexing could not "
+            "be proven. No database mutation was attempted.",
+            "VECTOR_INDEX_STATUS",
+            "EXACT_PACKAGE_INDEX_STATUS_UNKNOWN",
+            retryable=True,
+            preserve_attached=True,
+        )
+    exact_existing_file_ids_v69093 = list(
+        exact_file_states_v69101.get("completed") or []
+    )
+    if exact_existing_file_ids_v69093:
+        if include_images:
+            exact_images_v69069 = list(image_analysis.get("images") or [])
+            try:
+                snapshot_complete_v69069, snapshot_detail_v69069 = (
+                    _website_image_snapshot_complete_v69069(
+                        extraction,
+                        database_choice,
+                        exact_images_v69069,
+                    )
+                )
+            except Exception as error_v69101:
+                raise _website_mark_save_failure_v69101(
+                    error_v69101,
+                    "PRIOR_IMAGE_SNAPSHOT",
+                    "PRIOR_IMAGE_SNAPSHOT_UNAVAILABLE",
+                    retryable=_website_transient_provider_error_v69082(
+                        error_v69101
+                    ),
+                )
             if snapshot_complete_v69069:
                 # A true no-op: do not rewrite archives, index rows, or caches.
                 website_image_index_stats_v68883 = {
@@ -61615,17 +62093,30 @@ def save_website_knowledge_package(
                 image_records_repaired_v69069 = False
             else:
                 if int(image_analysis.get("failures") or 0):
-                    raise RuntimeError(
+                    raise _website_save_failure_v69101(
                         "Same-URL image repair was blocked because image analysis "
-                        "did not complete. The previously working package was preserved."
+                        "did not complete. The previously working package was preserved.",
+                        "IMAGE_ANALYSIS",
+                        "IMAGE_ANALYSIS_NOT_COMPLETED",
+                        retryable=True,
                     )
-                website_image_index_stats_v68883 = (
-                    _website_archive_and_index_images_v68883(
-                        package_extraction,
-                        database_choice,
-                        exact_images_v69069,
+                try:
+                    website_image_index_stats_v68883 = (
+                        _website_archive_and_index_images_v68883(
+                            package_extraction,
+                            database_choice,
+                            exact_images_v69069,
+                        )
                     )
-                )
+                except Exception as error_v69101:
+                    raise _website_mark_save_failure_v69101(
+                        error_v69101,
+                        "IMAGE_ARCHIVE_INDEX",
+                        "IMAGE_ARCHIVE_INDEX_NOT_COMPLETED",
+                        retryable=_website_transient_provider_error_v69082(
+                            error_v69101
+                        ),
+                    )
                 if not bool(website_image_index_stats_v68883.get("completed")):
                     if verified_subset_destination_v69077:
                         # The exact vector package already exists and remains
@@ -61706,14 +62197,12 @@ def save_website_knowledge_package(
                 ),
             )
         except Exception as error:
-            try:
-                setattr(
-                    error, "failure_stage_v69082",
-                    "PRODUCT_AUTHORITY_ACTIVATION",
-                )
-            except Exception:
-                pass
-            raise
+            raise _website_mark_save_failure_v69101(
+                error,
+                "PRODUCT_AUTHORITY_ACTIVATION",
+                "PRODUCT_AUTHORITY_ACTIVATION_NOT_COMPLETED",
+                retryable=_website_transient_provider_error_v69082(error),
+            )
         _website_invalidate_learning_caches_v69069([database_choice])
         return {
             "already_saved": True,
@@ -61737,19 +62226,27 @@ def save_website_knowledge_package(
 
     # Discover all prior versions for this exact URL and every tracked/strictly
     # matched legacy source for the same connected product in this destination.
-    prior_same_url_files_v68892 = _website_same_url_vector_files_v68892(
-        selected_vector_store_id,
-        extraction,
-        exclude_filename=filename,
-    )
-    prior_product_files_v69090 = _knowledge_product_authority_prior_rows_v69090(
-        selected_vector_store_id,
-        database_choice,
-        product_authority_v69090,
-    )
-    prior_product_image_rows_v69090 = _knowledge_product_prior_image_rows_v69090(
-        database_choice, product_authority_v69090
-    )
+    try:
+        prior_same_url_files_v68892 = _website_same_url_vector_files_v68892(
+            selected_vector_store_id,
+            extraction,
+            exclude_filename=filename,
+        )
+        prior_product_files_v69090 = _knowledge_product_authority_prior_rows_v69090(
+            selected_vector_store_id,
+            database_choice,
+            product_authority_v69090,
+        )
+        prior_product_image_rows_v69090 = _knowledge_product_prior_image_rows_v69090(
+            database_choice, product_authority_v69090
+        )
+    except Exception as error_v69101:
+        raise _website_mark_save_failure_v69101(
+            error_v69101,
+            "PRIOR_AUTHORITY_DISCOVERY",
+            "PRIOR_AUTHORITY_DISCOVERY_NOT_COMPLETED",
+            retryable=_website_transient_provider_error_v69082(error_v69101),
+        )
     prior_product_image_catalog_complete_v69093 = bool(
         getattr(
             prior_product_image_rows_v69090,
@@ -61763,12 +62260,19 @@ def save_website_knowledge_package(
         if str((row or {}).get("file_id") or "").strip()
     }
 
-    package_text = build_website_knowledge_package_document(
-        extraction,
-        database_choice,
-        reviewed_content=reviewed,
-        image_analysis=image_analysis,
-    )
+    try:
+        package_text = build_website_knowledge_package_document(
+            extraction,
+            database_choice,
+            reviewed_content=reviewed,
+            image_analysis=image_analysis,
+        )
+    except Exception as error_v69101:
+        raise _website_mark_save_failure_v69101(
+            error_v69101,
+            "PACKAGE_BUILD",
+            "PACKAGE_DOCUMENT_BUILD_FAILED",
+        )
 
     # v69003: defer image archive/index mutation until the replacement vector
     # package is confirmed indexed. This prevents a failed replacement from
@@ -61806,10 +62310,12 @@ def save_website_knowledge_package(
             except Exception:
                 pass
         if not getattr(error, "failure_stage_v69082", ""):
-            try:
-                setattr(error, "failure_stage_v69082", "VECTOR_UPLOAD_OR_INDEX")
-            except Exception:
-                pass
+            raise _website_mark_save_failure_v69101(
+                error,
+                "VECTOR_UPLOAD_OR_INDEX",
+                "VECTOR_UPLOAD_OR_INDEX_NOT_COMPLETED",
+                retryable=_website_transient_provider_error_v69082(error),
+            )
         raise
 
     replaced_file_count_v68892 = 0
@@ -61821,15 +62327,31 @@ def save_website_knowledge_package(
                 _website_remove_vector_file_v68892(
                     selected_vector_store_id, file_id
                 )
-                raise RuntimeError(
+                raise _website_save_failure_v69101(
                     "Replacement image analysis did not complete. The new vector "
-                    "package was rolled back and the prior package was preserved."
+                    "package was rolled back and the prior package was preserved.",
+                    "IMAGE_ANALYSIS",
+                    "IMAGE_ANALYSIS_NOT_COMPLETED",
+                    retryable=True,
                 )
-            website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-                package_extraction,
-                database_choice,
-                list(image_analysis.get("images") or []),
-            )
+            try:
+                website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
+                    package_extraction,
+                    database_choice,
+                    list(image_analysis.get("images") or []),
+                )
+            except Exception as error_v69101:
+                _website_remove_vector_file_v68892(
+                    selected_vector_store_id, file_id
+                )
+                raise _website_mark_save_failure_v69101(
+                    error_v69101,
+                    "IMAGE_ARCHIVE_INDEX",
+                    "IMAGE_ARCHIVE_INDEX_NOT_COMPLETED",
+                    retryable=_website_transient_provider_error_v69082(
+                        error_v69101
+                    ),
+                )
             image_sync_safe_v69003 = (
                 int(website_image_index_stats_v68883.get("failures") or 0) == 0
                 and bool(website_image_index_stats_v68883.get("completed"))
@@ -61911,11 +62433,12 @@ def save_website_knowledge_package(
                 )
             except Exception as error:
                 _website_remove_vector_file_v68892(selected_vector_store_id, file_id)
-                try:
-                    setattr(error, "failure_stage_v69082", "PRODUCT_AUTHORITY_ACTIVATION")
-                except Exception:
-                    pass
-                raise
+                raise _website_mark_save_failure_v69101(
+                    error,
+                    "PRODUCT_AUTHORITY_ACTIVATION",
+                    "PRODUCT_AUTHORITY_ACTIVATION_NOT_COMPLETED",
+                    retryable=_website_transient_provider_error_v69082(error),
+                )
         if bool(website_image_sync_v69003.get("completed")):
             product_image_cleanup_v69090 = (
                 _knowledge_product_remove_prior_image_rows_v69090(
@@ -61942,14 +62465,17 @@ def save_website_knowledge_package(
         )
         _website_invalidate_learning_caches_v69069([database_choice])
     else:
-        # A new package that never reached completed indexing is not eligible to
-        # coexist with or replace the prior working package.
-        _website_remove_vector_file_v68892(
-            selected_vector_store_id, file_id
-        )
-        raise RuntimeError(
-            "Replacement vector indexing did not complete. The new package was "
-            "rolled back and the prior package was preserved."
+        # Preserve a still-processing attachment. A retry resolves this exact
+        # filename/file ID and resumes status polling without a duplicate upload.
+        # It remains ineligible for activation or publication until completed.
+        raise _website_save_failure_v69101(
+            "Replacement vector indexing is still processing. The attached file "
+            "was preserved and the prior package remains authoritative; retrying "
+            "will resume this exact file without duplication.",
+            "VECTOR_INDEX_PENDING",
+            "VECTOR_INDEX_PENDING",
+            retryable=True,
+            preserve_attached=True,
         )
 
     return {
@@ -62788,6 +63314,102 @@ def _vector_store_file_ids_for_filename_v69093(vector_store_id, filename):
         return []
 
 
+def _website_exact_file_ids_checked_v69101(vector_store_id, filename):
+    """Resolve an exact filename without treating a catalog error as absent."""
+    target = str(filename or "").strip()
+    if not target:
+        return []
+    last_error_v69101 = None
+    for attempt_v69101 in range(3):
+        try:
+            return sorted({
+                str(row.get("file_id") or "").strip()
+                for row in _vector_store_file_catalog_v69040(vector_store_id)
+                if str(row.get("filename") or "").strip() == target
+                and str(row.get("file_id") or "").strip()
+            })
+        except Exception as error_v69101:
+            last_error_v69101 = error_v69101
+            retryable_v69101 = _website_transient_provider_error_v69082(
+                error_v69101
+            )
+            if not retryable_v69101 or attempt_v69101 >= 2:
+                raise _website_mark_save_failure_v69101(
+                    error_v69101,
+                    "DUPLICATE_LOOKUP",
+                    (
+                        "TRANSIENT_DUPLICATE_LOOKUP_FAILURE"
+                        if retryable_v69101
+                        else "DUPLICATE_LOOKUP_REJECTED"
+                    ),
+                    retryable=retryable_v69101,
+                )
+            time.sleep(0.20 * (2 ** attempt_v69101))
+    raise _website_mark_save_failure_v69101(
+        last_error_v69101 or RuntimeError("Exact file lookup did not complete."),
+        "DUPLICATE_LOOKUP",
+        "DUPLICATE_LOOKUP_NOT_COMPLETED",
+        retryable=True,
+    )
+
+
+def _website_exact_file_states_v69101(vector_store_id, file_ids):
+    """Return exact attached-file states; provider errors remain distinguishable."""
+    states = {
+        "completed": [], "pending": [], "terminal": [], "unknown": [],
+        "statuses": {},
+    }
+    for file_id in sorted({
+        str(value or "").strip() for value in (file_ids or [])
+        if str(value or "").strip()
+    }):
+        last_error_v69101 = None
+        status_v69101 = ""
+        for attempt_v69101 in range(3):
+            try:
+                record_v69101 = client.vector_stores.files.retrieve(
+                    vector_store_id=vector_store_id,
+                    file_id=file_id,
+                )
+                status_v69101 = str(
+                    getattr(record_v69101, "status", "") or ""
+                ).strip().casefold()
+                break
+            except (TypeError, AttributeError):
+                status_v69101 = "unknown_sdk_status"
+                break
+            except Exception as error_v69101:
+                last_error_v69101 = error_v69101
+                retryable_v69101 = _website_transient_provider_error_v69082(
+                    error_v69101
+                )
+                if not retryable_v69101 or attempt_v69101 >= 2:
+                    raise _website_mark_save_failure_v69101(
+                        error_v69101,
+                        "VECTOR_INDEX_STATUS",
+                        (
+                            "VECTOR_INDEX_STATUS_UNAVAILABLE"
+                            if retryable_v69101
+                            else "VECTOR_INDEX_STATUS_REJECTED"
+                        ),
+                        retryable=retryable_v69101,
+                        preserve_attached=True,
+                    )
+                time.sleep(0.20 * (2 ** attempt_v69101))
+        if not status_v69101 and last_error_v69101:
+            raise last_error_v69101
+        states["statuses"][file_id] = status_v69101 or "unknown"
+        if status_v69101 == "completed":
+            states["completed"].append(file_id)
+        elif status_v69101 in {"queued", "in_progress", "processing"}:
+            states["pending"].append(file_id)
+        elif status_v69101 in {"failed", "cancelled"}:
+            states["terminal"].append(file_id)
+        else:
+            states["unknown"].append(file_id)
+    return states
+
+
 
 WEBSITE_DATABASE_ALL_V69029 = "All Databases"
 WEBSITE_DATABASE_DESTINATIONS_V69029 = (
@@ -62958,25 +63580,90 @@ def save_website_knowledge_to_destinations_v69029(
     """
     destinations = _website_database_destinations_v69029(destination_selection)
     # Fail before any mutation if a requested destination is not configured.
+    preflight_failures_v69101 = {}
     for destination in destinations:
-        _website_database_vector_store_v69029(destination)
+        try:
+            _website_database_vector_store_v69029(destination)
+        except Exception as error_v69101:
+            preflight_failures_v69101[destination] = {
+                "error_type": type(error_v69101).__name__,
+                "error": str(error_v69101),
+                "reason_codes": ["DESTINATION_VECTOR_STORE_NOT_CONFIGURED"],
+                "failure_stage_v69077": "DESTINATION_CONFIGURATION",
+                "retryable_v69082": False,
+                "pre_mutation_abort_v69101": True,
+            }
+    if preflight_failures_v69101:
+        for destination_v69101 in destinations:
+            if destination_v69101 in preflight_failures_v69101:
+                continue
+            preflight_failures_v69101[destination_v69101] = {
+                "error_type": "DestinationPreflightAborted",
+                "error": (
+                    "No destination was mutated because another selected "
+                    "destination failed configuration preflight."
+                ),
+                "reason_codes": ["DESTINATION_PREFLIGHT_ABORTED"],
+                "failure_stage_v69077": "DESTINATION_CONFIGURATION",
+                "retryable_v69082": False,
+                "pre_mutation_abort_v69101": True,
+            }
+        return {
+            "destination_selection": list(destinations),
+            "destinations": destinations,
+            "results": {},
+            "failures": preflight_failures_v69101,
+            "shared_image_analysis": {},
+            "completed": False,
+            "partial_success": False,
+            "pre_mutation_abort_v69101": True,
+        }
 
-    if include_images and isinstance(shared_analysis_override_v69045, dict):
-        shared_analysis = dict(shared_analysis_override_v69045)
-        shared_analysis["thin_html_analysis_reused_v69045"] = True
-    elif include_images:
-        # Analyze pixels once, but never use an unselected destination as the
-        # semantic basis. Per-destination projections below remain independent.
-        analysis_label = _website_shared_analysis_destination_v69065(destinations)
-        shared_analysis = analyze_website_images(
-            extraction,
-            analysis_label,
-            selected_urls=selected_image_urls,
+    try:
+        if include_images and isinstance(shared_analysis_override_v69045, dict):
+            shared_analysis = dict(shared_analysis_override_v69045)
+            shared_analysis["thin_html_analysis_reused_v69045"] = True
+        elif include_images:
+            # Analyze pixels once, but never use an unselected destination as the
+            # semantic basis. Per-destination projections below remain independent.
+            analysis_label = _website_shared_analysis_destination_v69065(destinations)
+            shared_analysis = analyze_website_images(
+                extraction,
+                analysis_label,
+                selected_urls=selected_image_urls,
+            )
+        else:
+            shared_analysis = {
+                "images": [], "attempted": 0, "skipped": 0, "failures": 0,
+                "discovered": 0, "limited": False,
+            }
+    except Exception as error_v69101:
+        retryable_v69101 = _website_transient_provider_error_v69082(
+            error_v69101
         )
-    else:
-        shared_analysis = {
-            "images": [], "attempted": 0, "skipped": 0, "failures": 0,
-            "discovered": 0, "limited": False,
+        reason_v69101 = (
+            "TRANSIENT_IMAGE_ANALYSIS_FAILURE"
+            if retryable_v69101 else "IMAGE_ANALYSIS_NOT_COMPLETED"
+        )
+        return {
+            "destination_selection": list(destinations),
+            "destinations": destinations,
+            "results": {},
+            "failures": {
+                destination: {
+                    "error_type": type(error_v69101).__name__,
+                    "error": str(error_v69101),
+                    "reason_codes": [reason_v69101],
+                    "failure_stage_v69077": "IMAGE_ANALYSIS",
+                    "retryable_v69082": retryable_v69101,
+                    "pre_mutation_abort_v69101": True,
+                }
+                for destination in destinations
+            },
+            "shared_image_analysis": {},
+            "completed": False,
+            "partial_success": False,
+            "pre_mutation_abort_v69101": True,
         }
 
     results = {}
@@ -63002,7 +63689,7 @@ def save_website_knowledge_to_destinations_v69029(
             failure_stage_v69082 = str(
                 getattr(error, "failure_stage_v69082", "")
                 or getattr(error, "failure_stage_v69077", "")
-                or "DESTINATION_SAVE"
+                or "UNCLASSIFIED_DESTINATION_FAILURE"
             ).strip().upper()
             reason_codes_v69082 = list(
                 getattr(error, "reason_codes_v69077", None) or []
@@ -63028,8 +63715,17 @@ def save_website_knowledge_to_destinations_v69029(
                 "reason_codes": reason_codes_v69082,
                 "failure_stage_v69077": failure_stage_v69082,
                 "retryable_v69082": bool(
+                    getattr(error, "retryable_v69082", False)
+                    or getattr(error, "preserve_attached_file_v69101", False)
+                    or
                     _website_transient_provider_error_v69082(error)
-                    or failure_stage_v69082 in {"VECTOR_ATTACH", "VECTOR_INDEX"}
+                    or failure_stage_v69082 in {
+                        "VECTOR_ATTACH", "VECTOR_INDEX", "VECTOR_INDEX_PENDING",
+                        "VECTOR_INDEX_STATUS",
+                    }
+                ),
+                "attached_file_preserved_v69101": bool(
+                    getattr(error, "preserve_attached_file_v69101", False)
                 ),
             }
             diagnostic_log(
