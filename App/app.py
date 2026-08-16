@@ -1,4 +1,4 @@
-# AutoTecPro AI v69093 — active product authority + reliable destination save
+# AutoTecPro AI v69096 — atomic newest authority + first-turn learned images
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
 import streamlit.components.v1 as components
@@ -87,7 +87,7 @@ except Exception:
 # AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
 GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-ATP_BUILD_VERSION_V69062 = "v69095"
+ATP_BUILD_VERSION_V69062 = "v69096"
 ATP_IMAGE_AUTHORITY_V69062 = (
     "v69050-exact-restored+v69064-destination-publisher+"
     "v69067-semantic-subtitle+v69068-byte-locked+v69069-resubmission-atomic+"
@@ -113,7 +113,8 @@ ATP_IMAGE_AUTHORITY_V69062 = (
     "v69090-product-scoped-newest-admin-authority+v69091-technical-settings-table+"
     "v69092-terminal-same-destination-image-completion+"
     "v69093-active-product-runtime-binding+destination-scoped-save+"
-    "v69095-ford150-learned-image-identity"
+    "v69095-ford150-learned-image-identity+"
+    "v69096-atomic-newest-authority-first-turn-images"
 )
 ATP_BUILD_COMMIT_V69062 = str(
     os.environ.get("STREAMLIT_GIT_COMMIT")
@@ -40356,7 +40357,13 @@ def _workspace_active_product_package_v69093(prompt_text, selected_assistant):
     prompt_systems = set(_website_identity_systems_v69022(prompt))
     prompt_codes = set(_website_image_product_codes_v69020(prompt))
     for manifest in manifests:
-        authority = dict(manifest.get("product_authority") or {})
+        # v69096: manifests written by an older parser can carry an incomplete
+        # semantic identity even though their connected product/source URL is
+        # unambiguous.  Match with a read-time normalized authority while keeping
+        # the persisted authority ID for exact file-marker verification.  This is
+        # a compatibility migration, not a widening of the vehicle/year/system
+        # gates.
+        authority = _knowledge_effective_manifest_authority_v69096(manifest)
         if not _knowledge_authority_candidate_matches_v69090(
             authority, prompt
         ):
@@ -40373,7 +40380,12 @@ def _workspace_active_product_package_v69093(prompt_text, selected_assistant):
         score += 30 * len(prompt_systems & authority_systems)
         score += 35 * len(prompt_codes & authority_codes)
         score += 3 if manifest.get("active_file_ids") else 0
-        candidates.append((score, str(manifest.get("activated_at") or ""), manifest))
+        candidates.append((
+            score,
+            str(manifest.get("activated_at") or ""),
+            str(authority.get("effective_authority_id_v69096") or ""),
+            manifest,
+        ))
 
     if not candidates:
         return {
@@ -40384,17 +40396,16 @@ def _workspace_active_product_package_v69093(prompt_text, selected_assistant):
     candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
     best_score = candidates[0][0]
     best = [item for item in candidates if item[0] == best_score]
-    best_ids = {
-        str((item[2].get("product_authority") or {}).get(
-            "product_authority_id"
-        ) or "")
-        for item in best
-    }
-    if len(best_ids) != 1:
+    # Parser upgrades can produce several historical manifest IDs for the same
+    # physical product. Collapse only manifests whose strict normalized
+    # destination/product identity is identical, then select the newest
+    # activation. Different effective products remain a fail-closed ambiguity.
+    best_effective_ids = {str(item[2] or "") for item in best}
+    if len(best_effective_ids) != 1:
         diagnostic_log(
             "active_product_package_ambiguous_v69093",
             destination=destination,
-            candidate_count=len(best_ids),
+            candidate_count=len(best_effective_ids),
         )
         return {
             "status": "rejected", "context": "", "rows": [],
@@ -40408,7 +40419,8 @@ def _workspace_active_product_package_v69093(prompt_text, selected_assistant):
             "matched_manifest": True,
         }
 
-    manifest = dict(best[0][2])
+    best.sort(key=lambda item: item[1], reverse=True)
+    manifest = dict(best[0][3])
     authority = dict(manifest.get("product_authority") or {})
     authority_id = str(authority.get("product_authority_id") or "").strip()
     rows = []
@@ -52344,7 +52356,60 @@ def _knowledge_product_authority_manifest_v69090(database_choice, authority):
     return {}
 
 
-@st.cache_data(ttl=120, max_entries=2, show_spinner=False)
+def _knowledge_effective_manifest_authority_v69096(manifest):
+    """Normalize a persisted manifest without changing its signed file ID.
+
+    Historical manifests may predate a vehicle alias parser (for example the
+    first-party ``Ford 150`` URL form).  Their source URL and connected-product
+    label remain trusted Admin metadata.  Re-parse only those identity fields,
+    retain every persisted safety field, and compute a strict effective key used
+    solely to collapse equivalent parser generations.
+    """
+    manifest = dict(manifest or {})
+    stored = dict(manifest.get("product_authority") or {})
+    evidence = " ".join((
+        str(stored.get("connected_product") or ""),
+        str(manifest.get("source_name") or ""),
+    )).strip()
+    parsed = _knowledge_product_authority_v69090(
+        str(stored.get("connected_product") or ""),
+        source_url=str(manifest.get("source_name") or ""),
+    ) if evidence else {}
+    effective = dict(stored)
+    for key in ("brands", "vehicle_families", "years", "systems", "sku"):
+        parsed_value = parsed.get(key)
+        stored_value = stored.get(key)
+        if isinstance(parsed_value, list):
+            if key == "years":
+                effective[key] = sorted({
+                    int(item) for item in list(stored_value or []) + parsed_value
+                    if str(item).strip().isdigit()
+                })
+            else:
+                effective[key] = sorted({
+                    str(item).strip() for item in list(stored_value or []) + parsed_value
+                    if str(item).strip()
+                })
+        elif parsed_value and not stored_value:
+            effective[key] = parsed_value
+    semantic = {
+        "brands": list(effective.get("brands") or []),
+        "vehicle_families": list(effective.get("vehicle_families") or []),
+        "years": list(effective.get("years") or []),
+        "systems": list(effective.get("systems") or []),
+        "sku": str(effective.get("sku") or ""),
+        "fallback_label": str(effective.get("fallback_label") or ""),
+    }
+    effective["effective_authority_id_v69096"] = hashlib.sha256(
+        json.dumps(
+            semantic, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return effective
+
+
+@st.cache_data(ttl=5, max_entries=2, show_spinner=False)
 def _knowledge_active_product_authorities_v69090():
     """Load compact active product manifests for query-time stale-image suppression."""
     try:
@@ -61377,8 +61442,14 @@ def save_website_knowledge_package(
             "Connected Product could not be established. Confirm the product in "
             "Admin before approving this webpage."
         )
+    # v69096: every supported learned-knowledge destination may activate an
+    # indexed package whose image pixels passed QA even when the secondary
+    # durable archive/index write is temporarily incomplete.  The package itself
+    # contains the approved structured image records, so runtime can publish
+    # them through the unchanged ownership/vehicle/year/product/topic gates.
+    # Prior files and durable image rows are retained until repair completes.
     verified_subset_destination_v69077 = database_choice in {
-        "Sales Database", "Marketing Database"
+        "Technical Support Database", "Sales Database", "Marketing Database"
     }
 
     if include_images and image_analysis_override_v69029 is not None:
@@ -61474,10 +61545,17 @@ def save_website_knowledge_package(
                         }
                         image_records_repaired_v69069 = False
                     else:
-                        raise RuntimeError(
-                            "Same-URL image repair did not pass archive/index verification. "
-                            "The previously working package was preserved."
-                        )
+                        website_image_index_stats_v68883["repair_pending_v69077"] = True
+                        website_image_index_stats_v68883["preserved_prior_snapshot_v69077"] = True
+                        website_image_sync_v69003 = {
+                            "completed": False,
+                            "cleanup_pending": True,
+                            "reason_code": str(
+                                website_image_index_stats_v68883.get("reason_code")
+                                or "IMAGE_REPAIR_PENDING_V69096"
+                            ),
+                        }
+                        image_records_repaired_v69069 = False
                 else:
                     website_image_sync_v69003 = {
                         "completed": True,
@@ -61688,13 +61766,17 @@ def save_website_knowledge_package(
                     }
                     cleanup_pending_v68892 = True
                 else:
-                    _website_remove_vector_file_v68892(
-                        selected_vector_store_id, file_id
-                    )
-                    raise RuntimeError(
-                        "Replacement image archive/index verification failed. The new "
-                        "vector package was rolled back and the prior package was preserved."
-                    )
+                    website_image_index_stats_v68883["repair_pending_v69077"] = True
+                    website_image_index_stats_v68883["preserved_prior_snapshot_v69077"] = True
+                    website_image_sync_v69003 = {
+                        "completed": False,
+                        "cleanup_pending": True,
+                        "reason_code": str(
+                            website_image_index_stats_v68883.get("reason_code")
+                            or "IMAGE_ARCHIVE_INDEX_PENDING_V69096"
+                        ),
+                    }
+                    cleanup_pending_v68892 = True
         else:
             website_image_index_stats_v68883 = {
                 "indexed": 0, "archived": 0, "failures": 0,
@@ -61705,9 +61787,21 @@ def save_website_knowledge_package(
                 "skipped_reason": "image-analysis-disabled-preserve-existing-v69005",
             }
 
-        # Remove the superseded vector package only after the image knowledge
-        # for this same canonical page has also synchronized successfully.
-        if bool(website_image_sync_v69003.get("completed")):
+        # v69096: activation and destructive cleanup are separate phases.
+        # Once the replacement vector is indexed and selected images completed
+        # visual QA, activate it immediately as newest factual/image authority.
+        # If the secondary archive/index is repair-pending, retain all older
+        # files/rows; the active manifest prevents them from answering or
+        # publishing. Cleanup runs only after durable synchronization completes.
+        activation_safe_v69096 = bool(
+            website_image_sync_v69003.get("completed")
+            or (
+                verified_subset_destination_v69077
+                and bool(website_image_index_stats_v68883.get("repair_pending_v69077"))
+                and int(image_analysis.get("failures") or 0) == 0
+            )
+        )
+        if activation_safe_v69096:
             try:
                 _knowledge_product_authority_commit_v69090(
                     database_choice,
@@ -61723,6 +61817,7 @@ def save_website_knowledge_package(
                 except Exception:
                     pass
                 raise
+        if bool(website_image_sync_v69003.get("completed")):
             product_image_cleanup_v69090 = (
                 _knowledge_product_remove_prior_image_rows_v69090(
                     prior_product_image_rows_v69090,
@@ -74890,6 +74985,14 @@ else:
                             ) or []
                         )
                     )
+                    # v69096: the provider-response capture may be empty because
+                    # an exclusive active package intentionally disables broad
+                    # file_search. Keep the pre-provider active rows in the
+                    # first-turn image authority instead of mistaking that empty
+                    # response for missing image evidence.
+                    console_legacy_rows_v69085.extend(
+                        list(locals().get("turn_active_product_rows_v69094") or [])
+                    )
                     active_console_rows_v69094 = [
                         dict(row) for row in console_legacy_rows_v69085
                         if isinstance(row, dict)
@@ -75435,9 +75538,15 @@ else:
                 if assistant == "🔧 Technical Support"
                 else list(st.session_state.get("_workspace_file_search_results_v69040") or [])
             )
+            terminal_ordinary_rows_v69092.extend(
+                list(locals().get("turn_active_product_rows_v69094") or [])
+            )
             terminal_cached_rows_v69092 = []
             terminal_future_v69092 = None
             if assistant == "🔧 Technical Support":
+                terminal_cached_rows_v69092.extend(
+                    list(locals().get("turn_active_product_rows_v69094") or [])
+                )
                 terminal_cached_rows_v69092.extend(
                     list(locals().get("technical_image_prefetch_cached_rows_v69016") or [])
                 )
