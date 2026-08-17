@@ -1,3 +1,4 @@
+# AutoTecPro AI v69113 — product-level newest Admin package authority; all other v69112 behavior preserved
 # AutoTecPro AI v69112 — promote individually approved current images despite unrelated candidate failures
 # AutoTecPro AI v69111 — true module-scope threading import; v69109 behavior preserved
 # AutoTecPro AI v69109 — newest-source supersession + password learning + checkbox destinations + automatic section images
@@ -38807,9 +38808,18 @@ def _build_ai_request(
         order_displayed_by_app=order_displayed_by_app,
     )
     knowledge_priority_instruction = _workspace_knowledge_priority_instruction(assistant)
+    active_admin_package_v69113 = dict(
+        st.session_state.get("_technical_active_admin_package_v69113") or {}
+    ) if str(assistant or "") == "🔧 Technical Support" else {}
+    active_admin_context_v69113 = (
+        str(active_admin_package_v69113.get("context") or "").strip()
+        if bool(active_admin_package_v69113.get("exclusive"))
+        else ""
+    )
     instructions = (
         get_instructions(assistant)
         + ("\n\n" + knowledge_priority_instruction if knowledge_priority_instruction else "")
+        + ("\n\n" + active_admin_context_v69113 if active_admin_context_v69113 else "")
         + "\n\nThe AutoTecPro application may supply LIVE APPLICATION CONTEXT "
           "and LIVE DATA RESULT blocks. Treat those application-supplied blocks "
           "as authoritative. Use web search for current public information, "
@@ -54624,6 +54634,360 @@ def _vector_store_file_catalog_v69040(vector_store_id):
     return rows
 
 
+
+def _technical_settings_authority_intent_v69113(prompt_text):
+    """Restrict product-level package locking to Technical configuration questions."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return False
+    return bool(re.search(
+        r"\bcar\s*model\b|\bprotocol\b|\bcan\s*bus\b|\bcanbus\b|"
+        r"\ba/?c\b|\bclimate\b|\bmanual\s+(?:a/?c|climate)\b|"
+        r"\bauto(?:matic)?\s+(?:a/?c|climate)\b|\bhi\b|\blo\b",
+        value,
+        flags=re.I,
+    ))
+
+
+def _technical_package_header_value_v69113(package_text, label):
+    value = str(package_text or "")
+    match = re.search(
+        rf"(?im)^{re.escape(str(label or '').strip())}\s*:\s*(.*?)\s*$",
+        value,
+    )
+    return str(match.group(1) or "").strip() if match else ""
+
+
+def _technical_package_webpage_text_v69113(package_text):
+    """Return reviewed WEBPAGE TEXT only; never use image-analysis prose as facts."""
+    value = str(package_text or "")
+    match = re.search(
+        r"(?ms)^WEBPAGE TEXT\s*\n=+\s*\n(.*?)(?=^WEBSITE IMAGE KNOWLEDGE\s*$|\Z)",
+        value,
+    )
+    return str(match.group(1) or "").strip() if match else ""
+
+
+def _technical_package_page_identity_v69113(package_text):
+    raw = _technical_package_header_value_v69113(
+        package_text, "PAGE_IDENTITY_JSON_V69024"
+    )
+    if not raw:
+        match = re.search(
+            r"(?im)^PAGE_IDENTITY_JSON_V69024:\s*(\{.*\})\s*$",
+            str(package_text or ""),
+        )
+        raw = str(match.group(1) or "").strip() if match else ""
+    try:
+        payload = json.loads(raw)
+        return dict(payload) if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=120, max_entries=8, show_spinner=False)
+def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_revision):
+    """Build a cached catalogue of current Technical Admin website packages.
+
+    This reads only files already attached to the configured Technical vector store.
+    It does not mutate OpenAI, Supabase, image indexes, or any Graphic state.
+    """
+    del learning_revision  # revision is part of the cache key only.
+    store = str(vector_store_id or "").strip()
+    if not store.startswith("vs_"):
+        return []
+
+    packages = []
+    for row in _website_vector_store_file_rows_v68892(store):
+        if not isinstance(row, dict):
+            continue
+        file_id = str(row.get("file_id") or "").strip()
+        filename = str(row.get("filename") or "").strip()
+        if not file_id or not filename.startswith("website_"):
+            continue
+
+        package_text = str(_website_openai_file_text_v68892(file_id) or "")
+        if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text:
+            continue
+        if (
+            _technical_package_header_value_v69113(package_text, "Destination")
+            != "Technical Support Database"
+        ):
+            continue
+
+        webpage_text = _technical_package_webpage_text_v69113(package_text)
+        if not webpage_text:
+            continue
+
+        page_identity = _technical_package_page_identity_v69113(package_text)
+        source_url = (
+            _technical_package_header_value_v69113(package_text, "Final source URL")
+            or _technical_package_header_value_v69113(package_text, "Requested URL")
+        )
+        extracted_at = _technical_package_header_value_v69113(
+            package_text, "Extracted at (UTC)"
+        )
+        title = _technical_package_header_value_v69113(package_text, "Page title")
+
+        identity_text = " ".join(
+            (
+                title,
+                source_url,
+                webpage_text[:24000],
+                json.dumps(page_identity, ensure_ascii=False, sort_keys=True),
+            )
+        )
+        families = set(page_identity.get("vehicle_families") or [])
+        if not families:
+            families = set(_website_identity_vehicle_families_v69022(identity_text))
+        years = set()
+        for value in page_identity.get("years") or []:
+            try:
+                years.add(int(value))
+            except Exception:
+                pass
+        if not years:
+            years = set(_website_identity_years_v69022(identity_text))
+        systems = set(str(x) for x in (page_identity.get("systems") or []) if str(x))
+        if not systems:
+            systems = set(_website_identity_systems_v69022(identity_text))
+        product_codes = set(_website_image_product_codes_v69020(identity_text))
+
+        packages.append({
+            "file_id": file_id,
+            "filename": filename,
+            "source_url": source_url,
+            "title": title,
+            "extracted_at": extracted_at,
+            "webpage_text": webpage_text,
+            "package_text": package_text,
+            "page_identity": page_identity,
+            "vehicle_families": sorted(families),
+            "years": sorted(years),
+            "systems": sorted(systems),
+            "product_codes": sorted(product_codes),
+        })
+
+    packages.sort(
+        key=lambda item: (
+            str((item or {}).get("extracted_at") or ""),
+            str((item or {}).get("filename") or ""),
+        ),
+        reverse=True,
+    )
+    return packages
+
+
+def _technical_resolve_active_admin_package_v69113(prompt_text):
+    """Resolve the newest matching Admin website package for a Technical settings turn.
+
+    The key production rule is intentionally generic:
+    once a newer Admin website package matches the requested vehicle/year/system,
+    older documents or different-URL website packages do not compete in that turn.
+    No protocol, Car Model, vehicle-specific menu value, or product code is hard-coded.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return {"status": "not_applicable"}
+    if not _technical_settings_authority_intent_v69113(prompt_text):
+        return {"status": "not_applicable"}
+
+    store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not store_ids:
+        return {"status": "empty", "reason_code": "NO_TECHNICAL_STORE"}
+    store = str(store_ids[0] or "").strip()
+
+    revision = _website_destination_revision_v69109("Technical Support Database")
+    try:
+        packages = list(
+            _technical_admin_website_package_catalog_v69113(store, revision) or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "technical_active_admin_catalog_failed_v69113",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return {"status": "failed", "reason_code": "CATALOG_FAILED"}
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    prompt_families = set(_website_identity_vehicle_families_v69022(prompt))
+    prompt_years = set(_website_identity_years_v69022(prompt))
+    prompt_systems = set(_website_identity_systems_v69022(prompt))
+    prompt_codes = set(_website_image_product_codes_v69020(prompt))
+
+    # Do not establish an exclusive product package without a real subject identity.
+    if not (prompt_families or prompt_codes):
+        return {"status": "empty", "reason_code": "NO_PRODUCT_IDENTITY"}
+
+    candidates = []
+    for package in packages:
+        families = set(package.get("vehicle_families") or [])
+        years = set(package.get("years") or [])
+        systems = set(package.get("systems") or [])
+        codes = set(package.get("product_codes") or [])
+
+        family_overlap = len(prompt_families & families)
+        code_overlap = len(prompt_codes & codes)
+        if prompt_families and families and family_overlap == 0:
+            continue
+        if prompt_codes and codes and code_overlap == 0:
+            continue
+        if prompt_years and years and not (prompt_years & years):
+            continue
+        if prompt_systems and systems and not (prompt_systems & systems):
+            continue
+
+        identity_score = (
+            100 * family_overlap
+            + 80 * code_overlap
+            + 20 * len(prompt_years & years)
+            + 40 * len(prompt_systems & systems)
+        )
+        # Freshness is the primary authority after compatibility is established.
+        candidates.append((
+            str(package.get("extracted_at") or ""),
+            identity_score,
+            str(package.get("filename") or ""),
+            package,
+        ))
+
+    if not candidates:
+        return {"status": "empty", "reason_code": "NO_MATCHING_ADMIN_PACKAGE"}
+
+    candidates.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    package = dict(candidates[0][3])
+    source_url = str(package.get("source_url") or "").strip()
+    try:
+        canonical_source = (
+            canonical_website_url_identity(source_url) if source_url else ""
+        )
+    except Exception:
+        canonical_source = ""
+
+    context = (
+        "ACTIVE NEWEST ADMIN TECHNICAL PACKAGE (v69113) — EXCLUSIVE FACTUAL AUTHORITY\n"
+        "The application resolved this package before the provider call for the exact "
+        "Technical settings subject. Use ONLY the reviewed WEBPAGE TEXT below for "
+        "product/protocol/Car Model/A-C facts. Do not use an older vector/document, "
+        "different URL, image-analysis prose, or compiled default when facts conflict.\n"
+        f"Source URL: {source_url}\n"
+        f"Extracted at (UTC): {package.get('extracted_at') or ''}\n"
+        f"File ID: {package.get('file_id') or ''}\n\n"
+        "WEBPAGE TEXT\n============\n"
+        + str(package.get("webpage_text") or "")[:45000]
+    )
+
+    row = {
+        "file_id": str(package.get("file_id") or ""),
+        "filename": str(package.get("filename") or ""),
+        "score": 1.0,
+        # Keep the complete package text so current-package image payloads are
+        # available to the unchanged v69014/v69050 image reconstruction path.
+        "text": str(package.get("package_text") or ""),
+        "active_admin_package_v69113": True,
+    }
+
+    return {
+        "status": "recovered",
+        "exclusive": True,
+        "reason_code": "NEWEST_ADMIN_PACKAGE_BOUND",
+        "file_id": str(package.get("file_id") or ""),
+        "filename": str(package.get("filename") or ""),
+        "source_url": source_url,
+        "canonical_source": canonical_source,
+        "extracted_at": str(package.get("extracted_at") or ""),
+        "context": context,
+        "rows": [row],
+    }
+
+
+def _technical_seed_active_admin_package_v69113(package):
+    payload = dict(package or {})
+    if str(payload.get("status") or "") != "recovered":
+        st.session_state.pop("_technical_active_admin_package_v69113", None)
+        return []
+    rows = [
+        dict(row) for row in (payload.get("rows") or [])
+        if isinstance(row, dict)
+    ]
+    st.session_state["_technical_active_admin_package_v69113"] = {
+        "status": "recovered",
+        "exclusive": True,
+        "file_id": str(payload.get("file_id") or ""),
+        "filename": str(payload.get("filename") or ""),
+        "source_url": str(payload.get("source_url") or ""),
+        "canonical_source": str(payload.get("canonical_source") or ""),
+        "extracted_at": str(payload.get("extracted_at") or ""),
+        "context": str(payload.get("context") or ""),
+        "rows": rows,
+    }
+    st.session_state["_technical_file_search_results_v69012"] = rows[:12]
+    st.session_state["_workspace_file_search_results_v69040"] = rows[:12]
+    return rows
+
+
+def _technical_filter_images_to_active_admin_package_v69113(images):
+    """Allow website images only when provenance binds them to the active package."""
+    state = dict(
+        st.session_state.get("_technical_active_admin_package_v69113") or {}
+    )
+    if str(state.get("status") or "") != "recovered":
+        return list(images or [])
+
+    active_file_id = str(state.get("file_id") or "").strip()
+    active_source = str(state.get("canonical_source") or "").strip()
+    output = []
+    for image in list(images or []):
+        if not isinstance(image, dict):
+            continue
+        if str(image.get("source") or "") != "website_knowledge":
+            output.append(image)
+            continue
+
+        candidate_file_ids = {
+            str(image.get("website_file_id_v69012") or "").strip(),
+            str(image.get("file_id") or "").strip(),
+        }
+        provenance = image.get("image_provenance_v69062")
+        if isinstance(provenance, dict):
+            candidate_file_ids.add(
+                str(provenance.get("file_id") or "").strip()
+            )
+        candidate_file_ids.discard("")
+        if active_file_id and active_file_id in candidate_file_ids:
+            output.append(image)
+            continue
+
+        candidate_sources = []
+        for key in (
+            "website_source_page_v69010",
+            "website_source_page",
+            "source_page",
+            "source_url",
+        ):
+            value = str(image.get(key) or "").strip()
+            if value:
+                candidate_sources.append(value)
+        if isinstance(provenance, dict):
+            for key in ("source_page", "source_url"):
+                value = str(provenance.get(key) or "").strip()
+                if value:
+                    candidate_sources.append(value)
+
+        matched = False
+        for value in candidate_sources:
+            try:
+                if active_source and canonical_website_url_identity(value) == active_source:
+                    matched = True
+                    break
+            except Exception:
+                continue
+        if matched:
+            output.append(image)
+
+    return output
+
+
 def _website_package_url_identities_v68892(package_text):
     identities = set()
     value = str(package_text or "")
@@ -54773,6 +55137,7 @@ def _website_invalidate_learning_caches_v69109(database_choices):
         "_website_file_full_text_v69012",
         "_vector_store_file_catalog_v69040",
         "vector_store_has_filename",
+        "_technical_admin_website_package_catalog_v69113",
     ):
         try:
             fn = globals().get(cache_name)
@@ -64954,6 +65319,48 @@ else:
         response_mode = execution_plan["response_mode"]
         use_file_search = bool(execution_plan["use_file_search"])
 
+        # v69113 permanent product-level newest-source authority.  For Technical
+        # Car Model / Protocol / A-C settings turns only, resolve the newest matching
+        # Admin website package BEFORE broad text/image search.  Once proven, the
+        # package becomes exclusive for both facts and website images in this turn.
+        technical_active_admin_package_v69113 = {"status": "not_applicable"}
+        if (
+            assistant == "🔧 Technical Support"
+            and bool(use_file_search)
+            and str(technical_request_prompt_v68879 or "").strip()
+        ):
+            technical_active_admin_package_v69113 = (
+                _technical_resolve_active_admin_package_v69113(
+                    technical_request_prompt_v68879
+                )
+            )
+            if (
+                str(technical_active_admin_package_v69113.get("status") or "")
+                == "recovered"
+                and bool(technical_active_admin_package_v69113.get("exclusive"))
+            ):
+                _technical_seed_active_admin_package_v69113(
+                    technical_active_admin_package_v69113
+                )
+                # Do not allow the provider or prefetch path to search stale vectors
+                # after the current Admin package is locked.
+                use_file_search = False
+                diagnostic_log(
+                    "technical_active_admin_package_bound_v69113",
+                    file_id=str(
+                        technical_active_admin_package_v69113.get("file_id") or ""
+                    )[:120],
+                    extracted_at=str(
+                        technical_active_admin_package_v69113.get("extracted_at") or ""
+                    )[:80],
+                )
+            else:
+                st.session_state.pop(
+                    "_technical_active_admin_package_v69113", None
+                )
+        elif assistant == "🔧 Technical Support":
+            st.session_state.pop("_technical_active_admin_package_v69113", None)
+
         # v69016: begin Technical image evidence work at the earliest safe point,
         # immediately after routing has authoritatively decided file_search. This
         # overlaps Product Library/context preparation and the full text response.
@@ -65799,9 +66206,33 @@ else:
                     ai_request_prompt += build_graphic_project_context()
 
                 if assistant == "🔧 Technical Support":
-                    st.session_state["_technical_file_search_results_v69012"] = []
+                    active_admin_rows_v69113 = list(
+                        (
+                            st.session_state.get(
+                                "_technical_active_admin_package_v69113"
+                            )
+                            or {}
+                        ).get("rows") or []
+                    )
+                    st.session_state["_technical_file_search_results_v69012"] = (
+                        active_admin_rows_v69113[:12]
+                    )
                 if not is_graphic_workspace(assistant):
-                    st.session_state["_workspace_file_search_results_v69040"] = []
+                    active_workspace_rows_v69113 = (
+                        list(
+                            (
+                                st.session_state.get(
+                                    "_technical_active_admin_package_v69113"
+                                )
+                                or {}
+                            ).get("rows") or []
+                        )
+                        if assistant == "🔧 Technical Support"
+                        else []
+                    )
+                    st.session_state["_workspace_file_search_results_v69040"] = (
+                        active_workspace_rows_v69113[:12]
+                    )
 
                 try:
                     diagnostic_log(
@@ -66167,7 +66598,17 @@ else:
 
                     # If the prompt-only prefetch was not precise enough, preserve the
                     # existing answer-aware dedicated search as the fail-safe fallback.
-                    if not universal_images_v69014:
+                    if (
+                        not universal_images_v69014
+                        and str(
+                            (
+                                st.session_state.get(
+                                    "_technical_active_admin_package_v69113"
+                                )
+                                or {}
+                            ).get("status") or ""
+                        ) != "recovered"
+                    ):
                         dedicated_rows_v69014 = _website_image_dedicated_file_search_results_v69014(
                             technical_request_prompt_v68879, answer
                         )
@@ -66304,6 +66745,16 @@ else:
                     error_type=type(error).__name__,
                     error=str(error)[:500],
                 )
+
+        # v69113: when the newest Admin Technical package is exclusive for this
+        # settings turn, website imagery must come from that same package/source.
+        # Non-website uploads and Product Library images are unaffected.
+        if assistant == "🔧 Technical Support" and generated_images:
+            generated_images = (
+                _technical_filter_images_to_active_admin_package_v69113(
+                    generated_images
+                )
+            )
 
         # v69107A: one final fail-closed publication authority after every late
         # Technical / Sales / Marketing image recovery stage.  This does not
