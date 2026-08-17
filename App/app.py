@@ -1,5 +1,7 @@
+# AutoTecPro AI v69130 — FINAL PRODUCTION: current reviewed Technical website authority prevents stale cross-URL settings regression; v69129 image durability and v69128 output/table/Graphic/Reference/After Install behavior preserved
 # AutoTecPro AI v69129 — FINAL PRODUCTION: schema-compatible durable website-image index + truthful write-failure accounting; all v69128 output/table/retrieval/Graphic/Reference/After Install behavior preserved
 # AutoTecPro AI v69128 — FINAL PRODUCTION: generic dynamic multi-option Technical settings rows across Ford/GM/future sources; v69126 first-turn image publication and all protected pipelines preserved
+# AutoTecPro AI v69127 — FINAL PRODUCTION: dynamic multi-option settings rows + preserved first-turn Technical images; all v69126/v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -39199,6 +39201,225 @@ def _technical_enforce_dual_ac_table_v69125(answer_text, evidence_result):
     return "\n".join(lines)
 
 
+
+def _technical_current_website_authority_v69130(prompt_text):
+    """Resolve the newest exact Technical website package for a settings turn.
+
+    This is intentionally narrow:
+    - Technical Support only;
+    - settings/configuration questions only;
+    - uses already-indexed reviewed website packages;
+    - fails open to the proven v69050 file_search path if no confident package is found.
+
+    It does not hard-code vehicle menu values and does not alter the response formatter.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return {"status": "not_applicable"}
+    if not _technical_settings_authority_intent_v69113(prompt_text):
+        return {"status": "not_applicable"}
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    prompt_families = set(_website_identity_vehicle_families_v69022(prompt))
+    prompt_years = set(_website_identity_years_v69022(prompt))
+    prompt_systems = set(_website_identity_systems_v69022(prompt))
+    prompt_codes = set(_website_image_product_codes_v69020(prompt))
+    prompt_brands = set(_website_identity_brand_set_v69022(prompt))
+
+    if not (prompt_families or prompt_codes):
+        return {"status": "empty", "reason_code": "NO_EXACT_PRODUCT_IDENTITY"}
+
+    store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not store_ids:
+        return {"status": "empty", "reason_code": "NO_TECHNICAL_STORE"}
+    store = str(store_ids[0] or "").strip()
+
+    query = (
+        "AUTOTECPRO CURRENT TECHNICAL WEBSITE PACKAGE AUTHORITY. "
+        "Find reviewed `AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE` files in the Technical "
+        "Support Database for the exact vehicle/year/product/factory-system below. "
+        "Prefer the newest `Extracted at (UTC)` package and the most specific matching "
+        "vehicle family. Return current website-package evidence, not staff notes or "
+        "nearby vehicle families.\n\nUSER SETTINGS REQUEST:\n"
+        + prompt
+    )
+
+    try:
+        rows = _website_request_vector_search_rows_v69047(
+            {
+                "input": query,
+                "tools": [{"type": "file_search", "vector_store_ids": [store]}],
+            },
+            max_results=30,
+        )
+    except Exception as error:
+        diagnostic_log(
+            "technical_current_website_authority_search_failed_v69130",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return {"status": "failed", "reason_code": "DIRECT_SEARCH_FAILED"}
+
+    packages = []
+    seen_file_ids = set()
+    for raw in rows or []:
+        if not isinstance(raw, dict):
+            continue
+        file_id = str(raw.get("file_id") or "").strip()
+        if not file_id or file_id in seen_file_ids:
+            continue
+        seen_file_ids.add(file_id)
+        filename = str(raw.get("filename") or "").strip()
+
+        try:
+            package_text = str(
+                raw.get("text")
+                or _website_file_full_text_v69012(file_id)
+                or ""
+            )
+            # Search snippets are often incomplete. Hydrate the full package whenever
+            # the package marker/header is absent or the text is suspiciously short.
+            if (
+                "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text
+                or len(package_text) < 2500
+            ):
+                hydrated = str(_website_file_full_text_v69012(file_id) or "")
+                if hydrated:
+                    package_text = hydrated
+        except Exception:
+            package_text = str(raw.get("text") or "")
+
+        package = _technical_package_from_text_v69121(
+            file_id,
+            filename,
+            package_text,
+        )
+        if not isinstance(package, dict):
+            continue
+
+        families = set(package.get("vehicle_families") or [])
+        years = set(package.get("years") or [])
+        systems = set(package.get("systems") or [])
+        codes = set(package.get("product_codes") or [])
+        identity_text = " ".join((
+            str(package.get("title") or ""),
+            str(package.get("source_url") or ""),
+            str(package.get("webpage_text") or "")[:24000],
+        ))
+        brands = set(_website_identity_brand_set_v69022(identity_text))
+
+        family_overlap = prompt_families & families
+        code_overlap = prompt_codes & codes
+
+        if prompt_families:
+            if not families or not family_overlap:
+                continue
+        elif prompt_codes:
+            if not codes or not code_overlap:
+                continue
+
+        if prompt_years and years and not (prompt_years & years):
+            continue
+        if prompt_systems and systems and not (prompt_systems & systems):
+            continue
+        if prompt_codes and codes and not code_overlap:
+            continue
+        if prompt_brands and brands and not (prompt_brands & brands):
+            continue
+
+        exact_family_set = bool(
+            prompt_families
+            and families
+            and prompt_families == families
+        )
+        extra_family_count = max(0, len(families - prompt_families))
+        identity_score = (
+            (400 if exact_family_set else 0)
+            + 120 * len(family_overlap)
+            + 100 * len(code_overlap)
+            + 25 * len(prompt_years & years)
+            + 60 * len(prompt_systems & systems)
+            + 30 * len(prompt_brands & brands)
+            - 35 * extra_family_count
+        )
+        packages.append({
+            "package": package,
+            "identity_score": identity_score,
+            "exact_family_set": exact_family_set,
+            "extra_family_count": extra_family_count,
+            "search_score": float(raw.get("score") or 0.0),
+        })
+
+    if not packages:
+        diagnostic_log(
+            "technical_current_website_authority_empty_v69130",
+            prompt_families=sorted(prompt_families),
+            prompt_years=sorted(prompt_years),
+            prompt_systems=sorted(prompt_systems),
+        )
+        return {"status": "empty", "reason_code": "NO_MATCHING_WEBSITE_PACKAGE"}
+
+    # Most specific exact family first, then newest reviewed extraction. Search score
+    # is deliberately last: semantic similarity must not outrank newer source authority.
+    packages.sort(
+        key=lambda item: (
+            bool(item.get("exact_family_set")),
+            -int(item.get("extra_family_count") or 0),
+            str((item.get("package") or {}).get("extracted_at") or ""),
+            int(item.get("identity_score") or 0),
+            float(item.get("search_score") or 0.0),
+        ),
+        reverse=True,
+    )
+
+    selected = dict(packages[0].get("package") or {})
+    if not selected:
+        return {"status": "empty", "reason_code": "EMPTY_SELECTED_PACKAGE"}
+
+    source_url = str(selected.get("source_url") or "").strip()
+    context = (
+        "CURRENT REVIEWED TECHNICAL WEBSITE AUTHORITY (v69130) — TURN-LOCAL FACTUAL "
+        "SOURCE FOR THIS SETTINGS REQUEST\n"
+        "This package is the newest confidently matched reviewed Technical website "
+        "package for the explicit vehicle/year/product identity in the user's request. "
+        "For Protocol, Make, Car Model, A/C/climate and other settings values, this "
+        "package overrides older website packages, staff notes, and nearby-family "
+        "search results when they conflict. Preserve the normal professional output "
+        "format and never invent a missing value.\n"
+        f"Source URL: {source_url}\n"
+        f"Extracted at (UTC): {selected.get('extracted_at') or ''}\n"
+        f"File ID: {selected.get('file_id') or ''}\n\n"
+        "REVIEWED WEBPAGE TEXT\n=====================\n"
+        + str(selected.get("webpage_text") or "")[:50000]
+    )
+    row = {
+        "file_id": str(selected.get("file_id") or ""),
+        "filename": str(selected.get("filename") or ""),
+        "score": 1.0,
+        "text": str(selected.get("package_text") or ""),
+        "technical_current_website_authority_v69130": True,
+    }
+
+    diagnostic_log(
+        "technical_current_website_authority_bound_v69130",
+        file_id=str(selected.get("file_id") or "")[:120],
+        source_url=source_url[:300],
+        extracted_at=str(selected.get("extracted_at") or "")[:80],
+        exact_family=bool(packages[0].get("exact_family_set")),
+        candidate_count=len(packages),
+    )
+    return {
+        "status": "recovered",
+        "exclusive": True,
+        "reason_code": "CURRENT_REVIEWED_WEBSITE_PACKAGE",
+        "file_id": str(selected.get("file_id") or ""),
+        "filename": str(selected.get("filename") or ""),
+        "source_url": source_url,
+        "extracted_at": str(selected.get("extracted_at") or ""),
+        "context": context,
+        "rows": [row],
+    }
+
+
 def _technical_same_family_variant_evidence_v69124(prompt_text):
     """Retrieve and bind one same-family source containing Manual + Automatic branches."""
     if not _technical_generic_ac_variant_request_v69124(prompt_text):
@@ -68529,9 +68750,71 @@ else:
                         active_workspace_rows_v69113[:12]
                     )
 
+                # v69130: bind the newest confidently matched reviewed Technical
+                # website package for settings turns. This closes the cross-URL stale
+                # package gap without changing the normal formatter or non-settings
+                # Technical retrieval. If resolution fails, v69050/v69124 continue.
+                technical_current_website_v69130 = {
+                    "status": "not_applicable", "context": "", "rows": []
+                }
+                if (
+                    assistant == "🔧 Technical Support"
+                    and bool(use_file_search)
+                    and _technical_settings_authority_intent_v69113(
+                        technical_request_prompt_v68879
+                    )
+                ):
+                    try:
+                        technical_current_website_v69130 = (
+                            _technical_current_website_authority_v69130(
+                                technical_request_prompt_v68879
+                            )
+                        )
+                    except Exception as error_v69130:
+                        diagnostic_log(
+                            "technical_current_website_authority_failed_v69130",
+                            error_type=type(error_v69130).__name__,
+                            error=str(error_v69130)[:500],
+                        )
+                        technical_current_website_v69130 = {
+                            "status": "failed", "context": "", "rows": []
+                        }
+
+                    if (
+                        str(
+                            technical_current_website_v69130.get("status") or ""
+                        ) == "recovered"
+                    ):
+                        current_context_v69130 = str(
+                            technical_current_website_v69130.get("context") or ""
+                        ).strip()
+                        if current_context_v69130:
+                            ai_request_prompt += (
+                                "\n\n" + current_context_v69130
+                            )
+                        current_rows_v69130 = [
+                            dict(row)
+                            for row in (
+                                technical_current_website_v69130.get("rows") or []
+                            )
+                            if isinstance(row, dict)
+                        ]
+                        if current_rows_v69130:
+                            st.session_state[
+                                "_technical_file_search_results_v69012"
+                            ] = current_rows_v69130[:12]
+                            st.session_state[
+                                "_workspace_file_search_results_v69040"
+                            ] = current_rows_v69130[:12]
+
+                        # The current reviewed package is already fully injected.
+                        # Do not allow a second broad/sibling search to re-introduce
+                        # a stale package from a different URL in this same turn.
+                        use_file_search = False
+
                 # v69124: for a generic Technical Car Model/A-C request, retrieve
                 # both Manual and Automatic siblings before the main answer. This
-                # supplements the proven v69050 factual search rather than replacing it.
+                # runs only when v69130 did not confidently resolve a current package.
                 technical_variant_evidence_v69124 = {
                     "context": "", "rows": [], "status": "not_applicable"
                 }
