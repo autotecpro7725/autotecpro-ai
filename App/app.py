@@ -1,3 +1,4 @@
+# AutoTecPro AI v69122 — FINAL PRODUCTION: v69050 Technical factual authority restored at the live call site; v69121 output/learning/image/Graphic/Reference/After Install preserved
 # AutoTecPro AI v69121 — FINAL PRODUCTION RELEASE: resilient optional Technical prewarm + last-known-good snapshot + immediate new-package promotion + v69120 same-turn explicit photos; all protected output/Graphic/Reference/After Install preserved
 # AutoTecPro AI v69120 — immediate explicit photo publication across Technical/Sales/Marketing; all v69119 output/result, Graphic, Reference, After Install, and QA behavior preserved
 # AutoTecPro AI v69119 — prewarmed proven Technical catalog for fast/stable responses; v69118 output/result and v69115 image behavior preserved
@@ -66276,113 +66277,34 @@ else:
         response_mode = execution_plan["response_mode"]
         use_file_search = bool(execution_plan["use_file_search"])
 
-        # v69113 permanent product-level newest-source authority.  For Technical
-        # Car Model / Protocol / A-C settings turns only, resolve the newest matching
-        # Admin website package BEFORE broad text/image search.  Once proven, the
-        # package becomes exclusive for both facts and website images in this turn.
+        # v69122: restore the proven v69050 Technical factual/retrieval authority.
+        #
+        # IMPORTANT:
+        # - Do NOT prebind an Admin package before the provider.
+        # - Do NOT disable normal Technical file_search because a derived package
+        #   catalogue/cache is unavailable, stale, ambiguous, or incomplete.
+        # - Do NOT inject package-only factual context into the provider request.
+        #
+        # All later v691xx package helpers remain available for learning/cache
+        # maintenance and image provenance, but they are not allowed to replace
+        # the proven v69050 factual search authority at this live call site.
         technical_active_admin_package_v69113 = {"status": "not_applicable"}
-        prior_active_admin_package_v69114 = dict(
-            st.session_state.get("_technical_active_admin_package_v69113") or {}
-        )
+        prior_active_admin_package_v69114 = {}
         explicit_visual_followup_v69114 = bool(
             assistant == "🔧 Technical Support"
             and _technical_visual_followup_v69114(interaction_prompt)
         )
-
-        if (
-            assistant == "🔧 Technical Support"
-            and explicit_visual_followup_v69114
-            and str(prior_active_admin_package_v69114.get("status") or "")
-            == "recovered"
-        ):
-            # Preserve the exact package already established by the prior Technical
-            # settings turn. Do not reopen broad vector/image competition.
-            technical_active_admin_package_v69113 = prior_active_admin_package_v69114
-            use_file_search = False
-            st.session_state["_technical_file_search_results_v69012"] = list(
-                prior_active_admin_package_v69114.get("rows") or []
-            )[:12]
-            st.session_state["_workspace_file_search_results_v69040"] = list(
-                prior_active_admin_package_v69114.get("rows") or []
-            )[:12]
+        if assistant == "🔧 Technical Support":
+            st.session_state.pop(
+                "_technical_active_admin_package_v69113", None
+            )
+            # Restore the execution-plan decision used by the proven baseline.
+            use_file_search = bool(execution_plan["use_file_search"])
             diagnostic_log(
-                "technical_active_admin_visual_followup_preserved_v69114",
-                file_id=str(
-                    prior_active_admin_package_v69114.get("file_id") or ""
-                )[:120],
+                "technical_v69050_factual_authority_restored_v69122",
+                use_file_search=bool(use_file_search),
+                explicit_visual=bool(explicit_visual_followup_v69114),
             )
-        elif (
-            assistant == "🔧 Technical Support"
-            and bool(use_file_search)
-            and str(technical_request_prompt_v68879 or "").strip()
-        ):
-            technical_active_admin_package_v69113 = (
-                _technical_resolve_active_admin_package_v69113(
-                    technical_request_prompt_v68879
-                )
-            )
-            resolver_status_v69114 = str(
-                technical_active_admin_package_v69113.get("status") or ""
-            )
-            if (
-                resolver_status_v69114 == "recovered"
-                and bool(technical_active_admin_package_v69113.get("exclusive"))
-            ):
-                _technical_seed_active_admin_package_v69113(
-                    technical_active_admin_package_v69113
-                )
-                use_file_search = False
-                diagnostic_log(
-                    "technical_active_admin_package_bound_v69113",
-                    file_id=str(
-                        technical_active_admin_package_v69113.get("file_id") or ""
-                    )[:120],
-                    extracted_at=str(
-                        technical_active_admin_package_v69113.get("extracted_at") or ""
-                    )[:80],
-                )
-            elif resolver_status_v69114 == "ambiguous":
-                fail_state_v69114 = _technical_active_package_failure_state_v69114(
-                    "ambiguous",
-                    str(
-                        technical_active_admin_package_v69113.get("reason_code")
-                        or "AMBIGUOUS"
-                    ),
-                    "Multiple current Technical packages match this vehicle/year but "
-                    "belong to different factory-system variants. Ask which original "
-                    "factory system / SYNC configuration the vehicle has before "
-                    "providing settings.",
-                )
-                st.session_state["_technical_active_admin_package_v69113"] = (
-                    fail_state_v69114
-                )
-                technical_active_admin_package_v69113 = fail_state_v69114
-                use_file_search = False
-            elif resolver_status_v69114 == "failed":
-                # v69121: an optimization/catalog operational failure is not proof
-                # that Technical knowledge is unavailable. Preserve the proven
-                # v69050-style file_search path instead of globally hiding models.
-                diagnostic_log(
-                    "technical_active_package_failed_fallback_v69121",
-                    reason_code=str(
-                        technical_active_admin_package_v69113.get("reason_code")
-                        or "CATALOG_FAILED"
-                    )[:120],
-                )
-                st.session_state.pop(
-                    "_technical_active_admin_package_v69113", None
-                )
-                technical_active_admin_package_v69113 = {
-                    "status": "empty",
-                    "reason_code": "CATALOG_FAILED_BASELINE_FALLBACK",
-                }
-                use_file_search = bool(execution_plan["use_file_search"])
-            else:
-                st.session_state.pop(
-                    "_technical_active_admin_package_v69113", None
-                )
-        elif assistant == "🔧 Technical Support" and not explicit_visual_followup_v69114:
-            st.session_state.pop("_technical_active_admin_package_v69113", None)
 
         # v69016: begin Technical image evidence work at the earliest safe point,
         # immediately after routing has authoritatively decided file_search. This
