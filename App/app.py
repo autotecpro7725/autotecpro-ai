@@ -1,15 +1,3 @@
-# AutoTecPro AI v69113 — product-level newest Admin package authority; all other v69112 behavior preserved
-# AutoTecPro AI v69112 — promote individually approved current images despite unrelated candidate failures
-# AutoTecPro AI v69111 — true module-scope threading import; v69109 behavior preserved
-# AutoTecPro AI v69109 — newest-source supersession + password learning + checkbox destinations + automatic section images
-# AutoTecPro AI v69108 — Graphic multi-tab durable-job isolation + v69107A image final gate
-# AutoTecPro AI v69107A — FINAL PUBLICATION GATE ONLY
-# AutoTecPro AI v69106 — v69050 image authority + same-config variant continuity
-# AutoTecPro AI v69105 — rebuilt from the user-supplied v69050 production baseline.
-# Technical/Sales/Marketing image authority and runtime behavior remain v69050-exact.
-# Only presentation is added: Technical settings-table guidance and professional Customer Reply Draft layout.
-# No vehicle/menu value (F450/F460/etc.) is hard-coded by this release.
-
 # AutoTecPro AI v69024 — Source-Zone Website Knowledge Provenance; v69023 workspace stability + protected Graphic engine preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
@@ -38813,7 +38801,9 @@ def _build_ai_request(
     ) if str(assistant or "") == "🔧 Technical Support" else {}
     active_admin_context_v69113 = (
         str(active_admin_package_v69113.get("context") or "").strip()
-        if bool(active_admin_package_v69113.get("exclusive"))
+        if str(active_admin_package_v69113.get("status") or "") in {
+            "recovered", "ambiguous", "failed"
+        }
         else ""
     )
     instructions = (
@@ -53756,6 +53746,115 @@ def _dedupe_website_chat_images_v68883(images):
     return output
 
 
+
+def _website_image_durability_verification_v69114(
+    extraction,
+    database_choice,
+    approved_images,
+    image_stats,
+    image_sync,
+):
+    """Verify that every approved website image is durably reconstructable.
+
+    A factual vector commit may remain authoritative even if image persistence is
+    incomplete, but Admin must never report full image-learning success until the
+    durable page index can read back every approved image identity.
+    """
+    approved = [
+        dict(item) for item in (approved_images or [])
+        if isinstance(item, dict)
+    ]
+    expected_issues = set()
+    for item in approved:
+        try:
+            payload = _website_image_index_record_v68883(
+                extraction, database_choice, item
+            )
+            expected_issues.add(_website_image_scoped_issue_v69003(payload))
+        except Exception:
+            continue
+
+    rows, loaded_ok = _website_image_index_rows_for_page_v69003(
+        extraction, database_choice
+    )
+    durable_issues = set()
+    publishable_rows = 0
+    for entry in rows or []:
+        row = dict((entry or {}).get("row") or {})
+        payload = dict((entry or {}).get("payload") or {})
+        issue = str(row.get("issue") or "").strip()
+        direct_url = str(payload.get("image_url") or "").strip()
+        archive_path = str(payload.get("archive_storage_path") or "").strip()
+        if issue:
+            durable_issues.add(issue)
+        if direct_url.startswith("https://") or archive_path:
+            publishable_rows += 1
+
+    missing = sorted(expected_issues - durable_issues)
+    approved_count = len(expected_issues)
+    indexed = int((image_stats or {}).get("indexed") or 0)
+    archived = int((image_stats or {}).get("archived") or 0)
+    index_failures = int((image_stats or {}).get("failures") or 0)
+    sync_completed = bool((image_sync or {}).get("completed"))
+    sync_failures = int((image_sync or {}).get("failures") or 0)
+
+    complete = bool(
+        loaded_ok
+        and sync_completed
+        and not missing
+        and indexed >= approved_count
+        and publishable_rows >= approved_count
+        and index_failures == 0
+        and sync_failures == 0
+    ) if approved_count else bool(loaded_ok and sync_completed)
+
+    return {
+        "approved_count": approved_count,
+        "indexed": indexed,
+        "archived": archived,
+        "publishable_rows": publishable_rows,
+        "read_after_write_loaded": bool(loaded_ok),
+        "sync_completed": sync_completed,
+        "index_failures": index_failures,
+        "sync_failures": sync_failures,
+        "missing_issue_count": len(missing),
+        "missing_issues": missing[:20],
+        "complete": complete,
+        "status": "complete" if complete else "image_learning_incomplete",
+    }
+
+
+def _website_result_image_complete_v69114(result):
+    payload = dict(result or {})
+    verification = dict(
+        payload.get("website_image_durability_v69114") or {}
+    )
+    if not verification:
+        return True
+    return bool(verification.get("complete"))
+
+
+def _technical_visual_followup_v69114(prompt_text):
+    """Return True only for explicit visual/photo follow-ups."""
+    return bool(_website_image_explicit_visual_request_v68888(prompt_text))
+
+
+def _technical_active_package_failure_state_v69114(status, reason_code, message):
+    return {
+        "status": str(status or "failed"),
+        "exclusive": False,
+        "reason_code": str(reason_code or ""),
+        "context": (
+            "TECHNICAL ACTIVE PACKAGE SAFETY GATE (v69114)\n"
+            + str(message or "").strip()
+            + "\nDo not provide Car Model / Protocol / A-C / CANBUS values from "
+              "broad or older Technical records for this turn. Ask for the missing "
+              "discriminator or report that the current package cannot be verified."
+        ),
+        "rows": [],
+    }
+
+
 def save_website_knowledge_package(
     extraction,
     database_choice,
@@ -53859,6 +53958,13 @@ def save_website_knowledge_package(
         else:
             image_stats = {"indexed": 0, "archived": 0, "failures": 0, "preserved_existing_v69005": True}
             image_sync = {"completed": True, "skipped_reason": "image-analysis-disabled-preserve-existing-v69005"}
+        image_durability_v69114 = _website_image_durability_verification_v69114(
+            extraction,
+            database_choice,
+            approved_images_v69112 if include_images else [],
+            image_stats,
+            image_sync,
+        )
         _website_invalidate_learning_caches_v69109([database_choice])
         return {
             "already_saved": True,
@@ -53871,6 +53977,8 @@ def save_website_knowledge_package(
             "image_analysis": image_analysis,
             "website_image_index_v68883": image_stats,
             "website_image_sync_v69003": image_sync,
+            "website_image_durability_v69114": image_durability_v69114,
+            "image_learning_complete_v69114": bool(image_durability_v69114.get("complete")),
             "factual_supersession_completed_v69109": True,
         }
 
@@ -53948,6 +54056,14 @@ def save_website_knowledge_package(
             "skipped_reason": "image-analysis-disabled-preserve-existing-v69005",
         }
 
+    website_image_durability_v69114 = _website_image_durability_verification_v69114(
+        extraction,
+        database_choice,
+        approved_images_v69112 if include_images else [],
+        website_image_index_stats_v68883,
+        website_image_sync_v69003,
+    )
+
     _website_invalidate_learning_caches_v69109([database_choice])
     return {
         "already_saved": False,
@@ -53961,6 +54077,10 @@ def save_website_knowledge_package(
         "image_analysis": image_analysis,
         "website_image_index_v68883": website_image_index_stats_v68883,
         "website_image_sync_v69003": website_image_sync_v69003,
+        "website_image_durability_v69114": website_image_durability_v69114,
+        "image_learning_complete_v69114": bool(
+            website_image_durability_v69114.get("complete")
+        ),
         "factual_supersession_completed_v69109": factual_supersession_completed_v69109,
         "newest_source_authority_v69109": True,
     }
@@ -54854,6 +54974,25 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
     if not candidates:
         return {"status": "empty", "reason_code": "NO_MATCHING_ADMIN_PACKAGE"}
 
+    # v69114: never choose the newest package across materially different factory
+    # system variants when the prompt itself did not identify that discriminator.
+    if not prompt_systems:
+        surviving_system_sets_v69114 = {
+            tuple(sorted(
+                str(x) for x in (item[3].get("systems") or []) if str(x)
+            ))
+            for item in candidates
+        }
+        surviving_system_sets_v69114.discard(tuple())
+        if len(surviving_system_sets_v69114) > 1:
+            return {
+                "status": "ambiguous",
+                "reason_code": "MULTIPLE_FACTORY_SYSTEM_VARIANTS",
+                "systems": [
+                    list(x) for x in sorted(surviving_system_sets_v69114)
+                ],
+            }
+
     candidates.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
     package = dict(candidates[0][3])
     source_url = str(package.get("source_url") or "").strip()
@@ -55319,12 +55458,13 @@ def save_website_knowledge_to_destinations_v69029(
 
     results = {}
     failures = {}
+    image_incomplete = {}
     for destination in destinations:
         try:
             destination_analysis_v69040 = _website_destination_image_analysis_v69040(
                 shared_analysis, destination
             )
-            results[destination] = save_website_knowledge_package(
+            destination_result_v69114 = save_website_knowledge_package(
                 extraction,
                 destination,
                 reviewed_content=reviewed_content,
@@ -55332,6 +55472,18 @@ def save_website_knowledge_to_destinations_v69029(
                 selected_image_urls=selected_image_urls,
                 image_analysis_override_v69029=destination_analysis_v69040,
             )
+            results[destination] = destination_result_v69114
+            if include_images and not _website_result_image_complete_v69114(
+                destination_result_v69114
+            ):
+                image_incomplete[destination] = {
+                    "status": "text_saved_image_incomplete",
+                    "verification": dict(
+                        destination_result_v69114.get(
+                            "website_image_durability_v69114"
+                        ) or {}
+                    ),
+                }
         except Exception as error:
             failures[destination] = {
                 "error_type": type(error).__name__,
@@ -55349,9 +55501,14 @@ def save_website_knowledge_to_destinations_v69029(
         "destinations": destinations,
         "results": results,
         "failures": failures,
+        "image_incomplete": image_incomplete,
         "shared_image_analysis": shared_analysis,
-        "completed": len(results) == len(destinations) and not failures,
-        "partial_success": bool(results) and bool(failures),
+        "completed": (
+            len(results) == len(destinations)
+            and not failures
+            and not image_incomplete
+        ),
+        "partial_success": bool(results) and bool(failures or image_incomplete),
     }
 
 
@@ -55807,6 +55964,9 @@ def render_learn_from_website(database_choice):
 
         results_v69029 = dict(multi_save_v69029.get("results") or {})
         failures_v69029 = dict(multi_save_v69029.get("failures") or {})
+        image_incomplete_v69114 = dict(
+            multi_save_v69029.get("image_incomplete") or {}
+        )
         analysis_stats = dict(multi_save_v69029.get("shared_image_analysis") or {})
         image_count = len(analysis_stats.get("images") or [])
         destination_names_v69029 = list(multi_save_v69029.get("destinations") or [])
@@ -55830,6 +55990,54 @@ def render_learn_from_website(database_choice):
             f"{short_name_v69029(destination)}={str((result or {}).get('file_id') or 'existing')}"
             for destination, result in results_v69029.items()
         ]
+
+        durability_totals_v69114 = {
+            "approved": 0,
+            "archived": 0,
+            "indexed": 0,
+            "publishable": 0,
+            "missing": 0,
+        }
+        for result in results_v69029.values():
+            verification = dict(
+                (result or {}).get("website_image_durability_v69114") or {}
+            )
+            durability_totals_v69114["approved"] += int(
+                verification.get("approved_count") or 0
+            )
+            durability_totals_v69114["archived"] += int(
+                verification.get("archived") or 0
+            )
+            durability_totals_v69114["indexed"] += int(
+                verification.get("indexed") or 0
+            )
+            durability_totals_v69114["publishable"] += int(
+                verification.get("publishable_rows") or 0
+            )
+            durability_totals_v69114["missing"] += int(
+                verification.get("missing_issue_count") or 0
+            )
+
+        if image_incomplete_v69114 and not failures_v69029:
+            incomplete_names_v69114 = [
+                short_name_v69029(x) for x in image_incomplete_v69114
+            ]
+            st.session_state.admin_website_save_notice = {
+                "type": "warning",
+                "message": (
+                    "Text knowledge was saved to "
+                    + ", ".join(saved_names_v69029)
+                    + ", but image learning is incomplete for "
+                    + ", ".join(incomplete_names_v69114)
+                    + ". "
+                    + f"Analyzed/approved: {image_count}; "
+                    + f"durable indexed: {durability_totals_v69114['indexed']}; "
+                    + f"publishable after read-back: {durability_totals_v69114['publishable']}; "
+                    + f"missing durable records: {durability_totals_v69114['missing']}. "
+                    + "The reviewed extraction is preserved so you can retry image synchronization safely."
+                ),
+            }
+            return
 
         if failures_v69029:
             # Keep extraction + preview state so retrying is safe. Destinations that
@@ -55857,7 +56065,9 @@ def render_learn_from_website(database_choice):
                 "type": "warning" if cleanup_pending_v69029 else "success",
                 "message": (
                     "Website knowledge saved to " + ", ".join(saved_names_v69029) + ". "
-                    + f"Images were analyzed once: {image_count} useful image(s) from {analysis_stats.get('attempted', 0)} checked image(s). "
+                    + f"Images analyzed/approved: {image_count} from {analysis_stats.get('attempted', 0)} checked; "
+                    + f"durable indexed: {durability_totals_v69114['indexed']}; "
+                    + f"publishable after read-back: {durability_totals_v69114['publishable']}. "
                     + ("Older same-URL cleanup is pending for at least one destination. " if cleanup_pending_v69029 else "")
                     + ("File IDs: " + "; ".join(file_ids_v69029) if file_ids_v69029 else "")
                 ),
@@ -65324,7 +65534,37 @@ else:
         # Admin website package BEFORE broad text/image search.  Once proven, the
         # package becomes exclusive for both facts and website images in this turn.
         technical_active_admin_package_v69113 = {"status": "not_applicable"}
+        prior_active_admin_package_v69114 = dict(
+            st.session_state.get("_technical_active_admin_package_v69113") or {}
+        )
+        explicit_visual_followup_v69114 = bool(
+            assistant == "🔧 Technical Support"
+            and _technical_visual_followup_v69114(interaction_prompt)
+        )
+
         if (
+            assistant == "🔧 Technical Support"
+            and explicit_visual_followup_v69114
+            and str(prior_active_admin_package_v69114.get("status") or "")
+            == "recovered"
+        ):
+            # Preserve the exact package already established by the prior Technical
+            # settings turn. Do not reopen broad vector/image competition.
+            technical_active_admin_package_v69113 = prior_active_admin_package_v69114
+            use_file_search = False
+            st.session_state["_technical_file_search_results_v69012"] = list(
+                prior_active_admin_package_v69114.get("rows") or []
+            )[:12]
+            st.session_state["_workspace_file_search_results_v69040"] = list(
+                prior_active_admin_package_v69114.get("rows") or []
+            )[:12]
+            diagnostic_log(
+                "technical_active_admin_visual_followup_preserved_v69114",
+                file_id=str(
+                    prior_active_admin_package_v69114.get("file_id") or ""
+                )[:120],
+            )
+        elif (
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
             and str(technical_request_prompt_v68879 or "").strip()
@@ -65334,16 +65574,16 @@ else:
                     technical_request_prompt_v68879
                 )
             )
+            resolver_status_v69114 = str(
+                technical_active_admin_package_v69113.get("status") or ""
+            )
             if (
-                str(technical_active_admin_package_v69113.get("status") or "")
-                == "recovered"
+                resolver_status_v69114 == "recovered"
                 and bool(technical_active_admin_package_v69113.get("exclusive"))
             ):
                 _technical_seed_active_admin_package_v69113(
                     technical_active_admin_package_v69113
                 )
-                # Do not allow the provider or prefetch path to search stale vectors
-                # after the current Admin package is locked.
                 use_file_search = False
                 diagnostic_log(
                     "technical_active_admin_package_bound_v69113",
@@ -65354,11 +65594,44 @@ else:
                         technical_active_admin_package_v69113.get("extracted_at") or ""
                     )[:80],
                 )
+            elif resolver_status_v69114 == "ambiguous":
+                fail_state_v69114 = _technical_active_package_failure_state_v69114(
+                    "ambiguous",
+                    str(
+                        technical_active_admin_package_v69113.get("reason_code")
+                        or "AMBIGUOUS"
+                    ),
+                    "Multiple current Technical packages match this vehicle/year but "
+                    "belong to different factory-system variants. Ask which original "
+                    "factory system / SYNC configuration the vehicle has before "
+                    "providing settings.",
+                )
+                st.session_state["_technical_active_admin_package_v69113"] = (
+                    fail_state_v69114
+                )
+                technical_active_admin_package_v69113 = fail_state_v69114
+                use_file_search = False
+            elif resolver_status_v69114 == "failed":
+                fail_state_v69114 = _technical_active_package_failure_state_v69114(
+                    "failed",
+                    str(
+                        technical_active_admin_package_v69113.get("reason_code")
+                        or "CATALOG_FAILED"
+                    ),
+                    "The current Technical package registry could not be verified "
+                    "for this settings request. Do not fall back to broad or older "
+                    "Technical records; ask the staff member to retry.",
+                )
+                st.session_state["_technical_active_admin_package_v69113"] = (
+                    fail_state_v69114
+                )
+                technical_active_admin_package_v69113 = fail_state_v69114
+                use_file_search = False
             else:
                 st.session_state.pop(
                     "_technical_active_admin_package_v69113", None
                 )
-        elif assistant == "🔧 Technical Support":
+        elif assistant == "🔧 Technical Support" and not explicit_visual_followup_v69114:
             st.session_state.pop("_technical_active_admin_package_v69113", None)
 
         # v69016: begin Technical image evidence work at the earliest safe point,
