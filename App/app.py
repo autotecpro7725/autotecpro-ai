@@ -1,13 +1,4 @@
-# AutoTecPro AI v69126 — FINAL PRODUCTION: split verified A/C options into separate rows + first-turn Technical image recovery from exact answer evidence; all v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
-# AutoTecPro AI v69125 — FINAL PRODUCTION: verified same-source dual-A/C contract + deterministic two-row table preservation; all v69124/v69123 image, learning, output, Graphic, Reference, After Install behavior preserved
-# AutoTecPro AI v69124 — FINAL PRODUCTION: complete same-family Manual+Automatic Technical settings retrieval; v69123 durability/F250/image fixes and all protected output/Graphic/Reference/After Install behavior preserved\n# AutoTecPro AI v69123 — FINAL PRODUCTION: durable image read-back fix + Admin website supersedes conflicting Technical settings learned vectors + clean explicit-vehicle context + v69050 Technical late-image publication restored; all output/Graphic/Reference/After Install preserved
-# AutoTecPro AI v69122 — FINAL PRODUCTION: v69050 Technical factual authority restored at the live call site; v69121 output/learning/image/Graphic/Reference/After Install preserved
-# AutoTecPro AI v69121 — FINAL PRODUCTION RELEASE: resilient optional Technical prewarm + last-known-good snapshot + immediate new-package promotion + v69120 same-turn explicit photos; all protected output/Graphic/Reference/After Install preserved
-# AutoTecPro AI v69120 — immediate explicit photo publication across Technical/Sales/Marketing; all v69119 output/result, Graphic, Reference, After Install, and QA behavior preserved
-# AutoTecPro AI v69119 — prewarmed proven Technical catalog for fast/stable responses; v69118 output/result and v69115 image behavior preserved
-# AutoTecPro AI v69118 — FINAL STABLE: v69115 proven result/image path + main-thread typo-safe routing; v69117 registry regression removed
-# AutoTecPro AI v69117 — stable main-thread Technical routing; v69115 automatic image + v69114 result/display preserved
-# AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
+# AutoTecPro AI v69128 — FINAL PRODUCTION: generic dynamic multi-option Technical settings rows across Ford/GM/future sources; v69126 first-turn image publication and all protected pipelines preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -37011,22 +37002,28 @@ TECHNICAL CAR MODEL / PROTOCOL / A-C SETTINGS PRESENTATION:
   factual block MUST be a compact Markdown table with exactly these columns:
   | Setting Field | Select |
 - Include every value supported by the active newest Technical evidence. Use
-  these rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
-  Series or Screen Size only when those values are necessary to distinguish
-  the correct configuration.
-- Put one setting in each row. Keep the Select value concise and preserve the
-  exact capitalization, punctuation, spelling, and menu wording found in the
-  evidence.
+  these base rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
+  Series, Screen Size, factory-system type, SYNC type, camera type, or another
+  verified selector only when the source shows it is needed for the configuration.
+- Put ONE DISTINCT VERIFIED OPTION in each row. If one base setting has multiple
+  labeled choices in the same authoritative source, expand them as separate rows
+  using `Base Setting Field - Exact Option Label` in the first column and the exact
+  corresponding Select value in the second column. The number of option rows is
+  dynamic; never assume only Manual/Automatic or any fixed option count.
+- Keep each Select value concise and preserve the exact capitalization,
+  punctuation, spelling, and menu wording found in the evidence.
 - Never invent a value, fill an unknown cell with a guess, or copy a conflicting
   value from superseded evidence. Omit an unsupported optional row. If a
   required setting is not confirmed, put **Requires Verification** in that row
   and explain what must be checked after the table.
-- When the original climate panel changes the correct A/C selection, list ALL
-  verified Manual and Automatic choices from the SAME configuration family in
-  the first table and explain how to choose between them immediately after it.
-  Keep the base Car Model separate from the climate selector; do not turn a
-  climate label into a different Car Model unless the same Technical source
-  explicitly identifies it as the Car Model.
+- When any original vehicle feature changes a menu selection (for example
+  climate panel, factory system/SYNC generation, screen size, camera package, or
+  another source-labeled variant), list ALL verified choices from the SAME
+  configuration family as separate rows in the first table. Explain how to choose
+  among them immediately after the table when the source provides the distinction.
+  Keep the base Car Model separate from secondary selectors; do not turn an option
+  label into a different Car Model unless the same Technical source explicitly
+  identifies it as the Car Model.
 - Follow the table with a short ## Menu Path numbered list when verified setup
   steps are available. Add ## Important Note only for a material warning,
   ambiguity, or fitment distinction.
@@ -38973,6 +38970,143 @@ def _technical_rows_auto_images_v69126(
     return output
 
 
+
+
+def _technical_generic_settings_request_v69127(prompt_text):
+    """Detect generic Technical settings/configuration questions.
+
+    Broader than the v69124 A/C-only detector so one verified source can expose
+    multiple distinct options (SYNC, screen, climate, etc.) as separate rows.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return False
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not prompt:
+        return False
+    return bool(re.search(
+        r"\bcar\s*model\b|\bcare\s*model\b|\bprotocol\b|\bcanbus\b|\bsetting\b|\bsettings\b|\bconfiguration\b|\bsync\b|\bscreen\b|\bclimate\b|\ba\s*/?\s*c\b|\bcamera\b",
+        prompt,
+    ))
+
+
+def _technical_parse_multi_option_select_cell_v69127(cell_text):
+    """Parse multiple exact option/value pairs from one Select cell.
+
+    Supported evidence-preserving forms include:
+      VALUE for LABEL / VALUE for LABEL
+      LABEL: VALUE / LABEL: VALUE
+      LABEL = VALUE ; LABEL = VALUE
+    Delimiters require surrounding spacing where needed so labels such as `A/C`
+    are preserved intact. The parser never supplies product-specific facts.
+    """
+    cell = re.sub(r"\s+", " ", str(cell_text or "")).strip()
+    if not cell:
+        return []
+
+    output = []
+    seen = set()
+
+    def add_pair(label_raw, value_raw):
+        label = re.sub(r"\s+", " ", str(label_raw or "")).strip(" -*`:/=")
+        value = re.sub(r"\s+", " ", str(value_raw or "")).strip(" -*`:/=")
+        if not (label and value):
+            return
+        if len(label) > 180 or len(value) > 180:
+            return
+        key = (label.casefold(), value.casefold())
+        if key in seen:
+            return
+        seen.add(key)
+        output.append((label, value))
+
+    # Split only on visual separators, never the slash inside labels like A/C.
+    segments = [
+        re.sub(r"\s+", " ", part).strip()
+        for part in re.split(r"(?:\s+/\s+|\s*;\s*|\s*•\s*)", cell)
+        if str(part or "").strip()
+    ]
+    if len(segments) < 2:
+        return []
+
+    # Form 1: VALUE for LABEL
+    form1 = True
+    for segment in segments:
+        match = re.match(r"(?i)^(.{1,160}?)\s+for\s+(.{1,180})$", segment)
+        if not match:
+            form1 = False
+            break
+        add_pair(match.group(2), match.group(1))
+    if form1 and len(output) >= 2:
+        manual = [x for x in output if re.search(r"(?i)\bmanual\b", x[0])]
+        automatic = [x for x in output if re.search(r"(?i)\bautomatic\b|\bauto\b", x[0])]
+        if manual and automatic and len(manual) + len(automatic) == len(output):
+            output = manual + automatic
+        return output
+
+    # Form 2: LABEL: VALUE or LABEL = VALUE
+    output = []
+    seen = set()
+    for segment in segments:
+        match = re.match(r"^(.{1,180}?)\s*(?::|=|→|->)\s*(.{1,180})$", segment)
+        if not match:
+            return []
+        add_pair(match.group(1), match.group(2))
+    return output if len(output) >= 2 else []
+
+
+def _technical_expand_combined_setting_rows_v69127(answer_text):
+    """Expand one combined Select cell into one row per verified option.
+
+    Presentation-only: it uses the exact values already present in the generated
+    answer. It does not invent values or labels. Existing rows that are already in
+    the desired `Setting Field - Option | Select` format are preserved.
+    """
+    answer = str(answer_text or "")
+    if not answer:
+        return answer
+    lines = answer.splitlines()
+    table_start = -1
+    table_end = -1
+    for idx, line in enumerate(lines):
+        if re.match(r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$", line.strip(), flags=re.I):
+            table_start = idx
+            break
+    if table_start < 0:
+        return answer
+    table_end = table_start + 1
+    while table_end < len(lines) and lines[table_end].strip().startswith("|"):
+        table_end += 1
+
+    rebuilt = []
+    changed = False
+    for idx in range(table_start, table_end):
+        row = lines[idx].strip()
+        match = re.match(r"^\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*$", row)
+        if not match:
+            rebuilt.append(lines[idx])
+            continue
+        field = re.sub(r"\s+", " ", str(match.group(1) or "")).strip()
+        value = str(match.group(2) or "")
+        if not field or field.casefold() == 'setting field' or set(field) <= {'-'}:
+            rebuilt.append(lines[idx])
+            continue
+        # Preserve already-expanded rows.
+        if ' - ' in field:
+            rebuilt.append(lines[idx])
+            continue
+        options = _technical_parse_multi_option_select_cell_v69127(value)
+        if len(options) < 2:
+            rebuilt.append(lines[idx])
+            continue
+        changed = True
+        for label, option_value in options:
+            rebuilt.append(f"| {field} - {label} | {option_value} |")
+    if not changed:
+        return answer
+    lines[table_start:table_end] = rebuilt
+    return "\n".join(lines)
+
+
 def _technical_enforce_dual_ac_table_v69125(answer_text, evidence_result):
     """Guarantee the existing professional table preserves both verified branches.
 
@@ -39355,11 +39489,13 @@ def _technical_variant_retrieval_instruction_v69106(prompt_text):
     else:
         lines += [
             "- Climate type is not uniquely specified. Before answering, retrieve/reconcile BOTH verified Manual and Automatic climate branches for this exact configuration family when both exist in Technical knowledge.",
-            "- In the first settings table, keep one base Car Model row. Show both verified climate choices together in A/C Type (or separate Manual A/C and Automatic A/C rows when clearer). Do not answer with only whichever climate-specific chunk ranked first if the same source contains both branches.",
+            "- If one verified settings field contains multiple distinct options in the same Technical source (for example Manual/Automatic climate, SYNC variants, screen variants, or other labeled choices), display ONE TABLE ROW PER VERIFIED OPTION using the pattern `Base Setting Field - Option Label | Select Value`. Do not collapse several verified options into one long Select cell.",
+            "- In the first settings table, keep one base Car Model row unless the same authoritative source explicitly provides distinct Car Model selections for different option labels. Do not answer with only whichever climate-specific or option-specific chunk ranked first if the same source contains multiple verified branches.",
         ]
     lines += [
-        "- If the same authoritative source does not support both variants, say which variant is confirmed and which requires verification; never manufacture the missing counterpart.",
-        "- These rules change retrieval/continuity only. Existing v69050 image publication, vehicle/year/product/topic gates, Sales/Marketing routing, Graphic pipeline, security, and persistence remain unchanged.",
+        "- For any other multi-option setting found in the same source, return every verified option as a separate first-table row using its exact source label and exact Select value. Do not cap the number of rows and do not invent missing options.",
+        "- If the same authoritative source does not support a requested variant, say which option is confirmed and which requires verification; never manufacture a missing counterpart.",
+        "- These rules change retrieval/continuity and table presentation only. Existing v69050/v69126 image publication, vehicle/year/product/topic gates, Sales/Marketing routing, Graphic pipeline, security, and persistence remain unchanged.",
     ]
     return "\n".join(lines)
 
@@ -68480,10 +68616,13 @@ else:
                         # v69126: if normal Technical retrieval already produced both
                         # verified branches in one combined A/C cell, preserve those
                         # exact values but display them in separate rows.
-                        if _technical_generic_ac_variant_request_v69124(
+                        if _technical_generic_settings_request_v69127(
                             technical_request_prompt_v68879
                         ):
                             answer_body = _technical_split_combined_ac_row_v69126(
+                                answer_body
+                            )
+                            answer_body = _technical_expand_combined_setting_rows_v69127(
                                 answer_body
                             )
 
