@@ -1,3 +1,5 @@
+# AutoTecPro AI v69109 — newest-source supersession + password learning + checkbox destinations + automatic section images
+# AutoTecPro AI v69108 — Graphic multi-tab durable-job isolation + v69107A image final gate
 # AutoTecPro AI v69107A — FINAL PUBLICATION GATE ONLY
 # AutoTecPro AI v69106 — v69050 image authority + same-config variant continuity
 # AutoTecPro AI v69105 — rebuilt from the user-supplied v69050 production baseline.
@@ -13501,12 +13503,30 @@ def _graphic_mark_mobile_job_v68400(status, *, error=""):
 GRAPHIC_V68845_PROCESSING_STALE_SECONDS = 780  # v68851: must exceed the 720-second cross-worker lease
 
 
-def _graphic_durable_job_keys_v68844(conversation_id=None):
-    """Return workspace-independent keys for one resumable Graphic job.
+def _graphic_session_scope_v69108():
+    """Return one stable Graphic orchestration scope for this Streamlit browser tab.
 
-    These keys intentionally do not depend on ``current_assistant``. A websocket
-    reconnect may recreate session state before workspace restoration, but the same
-    authenticated user/conversation must still be able to locate the pending job.
+    Streamlit session_state is isolated per browser tab/session.  Using a generated
+    UUID here prevents two tabs signed into the same AutoTecPro account from sharing
+    the old username-only durable active-job alias.  The value survives ordinary
+    Streamlit reruns inside the tab and is orchestration-only; it never reaches any
+    Reference / After Install renderer or image-generation prompt.
+    """
+    key = "graphic_browser_session_scope_v69108"
+    current = str(st.session_state.get(key) or "").strip()
+    if not current:
+        current = uuid.uuid4().hex
+        st.session_state[key] = current
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", current)[:64] or uuid.uuid4().hex
+
+
+def _graphic_durable_job_keys_v68844(conversation_id=None, session_scope=None):
+    """Return tab-isolated keys for one resumable Graphic job.
+
+    v69108 removes the historical username-only ``graphic-active-job`` alias that
+    allowed two concurrent tabs on the same account to retire, resume, or overwrite
+    one another's active Graphic durable job.  Conversation identity remains part
+    of the key when available, and a per-tab session scope is always included.
     """
     username = str(st.session_state.get("username") or "anonymous").strip().casefold()
     conversation = str(
@@ -13514,11 +13534,10 @@ def _graphic_durable_job_keys_v68844(conversation_id=None):
         if conversation_id is not None
         else st.session_state.get("conversation_id") or ""
     ).strip()
-    keys = []
-    if conversation:
-        keys.append(f"{username}:{conversation}:graphic-job-v68844")
-    keys.append(f"{username}:graphic-active-job-v68844")
-    return list(dict.fromkeys(keys))
+    scope = str(session_scope or _graphic_session_scope_v69108()).strip()
+    scope = re.sub(r"[^A-Za-z0-9_.-]+", "_", scope)[:64] or _graphic_session_scope_v69108()
+    conversation_key = conversation or "active"
+    return [f"{username}:{conversation_key}:{scope}:graphic-job-v69108"]
 
 
 GRAPHIC_V68847_JOB_SPOOL_DIR = Path(tempfile.gettempdir()) / "autotecpro_graphic_jobs_v68847"
@@ -13538,7 +13557,13 @@ def _graphic_v68848_safe_segment(value, fallback="unknown"):
     return cleaned[:120] or fallback
 
 
-def _graphic_v68848_owner_context(conversation_id=None):
+def _graphic_v68848_owner_context(conversation_id=None, session_scope=None):
+    """Return durable Graphic job ownership with per-tab isolation.
+
+    Project persistence remains conversation-scoped elsewhere.  This helper is for
+    Graphic job orchestration paths, where v69108 adds the browser-tab scope so two
+    tabs under one account cannot share the same active pointer.
+    """
     username = _graphic_v68848_safe_segment(
         st.session_state.get("username") or "anonymous", "anonymous"
     ).casefold()
@@ -13546,7 +13571,10 @@ def _graphic_v68848_owner_context(conversation_id=None):
         conversation_id if conversation_id is not None else st.session_state.get("conversation_id") or "active",
         "active",
     )
-    return username, conversation
+    scope = _graphic_v68848_safe_segment(
+        session_scope or _graphic_session_scope_v69108(), "session"
+    )
+    return username, conversation, scope
 
 
 @st.cache_resource(show_spinner=False)
@@ -13615,8 +13643,18 @@ def _graphic_v68848_remove_paths(paths):
 
 
 def _graphic_v68854_project_prefix(conversation_id=None):
-    """Return a conversation-scoped path for durable Graphic project context."""
-    username, conversation = _graphic_v68848_owner_context(conversation_id)
+    """Return a conversation-scoped path for durable Graphic project context.
+
+    v69108 intentionally does NOT tab-scope project/reference persistence.  Only
+    active job orchestration is tab-isolated.
+    """
+    username = _graphic_v68848_safe_segment(
+        st.session_state.get("username") or "anonymous", "anonymous"
+    ).casefold()
+    conversation = _graphic_v68848_safe_segment(
+        conversation_id if conversation_id is not None else st.session_state.get("conversation_id") or "active",
+        "active",
+    )
     return f"projects/{username}/{conversation}"
 
 
@@ -13964,14 +14002,20 @@ def _graphic_v68854_peek_active_manifest(conversation_id=None):
 
 
 def _graphic_v68848_job_prefix(job):
-    username, conversation = _graphic_v68848_owner_context(job.get("conversation_id") if isinstance(job, dict) else None)
-    job_id = _graphic_v68848_safe_segment((job or {}).get("job_id"), "job")
-    return f"jobs/{username}/{conversation}/{job_id}"
+    job = job if isinstance(job, dict) else {}
+    username, conversation, scope = _graphic_v68848_owner_context(
+        job.get("conversation_id"),
+        job.get("graphic_session_scope_v69108"),
+    )
+    job_id = _graphic_v68848_safe_segment(job.get("job_id"), "job")
+    return f"jobs/{username}/{conversation}/{scope}/{job_id}"
 
 
-def _graphic_v68848_active_pointer_path(conversation_id=None):
-    username, conversation = _graphic_v68848_owner_context(conversation_id)
-    return f"jobs/{username}/{conversation}/active.json"
+def _graphic_v68848_active_pointer_path(conversation_id=None, session_scope=None):
+    username, conversation, scope = _graphic_v68848_owner_context(
+        conversation_id, session_scope
+    )
+    return f"jobs/{username}/{conversation}/{scope}/active.json"
 
 
 def _graphic_v68848_public_job(job):
@@ -14003,7 +14047,9 @@ def _graphic_v68848_persist_manifest(job):
             "updated_at": job.get("updated_at") or time.time(),
         }, ensure_ascii=False).encode("utf-8")
         _graphic_v68848_upload_bytes(
-            _graphic_v68848_active_pointer_path(job.get("conversation_id")),
+            _graphic_v68848_active_pointer_path(
+                job.get("conversation_id"), job.get("graphic_session_scope_v69108")
+            ),
             pointer,
             "application/json",
             upsert=True,
@@ -14428,7 +14474,8 @@ def _graphic_queue_durable_job_v68844(
 ):
     """Checkpoint exact inputs locally and in Supabase before the provider call."""
     cache = _graphic_mobile_runtime_cache_v68400()
-    keys = _graphic_durable_job_keys_v68844()
+    session_scope_v69108 = _graphic_session_scope_v69108()
+    keys = _graphic_durable_job_keys_v68844(session_scope=session_scope_v69108)
     idempotency_source = json.dumps({
         "owner": keys[0], "prompt": str(prompt_text or ""),
         "file_ids": [hashlib.sha256(_graphic_uploaded_file_bytes(f)).hexdigest() for f in (files or [])],
@@ -14447,6 +14494,7 @@ def _graphic_queue_durable_job_v68844(
         "intent": str(intent or "generate"), "attempt": 0,
         "max_attempts": max(1, int(max_attempts or 1)),
         "conversation_id": str(st.session_state.get("conversation_id") or ""),
+        "graphic_session_scope_v69108": session_scope_v69108,
         "created_at": time.time(), "updated_at": time.time(),
     }
     job["uploads"] = _graphic_v68848_store_uploads(job, files)
@@ -14493,7 +14541,9 @@ def _graphic_pending_durable_job_v68844():
             recovered["error"] = "StaleProcessingLeaseRecoveredV68851"
             recovered["updated_at"] = time.time()
             _graphic_v68848_release_lease(recovered)
-            for alias in _graphic_durable_job_keys_v68844(recovered.get("conversation_id")):
+            for alias in _graphic_durable_job_keys_v68844(
+                recovered.get("conversation_id"), recovered.get("graphic_session_scope_v69108")
+            ):
                 cache["jobs"][alias] = recovered
             _graphic_v68848_persist_manifest(recovered)
             return recovered
@@ -14507,10 +14557,14 @@ def _graphic_pending_durable_job_v68844():
             )
             _graphic_v68848_remove_paths([
                 f"{_graphic_v68848_job_prefix(restored)}/manifest.json",
-                _graphic_v68848_active_pointer_path(restored.get("conversation_id")),
+                _graphic_v68848_active_pointer_path(
+                    restored.get("conversation_id"), restored.get("graphic_session_scope_v69108")
+                ),
             ])
             return None
-        for alias in _graphic_durable_job_keys_v68844(restored.get("conversation_id")):
+        for alias in _graphic_durable_job_keys_v68844(
+            restored.get("conversation_id"), restored.get("graphic_session_scope_v69108")
+        ):
             cache["jobs"][alias] = restored
         return dict(restored)
     return None
@@ -14530,7 +14584,9 @@ def _graphic_update_durable_job_v68844(job, *, status=None, attempt=None, error=
         updated["error"] = str(error)[:1000]
     cache = _graphic_mobile_runtime_cache_v68400()
     conversation_id = updated.get("conversation_id")
-    for key in _graphic_durable_job_keys_v68844(conversation_id):
+    for key in _graphic_durable_job_keys_v68844(
+        conversation_id, updated.get("graphic_session_scope_v69108")
+    ):
         cache["jobs"][key] = updated
     _graphic_v68848_persist_manifest(updated)
     return dict(updated)
@@ -14567,9 +14623,13 @@ def _graphic_complete_durable_job_v68844(job):
     _graphic_v68848_release_lease(completed)
     _graphic_cleanup_spooled_uploads_v68847(completed.get("uploads") or [])
     storage_paths = [str(item.get("storage_path") or "") for item in (completed.get("uploads") or []) if isinstance(item, dict)]
-    storage_paths += [f"{_graphic_v68848_job_prefix(completed)}/manifest.json", _graphic_v68848_active_pointer_path(completed.get("conversation_id"))]
+    storage_paths += [f"{_graphic_v68848_job_prefix(completed)}/manifest.json", _graphic_v68848_active_pointer_path(
+        completed.get("conversation_id"), completed.get("graphic_session_scope_v69108")
+    )]
     _graphic_v68848_remove_paths(storage_paths)
-    for key in _graphic_durable_job_keys_v68844(completed.get("conversation_id")):
+    for key in _graphic_durable_job_keys_v68844(
+        completed.get("conversation_id"), completed.get("graphic_session_scope_v69108")
+    ):
         candidate = cache["jobs"].get(key)
         if not isinstance(candidate, dict) or candidate.get("job_id") == completed.get("job_id"):
             cache["jobs"].pop(key, None)
@@ -37093,6 +37153,7 @@ sections from the workflow above without forcing unrelated order sections.
 
 Never invent technical information.
 If documentation is unavailable, clearly say so.
+When file_search returns multiple learned website packages for the same Requested URL or Final source URL, the package with the newest Extracted at timestamp/current content is authoritative. Ignore older same-URL packages when facts conflict; never blend a superseded protocol, setting, product fact, or image into the current answer.
 Do not output HTML or code-fence formatting.
 """ + _technical_settings_table_instructions_v69091() + _workspace_response_formatting_rules()
 
@@ -51487,7 +51548,8 @@ def _technical_image_prefetch_cache_key_v69016(prompt_text):
     """Session-local cache key for raw prefetch evidence; never approves an image."""
     normalized = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     stores = "|".join(_configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID))
-    return hashlib.sha256((stores + "\n" + normalized).encode("utf-8")).hexdigest()
+    revision = str(_website_destination_revision_v69109("Technical Support Database"))
+    return hashlib.sha256((stores + "\n" + revision + "\n" + normalized).encode("utf-8")).hexdigest()
 
 
 def _technical_image_prefetch_cache_get_v69016(prompt_text, ttl_seconds=300):
@@ -53689,12 +53751,13 @@ def save_website_knowledge_package(
     selected_image_urls=None,
     image_analysis_override_v69029=None,
 ):
-    """Save website knowledge with same-URL upsert semantics.
+    """Save one website package with strict newest-source factual authority.
 
-    Same URL + same database + same stable content/image version is a no-op.
-    Same URL + changed content/images uploads the new version first, waits for
-    indexing, then removes superseded website files so old and new instructions
-    are not simultaneously retrievable.
+    v69109 deliberately separates factual text supersession from image promotion:
+    once a new vector is confirmed indexed, every older same-URL vector is detached
+    immediately. Image archive/index health can never reactivate older factual text.
+    If current images cannot be verified, stale same-page image rows are removed and
+    the current text remains authoritative (missing image is safer than a wrong image).
     """
     reviewed = clean_extracted_website_text(
         reviewed_content if reviewed_content is not None else extraction.get("content")
@@ -53714,199 +53777,142 @@ def save_website_knowledge_package(
         image_analysis["shared_analysis_reused_v69029"] = True
     else:
         image_analysis = (
-            analyze_website_images(
-                extraction,
-                database_choice,
-                selected_urls=selected_image_urls,
-            )
+            analyze_website_images(extraction, database_choice, selected_urls=selected_image_urls)
             if include_images
-            else {
-                "images": [],
-                "attempted": 0,
-                "skipped": 0,
-                "failures": 0,
-                "discovered": 0,
-                "limited": False,
-            }
+            else {"images": [], "attempted": 0, "skipped": 0, "failures": 0, "discovered": 0, "limited": False}
         )
 
     version_hash_v68892 = _website_knowledge_version_hash_v68892(
-        extraction,
-        database_choice,
-        reviewed,
-        image_analysis,
+        extraction, database_choice, reviewed, image_analysis
     )
     package_extraction = dict(extraction)
     package_extraction["website_version_hash_v68892"] = version_hash_v68892
     filename = website_knowledge_filename(package_extraction)
 
-    # Stable exact duplicate check happens before package timestamp can vary.
-    if vector_store_has_filename(selected_vector_store_id, filename):
-        if include_images:
-            website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-                extraction,
-                database_choice,
-                list(image_analysis.get("images") or []),
+    # Discover superseded same-URL packages BEFORE the exact-duplicate early return.
+    # This closes the production bug where the newest exact package could exist while
+    # an older Simple/Xinbasi/etc. package remained searchable forever.
+    prior_same_url_files_v69109 = _website_same_url_vector_files_v68892(
+        selected_vector_store_id, extraction, exclude_filename=filename
+    )
+
+    exact_current_exists_v69109 = vector_store_has_filename(selected_vector_store_id, filename)
+    replaced_file_count_v69109 = 0
+    cleanup_pending_v69109 = False
+    factual_supersession_completed_v69109 = False
+
+    if exact_current_exists_v69109:
+        replaced_file_count_v69109 = _website_remove_superseded_vectors_v69109(
+            selected_vector_store_id, prior_same_url_files_v69109
+        )
+        factual_supersession_completed_v69109 = True
+        _website_invalidate_learning_caches_v69109([database_choice])
+
+        # Repair/synchronize current images independently. Never keep stale images merely
+        # because the current text package was already present.
+        if include_images and int(image_analysis.get("failures") or 0) == 0:
+            image_stats = _website_archive_and_index_images_v68883(
+                extraction, database_choice, list(image_analysis.get("images") or [])
             )
-            website_image_sync_v69003 = {
-                "completed": False,
-                "skipped_reason": "image-analysis-or-index-failure",
-            }
-            if (
-                int(image_analysis.get("failures") or 0) == 0
-                and int(website_image_index_stats_v68883.get("failures") or 0) == 0
-            ):
-                website_image_sync_v69003 = _website_sync_page_image_index_v69003(
-                    extraction,
-                    database_choice,
-                    list(image_analysis.get("images") or []),
+            image_ok = int(image_stats.get("failures") or 0) == 0
+            if image_ok:
+                image_sync = _website_sync_page_image_index_v69003(
+                    extraction, database_choice, list(image_analysis.get("images") or [])
                 )
+            else:
+                image_sync = _website_sync_page_image_index_v69003(extraction, database_choice, [])
+        elif include_images:
+            image_stats = {"indexed": 0, "archived": 0, "failures": int(image_analysis.get("failures") or 1), "current_images_withheld_v69109": True}
+            image_sync = _website_sync_page_image_index_v69003(extraction, database_choice, [])
         else:
-            website_image_index_stats_v68883 = {
-                "indexed": 0, "archived": 0, "failures": 0,
-                "preserved_existing_v69005": True,
-            }
-            website_image_sync_v69003 = {
-                "completed": True,
-                "skipped_reason": "image-analysis-disabled-preserve-existing-v69005",
-            }
+            image_stats = {"indexed": 0, "archived": 0, "failures": 0, "preserved_existing_v69005": True}
+            image_sync = {"completed": True, "skipped_reason": "image-analysis-disabled-preserve-existing-v69005"}
+        _website_invalidate_learning_caches_v69109([database_choice])
         return {
             "already_saved": True,
-            "updated_existing_url": False,
-            "replaced_file_count": 0,
+            "updated_existing_url": bool(prior_same_url_files_v69109),
+            "replaced_file_count": replaced_file_count_v69109,
             "replacement_cleanup_pending": False,
             "file_id": "",
             "filename": filename,
             "images": list(image_analysis.get("images") or []),
             "image_analysis": image_analysis,
-            "website_image_index_v68883": website_image_index_stats_v68883,
-            "website_image_sync_v69003": website_image_sync_v69003,
+            "website_image_index_v68883": image_stats,
+            "website_image_sync_v69003": image_sync,
+            "factual_supersession_completed_v69109": True,
         }
 
-    # Discover all prior versions for this exact URL in the selected database.
-    prior_same_url_files_v68892 = _website_same_url_vector_files_v68892(
-        selected_vector_store_id,
-        extraction,
-        exclude_filename=filename,
-    )
-
     package_text = build_website_knowledge_package_document(
-        extraction,
-        database_choice,
-        reviewed_content=reviewed,
-        image_analysis=image_analysis,
+        extraction, database_choice, reviewed_content=reviewed, image_analysis=image_analysis
     )
-
-    # v69003: defer image archive/index mutation until the replacement vector
-    # package is confirmed indexed. This prevents a failed replacement from
-    # partially changing the durable image knowledge for the existing page.
-    website_image_index_stats_v68883 = {
-        "indexed": 0,
-        "archived": 0,
-        "failures": 0,
-        "deferred_until_indexed_v69003": True,
-    }
-    website_image_sync_v69003 = {
-        "completed": False,
-        "skipped_reason": "replacement-not-yet-indexed",
-    }
-
-    website_file = ManagedUploadedFile(
-        package_text.encode("utf-8"),
-        filename,
-        "text/plain",
-    )
+    website_file = ManagedUploadedFile(package_text.encode("utf-8"), filename, "text/plain")
 
     file_id = ""
     try:
-        file_id = upload_to_vector_store(
-            website_file,
-            selected_vector_store_id,
-        )
+        file_id = upload_to_vector_store(website_file, selected_vector_store_id)
         indexing_status_v68892 = _wait_for_vector_store_file(
-            selected_vector_store_id,
-            file_id,
-            timeout_seconds=30,
+            selected_vector_store_id, file_id, timeout_seconds=30
         )
     except Exception:
-        # Never remove the previous good version if replacement upload/indexing fails.
         if file_id:
-            try:
-                client.vector_stores.files.delete(
-                    vector_store_id=selected_vector_store_id,
-                    file_id=file_id,
-                )
-            except Exception:
-                pass
-            try:
-                client.files.delete(file_id)
-            except Exception:
-                pass
+            _website_remove_vector_file_v68892(selected_vector_store_id, file_id)
         raise
 
-    replaced_file_count_v68892 = 0
-    cleanup_pending_v68892 = False
+    if str(indexing_status_v68892 or "").lower() != "completed":
+        _website_remove_vector_file_v68892(selected_vector_store_id, file_id)
+        raise RuntimeError(
+            "The new website package did not finish indexing. The prior factual package was preserved."
+        )
 
-    if str(indexing_status_v68892 or "").lower() == "completed":
-        if include_images:
-            website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-                extraction,
-                database_choice,
-                list(image_analysis.get("images") or []),
+    # FACTUAL COMMIT POINT: new vector is searchable. Remove every older same-URL
+    # vector NOW, before image work. Image failure can no longer resurrect old facts.
+    replaced_file_count_v69109 = _website_remove_superseded_vectors_v69109(
+        selected_vector_store_id, prior_same_url_files_v69109
+    )
+    factual_supersession_completed_v69109 = True
+    _website_invalidate_learning_caches_v69109([database_choice])
+
+    # Image promotion is a separate safety domain. If current image QA/archive fails,
+    # remove stale same-page image rows and keep text live with no website image.
+    if include_images and int(image_analysis.get("failures") or 0) == 0:
+        website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
+            extraction, database_choice, list(image_analysis.get("images") or [])
+        )
+        image_sync_safe_v69109 = int(website_image_index_stats_v68883.get("failures") or 0) == 0
+        if image_sync_safe_v69109:
+            website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+                extraction, database_choice, list(image_analysis.get("images") or [])
             )
-            image_sync_safe_v69003 = (
-                int(image_analysis.get("failures") or 0) == 0
-                and int(website_image_index_stats_v68883.get("failures") or 0) == 0
-            )
-            if image_sync_safe_v69003:
-                website_image_sync_v69003 = _website_sync_page_image_index_v69003(
-                    extraction,
-                    database_choice,
-                    list(image_analysis.get("images") or []),
-                )
-            else:
-                website_image_sync_v69003 = {
-                    "completed": False,
-                    "skipped_reason": "image-analysis-or-index-failure",
-                    "image_analysis_failures": int(image_analysis.get("failures") or 0),
-                    "image_index_failures": int(website_image_index_stats_v68883.get("failures") or 0),
-                }
         else:
-            website_image_index_stats_v68883 = {
-                "indexed": 0, "archived": 0, "failures": 0,
-                "preserved_existing_v69005": True,
-            }
-            website_image_sync_v69003 = {
-                "completed": True,
-                "skipped_reason": "image-analysis-disabled-preserve-existing-v69005",
-            }
+            website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+                extraction, database_choice, []
+            )
+            website_image_index_stats_v68883["current_images_withheld_v69109"] = True
+    elif include_images:
+        website_image_index_stats_v68883 = {
+            "indexed": 0, "archived": 0,
+            "failures": int(image_analysis.get("failures") or 1),
+            "current_images_withheld_v69109": True,
+        }
+        website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+            extraction, database_choice, []
+        )
+    else:
+        website_image_index_stats_v68883 = {
+            "indexed": 0, "archived": 0, "failures": 0,
+            "preserved_existing_v69005": True,
+        }
+        website_image_sync_v69003 = {
+            "completed": True,
+            "skipped_reason": "image-analysis-disabled-preserve-existing-v69005",
+        }
 
-        # Remove the superseded vector package only after the image knowledge
-        # for this same canonical page has also synchronized successfully.
-        if bool(website_image_sync_v69003.get("completed")):
-            for old_row in prior_same_url_files_v68892:
-                old_file_id = str(old_row.get("file_id") or "").strip()
-                if not old_file_id or old_file_id == str(file_id):
-                    continue
-                if _website_remove_vector_file_v68892(
-                    selected_vector_store_id,
-                    old_file_id,
-                ):
-                    replaced_file_count_v68892 += 1
-                else:
-                    cleanup_pending_v68892 = True
-        elif prior_same_url_files_v68892:
-            cleanup_pending_v68892 = True
-    elif prior_same_url_files_v68892:
-        # Fail safe: keep the old version and old image index until the new
-        # replacement package is confirmed indexed.
-        cleanup_pending_v68892 = True
-
+    _website_invalidate_learning_caches_v69109([database_choice])
     return {
         "already_saved": False,
-        "updated_existing_url": bool(prior_same_url_files_v68892),
-        "replaced_file_count": replaced_file_count_v68892,
-        "replacement_cleanup_pending": cleanup_pending_v68892,
+        "updated_existing_url": bool(prior_same_url_files_v69109),
+        "replaced_file_count": replaced_file_count_v69109,
+        "replacement_cleanup_pending": cleanup_pending_v69109,
         "indexing_status": indexing_status_v68892,
         "file_id": file_id,
         "filename": filename,
@@ -53914,6 +53920,8 @@ def save_website_knowledge_package(
         "image_analysis": image_analysis,
         "website_image_index_v68883": website_image_index_stats_v68883,
         "website_image_sync_v69003": website_image_sync_v69003,
+        "factual_supersession_completed_v69109": factual_supersession_completed_v69109,
+        "newest_source_authority_v69109": True,
     }
 
 
@@ -53940,6 +53948,25 @@ def _website_images_for_chat(image_items, max_images=WEBSITE_AUTO_DISPLAY_MAX_IM
             "generated": False,
         })
     return records
+
+
+def _technical_website_learning_password_v69109(prompt_text, selected_assistant):
+    """Read a one-turn Page Password from an explicit Technical website-learning command.
+
+    The value is used only in memory for the extraction request. It is never returned,
+    logged, added to the vector package, or persisted in conversation metadata.
+    """
+    if str(selected_assistant or "") != "🔧 Technical Support":
+        return ""
+    value = str(prompt_text or "")
+    if not re.search(r"(?i)\b(?:learn|save|remember|ingest)\s+(?:this|this\s+website|this\s+page)\b", value):
+        return ""
+    match = re.search(
+        r"(?im)^\s*(?:page\s+)?password\s*:\s*([^\r\n]+?)\s*$", value
+    )
+    if not match:
+        return ""
+    return str(match.group(1) or "").strip().strip('\"\'')[:512]
 
 
 def detect_technical_website_learning_command(prompt_text, selected_assistant):
@@ -54676,6 +54703,117 @@ def vector_store_has_filename(vector_store_id, filename):
 
 
 
+# v69109: process-local learned-source revision used only to invalidate stale
+# retrieval/image caches immediately after a successful website promotion.
+_WEBSITE_LEARNING_REVISION_LOCK_V69109 = threading.RLock()
+_WEBSITE_LEARNING_REVISIONS_V69109 = {
+    "Technical Support Database": 0,
+    "Sales Database": 0,
+    "Marketing Database": 0,
+}
+
+
+def _website_destination_revision_v69109(database_choice):
+    destination = str(database_choice or "").strip()
+    with _WEBSITE_LEARNING_REVISION_LOCK_V69109:
+        return int(_WEBSITE_LEARNING_REVISIONS_V69109.get(destination) or 0)
+
+
+def _website_bump_destination_revision_v69109(database_choice):
+    destination = str(database_choice or "").strip()
+    if destination not in _WEBSITE_LEARNING_REVISIONS_V69109:
+        return 0
+    with _WEBSITE_LEARNING_REVISION_LOCK_V69109:
+        _WEBSITE_LEARNING_REVISIONS_V69109[destination] = (
+            int(_WEBSITE_LEARNING_REVISIONS_V69109.get(destination) or 0) + 1
+        )
+        return int(_WEBSITE_LEARNING_REVISIONS_V69109[destination])
+
+
+def _website_invalidate_learning_caches_v69109(database_choices):
+    """Clear every local cache/session evidence source that can retain a stale page."""
+    destinations = [
+        str(x or "").strip() for x in (database_choices or [])
+        if str(x or "").strip() in _WEBSITE_LEARNING_REVISIONS_V69109
+    ]
+    for cache_name in (
+        "_website_image_index_rows_v68883",
+        "_workspace_durable_image_payloads_v69041",
+        "_website_file_full_text_v69012",
+        "_vector_store_file_catalog_v69040",
+        "vector_store_has_filename",
+    ):
+        try:
+            fn = globals().get(cache_name)
+            clear = getattr(fn, "clear", None)
+            if callable(clear):
+                clear()
+        except Exception:
+            pass
+    try:
+        for key in (
+            "_technical_image_prefetch_cache_v69016",
+            "_image_negative_cache_v69062",
+            "_technical_file_search_results_v69012",
+            "_workspace_file_search_results_v69040",
+        ):
+            st.session_state.pop(key, None)
+    except Exception:
+        pass
+    return {d: _website_bump_destination_revision_v69109(d) for d in destinations}
+
+
+def _website_remove_superseded_vectors_v69109(vector_store_id, rows):
+    """Detach every superseded same-URL vector. Fail closed if any old vector remains."""
+    failed=[]
+    removed=0
+    for row in list(rows or []):
+        file_id=str((row or {}).get("file_id") or "").strip()
+        if not file_id:
+            continue
+        ok=False
+        for _ in range(3):
+            if _website_remove_vector_file_v68892(vector_store_id, file_id):
+                ok=True
+                break
+            try:
+                _vector_store_file_catalog_v69040.clear()
+                vector_store_has_filename.clear()
+            except Exception:
+                pass
+        if ok:
+            removed += 1
+        else:
+            failed.append(file_id)
+    if failed:
+        raise RuntimeError(
+            "The newest website package was indexed, but one or more superseded "
+            "same-URL vectors could not be detached. Retry the save before using "
+            "this knowledge so old and new facts cannot compete."
+        )
+    return removed
+
+
+def _website_encode_destination_selection_v69109(destinations):
+    ordered=[x for x in WEBSITE_DATABASE_DESTINATIONS_V69029 if x in set(destinations or [])]
+    if not ordered:
+        raise ValueError("Select at least one website knowledge destination.")
+    if len(ordered)==len(WEBSITE_DATABASE_DESTINATIONS_V69029):
+        return WEBSITE_DATABASE_ALL_V69029
+    if len(ordered)==1:
+        return ordered[0]
+    return "|".join(ordered)
+
+
+def _website_destination_caption_v69109(destinations):
+    return ", ".join(
+        "Technical Support" if x == "Technical Support Database"
+        else "Sales" if x == "Sales Database"
+        else "Marketing" if x == "Marketing Database"
+        else str(x)
+        for x in (destinations or [])
+    )
+
 WEBSITE_DATABASE_ALL_V69029 = "All Databases"
 WEBSITE_DATABASE_DESTINATIONS_V69029 = (
     "Technical Support Database",
@@ -54685,11 +54823,16 @@ WEBSITE_DATABASE_DESTINATIONS_V69029 = (
 
 
 def _website_database_destinations_v69029(selection):
-    value = str(selection or "").strip()
-    if value == WEBSITE_DATABASE_ALL_V69029:
-        return list(WEBSITE_DATABASE_DESTINATIONS_V69029)
-    if value in WEBSITE_DATABASE_DESTINATIONS_V69029:
-        return [value]
+    if isinstance(selection, (list, tuple, set)):
+        values = [str(x or "").strip() for x in selection]
+    else:
+        value = str(selection or "").strip()
+        if value == WEBSITE_DATABASE_ALL_V69029:
+            return list(WEBSITE_DATABASE_DESTINATIONS_V69029)
+        values = [x.strip() for x in value.split("|") if x.strip()]
+    ordered = [x for x in WEBSITE_DATABASE_DESTINATIONS_V69029 if x in set(values)]
+    if ordered and len(ordered) == len(set(values)):
+        return ordered
     raise ValueError("Invalid website knowledge database selection.")
 
 
@@ -54886,34 +55029,46 @@ def render_learn_from_website(database_choice):
         "it for Technical Support, Sales, Marketing, or all three databases."
     )
 
-    website_database_options_v69029 = [
-        WEBSITE_DATABASE_ALL_V69029,
-        "Technical Support Database",
-        "Sales Database",
-        "Marketing Database",
-    ]
-    # Website destination is independent from the document-upload selector above.
-    # Default to Technical Support and persist the website-specific choice thereafter.
-    default_website_database_v69029 = "Technical Support Database"
-    if str(st.session_state.get("stable_admin_website_database_choice_v69029") or "") not in website_database_options_v69029:
-        st.session_state["stable_admin_website_database_choice_v69029"] = default_website_database_v69029
-    website_database_choice_v69029 = st.selectbox(
-        "Learn website to database",
-        website_database_options_v69029,
-        key="stable_admin_website_database_choice_v69029",
-        help=(
-            "All Databases extracts/analyzes the webpage once, then publishes the approved "
-            "knowledge to Technical Support, Sales, and Marketing. Graphic Marketing is not "
-            "included in All Databases."
-        ),
-    )
-    website_destination_labels_v69029 = _website_database_destinations_v69029(website_database_choice_v69029)
-    st.caption(
-        "Will save to: " + " · ".join(
-            ("Technical Support" if x == "Technical Support Database" else "Sales" if x == "Sales Database" else "Marketing")
-            for x in website_destination_labels_v69029
+    # v69109: restore independent destinations. One extraction may be approved to
+    # any selected combination of Technical Support, Sales, and Marketing.
+    destination_widget_keys_v69109 = {
+        "Technical Support Database": "stable_admin_website_destination_technical_v69109",
+        "Sales Database": "stable_admin_website_destination_sales_v69109",
+        "Marketing Database": "stable_admin_website_destination_marketing_v69109",
+    }
+    if not bool(st.session_state.get("admin_website_destination_migrated_v69109")):
+        legacy_selection = str(st.session_state.get("stable_admin_website_database_choice_v69029") or "").strip()
+        try:
+            migrated = set(_website_database_destinations_v69029(legacy_selection))
+        except Exception:
+            migrated = {"Technical Support Database"}
+        for destination, key in destination_widget_keys_v69109.items():
+            if key not in st.session_state:
+                st.session_state[key] = destination in migrated
+        st.session_state["admin_website_destination_migrated_v69109"] = True
+
+    st.markdown("**Learn website to database**")
+    selected_destinations_v69109 = []
+    with st.container(key="admin_website_destination_selector_v69109"):
+        for destination, label in (
+            ("Technical Support Database", "Technical Support"),
+            ("Sales Database", "Sales"),
+            ("Marketing Database", "Marketing"),
+        ):
+            if st.checkbox(label, key=destination_widget_keys_v69109[destination]):
+                selected_destinations_v69109.append(destination)
+    if selected_destinations_v69109:
+        website_database_choice_v69029 = _website_encode_destination_selection_v69109(
+            selected_destinations_v69109
         )
-    )
+        website_destination_labels_v69029 = list(selected_destinations_v69109)
+        st.caption("Will save to: " + " · ".join(
+            _website_destination_caption_v69109(website_destination_labels_v69029).split(", ")
+        ))
+    else:
+        website_database_choice_v69029 = ""
+        website_destination_labels_v69029 = []
+        st.warning("Select at least one destination before saving this webpage.")
 
     website_url = st.text_input(
         "Website URL",
@@ -55128,6 +55283,13 @@ def render_learn_from_website(database_choice):
             }
             return
 
+        if not website_destination_labels_v69029:
+            st.session_state.admin_website_save_notice = {
+                "type": "warning",
+                "message": "Select at least one destination before approving this webpage.",
+            }
+            return
+
         reviewed_extraction = dict(extraction)
         reviewed_extraction["content"] = reviewed_content
         reviewed_extraction["character_count"] = len(reviewed_content)
@@ -55149,7 +55311,7 @@ def render_learn_from_website(database_choice):
         with st.spinner(
             (
                 "Saving website knowledge to "
-                + ("Technical Support, Sales, and Marketing" if website_database_choice_v69029 == WEBSITE_DATABASE_ALL_V69029 else website_database_choice_v69029.replace(" Database", ""))
+                + _website_destination_caption_v69109(website_destination_labels_v69029)
                 + (" and analyzing useful images once..." if include_website_images else "...")
             )
         ):
@@ -65094,8 +65256,14 @@ else:
                     with st.spinner(
                         "Learning website text and analyzing useful instruction images..."
                     ):
+                        technical_website_learning_password_v69109 = (
+                            _technical_website_learning_password_v69109(
+                                interaction_prompt, assistant
+                            )
+                        )
                         extraction_v68870 = extract_public_webpage(
-                            technical_website_learning_url_v68870
+                            technical_website_learning_url_v68870,
+                            page_password=technical_website_learning_password_v69109,
                         )
                         save_result_v68870 = save_website_knowledge_package(
                             extraction_v68870,
