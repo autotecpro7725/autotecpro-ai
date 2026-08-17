@@ -1,3 +1,4 @@
+# AutoTecPro AI v69125 — FINAL PRODUCTION: verified same-source dual-A/C contract + deterministic two-row table preservation; all v69124/v69123 image, learning, output, Graphic, Reference, After Install behavior preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -38614,19 +38615,215 @@ def _technical_variant_candidate_v69124(prompt_text, row, branch):
     }
 
 
-def _technical_same_family_variant_evidence_v69124(prompt_text):
-    """Retrieve Manual + Automatic sibling evidence before the main Technical answer.
 
-    Two direct vector searches run concurrently. The returned context never supplies
-    hard-coded values; it only exposes retrieved same-family evidence to the existing
-    v69106 two-row formatter requirement and to existing image recovery.
+def _technical_extract_ac_variant_value_v69125(text_value, branch):
+    """Extract an exact menu selection adjacent to a Manual/Automatic A/C label."""
+    text = str(text_value or "").replace("\r\n", "\n").replace("\r", "\n")
+    if not text:
+        return ""
+
+    branch = str(branch or "").strip().casefold()
+    if branch == "manual":
+        branch_re = r"\bmanual(?:\s+a\s*/?\s*c|\s+climate)?\b"
+    else:
+        branch_re = (
+            r"(?:\b(?:automatic|auto)(?:\s+a\s*/?\s*c|\s+climate)?\b"
+            r"|\bdigital\s+climate\b)"
+        )
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if "|" not in line or not re.search(branch_re, line, flags=re.I):
+            continue
+        cells = [
+            re.sub(r"\s+", " ", cell).strip()
+            for cell in line.strip("|").split("|")
+        ]
+        for idx, cell in enumerate(cells):
+            if re.search(branch_re, cell, flags=re.I) and idx + 1 < len(cells):
+                value = cells[idx + 1].strip(" *`")
+                if value and not re.fullmatch(r"[-: ]+", value):
+                    return value[:160]
+
+    label_patterns = [
+        rf"(?:{branch_re})\s*(?:setting|selection|option|profile|type)?\s*(?:[:=]|->|→)\s*([^\n|.;]{{1,160}})",
+        rf"(?:a\s*/?\s*c\s*type\s*[-–—:]\s*)?(?:{branch_re})\s+(?:is|use|select(?:ion)?)\s*[:=]?\s*([^\n|.;]{{1,160}})",
+    ]
+    for pattern in label_patterns:
+        match = re.search(pattern, text, flags=re.I)
+        if not match:
+            continue
+        value = re.sub(r"\s+", " ", str(match.group(1) or "")).strip(" -*`")
+        if value:
+            if "→" in value:
+                value = value.split("→")[-1].strip()
+            elif "->" in value:
+                value = value.split("->")[-1].strip()
+            return value[:160]
+
+    value_first_patterns = [
+        rf"(?:select|use|choose)\s+([^\n.;]{{1,180}}?)\s+(?:for|when)\s+(?:the\s+)?(?:{branch_re})",
+        rf"([A-Za-z0-9][^\n.;]{{0,120}}?)\s+(?:for|=)\s+(?:{branch_re})",
+    ]
+    for pattern in value_first_patterns:
+        match = re.search(pattern, text, flags=re.I)
+        if not match:
+            continue
+        value = re.sub(r"\s+", " ", str(match.group(1) or "")).strip(" -*`:")
+        if "→" in value:
+            value = value.split("→")[-1].strip()
+        elif "->" in value:
+            value = value.split("->")[-1].strip()
+        if value and len(value.split()) <= 12:
+            return value[:160]
+
+    return ""
+
+
+def _technical_variant_contract_context_v69125(evidence_result):
+    if not isinstance(evidence_result, dict):
+        return ""
+    manual = str(evidence_result.get("manual_value") or "").strip()
+    automatic = str(evidence_result.get("automatic_value") or "").strip()
+    if not (manual and automatic and evidence_result.get("contract_complete")):
+        return ""
+    payload = {
+        "manual_ac": manual,
+        "automatic_ac": automatic,
+        "source_file_id": str(evidence_result.get("contract_file_id") or ""),
+        "source_url": str(evidence_result.get("contract_source_url") or ""),
+        "source_extracted_at": str(evidence_result.get("contract_extracted_at") or ""),
+    }
+    return (
+        "VERIFIED TECHNICAL DUAL-A/C CONTRACT (v69125) — APPLICATION AUTHORITY FOR "
+        "THIS SETTINGS TURN:\n"
+        + json.dumps(payload, ensure_ascii=False)
+        + "\nThe two values above were extracted from one retrieved same-family current "
+          "Technical source. The first settings table MUST contain two separate rows "
+          "named `A/C Type - Manual A/C` and `A/C Type - Automatic A/C` using those "
+          "exact Select values. Do not collapse them into one generic A/C Type row. "
+          "Do not replace either value with a broad file-search result."
+    )
+
+
+def _technical_answer_has_dual_ac_rows_v69125(answer_text):
+    value = str(answer_text or "")
+    manual = bool(re.search(
+        r"(?im)^\|\s*A/C\s*Type\s*[-–—]\s*Manual\s+A/C\s*\|",
+        value,
+    ))
+    automatic = bool(re.search(
+        r"(?im)^\|\s*A/C\s*Type\s*[-–—]\s*Automatic\s+A/C\s*\|",
+        value,
+    ))
+    return manual and automatic
+
+
+def _technical_enforce_dual_ac_table_v69125(answer_text, evidence_result):
+    """Guarantee the existing professional table preserves both verified branches.
+
+    This changes only A/C rows in the first `Setting Field | Select` table and adds
+    the standard choice explanation. All values come from retrieved evidence.
     """
+    answer = str(answer_text or "")
+    if not answer or not isinstance(evidence_result, dict):
+        return answer
+    if not evidence_result.get("contract_complete"):
+        return answer
+
+    manual = str(evidence_result.get("manual_value") or "").strip()
+    automatic = str(evidence_result.get("automatic_value") or "").strip()
+    if not (manual and automatic):
+        return answer
+    if _technical_answer_has_dual_ac_rows_v69125(answer):
+        return answer
+
+    lines = answer.splitlines()
+    table_start = -1
+    table_end = -1
+    for idx, line in enumerate(lines):
+        if re.match(
+            r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$",
+            line.strip(),
+            flags=re.I,
+        ):
+            table_start = idx
+            break
+    if table_start < 0:
+        return answer
+
+    # Find the first table end.
+    table_end = table_start + 1
+    while table_end < len(lines):
+        stripped = lines[table_end].strip()
+        if not stripped.startswith("|"):
+            break
+        table_end += 1
+
+    body = lines[table_start:table_end]
+    repaired = []
+    insertion_index = None
+    for row in body:
+        # Remove a generic/single-branch A/C Type row from this first table only.
+        if re.match(r"^\|\s*A/C\s*Type(?:\s*\|)", row.strip(), flags=re.I):
+            continue
+        if re.match(
+            r"^\|\s*A/C\s*Type\s*[-–—]\s*(?:Manual|Automatic)\s+A/C\s*\|",
+            row.strip(),
+            flags=re.I,
+        ):
+            continue
+        repaired.append(row)
+        if re.match(r"^\|\s*Car\s+Model\s*\|", row.strip(), flags=re.I):
+            insertion_index = len(repaired)
+
+    if insertion_index is None:
+        insertion_index = len(repaired)
+
+    variant_rows = [
+        f"| A/C Type - Manual A/C | {manual} |",
+        f"| A/C Type - Automatic A/C | {automatic} |",
+    ]
+    repaired[insertion_index:insertion_index] = variant_rows
+    lines[table_start:table_end] = repaired
+
+    # Add the familiar selection guidance immediately after the first table when
+    # the answer does not already explain both branches.
+    answer_after = "\n".join(lines)
+    has_manual_guidance = bool(re.search(
+        r"(?i)(?:choose|use|select).{0,80}" + re.escape(manual) + r".{0,100}manual",
+        answer_after,
+    ))
+    has_auto_guidance = bool(re.search(
+        r"(?i)(?:choose|use|select).{0,80}" + re.escape(automatic) + r".{0,100}automatic",
+        answer_after,
+    ))
+    if not (has_manual_guidance and has_auto_guidance):
+        insert_at = table_start + len(repaired)
+        guidance = [
+            "",
+            f"Choose **{manual}** if the truck has the original **manual A/C** panel.",
+            f"Choose **{automatic}** if the truck has the original **automatic A/C** panel.",
+        ]
+        lines[insert_at:insert_at] = guidance
+
+    return "\n".join(lines)
+
+
+def _technical_same_family_variant_evidence_v69124(prompt_text):
+    """Retrieve and bind one same-family source containing Manual + Automatic branches."""
     if not _technical_generic_ac_variant_request_v69124(prompt_text):
-        return {"context": "", "rows": [], "status": "not_applicable"}
+        return {
+            "context": "", "rows": [], "status": "not_applicable",
+            "contract_complete": False,
+        }
 
     store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
     if not store_ids:
-        return {"context": "", "rows": [], "status": "no_store"}
+        return {
+            "context": "", "rows": [], "status": "no_store",
+            "contract_complete": False,
+        }
     store = str(store_ids[0] or "").strip()
 
     def search_branch(branch):
@@ -38658,116 +38855,214 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
         )
         return output
 
+    def search_combined():
+        request = {
+            "input": (
+                "AUTOTECPRO TECHNICAL COMPLETE A/C VARIANT RETRIEVAL ONLY. "
+                "Find the CURRENT Technical source for the exact vehicle/year/product/"
+                "factory-system in the user request that contains BOTH the Manual A/C "
+                "and Automatic A/C Car Model / Protocol / climate menu selections. "
+                "Prefer the newest Admin website package. Do not use a nearby vehicle "
+                "or factory-system family.\n\nUSER REQUEST:\n"
+                + str(prompt_text or "").strip()
+            ),
+            "tools": [{"type": "file_search", "vector_store_ids": [store]}],
+        }
+        rows = _website_request_vector_search_rows_v69047(
+            request,
+            max_results=24,
+        )
+        pair_candidates = []
+        for row in rows or []:
+            manual_candidate = _technical_variant_candidate_v69124(
+                prompt_text, row, "manual"
+            )
+            automatic_candidate = _technical_variant_candidate_v69124(
+                prompt_text, row, "automatic"
+            )
+            if not (manual_candidate and automatic_candidate):
+                continue
+            item = dict(manual_candidate)
+            evidence = str(item.get("text") or "")
+            manual_value = _technical_extract_ac_variant_value_v69125(
+                evidence, "manual"
+            )
+            automatic_value = _technical_extract_ac_variant_value_v69125(
+                evidence, "automatic"
+            )
+            if not (manual_value and automatic_value):
+                continue
+            item["manual_value"] = manual_value
+            item["automatic_value"] = automatic_value
+            pair_candidates.append(item)
+        pair_candidates.sort(
+            key=lambda item: (
+                bool(item.get("website_package")),
+                str(item.get("extracted_at") or ""),
+                float(item.get("identity_score") or 0.0),
+                float(item.get("score") or 0.0),
+            ),
+            reverse=True,
+        )
+        return pair_candidates
+
     manual_candidates = []
     auto_candidates = []
+    pair_candidates = []
     try:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(
-            max_workers=2,
+            max_workers=3,
             thread_name_prefix="atp-tech-ac-variant",
         ) as executor:
             manual_future = executor.submit(search_branch, "manual")
             auto_future = executor.submit(search_branch, "automatic")
+            pair_future = executor.submit(search_combined)
             manual_candidates = list(manual_future.result() or [])
             auto_candidates = list(auto_future.result() or [])
+            pair_candidates = list(pair_future.result() or [])
     except Exception as error:
         diagnostic_log(
-            "technical_variant_parallel_search_failed_v69124",
+            "technical_variant_parallel_search_failed_v69125",
             error_type=type(error).__name__,
             error=str(error)[:500],
         )
-        return {"context": "", "rows": [], "status": "search_failed"}
+        return {
+            "context": "", "rows": [], "status": "search_failed",
+            "contract_complete": False,
+        }
 
-    # Prefer one newest current website package that independently appears in both
-    # branch searches. This prevents Manual from one family and Automatic from another.
+    # Strongest authority: the SAME file must independently survive both the
+    # Manual search and the Automatic search. This prevents a newer but different
+    # factory-system package from winning only because the combined query ranked it.
     manual_by_file = {
         str(item.get("file_id") or ""): item
-        for item in manual_candidates
-        if str(item.get("file_id") or "")
+        for item in manual_candidates if str(item.get("file_id") or "")
     }
     auto_by_file = {
         str(item.get("file_id") or ""): item
-        for item in auto_candidates
-        if str(item.get("file_id") or "")
+        for item in auto_candidates if str(item.get("file_id") or "")
     }
-    common_file_ids = set(manual_by_file) & set(auto_by_file)
-    common = []
-    for file_id in common_file_ids:
-        left = manual_by_file[file_id]
-        right = auto_by_file[file_id]
-        common.append((
-            bool(left.get("website_package") or right.get("website_package")),
-            max(
-                str(left.get("extracted_at") or ""),
-                str(right.get("extracted_at") or ""),
-            ),
-            max(
-                float(left.get("identity_score") or 0.0),
-                float(right.get("identity_score") or 0.0),
-            ),
-            file_id,
-            left,
-        ))
-    common.sort(reverse=True)
+    combined_by_file = {
+        str(item.get("file_id") or ""): item
+        for item in pair_candidates if str(item.get("file_id") or "")
+    }
 
+    common = []
+    for file_id in set(manual_by_file) & set(auto_by_file):
+        item = dict(
+            combined_by_file.get(file_id)
+            or manual_by_file[file_id]
+        )
+        evidence = str(item.get("text") or "")
+        manual_value = _technical_extract_ac_variant_value_v69125(
+            evidence, "manual"
+        )
+        automatic_value = _technical_extract_ac_variant_value_v69125(
+            evidence, "automatic"
+        )
+        if not (manual_value and automatic_value):
+            continue
+        item["manual_value"] = manual_value
+        item["automatic_value"] = automatic_value
+        # Reward independent support from both branch searches, not just a broad
+        # combined-query rank.
+        item["dual_branch_support_v69125"] = True
+        item["manual_branch_score_v69125"] = float(
+            manual_by_file[file_id].get("score") or 0.0
+        )
+        item["automatic_branch_score_v69125"] = float(
+            auto_by_file[file_id].get("score") or 0.0
+        )
+        common.append(item)
+
+    common.sort(
+        key=lambda item: (
+            bool(item.get("website_package")),
+            str(item.get("extracted_at") or ""),
+            float(item.get("identity_score") or 0.0),
+            min(
+                float(item.get("manual_branch_score_v69125") or 0.0),
+                float(item.get("automatic_branch_score_v69125") or 0.0),
+            ),
+        ),
+        reverse=True,
+    )
+    selected_pair = dict(common[0]) if common else None
+
+    if selected_pair is not None:
+        row = {
+            "file_id": str(selected_pair.get("file_id") or ""),
+            "filename": str(selected_pair.get("filename") or ""),
+            "score": float(selected_pair.get("score") or 0.0),
+            "text": str(selected_pair.get("text") or "")[:50000],
+            "technical_variant_evidence_v69124": True,
+            "technical_dual_ac_contract_v69125": True,
+        }
+        result = {
+            "context": (
+                "TECHNICAL MANUAL + AUTOMATIC SIBLING EVIDENCE (v69125):\n"
+                "One retrieved same-family Technical source contains both verified "
+                "branches. Use this source as the turn-local settings authority.\n\n"
+                + str(selected_pair.get("text") or "")[:30000]
+            ),
+            "rows": [row],
+            "status": "recovered",
+            "contract_complete": True,
+            "manual_value": str(selected_pair.get("manual_value") or ""),
+            "automatic_value": str(selected_pair.get("automatic_value") or ""),
+            "contract_file_id": str(selected_pair.get("file_id") or ""),
+            "contract_source_url": str(selected_pair.get("source_url") or ""),
+            "contract_extracted_at": str(selected_pair.get("extracted_at") or ""),
+        }
+        result["context"] += (
+            "\n\n" + _technical_variant_contract_context_v69125(result)
+        )
+        return result
+
+    # Incomplete evidence: preserve prior safe behavior and do not create a contract.
     selected = []
-    if common:
-        selected = [dict(common[0][4])]
-    else:
-        # No one file carries both branches in retrieved evidence. Keep the best
-        # Manual and Automatic rows separately, but the provider is explicitly told
-        # not to splice them unless vehicle/year/system/source-family identity agrees.
-        if manual_candidates:
-            selected.append(dict(manual_candidates[0]))
-        if auto_candidates:
-            best_auto = dict(auto_candidates[0])
-            if not selected or (
-                best_auto.get("file_id"),
-                best_auto.get("text"),
-            ) != (
-                selected[0].get("file_id"),
-                selected[0].get("text"),
-            ):
-                selected.append(best_auto)
+    if manual_candidates:
+        selected.append(dict(manual_candidates[0]))
+    if auto_candidates:
+        best_auto = dict(auto_candidates[0])
+        if not selected or (
+            best_auto.get("file_id"), best_auto.get("text")
+        ) != (
+            selected[0].get("file_id"), selected[0].get("text")
+        ):
+            selected.append(best_auto)
 
     if not selected:
-        return {"context": "", "rows": [], "status": "no_evidence"}
+        return {
+            "context": "", "rows": [], "status": "no_evidence",
+            "contract_complete": False,
+        }
 
     context_parts = [
-        "TECHNICAL MANUAL + AUTOMATIC SIBLING EVIDENCE (v69124):",
-        "The user did not specify climate type. Reconcile BOTH Manual and Automatic "
-        "A/C branches for the exact same vehicle/year/product/factory-system family. "
-        "Prefer the newest matching Admin website package. Do not combine branches "
-        "from incompatible systems or nearby product families. Do not infer missing "
-        "values. If the same current source supports both branches, the first settings "
-        "table must show both verified branches separately.",
+        "TECHNICAL MANUAL + AUTOMATIC SIBLING EVIDENCE (v69125):",
+        "The retrieved evidence did not prove both branches in one source. Do not "
+        "invent or splice incompatible settings. Use normal Technical retrieval and "
+        "mark an unsupported branch as requiring verification.",
     ]
-    evidence_rows = []
-    seen = set()
+    rows = []
     for item in selected[:2]:
-        key = (
-            str(item.get("file_id") or ""),
-            str(item.get("text") or "")[:500],
-        )
-        if key in seen:
-            continue
-        seen.add(key)
         context_parts.append(
-            "\n--- RETRIEVED SAME-FAMILY EVIDENCE ---\n"
-            + str(item.get("text") or "")[:30000]
+            "\n--- RETRIEVED SIBLING EVIDENCE ---\n"
+            + str(item.get("text") or "")[:25000]
         )
-        evidence_rows.append({
+        rows.append({
             "file_id": str(item.get("file_id") or ""),
             "filename": str(item.get("filename") or ""),
             "score": float(item.get("score") or 0.0),
             "text": str(item.get("text") or "")[:50000],
             "technical_variant_evidence_v69124": True,
         })
-
     return {
         "context": "\n".join(context_parts),
-        "rows": evidence_rows,
-        "status": "recovered",
+        "rows": rows,
+        "status": "partial",
+        "contract_complete": False,
     }
 
 
@@ -67806,6 +68101,24 @@ else:
                             "_workspace_file_search_results_v69040"
                         ] = variant_rows_v69124[:12]
 
+                    if bool(
+                        technical_variant_evidence_v69124.get(
+                            "contract_complete"
+                        )
+                    ):
+                        # v69125: the same current source proved both A/C branches.
+                        # Do not let a broad second file_search replace that complete
+                        # evidence with a higher-scoring single-branch chunk.
+                        use_file_search = False
+                        diagnostic_log(
+                            "technical_dual_ac_contract_bound_v69125",
+                            file_id=str(
+                                technical_variant_evidence_v69124.get(
+                                    "contract_file_id"
+                                ) or ""
+                            )[:120],
+                        )
+
                 try:
                     diagnostic_log(
                         "ai_stream_start_ready_v68872",
@@ -67896,6 +68209,20 @@ else:
                         answer_body = format_learning_record_for_display(answer_body)
                     if assistant == "🔧 Technical Support":
                         answer_body = remove_technical_pricing(answer_body)
+                        if (
+                            _technical_generic_ac_variant_request_v69124(
+                                technical_request_prompt_v68879
+                            )
+                            and bool(
+                                technical_variant_evidence_v69124.get(
+                                    "contract_complete"
+                                )
+                            )
+                        ):
+                            answer_body = _technical_enforce_dual_ac_table_v69125(
+                                answer_body,
+                                technical_variant_evidence_v69124,
+                            )
 
                     answer = answer_body
                     if order_display_text:
