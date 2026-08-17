@@ -1,5 +1,6 @@
-# AutoTecPro AI v69024 — Source-Zone Website Knowledge Provenance; v69023 workspace stability + protected Graphic engine preserved
-# Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
+# AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
+# AutoTecPro AI v69114 — verified website-image durability + package continuity; all protected v69113 pipelines preserved
+# AutoTecPro AI v69113 — product-level newest Admin package authority; all other v69112 behavior preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -55065,6 +55066,155 @@ def _technical_seed_active_admin_package_v69113(package):
     return rows
 
 
+def _technical_active_package_images_v69115(prompt_text, max_images=3):
+    """Recover prompt-matching images ONLY from the already-bound newest Admin package.
+
+    This deterministic post-answer bridge does not change factual retrieval, provider
+    prompts, response formatting, Graphic pipelines, or final publication QA. It exists
+    so the v69113/v69114 stale-text lock cannot suppress automatic imagery from the same
+    authoritative package.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    state = dict(st.session_state.get("_technical_active_admin_package_v69113") or {})
+    if str(state.get("status") or "") != "recovered":
+        return []
+
+    active_file_id = str(state.get("file_id") or "").strip()
+    active_source = str(state.get("canonical_source") or "").strip()
+    rows = [dict(row) for row in (state.get("rows") or []) if isinstance(row, dict)]
+    if not rows:
+        return []
+
+    effective_prompt = _website_image_effective_query_v68890(prompt_text)
+    durable_payloads = []
+    try:
+        durable_payloads = [
+            dict(item) for item in (_website_image_index_rows_v68883() or [])
+            if isinstance(item, dict)
+            and str(item.get("database_choice") or "") == "Technical Support Database"
+        ]
+    except Exception as error:
+        diagnostic_log(
+            "technical_active_package_durable_images_unavailable_v69115",
+            error_type=type(error).__name__, error=str(error)[:500],
+        )
+
+    ranked = []
+    seen_payloads = set()
+    for row in rows[:12]:
+        file_id = str(row.get("file_id") or "").strip()
+        filename = str(row.get("filename") or "").strip()
+        package_text = str(row.get("text") or "")
+        if active_file_id and file_id and file_id != active_file_id:
+            continue
+        if not package_text:
+            continue
+
+        payloads = _website_structured_image_payloads_from_file_v69012(
+            package_text, filename, file_id
+        )
+        payloads.extend(
+            _website_legacy_html_payloads_from_file_v69012(
+                package_text, filename, file_id
+            )
+        )
+        for raw_payload in payloads:
+            if not isinstance(raw_payload, dict):
+                continue
+            payload = dict(raw_payload)
+            source_page = str(payload.get("source_page") or "").strip()
+            if active_source and source_page:
+                try:
+                    if canonical_website_url_identity(source_page) != active_source:
+                        continue
+                except Exception:
+                    continue
+            identity = str(payload.get("image_url") or "").strip()
+            if not identity or identity in seen_payloads:
+                continue
+            seen_payloads.add(identity)
+
+            # Existing v68885 prompt-side fitment / section / visual authority remains
+            # mandatory. v69115 only changes where the candidate is recovered from.
+            if not _website_image_final_payload_gate_v68885(effective_prompt, payload):
+                continue
+            score = float(_website_image_rank_v68883(effective_prompt, payload) or 0.0)
+            ranked.append((score, payload, file_id))
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    output, seen_images = [], set()
+    limit = max(1, min(int(max_images or 3), WEBSITE_AUTO_DISPLAY_MAX_IMAGES))
+    for score, payload, file_id in ranked:
+        image_url = str(payload.get("image_url") or "").strip()
+        durable_match = None
+        for durable in durable_payloads:
+            durable_url = str(durable.get("image_url") or "").strip()
+            durable_source = str(durable.get("source_page") or "").strip()
+            if image_url and durable_url and image_url != durable_url:
+                continue
+            if active_source and durable_source:
+                try:
+                    if canonical_website_url_identity(durable_source) != active_source:
+                        continue
+                except Exception:
+                    continue
+            if image_url and durable_url == image_url:
+                durable_match = durable
+                break
+
+        record = None
+        if durable_match is not None:
+            try:
+                record = _website_image_record_for_chat_v68883(durable_match)
+            except Exception:
+                record = None
+
+        # Same-package exact URL fallback. This remains subject to the unchanged
+        # answer-aware final authority before publication.
+        if not record and image_url.startswith("https://"):
+            record = {
+                "name": str(payload.get("caption") or payload.get("section_heading") or "Relevant instruction image").strip()[:180],
+                "data_url": image_url,
+                "source": "website_knowledge",
+                "asset_type": "website_instruction_image",
+                "archive_web_url": image_url,
+                "generated": False,
+                "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
+                "website_page_title_v69010": str(payload.get("page_title") or "").strip(),
+                "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
+                "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
+                "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
+                "website_structured_metadata_v69017": dict(payload.get("image_structured_metadata_v69017") or {}),
+                "website_source_zone_v69024": str(payload.get("source_zone_v69024") or "").strip(),
+                "website_page_type_v69024": str(payload.get("page_type_v69024") or "").strip(),
+                "website_page_identity_v69024": dict(payload.get("page_identity_v69024") or {}),
+                "website_ingestion_authority_v69024": str(payload.get("ingestion_authority_version_v69024") or "").strip(),
+                "website_legacy_html_section_bound_v69011": bool(payload.get("legacy_html_section_bound_v69011")),
+            }
+        if not isinstance(record, dict):
+            continue
+
+        record["website_file_id_v69012"] = str(file_id or active_file_id or "").strip()
+        record["website_file_search_deterministic_v69012"] = True
+        record["website_active_package_deterministic_v69115"] = True
+        record["website_image_match_score_v68883"] = round(float(score), 3)
+        key = str(record.get("archive_web_url") or record.get("data_url") or "").strip()
+        if not key or key in seen_images:
+            continue
+        seen_images.add(key)
+        output.append(record)
+        if len(output) >= limit:
+            break
+
+    output = _technical_filter_images_to_active_admin_package_v69113(output)
+    diagnostic_log(
+        "technical_active_package_image_recovery_v69115",
+        active_file_id=active_file_id[:120], candidates=len(ranked), recovered=len(output),
+    )
+    return output
+
+
 def _technical_filter_images_to_active_admin_package_v69113(images):
     """Allow website images only when provenance binds them to the active package."""
     state = dict(
@@ -66762,6 +66912,52 @@ else:
                     "The response was generated, but the downloadable "
                     f"document could not be created: {document_error}"
                 )
+
+        # v69115: newest-package automatic image bridge. Run AFTER the answer is
+        # complete so provider prompts and the already-correct v69114 message/table
+        # content remain byte-for-byte unaffected by image recovery. The candidate
+        # comes only from the active newest package and then passes the unchanged
+        # answer-aware final authority before it can enter generated_images.
+        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+            active_package_state_v69115 = dict(
+                st.session_state.get("_technical_active_admin_package_v69113") or {}
+            )
+            existing_website_images_v69115 = [
+                image for image in (generated_images or [])
+                if isinstance(image, dict)
+                and str(image.get("source") or "") == "website_knowledge"
+            ]
+            if (
+                str(active_package_state_v69115.get("status") or "") == "recovered"
+                and not existing_website_images_v69115
+            ):
+                try:
+                    active_package_images_v69115 = _technical_active_package_images_v69115(
+                        technical_request_prompt_v68879,
+                        max_images=3,
+                    )
+                    if active_package_images_v69115:
+                        generated_images.extend(active_package_images_v69115)
+                        generated_images = _website_image_final_authority_v68885(
+                            technical_request_prompt_v68879,
+                            _dedupe_website_chat_images_v68883(generated_images),
+                            deterministic_images=active_package_images_v69115,
+                            answer_text=answer,
+                        )
+                    diagnostic_log(
+                        "technical_active_package_auto_publication_v69115",
+                        recovered=len(active_package_images_v69115 or []),
+                        published=len([
+                            image for image in (generated_images or [])
+                            if isinstance(image, dict)
+                            and str(image.get("source") or "") == "website_knowledge"
+                        ]),
+                    )
+                except Exception as error:
+                    diagnostic_log(
+                        "technical_active_package_auto_publication_failed_v69115",
+                        error_type=type(error).__name__, error=str(error)[:500],
+                    )
 
         # v69008: if an automatic Technical visual topic was recognized but the
         # first deterministic lookup had no eligible image, make one second
