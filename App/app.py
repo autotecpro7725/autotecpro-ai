@@ -1,11 +1,3 @@
-# AutoTecPro AI v69123 — FINAL PRODUCTION: durable image read-back fix + Admin website supersedes conflicting Technical settings learned vectors + clean explicit-vehicle context + v69050 Technical late-image publication restored; all output/Graphic/Reference/After Install preserved
-# AutoTecPro AI v69122 — FINAL PRODUCTION: v69050 Technical factual authority restored at the live call site; v69121 output/learning/image/Graphic/Reference/After Install preserved
-# AutoTecPro AI v69121 — FINAL PRODUCTION RELEASE: resilient optional Technical prewarm + last-known-good snapshot + immediate new-package promotion + v69120 same-turn explicit photos; all protected output/Graphic/Reference/After Install preserved
-# AutoTecPro AI v69120 — immediate explicit photo publication across Technical/Sales/Marketing; all v69119 output/result, Graphic, Reference, After Install, and QA behavior preserved
-# AutoTecPro AI v69119 — prewarmed proven Technical catalog for fast/stable responses; v69118 output/result and v69115 image behavior preserved
-# AutoTecPro AI v69118 — FINAL STABLE: v69115 proven result/image path + main-thread typo-safe routing; v69117 registry regression removed
-# AutoTecPro AI v69117 — stable main-thread Technical routing; v69115 automatic image + v69114 result/display preserved
-# AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -38493,6 +38485,292 @@ def _technical_recent_conversation_context_v69106(limit=6):
     return "\n".join(lines)
 
 
+
+def _technical_generic_ac_variant_request_v69124(prompt_text):
+    """True only when a Technical settings request needs both Manual and Automatic branches."""
+    if str(assistant or "") != "🔧 Technical Support":
+        return False
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return False
+    if not re.search(
+        r"\bcar\s*model\b|\bcare\s*model\b|\bprotocol\b|\bcanbus\b|"
+        r"\ba\s*/?\s*c\b|\bclimate\b",
+        value,
+    ):
+        return False
+    asks_manual = bool(
+        re.search(r"\bmanual\b|\bman\s*a/?c\b|\bmanual\s+climate\b", value)
+    )
+    asks_auto = bool(
+        re.search(r"\bauto(?:matic)?\b|\bdigital\s+climate\b|\bautomatic\s+climate\b", value)
+    )
+    return not (asks_manual or asks_auto)
+
+
+def _technical_variant_search_query_v69124(prompt_text, branch):
+    branch_name = "Manual A/C" if str(branch) == "manual" else "Automatic A/C"
+    return (
+        "AUTOTECPRO TECHNICAL SAME-CONFIGURATION SETTINGS RETRIEVAL ONLY. "
+        "Find the CURRENT learned Technical source for the exact vehicle/year/product/"
+        "factory-system in the user request. Retrieve the Car Model / Protocol / climate "
+        f"settings evidence for the {branch_name} branch. Prefer an Admin website knowledge "
+        "package with the newest Extracted at timestamp when it matches the same configuration. "
+        "Do not substitute a nearby vehicle family, screen family, SYNC/factory-system variant, "
+        "or older conflicting learned settings record. Return evidence only; never infer a "
+        "setting that is not present in the retrieved source.\n\n"
+        f"USER REQUEST:\n{str(prompt_text or '').strip()}"
+    )
+
+
+def _technical_variant_candidate_v69124(prompt_text, row, branch):
+    """Hydrate and score one Manual/Automatic sibling candidate without inventing values."""
+    if not isinstance(row, dict):
+        return None
+    file_id = str(row.get("file_id") or "").strip()
+    filename = str(row.get("filename") or "").strip()
+    result_text = str(row.get("text") or "")
+    full_text = ""
+    if file_id:
+        try:
+            full_text = str(_website_file_full_text_v69012(file_id) or "")
+        except Exception:
+            full_text = ""
+    evidence = full_text or result_text
+    if not evidence:
+        return None
+
+    prompt_families = set(_website_identity_vehicle_families_v69022(prompt_text))
+    prompt_years = set(_website_identity_years_v69022(prompt_text))
+    prompt_systems = set(_website_identity_systems_v69022(prompt_text))
+    prompt_codes = set(_website_image_product_codes_v69020(prompt_text))
+
+    evidence_families = set(_website_identity_vehicle_families_v69022(evidence))
+    evidence_years = set(_website_identity_years_v69022(evidence))
+    evidence_systems = set(_website_identity_systems_v69022(evidence))
+    evidence_codes = set(_website_image_product_codes_v69020(evidence))
+
+    if prompt_families and evidence_families and not (prompt_families & evidence_families):
+        return None
+    if prompt_years and evidence_years and not (prompt_years & evidence_years):
+        return None
+    if prompt_systems and evidence_systems and not (prompt_systems & evidence_systems):
+        return None
+    if prompt_codes and evidence_codes and not (prompt_codes & evidence_codes):
+        return None
+
+    lower = evidence.casefold()
+    branch = str(branch or "").strip().casefold()
+    if branch == "manual":
+        branch_present = bool(re.search(
+            r"\bmanual\b|\bmanual\s+a/?c\b|\bmanual\s+climate\b",
+            lower,
+        ))
+    else:
+        branch_present = bool(re.search(
+            r"\bautomatic\b|\bauto\s+a/?c\b|\bautomatic\s+climate\b|"
+            r"\bdigital\s+climate\b",
+            lower,
+        ))
+    if not branch_present:
+        return None
+
+    is_website_package = bool(
+        filename.startswith("website_")
+        or "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" in evidence
+    )
+    extracted_at = (
+        _technical_package_header_value_v69113(evidence, "Extracted at (UTC)")
+        if is_website_package else ""
+    )
+    source_url = (
+        _technical_package_header_value_v69113(evidence, "Final source URL")
+        or _technical_package_header_value_v69113(evidence, "Requested URL")
+        if is_website_package else ""
+    )
+    try:
+        base_score = float(row.get("score") or 0.0)
+    except Exception:
+        base_score = 0.0
+
+    identity_score = 0.0
+    identity_score += 40.0 * len(prompt_families & evidence_families)
+    identity_score += 18.0 * len(prompt_years & evidence_years)
+    identity_score += 32.0 * len(prompt_systems & evidence_systems)
+    identity_score += 55.0 * len(prompt_codes & evidence_codes)
+    if is_website_package:
+        identity_score += 35.0
+
+    return {
+        "file_id": file_id,
+        "filename": filename,
+        "score": base_score,
+        "identity_score": identity_score,
+        "text": evidence[:50000],
+        "source_url": str(source_url or "").strip(),
+        "extracted_at": str(extracted_at or "").strip(),
+        "website_package": is_website_package,
+        "branch": branch,
+    }
+
+
+def _technical_same_family_variant_evidence_v69124(prompt_text):
+    """Retrieve Manual + Automatic sibling evidence before the main Technical answer.
+
+    Two direct vector searches run concurrently. The returned context never supplies
+    hard-coded values; it only exposes retrieved same-family evidence to the existing
+    v69106 two-row formatter requirement and to existing image recovery.
+    """
+    if not _technical_generic_ac_variant_request_v69124(prompt_text):
+        return {"context": "", "rows": [], "status": "not_applicable"}
+
+    store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not store_ids:
+        return {"context": "", "rows": [], "status": "no_store"}
+    store = str(store_ids[0] or "").strip()
+
+    def search_branch(branch):
+        request = {
+            "input": _technical_variant_search_query_v69124(prompt_text, branch),
+            "tools": [{"type": "file_search", "vector_store_ids": [store]}],
+        }
+        rows = _website_request_vector_search_rows_v69047(
+            request,
+            max_results=20,
+        )
+        output = []
+        for row in rows or []:
+            candidate = _technical_variant_candidate_v69124(
+                prompt_text,
+                row,
+                branch,
+            )
+            if candidate:
+                output.append(candidate)
+        output.sort(
+            key=lambda item: (
+                bool(item.get("website_package")),
+                str(item.get("extracted_at") or ""),
+                float(item.get("identity_score") or 0.0),
+                float(item.get("score") or 0.0),
+            ),
+            reverse=True,
+        )
+        return output
+
+    manual_candidates = []
+    auto_candidates = []
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(
+            max_workers=2,
+            thread_name_prefix="atp-tech-ac-variant",
+        ) as executor:
+            manual_future = executor.submit(search_branch, "manual")
+            auto_future = executor.submit(search_branch, "automatic")
+            manual_candidates = list(manual_future.result() or [])
+            auto_candidates = list(auto_future.result() or [])
+    except Exception as error:
+        diagnostic_log(
+            "technical_variant_parallel_search_failed_v69124",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return {"context": "", "rows": [], "status": "search_failed"}
+
+    # Prefer one newest current website package that independently appears in both
+    # branch searches. This prevents Manual from one family and Automatic from another.
+    manual_by_file = {
+        str(item.get("file_id") or ""): item
+        for item in manual_candidates
+        if str(item.get("file_id") or "")
+    }
+    auto_by_file = {
+        str(item.get("file_id") or ""): item
+        for item in auto_candidates
+        if str(item.get("file_id") or "")
+    }
+    common_file_ids = set(manual_by_file) & set(auto_by_file)
+    common = []
+    for file_id in common_file_ids:
+        left = manual_by_file[file_id]
+        right = auto_by_file[file_id]
+        common.append((
+            bool(left.get("website_package") or right.get("website_package")),
+            max(
+                str(left.get("extracted_at") or ""),
+                str(right.get("extracted_at") or ""),
+            ),
+            max(
+                float(left.get("identity_score") or 0.0),
+                float(right.get("identity_score") or 0.0),
+            ),
+            file_id,
+            left,
+        ))
+    common.sort(reverse=True)
+
+    selected = []
+    if common:
+        selected = [dict(common[0][4])]
+    else:
+        # No one file carries both branches in retrieved evidence. Keep the best
+        # Manual and Automatic rows separately, but the provider is explicitly told
+        # not to splice them unless vehicle/year/system/source-family identity agrees.
+        if manual_candidates:
+            selected.append(dict(manual_candidates[0]))
+        if auto_candidates:
+            best_auto = dict(auto_candidates[0])
+            if not selected or (
+                best_auto.get("file_id"),
+                best_auto.get("text"),
+            ) != (
+                selected[0].get("file_id"),
+                selected[0].get("text"),
+            ):
+                selected.append(best_auto)
+
+    if not selected:
+        return {"context": "", "rows": [], "status": "no_evidence"}
+
+    context_parts = [
+        "TECHNICAL MANUAL + AUTOMATIC SIBLING EVIDENCE (v69124):",
+        "The user did not specify climate type. Reconcile BOTH Manual and Automatic "
+        "A/C branches for the exact same vehicle/year/product/factory-system family. "
+        "Prefer the newest matching Admin website package. Do not combine branches "
+        "from incompatible systems or nearby product families. Do not infer missing "
+        "values. If the same current source supports both branches, the first settings "
+        "table must show both verified branches separately.",
+    ]
+    evidence_rows = []
+    seen = set()
+    for item in selected[:2]:
+        key = (
+            str(item.get("file_id") or ""),
+            str(item.get("text") or "")[:500],
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        context_parts.append(
+            "\n--- RETRIEVED SAME-FAMILY EVIDENCE ---\n"
+            + str(item.get("text") or "")[:30000]
+        )
+        evidence_rows.append({
+            "file_id": str(item.get("file_id") or ""),
+            "filename": str(item.get("filename") or ""),
+            "score": float(item.get("score") or 0.0),
+            "text": str(item.get("text") or "")[:50000],
+            "technical_variant_evidence_v69124": True,
+        })
+
+    return {
+        "context": "\n".join(context_parts),
+        "rows": evidence_rows,
+        "status": "recovered",
+    }
+
+
 def _technical_variant_retrieval_instruction_v69106(prompt_text):
     """Add generic same-family Manual/Automatic retrieval requirements.
 
@@ -67475,6 +67753,58 @@ else:
                     st.session_state["_workspace_file_search_results_v69040"] = (
                         active_workspace_rows_v69113[:12]
                     )
+
+                # v69124: for a generic Technical Car Model/A-C request, retrieve
+                # both Manual and Automatic siblings before the main answer. This
+                # supplements the proven v69050 factual search rather than replacing it.
+                technical_variant_evidence_v69124 = {
+                    "context": "", "rows": [], "status": "not_applicable"
+                }
+                if (
+                    assistant == "🔧 Technical Support"
+                    and bool(use_file_search)
+                    and _technical_generic_ac_variant_request_v69124(
+                        technical_request_prompt_v68879
+                    )
+                ):
+                    try:
+                        technical_variant_evidence_v69124 = (
+                            _technical_same_family_variant_evidence_v69124(
+                                technical_request_prompt_v68879
+                            )
+                        )
+                    except Exception as error_v69124:
+                        diagnostic_log(
+                            "technical_variant_evidence_failed_v69124",
+                            error_type=type(error_v69124).__name__,
+                            error=str(error_v69124)[:500],
+                        )
+                        technical_variant_evidence_v69124 = {
+                            "context": "", "rows": [], "status": "failed"
+                        }
+
+                    variant_context_v69124 = str(
+                        technical_variant_evidence_v69124.get("context") or ""
+                    ).strip()
+                    if variant_context_v69124:
+                        ai_request_prompt += (
+                            "\n\n" + variant_context_v69124
+                        )
+
+                    variant_rows_v69124 = [
+                        dict(row)
+                        for row in (
+                            technical_variant_evidence_v69124.get("rows") or []
+                        )
+                        if isinstance(row, dict)
+                    ]
+                    if variant_rows_v69124:
+                        st.session_state[
+                            "_technical_file_search_results_v69012"
+                        ] = variant_rows_v69124[:12]
+                        st.session_state[
+                            "_workspace_file_search_results_v69040"
+                        ] = variant_rows_v69124[:12]
 
                 try:
                     diagnostic_log(
