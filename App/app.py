@@ -1,3 +1,4 @@
+# AutoTecPro AI v69121 — FINAL PRODUCTION RELEASE: resilient optional Technical prewarm + last-known-good snapshot + immediate new-package promotion + v69120 same-turn explicit photos; all protected output/Graphic/Reference/After Install preserved
 # AutoTecPro AI v69120 — immediate explicit photo publication across Technical/Sales/Marketing; all v69119 output/result, Graphic, Reference, After Install, and QA behavior preserved
 # AutoTecPro AI v69119 — prewarmed proven Technical catalog for fast/stable responses; v69118 output/result and v69115 image behavior preserved
 # AutoTecPro AI v69118 — FINAL STABLE: v69115 proven result/image path + main-thread typo-safe routing; v69117 registry regression removed
@@ -54232,6 +54233,20 @@ def save_website_knowledge_package(
         website_image_sync_v69003,
     )
 
+    if database_choice == "Technical Support Database":
+        try:
+            _technical_package_prewarm_inject_v69121(
+                file_id,
+                filename,
+                package_text,
+            )
+        except Exception as error_v69121:
+            diagnostic_log(
+                "technical_package_injection_failed_v69121",
+                error_type=type(error_v69121).__name__,
+                error=str(error_v69121)[:500],
+            )
+
     _website_invalidate_learning_caches_v69109([database_choice])
     return {
         "already_saved": False,
@@ -55104,7 +55119,7 @@ def _technical_package_prewarm_key_v69119(store, revision):
 
 
 def _technical_package_prewarm_start_v69119(store, revision):
-    """Prebuild the exact proven v69113 catalog outside the user's Send path."""
+    """Refresh the proven Technical catalog without making the cache an authority gate."""
     clean_store = str(store or "").strip()
     if not clean_store.startswith("vs_"):
         return False
@@ -55112,7 +55127,9 @@ def _technical_package_prewarm_start_v69119(store, revision):
 
     state = _technical_package_prewarm_state_v69119()
     with state["lock"]:
-        if state.get("key") == key and state.get("status") in {"running", "ready"}:
+        if state.get("key") == key and state.get("status") in {
+            "running", "refreshing", "ready", "stale_ready"
+        }:
             return True
 
         stale_executor = state.get("executor")
@@ -55122,6 +55139,11 @@ def _technical_package_prewarm_start_v69119(store, revision):
             except Exception:
                 pass
 
+        last_good = [
+            dict(item) for item in (state.get("packages") or [])
+            if isinstance(item, dict)
+        ]
+
         from concurrent.futures import ThreadPoolExecutor
         executor = ThreadPoolExecutor(
             max_workers=1,
@@ -55129,11 +55151,11 @@ def _technical_package_prewarm_start_v69119(store, revision):
         )
         state.update({
             "key": key,
-            "status": "running",
-            "packages": [],
+            "status": "refreshing" if last_good else "running",
+            "packages": last_good,
             "error": "",
             "started_at": time.monotonic(),
-            "completed_at": 0.0,
+            "completed_at": float(state.get("completed_at") or 0.0),
             "executor": executor,
         })
 
@@ -55145,31 +55167,91 @@ def _technical_package_prewarm_start_v69119(store, revision):
                         int(revision or 0),
                     ) or []
                 )
-                current = _technical_package_prewarm_state_v69119()
-                with current["lock"]:
-                    if current.get("key") == key:
-                        current["packages"] = packages
-                        current["status"] = "ready"
-                        current["completed_at"] = time.monotonic()
-                        current["error"] = ""
+                with state["lock"]:
+                    if state.get("key") != key:
+                        return packages
+                    if packages:
+                        merged_candidates_v69121 = [
+                            dict(item) for item in (
+                                list(state.get("packages") or []) + list(packages or [])
+                            )
+                            if isinstance(item, dict)
+                        ]
+                        best_by_identity_v69121 = {}
+                        for item_v69121 in merged_candidates_v69121:
+                            source_v69121 = str(
+                                item_v69121.get("source_url") or ""
+                            ).strip()
+                            try:
+                                canonical_v69121 = (
+                                    canonical_website_url_identity(source_v69121)
+                                    if source_v69121 else ""
+                                )
+                            except Exception:
+                                canonical_v69121 = ""
+                            identity_v69121 = (
+                                "url:" + canonical_v69121
+                                if canonical_v69121
+                                else "file:" + str(
+                                    item_v69121.get("file_id")
+                                    or item_v69121.get("filename")
+                                    or ""
+                                ).strip()
+                            )
+                            existing_v69121 = best_by_identity_v69121.get(
+                                identity_v69121
+                            )
+                            if (
+                                existing_v69121 is None
+                                or (
+                                    str(item_v69121.get("extracted_at") or ""),
+                                    str(item_v69121.get("filename") or ""),
+                                )
+                                > (
+                                    str(existing_v69121.get("extracted_at") or ""),
+                                    str(existing_v69121.get("filename") or ""),
+                                )
+                            ):
+                                best_by_identity_v69121[
+                                    identity_v69121
+                                ] = item_v69121
+                        merged_packages_v69121 = list(
+                            best_by_identity_v69121.values()
+                        )
+                        merged_packages_v69121.sort(
+                            key=lambda item: (
+                                str((item or {}).get("extracted_at") or ""),
+                                str((item or {}).get("filename") or ""),
+                            ),
+                            reverse=True,
+                        )
+                        state["packages"] = merged_packages_v69121
+                        state["status"] = "ready"
+                        state["completed_at"] = time.monotonic()
+                        state["error"] = ""
+                    elif state.get("packages"):
+                        state["status"] = "stale_ready"
+                        state["error"] = "EMPTY_REFRESH"
+                    else:
+                        state["status"] = "failed"
+                        state["error"] = "EMPTY_REFRESH"
                 return packages
             except Exception as error:
-                current = _technical_package_prewarm_state_v69119()
-                with current["lock"]:
-                    if current.get("key") == key:
-                        current["packages"] = []
-                        current["status"] = "failed"
-                        current["completed_at"] = time.monotonic()
-                        current["error"] = type(error).__name__
+                with state["lock"]:
+                    if state.get("key") == key:
+                        state["status"] = (
+                            "stale_ready" if state.get("packages") else "failed"
+                        )
+                        state["error"] = type(error).__name__
                 diagnostic_log(
-                    "technical_catalog_prewarm_failed_v69119",
+                    "technical_catalog_prewarm_failed_v69121",
                     error_type=type(error).__name__,
                     error=str(error)[:500],
+                    preserved_packages=len(state.get("packages") or []),
                 )
                 return []
 
-        future = executor.submit(_build)
-        state["future"] = future
+        state["future"] = executor.submit(_build)
         return True
 
 
@@ -55179,15 +55261,20 @@ def _technical_package_prewarm_snapshot_v69119(
     *,
     wait_seconds=1.25,
 ):
-    """Consume the exact proven catalog snapshot with a bounded user-facing wait."""
+    """Return ready/last-known-good packages; never require this cache for availability."""
     clean_store = str(store or "").strip()
     key = _technical_package_prewarm_key_v69119(clean_store, revision)
     _technical_package_prewarm_start_v69119(clean_store, revision)
 
     state = _technical_package_prewarm_state_v69119()
     with state["lock"]:
-        if state.get("key") == key and state.get("status") == "ready":
-            return list(state.get("packages") or []), "ready"
+        packages = [
+            dict(item) for item in (state.get("packages") or [])
+            if isinstance(item, dict)
+        ]
+        status = str(state.get("status") or "idle")
+        if packages:
+            return packages, status
         future = state.get("future") if state.get("key") == key else None
 
     if future is not None and float(wait_seconds or 0) > 0:
@@ -55196,18 +55283,17 @@ def _technical_package_prewarm_snapshot_v69119(
         except Exception:
             pass
 
-    state = _technical_package_prewarm_state_v69119()
     with state["lock"]:
-        if state.get("key") != key:
-            return [], "stale"
+        packages = [
+            dict(item) for item in (state.get("packages") or [])
+            if isinstance(item, dict)
+        ]
         status = str(state.get("status") or "idle")
-        if status == "ready":
-            return list(state.get("packages") or []), "ready"
-        return [], status
+        return packages, status
 
 
 def _technical_package_prewarm_invalidate_v69119():
-    """Invalidate only the shared company-knowledge snapshot after Admin learning."""
+    """Mark shared company knowledge stale without destroying last-known-good data."""
     state = _technical_package_prewarm_state_v69119()
     with state["lock"]:
         executor = state.get("executor")
@@ -55216,20 +55302,19 @@ def _technical_package_prewarm_invalidate_v69119():
                 executor.shutdown(wait=False, cancel_futures=True)
             except Exception:
                 pass
+        has_packages = bool(state.get("packages"))
         state.update({
             "key": "",
-            "status": "idle",
-            "packages": [],
+            "status": "stale_ready" if has_packages else "idle",
             "error": "",
             "started_at": 0.0,
-            "completed_at": 0.0,
             "future": None,
             "executor": None,
         })
 
 
 def _technical_resolve_active_admin_package_v69113(prompt_text):
-    """Resolve newest Admin package using the exact v69118 authority, prewarmed."""
+    """Prefer newest Admin package, but never let the optional speed cache hide knowledge."""
     if str(assistant or "") != "🔧 Technical Support":
         return {"status": "not_applicable"}
 
@@ -55245,7 +55330,7 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
 
     if not (prompt_families or prompt_codes):
         diagnostic_log(
-            "technical_package_identity_missing_v69119",
+            "technical_package_identity_missing_v69121",
             has_year=bool(prompt_years),
             settings_intent=True,
         )
@@ -55266,18 +55351,15 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
             wait_seconds=1.25,
         )
     )
+
     if not packages:
         diagnostic_log(
-            "technical_catalog_not_ready_v69119",
+            "technical_catalog_optional_fallback_v69121",
             status=prewarm_status_v69119,
         )
         return {
-            "status": "failed",
-            "reason_code": (
-                "CATALOG_WARMING"
-                if prewarm_status_v69119 in {"running", "idle"}
-                else "CATALOG_FAILED"
-            ),
+            "status": "empty",
+            "reason_code": "CATALOG_OPTIONAL_FALLBACK",
         }
 
     candidates = []
@@ -55312,7 +55394,10 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
         ))
 
     if not candidates:
-        return {"status": "empty", "reason_code": "NO_MATCHING_ADMIN_PACKAGE"}
+        return {
+            "status": "empty",
+            "reason_code": "NO_MATCHING_ADMIN_PACKAGE",
+        }
 
     if not prompt_systems:
         surviving_system_sets_v69114 = {
@@ -55374,6 +55459,135 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
         "context": context,
         "rows": [row],
     }
+
+
+
+def _technical_package_from_text_v69121(file_id, filename, package_text):
+    """Parse one already-reviewed Technical website package without network I/O."""
+    text = str(package_text or "")
+    if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in text:
+        return None
+    if (
+        _technical_package_header_value_v69113(text, "Destination")
+        != "Technical Support Database"
+    ):
+        return None
+
+    webpage_text = _technical_package_webpage_text_v69113(text)
+    if not webpage_text:
+        return None
+
+    page_identity = _technical_package_page_identity_v69113(text)
+    source_url = (
+        _technical_package_header_value_v69113(text, "Final source URL")
+        or _technical_package_header_value_v69113(text, "Requested URL")
+    )
+    extracted_at = _technical_package_header_value_v69113(
+        text, "Extracted at (UTC)"
+    )
+    title = _technical_package_header_value_v69113(text, "Page title")
+
+    identity_text = " ".join((
+        title,
+        source_url,
+        webpage_text[:24000],
+        json.dumps(page_identity, ensure_ascii=False, sort_keys=True),
+    ))
+    families = set(page_identity.get("vehicle_families") or [])
+    if not families:
+        families = set(_website_identity_vehicle_families_v69022(identity_text))
+
+    years = set()
+    for raw_year in page_identity.get("years") or []:
+        try:
+            years.add(int(raw_year))
+        except Exception:
+            pass
+    if not years:
+        years = set(_website_identity_years_v69022(identity_text))
+
+    systems = {
+        str(x) for x in (page_identity.get("systems") or []) if str(x)
+    }
+    if not systems:
+        systems = set(_website_identity_systems_v69022(identity_text))
+
+    product_codes = set(_website_image_product_codes_v69020(identity_text))
+    return {
+        "file_id": str(file_id or ""),
+        "filename": str(filename or ""),
+        "source_url": str(source_url or ""),
+        "title": str(title or ""),
+        "extracted_at": str(extracted_at or ""),
+        "webpage_text": webpage_text,
+        "package_text": text,
+        "page_identity": page_identity,
+        "vehicle_families": sorted(families),
+        "years": sorted(years),
+        "systems": sorted(systems),
+        "product_codes": sorted(product_codes),
+    }
+
+
+def _technical_package_prewarm_inject_v69121(file_id, filename, package_text):
+    """Promote a newly indexed Technical package immediately into the live snapshot."""
+    package = _technical_package_from_text_v69121(
+        file_id, filename, package_text
+    )
+    if not isinstance(package, dict):
+        return False
+
+    state = _technical_package_prewarm_state_v69119()
+    new_source = str(package.get("source_url") or "").strip()
+    try:
+        new_canonical = (
+            canonical_website_url_identity(new_source) if new_source else ""
+        )
+    except Exception:
+        new_canonical = ""
+
+    with state["lock"]:
+        kept = []
+        for item in (state.get("packages") or []):
+            if not isinstance(item, dict):
+                continue
+            same_file = bool(
+                str(item.get("file_id") or "").strip()
+                and str(item.get("file_id") or "").strip()
+                == str(package.get("file_id") or "").strip()
+            )
+            same_source = False
+            old_source = str(item.get("source_url") or "").strip()
+            if new_canonical and old_source:
+                try:
+                    same_source = (
+                        canonical_website_url_identity(old_source) == new_canonical
+                    )
+                except Exception:
+                    same_source = False
+            if same_file or same_source:
+                continue
+            kept.append(dict(item))
+
+        kept.append(package)
+        kept.sort(
+            key=lambda item: (
+                str((item or {}).get("extracted_at") or ""),
+                str((item or {}).get("filename") or ""),
+            ),
+            reverse=True,
+        )
+        state["packages"] = kept
+        state["status"] = "stale_ready"
+        state["completed_at"] = time.monotonic()
+
+    diagnostic_log(
+        "technical_package_injected_v69121",
+        file_id=str(file_id or "")[:120],
+        source_url=new_source[:250],
+        packages=len(kept),
+    )
+    return True
 
 
 def _technical_seed_active_admin_package_v69113(package):
@@ -66145,21 +66359,24 @@ else:
                 technical_active_admin_package_v69113 = fail_state_v69114
                 use_file_search = False
             elif resolver_status_v69114 == "failed":
-                fail_state_v69114 = _technical_active_package_failure_state_v69114(
-                    "failed",
-                    str(
+                # v69121: an optimization/catalog operational failure is not proof
+                # that Technical knowledge is unavailable. Preserve the proven
+                # v69050-style file_search path instead of globally hiding models.
+                diagnostic_log(
+                    "technical_active_package_failed_fallback_v69121",
+                    reason_code=str(
                         technical_active_admin_package_v69113.get("reason_code")
                         or "CATALOG_FAILED"
-                    ),
-                    "The current Technical package registry could not be verified "
-                    "for this settings request. Do not fall back to broad or older "
-                    "Technical records; ask the staff member to retry.",
+                    )[:120],
                 )
-                st.session_state["_technical_active_admin_package_v69113"] = (
-                    fail_state_v69114
+                st.session_state.pop(
+                    "_technical_active_admin_package_v69113", None
                 )
-                technical_active_admin_package_v69113 = fail_state_v69114
-                use_file_search = False
+                technical_active_admin_package_v69113 = {
+                    "status": "empty",
+                    "reason_code": "CATALOG_FAILED_BASELINE_FALLBACK",
+                }
+                use_file_search = bool(execution_plan["use_file_search"])
             else:
                 st.session_state.pop(
                     "_technical_active_admin_package_v69113", None
@@ -67610,42 +67827,36 @@ else:
             )
             and _website_image_explicit_visual_request_v68888(interaction_prompt)
         ):
-            existing_workspace_web_images_v69120 = [
-                image for image in (generated_images or [])
-                if isinstance(image, dict)
-                and str(image.get("source") or "") == "website_knowledge"
-            ]
-            if not existing_workspace_web_images_v69120:
-                try:
-                    explicit_rows_v69120 = list(
-                        st.session_state.get(
-                            "_technical_file_search_results_v69012"
-                            if assistant == "🔧 Technical Support"
-                            else "_workspace_file_search_results_v69040"
-                        )
-                        or []
+            try:
+                explicit_rows_v69120 = list(
+                    st.session_state.get(
+                        "_technical_file_search_results_v69012"
+                        if assistant == "🔧 Technical Support"
+                        else "_workspace_file_search_results_v69040"
                     )
-                    explicit_images_v69120 = (
-                        _workspace_explicit_answer_image_recovery_v69120(
-                            assistant,
-                            interaction_prompt,
-                            answer,
-                            explicit_rows_v69120,
-                            max_images=3,
-                        )
+                    or []
+                )
+                explicit_images_v69120 = (
+                    _workspace_explicit_answer_image_recovery_v69120(
+                        assistant,
+                        interaction_prompt,
+                        answer,
+                        explicit_rows_v69120,
+                        max_images=3,
                     )
-                    if explicit_images_v69120:
-                        generated_images.extend(explicit_images_v69120)
-                        generated_images = _dedupe_website_chat_images_v68883(
-                            generated_images
-                        )
-                except Exception as error:
-                    diagnostic_log(
-                        "workspace_explicit_answer_image_recovery_failed_v69120",
-                        workspace=str(assistant),
-                        error_type=type(error).__name__,
-                        error=str(error)[:500],
+                )
+                if explicit_images_v69120:
+                    generated_images.extend(explicit_images_v69120)
+                    generated_images = _dedupe_website_chat_images_v68883(
+                        generated_images
                     )
+            except Exception as error:
+                diagnostic_log(
+                    "workspace_explicit_answer_image_recovery_failed_v69121",
+                    workspace=str(assistant),
+                    error_type=type(error).__name__,
+                    error=str(error)[:500],
+                )
 
         # v69113: when the newest Admin Technical package is exclusive for this
         # settings turn, website imagery must come from that same package/source.
