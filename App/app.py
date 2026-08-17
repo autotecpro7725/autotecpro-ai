@@ -1,3 +1,14 @@
+# AutoTecPro AI v69112 — promote individually approved current images despite unrelated candidate failures
+# AutoTecPro AI v69111 — true module-scope threading import; v69109 behavior preserved
+# AutoTecPro AI v69109 — newest-source supersession + password learning + checkbox destinations + automatic section images
+# AutoTecPro AI v69108 — Graphic multi-tab durable-job isolation + v69107A image final gate
+# AutoTecPro AI v69107A — FINAL PUBLICATION GATE ONLY
+# AutoTecPro AI v69106 — v69050 image authority + same-config variant continuity
+# AutoTecPro AI v69105 — rebuilt from the user-supplied v69050 production baseline.
+# Technical/Sales/Marketing image authority and runtime behavior remain v69050-exact.
+# Only presentation is added: Technical settings-table guidance and professional Customer Reply Draft layout.
+# No vehicle/menu value (F450/F460/etc.) is hard-coded by this release.
+
 # AutoTecPro AI v69024 — Source-Zone Website Knowledge Provenance; v69023 workspace stability + protected Graphic engine preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
@@ -53800,22 +53811,41 @@ def save_website_knowledge_package(
         factual_supersession_completed_v69109 = True
         _website_invalidate_learning_caches_v69109([database_choice])
 
-        # Repair/synchronize current images independently. Never keep stale images merely
-        # because the current text package was already present.
-        if include_images and int(image_analysis.get("failures") or 0) == 0:
+        # v69112: promote every image that individually passed ingestion QA even when
+        # another candidate on the same page failed download/provider analysis.  The
+        # old v69109 all-or-nothing check cleared the entire durable page image index
+        # whenever image_analysis.failures > 0, which produced correct text + a known
+        # image URL but no approved publication record.  Approved images are already
+        # individually gated by analyze_website_images(); unrelated failures must not
+        # invalidate them.
+        approved_images_v69112 = [
+            dict(item) for item in (image_analysis.get("images") or [])
+            if isinstance(item, dict)
+        ]
+        if include_images and approved_images_v69112:
             image_stats = _website_archive_and_index_images_v68883(
-                extraction, database_choice, list(image_analysis.get("images") or [])
+                extraction, database_choice, approved_images_v69112
             )
-            image_ok = int(image_stats.get("failures") or 0) == 0
-            if image_ok:
-                image_sync = _website_sync_page_image_index_v69003(
-                    extraction, database_choice, list(image_analysis.get("images") or [])
-                )
-            else:
-                image_sync = _website_sync_page_image_index_v69003(extraction, database_choice, [])
+            image_sync = _website_sync_page_image_index_v69003(
+                extraction, database_choice, approved_images_v69112
+            )
+            image_stats["analysis_failures_v69112"] = int(
+                image_analysis.get("failures") or 0
+            )
+            image_stats["partial_approved_image_promotion_v69112"] = bool(
+                int(image_analysis.get("failures") or 0) > 0
+            )
         elif include_images:
-            image_stats = {"indexed": 0, "archived": 0, "failures": int(image_analysis.get("failures") or 1), "current_images_withheld_v69109": True}
-            image_sync = _website_sync_page_image_index_v69003(extraction, database_choice, [])
+            image_stats = {
+                "indexed": 0,
+                "archived": 0,
+                "failures": int(image_analysis.get("failures") or 0),
+                "current_images_withheld_v69112": True,
+                "withheld_reason_v69112": "no_individually_approved_current_images",
+            }
+            image_sync = _website_sync_page_image_index_v69003(
+                extraction, database_choice, []
+            )
         else:
             image_stats = {"indexed": 0, "archived": 0, "failures": 0, "preserved_existing_v69005": True}
             image_sync = {"completed": True, "skipped_reason": "image-analysis-disabled-preserve-existing-v69005"}
@@ -53864,27 +53894,36 @@ def save_website_knowledge_package(
     factual_supersession_completed_v69109 = True
     _website_invalidate_learning_caches_v69109([database_choice])
 
-    # Image promotion is a separate safety domain. If current image QA/archive fails,
-    # remove stale same-page image rows and keep text live with no website image.
-    if include_images and int(image_analysis.get("failures") or 0) == 0:
+    # v69112: factual authority and image authority remain separate, but image
+    # promotion is now PER APPROVED IMAGE rather than all-or-nothing at page level.
+    # analyze_website_images() increments "failures" for any candidate exception while
+    # still returning other images that passed the complete two-pass QA.  Those safe
+    # images must be promoted instead of being erased because a different candidate
+    # failed.
+    approved_images_v69112 = [
+        dict(item) for item in (image_analysis.get("images") or [])
+        if isinstance(item, dict)
+    ]
+    if include_images and approved_images_v69112:
         website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-            extraction, database_choice, list(image_analysis.get("images") or [])
+            extraction, database_choice, approved_images_v69112
         )
-        image_sync_safe_v69109 = int(website_image_index_stats_v68883.get("failures") or 0) == 0
-        if image_sync_safe_v69109:
-            website_image_sync_v69003 = _website_sync_page_image_index_v69003(
-                extraction, database_choice, list(image_analysis.get("images") or [])
-            )
-        else:
-            website_image_sync_v69003 = _website_sync_page_image_index_v69003(
-                extraction, database_choice, []
-            )
-            website_image_index_stats_v68883["current_images_withheld_v69109"] = True
+        website_image_sync_v69003 = _website_sync_page_image_index_v69003(
+            extraction, database_choice, approved_images_v69112
+        )
+        website_image_index_stats_v68883["analysis_failures_v69112"] = int(
+            image_analysis.get("failures") or 0
+        )
+        website_image_index_stats_v68883[
+            "partial_approved_image_promotion_v69112"
+        ] = bool(int(image_analysis.get("failures") or 0) > 0)
     elif include_images:
         website_image_index_stats_v68883 = {
-            "indexed": 0, "archived": 0,
-            "failures": int(image_analysis.get("failures") or 1),
-            "current_images_withheld_v69109": True,
+            "indexed": 0,
+            "archived": 0,
+            "failures": int(image_analysis.get("failures") or 0),
+            "current_images_withheld_v69112": True,
+            "withheld_reason_v69112": "no_individually_approved_current_images",
         }
         website_image_sync_v69003 = _website_sync_page_image_index_v69003(
             extraction, database_choice, []
