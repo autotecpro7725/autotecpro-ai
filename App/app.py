@@ -1,6 +1,6 @@
+# AutoTecPro AI v69116 — stable Technical command recognition + cold-start package resolver; v69115 result/image/display behavior preserved
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 # AutoTecPro AI v69114 — verified website-image durability + package continuity; all protected v69113 pipelines preserved
-# AutoTecPro AI v69113 — product-level newest Admin package authority; all other v69112 behavior preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -54899,18 +54899,134 @@ def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_re
     return packages
 
 
-def _technical_resolve_active_admin_package_v69113(prompt_text):
-    """Resolve the newest matching Admin website package for a Technical settings turn.
 
-    The key production rule is intentionally generic:
-    once a newer Admin website package matches the requested vehicle/year/system,
-    older documents or different-URL website packages do not compete in that turn.
-    No protocol, Car Model, vehicle-specific menu value, or product code is hard-coded.
-    """
+def _technical_settings_routing_prompt_v69116(prompt_text):
+    """Return routing-only normalization for harmless staff typos."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not value:
+        return ""
+    value = re.sub(r"(?i)\bcare\s+model\b", "car model", value)
+    value = re.sub(r"(?i)\bcar\s+modal\b", "car model", value)
+    value = re.sub(r"(?i)\bdodge\s+(?:am|rm|ra|ramm)\b", "Dodge RAM", value)
+    return value
+
+
+def _technical_admin_package_from_row_v69116(row):
+    """Parse one existing Technical Admin website package without changing semantics."""
+    if not isinstance(row, dict):
+        return None
+    file_id = str(row.get("file_id") or "").strip()
+    filename = str(row.get("filename") or "").strip()
+    if not file_id or not filename.startswith("website_"):
+        return None
+    package_text = str(_website_openai_file_text_v68892(file_id) or "")
+    if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text:
+        return None
+    if _technical_package_header_value_v69113(package_text, "Destination") != "Technical Support Database":
+        return None
+    webpage_text = _technical_package_webpage_text_v69113(package_text)
+    if not webpage_text:
+        return None
+    page_identity = _technical_package_page_identity_v69113(package_text)
+    source_url = (
+        _technical_package_header_value_v69113(package_text, "Final source URL")
+        or _technical_package_header_value_v69113(package_text, "Requested URL")
+    )
+    extracted_at = _technical_package_header_value_v69113(package_text, "Extracted at (UTC)")
+    title = _technical_package_header_value_v69113(package_text, "Page title")
+    identity_text = " ".join((
+        title, source_url, webpage_text[:24000],
+        json.dumps(page_identity, ensure_ascii=False, sort_keys=True),
+    ))
+    families = set(page_identity.get("vehicle_families") or [])
+    if not families:
+        families = set(_website_identity_vehicle_families_v69022(identity_text))
+    years = set()
+    for raw_year in page_identity.get("years") or []:
+        try:
+            years.add(int(raw_year))
+        except Exception:
+            pass
+    if not years:
+        years = set(_website_identity_years_v69022(identity_text))
+    systems = set(str(x) for x in (page_identity.get("systems") or []) if str(x))
+    if not systems:
+        systems = set(_website_identity_systems_v69022(identity_text))
+    product_codes = set(_website_image_product_codes_v69020(identity_text))
+    return {
+        "file_id": file_id,
+        "filename": filename,
+        "source_url": source_url,
+        "title": title,
+        "extracted_at": extracted_at,
+        "webpage_text": webpage_text,
+        "package_text": package_text,
+        "page_identity": page_identity,
+        "vehicle_families": sorted(families),
+        "years": sorted(years),
+        "systems": sorted(systems),
+        "product_codes": sorted(product_codes),
+    }
+
+
+@st.cache_data(ttl=300, max_entries=8, show_spinner=False)
+def _technical_admin_website_package_catalog_v69116(vector_store_id, learning_revision):
+    """Cold-start optimized equivalent of the v69113 Technical Admin package catalog."""
+    del learning_revision
+    store = str(vector_store_id or "").strip()
+    if not store.startswith("vs_"):
+        return []
+    rows = [
+        dict(row)
+        for row in (_website_vector_store_file_rows_v68892(store) or [])
+        if isinstance(row, dict)
+        and str(row.get("file_id") or "").strip()
+        and str(row.get("filename") or "").strip().startswith("website_")
+    ]
+    if not rows:
+        return []
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(
+            max_workers=min(4, max(1, len(rows))),
+            thread_name_prefix="atp-tech-package-catalog",
+        ) as executor:
+            parsed_rows = list(executor.map(_technical_admin_package_from_row_v69116, rows))
+        return [
+            dict(item) for item in parsed_rows
+            if isinstance(item, dict) and item.get("file_id")
+        ]
+    except Exception as error:
+        diagnostic_log(
+            "technical_admin_catalog_parallel_failed_v69116",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return list(_technical_admin_website_package_catalog_v69113(store, 0) or [])
+
+
+def _technical_resolve_active_admin_package_v69113(prompt_text):
+    """Resolve the newest matching Admin package with v69116 cold-start hardening."""
     if str(assistant or "") != "🔧 Technical Support":
         return {"status": "not_applicable"}
-    if not _technical_settings_authority_intent_v69113(prompt_text):
+
+    routing_prompt_v69116 = _technical_settings_routing_prompt_v69116(prompt_text)
+    if not _technical_settings_authority_intent_v69113(routing_prompt_v69116):
         return {"status": "not_applicable"}
+
+    # Local validation before any OpenAI catalog I/O.
+    prompt = re.sub(r"\s+", " ", routing_prompt_v69116).strip()
+    prompt_families = set(_website_identity_vehicle_families_v69022(prompt))
+    prompt_years = set(_website_identity_years_v69022(prompt))
+    prompt_systems = set(_website_identity_systems_v69022(prompt))
+    prompt_codes = set(_website_image_product_codes_v69020(prompt))
+    if not (prompt_families or prompt_codes):
+        diagnostic_log(
+            "technical_package_identity_missing_v69116",
+            has_year=bool(prompt_years),
+            settings_intent=True,
+        )
+        return {"status": "empty", "reason_code": "NO_PRODUCT_IDENTITY"}
 
     store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
     if not store_ids:
@@ -54919,9 +55035,7 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
 
     revision = _website_destination_revision_v69109("Technical Support Database")
     try:
-        packages = list(
-            _technical_admin_website_package_catalog_v69113(store, revision) or []
-        )
+        packages = list(_technical_admin_website_package_catalog_v69116(store, revision) or [])
     except Exception as error:
         diagnostic_log(
             "technical_active_admin_catalog_failed_v69113",
@@ -54930,23 +55044,12 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
         )
         return {"status": "failed", "reason_code": "CATALOG_FAILED"}
 
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    prompt_families = set(_website_identity_vehicle_families_v69022(prompt))
-    prompt_years = set(_website_identity_years_v69022(prompt))
-    prompt_systems = set(_website_identity_systems_v69022(prompt))
-    prompt_codes = set(_website_image_product_codes_v69020(prompt))
-
-    # Do not establish an exclusive product package without a real subject identity.
-    if not (prompt_families or prompt_codes):
-        return {"status": "empty", "reason_code": "NO_PRODUCT_IDENTITY"}
-
     candidates = []
     for package in packages:
         families = set(package.get("vehicle_families") or [])
         years = set(package.get("years") or [])
         systems = set(package.get("systems") or [])
         codes = set(package.get("product_codes") or [])
-
         family_overlap = len(prompt_families & families)
         code_overlap = len(prompt_codes & codes)
         if prompt_families and families and family_overlap == 0:
@@ -54957,14 +55060,12 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
             continue
         if prompt_systems and systems and not (prompt_systems & systems):
             continue
-
         identity_score = (
             100 * family_overlap
             + 80 * code_overlap
             + 20 * len(prompt_years & years)
             + 40 * len(prompt_systems & systems)
         )
-        # Freshness is the primary authority after compatibility is established.
         candidates.append((
             str(package.get("extracted_at") or ""),
             identity_score,
@@ -54975,13 +55076,9 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
     if not candidates:
         return {"status": "empty", "reason_code": "NO_MATCHING_ADMIN_PACKAGE"}
 
-    # v69114: never choose the newest package across materially different factory
-    # system variants when the prompt itself did not identify that discriminator.
     if not prompt_systems:
         surviving_system_sets_v69114 = {
-            tuple(sorted(
-                str(x) for x in (item[3].get("systems") or []) if str(x)
-            ))
+            tuple(sorted(str(x) for x in (item[3].get("systems") or []) if str(x)))
             for item in candidates
         }
         surviving_system_sets_v69114.discard(tuple())
@@ -54989,18 +55086,14 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
             return {
                 "status": "ambiguous",
                 "reason_code": "MULTIPLE_FACTORY_SYSTEM_VARIANTS",
-                "systems": [
-                    list(x) for x in sorted(surviving_system_sets_v69114)
-                ],
+                "systems": [list(x) for x in sorted(surviving_system_sets_v69114)],
             }
 
     candidates.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
     package = dict(candidates[0][3])
     source_url = str(package.get("source_url") or "").strip()
     try:
-        canonical_source = (
-            canonical_website_url_identity(source_url) if source_url else ""
-        )
+        canonical_source = canonical_website_url_identity(source_url) if source_url else ""
     except Exception:
         canonical_source = ""
 
@@ -55016,17 +55109,13 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
         "WEBPAGE TEXT\n============\n"
         + str(package.get("webpage_text") or "")[:45000]
     )
-
     row = {
         "file_id": str(package.get("file_id") or ""),
         "filename": str(package.get("filename") or ""),
         "score": 1.0,
-        # Keep the complete package text so current-package image payloads are
-        # available to the unchanged v69014/v69050 image reconstruction path.
         "text": str(package.get("package_text") or ""),
         "active_admin_package_v69113": True,
     }
-
     return {
         "status": "recovered",
         "exclusive": True,
