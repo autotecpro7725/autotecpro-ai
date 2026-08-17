@@ -1,12 +1,3 @@
-# AutoTecPro AI v69109 — newest-source supersession + password learning + checkbox destinations + automatic section images
-# AutoTecPro AI v69108 — Graphic multi-tab durable-job isolation + v69107A image final gate
-# AutoTecPro AI v69107A — FINAL PUBLICATION GATE ONLY
-# AutoTecPro AI v69106 — v69050 image authority + same-config variant continuity
-# AutoTecPro AI v69105 — rebuilt from the user-supplied v69050 production baseline.
-# Technical/Sales/Marketing image authority and runtime behavior remain v69050-exact.
-# Only presentation is added: Technical settings-table guidance and professional Customer Reply Draft layout.
-# No vehicle/menu value (F450/F460/etc.) is hard-coded by this release.
-
 # AutoTecPro AI v69024 — Source-Zone Website Knowledge Provenance; v69023 workspace stability + protected Graphic engine preserved
 # Previous release marker: v68982 — v68882 Reference icon parity + v68981 geometry recovery + v68980 safe performance
 import streamlit as st
