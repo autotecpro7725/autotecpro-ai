@@ -1,3 +1,4 @@
+# AutoTecPro AI v69129 — FINAL PRODUCTION: schema-compatible durable website-image index + truthful write-failure accounting; all v69128 output/table/retrieval/Graphic/Reference/After Install behavior preserved
 # AutoTecPro AI v69128 — FINAL PRODUCTION: generic dynamic multi-option Technical settings rows across Ford/GM/future sources; v69126 first-turn image publication and all protected pipelines preserved
 import streamlit as st
 import streamlit.components.v1 as components
@@ -50565,120 +50566,179 @@ def _website_image_scoped_issue_v69003(payload):
 
 
 
+@st.cache_data(ttl=30, max_entries=2, show_spinner=False)
+def _website_image_index_schema_profile_v69129():
+    """Detect the live durable-image storage shape without requiring a migration.
+
+    `learned_knowledge` has existed across multiple production schemas. Newer
+    deployments expose issue/source_type/solution; older compatible deployments
+    reliably expose question/approved_answer/keywords. The image index must work
+    with either shape instead of failing all image writes when optional columns are
+    absent.
+    """
+    modern = [
+        "id", "issue", "vehicle", "solution", "approved_answer",
+        "keywords", "source_type", "updated_at",
+    ]
+    legacy = ["id", "question", "approved_answer", "keywords", "created_at"]
+
+    for name, columns in (("modern", modern), ("legacy", legacy)):
+        last_error = None
+        for attempt in range(2):
+            try:
+                supabase.table("learned_knowledge").select(
+                    ",".join(columns)
+                ).limit(1).execute()
+                return {
+                    "ready": True,
+                    "mode": name,
+                    "columns": columns,
+                }
+            except Exception as error:
+                last_error = error
+                if attempt == 0:
+                    time.sleep(0.08)
+        diagnostic_log(
+            "website_image_index_schema_profile_attempt_failed_v69129",
+            mode=name,
+            error_type=type(last_error).__name__ if last_error else "",
+            error=str(last_error)[:400] if last_error else "",
+        )
+
+    return {"ready": False, "mode": "unavailable", "columns": []}
+
+
 @st.cache_data(ttl=300, max_entries=2, show_spinner=False)
 @st.cache_data(ttl=30, max_entries=2, show_spinner=False)
 def _website_image_index_schema_ready_v69123():
-    """Prove the actual learned_knowledge schema can support durable image rows."""
-    required = (
-        "id,issue,vehicle,solution,approved_answer,keywords,"
-        "source_type,updated_at"
-    )
-    last_error = None
-    for attempt in range(3):
-        try:
-            supabase.table("learned_knowledge").select(required).limit(1).execute()
-            return True
-        except Exception as error:
-            last_error = error
-            if attempt < 2:
-                time.sleep(0.12 * (attempt + 1))
-    diagnostic_log(
-        "website_image_index_schema_probe_failed_v69123",
-        error_type=type(last_error).__name__ if last_error else "",
-        error=str(last_error)[:500] if last_error else "",
-    )
-    return False
+    """Return True when either supported durable image-index schema is available."""
+    return bool(_website_image_index_schema_profile_v69129().get("ready"))
 
 
 def _website_image_index_readback_v69123(issue):
-    """Return the exact durable image-index row after insert/update."""
-    try:
-        rows = (
-            supabase.table("learned_knowledge")
-            .select("id,issue,solution,approved_answer,source_type,updated_at")
-            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
-            .eq("issue", str(issue or ""))
-            .limit(1)
-            .execute()
-            .data
-            or []
-        )
-    except Exception:
+    """Return the exact durable image-index row after insert/update across schemas."""
+    profile = dict(_website_image_index_schema_profile_v69129() or {})
+    if not profile.get("ready"):
         return None
+    mode = str(profile.get("mode") or "")
+    issue = str(issue or "")
+    try:
+        if mode == "modern":
+            rows = (
+                supabase.table("learned_knowledge")
+                .select("id,issue,solution,approved_answer,source_type,updated_at")
+                .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+                .eq("issue", issue)
+                .limit(1)
+                .execute()
+                .data
+                or []
+            )
+        else:
+            rows = (
+                supabase.table("learned_knowledge")
+                .select("id,question,approved_answer,keywords,created_at")
+                .eq("question", issue)
+                .limit(1)
+                .execute()
+                .data
+                or []
+            )
+    except Exception as error:
+        diagnostic_log(
+            "website_image_index_readback_failed_query_v69129",
+            mode=mode, error_type=type(error).__name__, error=str(error)[:400],
+        )
+        return None
+
     for row in rows:
         if not isinstance(row, dict):
             continue
         raw = str(row.get("solution") or row.get("approved_answer") or "")
         if raw.startswith(WEBSITE_IMAGE_INDEX_PREFIX_V68883):
-            return dict(row)
+            normalized = dict(row)
+            normalized.setdefault("issue", str(row.get("question") or issue))
+            normalized.setdefault("solution", str(row.get("approved_answer") or ""))
+            normalized.setdefault("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            normalized.setdefault("updated_at", str(row.get("created_at") or ""))
+            return normalized
     return None
 
 
 def _website_image_index_upsert_v68883(payload):
-    """Persist one durable image row and verify that Technical/Sales/Marketing can read it back.
-
-    v69123 fixes the false-success case where generic schema filtering stripped
-    source_type/issue/solution but the insert still succeeded and was counted as
-    indexed. The durable image transaction now succeeds only when the exact
-    discriminator/payload can be read back immediately.
-    """
+    """Persist one durable image row and prove exact read-back on modern or legacy schema."""
     if not isinstance(payload, dict):
         return False
-    if not _website_image_index_schema_ready_v69123():
+    profile = dict(_website_image_index_schema_profile_v69129() or {})
+    if not profile.get("ready"):
+        diagnostic_log("website_image_index_schema_unavailable_v69129")
         return False
 
     issue = _website_image_scoped_issue_v69003(payload)
     solution = WEBSITE_IMAGE_INDEX_PREFIX_V68883 + json.dumps(
-        payload,
-        ensure_ascii=False,
-        separators=(",", ":"),
+        payload, ensure_ascii=False, separators=(",", ":")
     )
+    mode = str(profile.get("mode") or "")
 
-    # Use only columns that the durable reader itself requires. These were just
-    # proven against the live schema, so do not pass through the lossy generic
-    # fallback filter.
-    durable_row = {
-        "issue": issue,
-        "vehicle": str(payload.get("page_title") or "")[:240],
-        "solution": solution,
-        "approved_answer": solution,
-        "keywords": str(payload.get("keywords") or "")[:5000],
-        "source_type": WEBSITE_IMAGE_INDEX_SOURCE_V68883,
-        "updated_at": now_iso(),
-    }
-    # Preserve richer Admin metadata only when the live schema confirms it.
+    if mode == "modern":
+        durable_row = {
+            "issue": issue,
+            "vehicle": str(payload.get("page_title") or "")[:240],
+            "solution": solution,
+            "approved_answer": solution,
+            "keywords": str(payload.get("keywords") or "")[:5000],
+            "source_type": WEBSITE_IMAGE_INDEX_SOURCE_V68883,
+            "updated_at": now_iso(),
+        }
+        lookup_column = "issue"
+    else:
+        # Legacy-compatible durable image row. `question` is the exact scoped issue
+        # discriminator and `approved_answer` carries the complete JSON payload.
+        durable_row = {
+            "question": issue,
+            "approved_answer": solution,
+            "keywords": (
+                WEBSITE_IMAGE_INDEX_SOURCE_V68883 + ", "
+                + str(payload.get("keywords") or "")
+            )[:5000],
+        }
+        lookup_column = "question"
+
+    # Preserve optional Admin metadata only when the live RPC confirms it.
     try:
-        actual_columns_v69123 = set(get_table_columns("learned_knowledge") or [])
+        actual_columns = set(get_table_columns("learned_knowledge") or [])
     except Exception:
-        actual_columns_v69123 = set()
-    optional_row_v69123 = {
+        actual_columns = set()
+    optional = {
         "assistant": {
             "Technical Support Database": "Technical Support",
             "Sales Database": "Sales",
             "Marketing Database": "Marketing",
         }.get(str(payload.get("database_choice") or ""), "Technical Support"),
         "record_type": "website_image",
-        "question": str(payload.get("section_heading") or "Website image")[:500],
         "source_question": str(payload.get("source_page") or "")[:1200],
         "staff_confirmed": True,
         "confidence_score": 100,
     }
-    for key_v69123, value_v69123 in optional_row_v69123.items():
-        if key_v69123 in actual_columns_v69123:
-            durable_row[key_v69123] = value_v69123
+    # Do not overwrite legacy `question`, which is the durable discriminator.
+    if mode == "modern":
+        optional["question"] = str(
+            payload.get("section_heading") or "Website image"
+        )[:500]
+    for key, value in optional.items():
+        if key in actual_columns and key not in durable_row:
+            durable_row[key] = value
 
     try:
         existing = (
             supabase.table("learned_knowledge")
             .select("id")
-            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
-            .eq("issue", issue)
+            .eq(lookup_column, issue)
             .limit(1)
             .execute()
             .data
             or []
         )
-
         if existing:
             result = (
                 supabase.table("learned_knowledge")
@@ -50687,16 +50747,10 @@ def _website_image_index_upsert_v68883(payload):
                 .execute()
             )
         else:
-            result = (
-                supabase.table("learned_knowledge")
-                .insert(durable_row)
-                .execute()
-            )
+            result = supabase.table("learned_knowledge").insert(durable_row).execute()
 
         readback = _website_image_index_readback_v69123(issue)
         if not readback:
-            # Never report an insert/update as indexed unless the exact retrieval
-            # discriminator survived the database write.
             inserted_rows = list(getattr(result, "data", None) or [])
             if not existing:
                 for item in inserted_rows:
@@ -50709,16 +50763,15 @@ def _website_image_index_upsert_v68883(payload):
                         except Exception:
                             pass
             diagnostic_log(
-                "website_image_index_readback_failed_v69123",
-                issue=issue[:120],
+                "website_image_index_readback_failed_v69129",
+                mode=mode, issue=issue[:120],
             )
             return False
     except Exception as error:
         diagnostic_log(
-            "website_image_index_save_failed_v69123",
-            issue=issue[:120],
-            error_type=type(error).__name__,
-            error=str(error)[:500],
+            "website_image_index_save_failed_v69129",
+            mode=mode, issue=issue[:120],
+            error_type=type(error).__name__, error=str(error)[:500],
         )
         return False
 
@@ -50730,27 +50783,44 @@ def _website_image_index_upsert_v68883(payload):
 
 
 def _website_image_index_db_rows_v69005(columns, *, order_recent=False, max_rows=20000):
-    """Load website-image index rows in bounded pages and report completeness.
+    """Load durable image rows across modern and legacy learned_knowledge schemas."""
+    profile = dict(_website_image_index_schema_profile_v69129() or {})
+    if not profile.get("ready"):
+        return [], False
+    mode = str(profile.get("mode") or "")
+    available = set(profile.get("columns") or [])
 
-    v69004 used a single 1,500-row window. Once the global website-image index
-    exceeded that size, old page rows could become invisible to retrieval/sync,
-    and shared-archive reference checks could become unsafe. v69005 paginates and
-    fails closed when the safety ceiling is reached.
-    """
+    requested = [x.strip() for x in str(columns or "").split(",") if x.strip()]
+    # Always fetch payload/discriminator columns needed by the normalizer.
+    required = (
+        ["id", "issue", "solution", "approved_answer", "source_type", "updated_at"]
+        if mode == "modern"
+        else ["id", "question", "approved_answer", "keywords", "created_at"]
+    )
+    select_columns = []
+    for name in requested + required:
+        if name in available and name not in select_columns:
+            select_columns.append(name)
+    if not select_columns:
+        return [], False
+
     rows = []
     batch_size = 1000
     complete = True
     for start in range(0, int(max_rows), batch_size):
         try:
-            query = (
-                supabase.table("learned_knowledge")
-                .select(columns)
-                .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            query = supabase.table("learned_knowledge").select(
+                ",".join(select_columns)
             )
-            if order_recent:
-                query = query.order("updated_at", desc=True)
+            if mode == "modern":
+                query = query.eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+                order_column = "updated_at"
             else:
-                # Stable ordering is required for offset/range pagination.
+                query = query.like("question", "website-image:%")
+                order_column = "created_at"
+            if order_recent:
+                query = query.order(order_column, desc=True)
+            else:
                 query = query.order("id", desc=False)
             range_method = getattr(query, "range", None)
             if callable(range_method):
@@ -50761,9 +50831,23 @@ def _website_image_index_db_rows_v69005(columns, *, order_recent=False, max_rows
                     break
                 query = query.limit(batch_size)
             page = list(query.execute().data or [])
-        except Exception:
+        except Exception as error:
+            diagnostic_log(
+                "website_image_index_page_load_failed_v69129",
+                mode=mode, error_type=type(error).__name__, error=str(error)[:400],
+            )
             return rows, False
-        rows.extend(page)
+
+        normalized_page = []
+        for raw in page:
+            row = dict(raw or {})
+            if mode == "legacy":
+                row.setdefault("issue", str(row.get("question") or ""))
+                row.setdefault("solution", str(row.get("approved_answer") or ""))
+                row.setdefault("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+                row.setdefault("updated_at", str(row.get("created_at") or ""))
+            normalized_page.append(row)
+        rows.extend(normalized_page)
         if len(page) < batch_size:
             return rows, True
     if len(rows) >= int(max_rows):
@@ -50991,6 +51075,12 @@ def _website_archive_and_index_images_v68883(
             )
             if _website_image_index_upsert_v68883(payload):
                 indexed += 1
+            else:
+                failures += 1
+                diagnostic_log(
+                    "website_image_index_rejected_v69129",
+                    image_url=str(image_item.get("url") or "")[:500],
+                )
         except Exception as error:
             failures += 1
             diagnostic_log(
