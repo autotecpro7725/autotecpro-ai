@@ -1,3 +1,4 @@
+# AutoTecPro AI v69123 — FINAL PRODUCTION: durable image read-back fix + Admin website supersedes conflicting Technical settings learned vectors + clean explicit-vehicle context + v69050 Technical late-image publication restored; all output/Graphic/Reference/After Install preserved
 # AutoTecPro AI v69122 — FINAL PRODUCTION: v69050 Technical factual authority restored at the live call site; v69121 output/learning/image/Graphic/Reference/After Install preserved
 # AutoTecPro AI v69121 — FINAL PRODUCTION RELEASE: resilient optional Technical prewarm + last-known-good snapshot + immediate new-package promotion + v69120 same-turn explicit photos; all protected output/Graphic/Reference/After Install preserved
 # AutoTecPro AI v69120 — immediate explicit photo publication across Technical/Sales/Marketing; all v69119 output/result, Graphic, Reference, After Install, and QA behavior preserved
@@ -38686,7 +38687,18 @@ def build_user_input(
     # This is context only; factual values must still be re-verified from Technical
     # knowledge.  The separate variant directive forces Manual/Automatic siblings
     # to be retrieved from one configuration family instead of mixed packages.
-    technical_case_context_v69106 = _technical_recent_conversation_context_v69106()
+    explicit_subject_v69123 = bool(
+        str(assistant or "") == "🔧 Technical Support"
+        and (
+            _website_identity_vehicle_families_v69022(prompt_text)
+            or _website_image_product_codes_v69020(prompt_text)
+        )
+    )
+    technical_case_context_v69106 = (
+        ""
+        if explicit_subject_v69123
+        else _technical_recent_conversation_context_v69106()
+    )
     if technical_case_context_v69106:
         content.append({"type": "input_text", "text": technical_case_context_v69106})
     technical_variant_instruction_v69106 = _technical_variant_retrieval_instruction_v69106(prompt_text)
@@ -41034,8 +41046,11 @@ Retrieval Instruction:
 Prefer this approved record when its exact model number, product/SKU, vehicle/year,
 factory system, market, channel, policy date, symptom, or record type matches the
 user's request. Staff-approved facts override older AI drafts and ambiguous product
-library candidates. Verify all Needs Confirmation items before treating them as
-facts. Prefer newer approved versions over older or conflicting records.
+library candidates, but a current Admin-approved Technical website package for the
+same vehicle/product/year/factory-system settings configuration overrides an older
+staff-learned settings record when they conflict. Verify all Needs Confirmation
+items before treating them as facts. Prefer newer/current approved sources over
+older or conflicting records.
 """
 
 
@@ -49586,11 +49601,108 @@ def _website_image_scoped_issue_v69003(payload):
     return f"website-image:{page_hash}:{image_identity[:40]}"
 
 
+
+@st.cache_data(ttl=300, max_entries=2, show_spinner=False)
+@st.cache_data(ttl=30, max_entries=2, show_spinner=False)
+def _website_image_index_schema_ready_v69123():
+    """Prove the actual learned_knowledge schema can support durable image rows."""
+    required = (
+        "id,issue,vehicle,solution,approved_answer,keywords,"
+        "source_type,updated_at"
+    )
+    last_error = None
+    for attempt in range(3):
+        try:
+            supabase.table("learned_knowledge").select(required).limit(1).execute()
+            return True
+        except Exception as error:
+            last_error = error
+            if attempt < 2:
+                time.sleep(0.12 * (attempt + 1))
+    diagnostic_log(
+        "website_image_index_schema_probe_failed_v69123",
+        error_type=type(last_error).__name__ if last_error else "",
+        error=str(last_error)[:500] if last_error else "",
+    )
+    return False
+
+
+def _website_image_index_readback_v69123(issue):
+    """Return the exact durable image-index row after insert/update."""
+    try:
+        rows = (
+            supabase.table("learned_knowledge")
+            .select("id,issue,solution,approved_answer,source_type,updated_at")
+            .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            .eq("issue", str(issue or ""))
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return None
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        raw = str(row.get("solution") or row.get("approved_answer") or "")
+        if raw.startswith(WEBSITE_IMAGE_INDEX_PREFIX_V68883):
+            return dict(row)
+    return None
+
+
 def _website_image_index_upsert_v68883(payload):
-    """Persist one page-scoped compact image-index row using learned_knowledge."""
+    """Persist one durable image row and verify that Technical/Sales/Marketing can read it back.
+
+    v69123 fixes the false-success case where generic schema filtering stripped
+    source_type/issue/solution but the insert still succeeded and was counted as
+    indexed. The durable image transaction now succeeds only when the exact
+    discriminator/payload can be read back immediately.
+    """
     if not isinstance(payload, dict):
         return False
+    if not _website_image_index_schema_ready_v69123():
+        return False
+
     issue = _website_image_scoped_issue_v69003(payload)
+    solution = WEBSITE_IMAGE_INDEX_PREFIX_V68883 + json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+    # Use only columns that the durable reader itself requires. These were just
+    # proven against the live schema, so do not pass through the lossy generic
+    # fallback filter.
+    durable_row = {
+        "issue": issue,
+        "vehicle": str(payload.get("page_title") or "")[:240],
+        "solution": solution,
+        "approved_answer": solution,
+        "keywords": str(payload.get("keywords") or "")[:5000],
+        "source_type": WEBSITE_IMAGE_INDEX_SOURCE_V68883,
+        "updated_at": now_iso(),
+    }
+    # Preserve richer Admin metadata only when the live schema confirms it.
+    try:
+        actual_columns_v69123 = set(get_table_columns("learned_knowledge") or [])
+    except Exception:
+        actual_columns_v69123 = set()
+    optional_row_v69123 = {
+        "assistant": {
+            "Technical Support Database": "Technical Support",
+            "Sales Database": "Sales",
+            "Marketing Database": "Marketing",
+        }.get(str(payload.get("database_choice") or ""), "Technical Support"),
+        "record_type": "website_image",
+        "question": str(payload.get("section_heading") or "Website image")[:500],
+        "source_question": str(payload.get("source_page") or "")[:1200],
+        "staff_confirmed": True,
+        "confidence_score": 100,
+    }
+    for key_v69123, value_v69123 in optional_row_v69123.items():
+        if key_v69123 in actual_columns_v69123:
+            durable_row[key_v69123] = value_v69123
 
     try:
         existing = (
@@ -49603,46 +49715,50 @@ def _website_image_index_upsert_v68883(payload):
             .data
             or []
         )
-    except Exception:
-        existing = []
 
-    solution = WEBSITE_IMAGE_INDEX_PREFIX_V68883 + json.dumps(
-        payload,
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
-    database_choice_v69040 = str(payload.get("database_choice") or "")
-    assistant_label_v69040 = {
-        "Technical Support Database": "Technical Support",
-        "Sales Database": "Sales",
-        "Marketing Database": "Marketing",
-    }.get(database_choice_v69040, "Technical Support")
-    row = {
-        "assistant": assistant_label_v69040,
-        "record_type": "website_image",
-        "vehicle": str(payload.get("page_title") or "")[:240],
-        "issue": issue,
-        "question": str(payload.get("section_heading") or "Website image")[:500],
-        "source_question": str(payload.get("source_page") or "")[:1200],
-        "solution": solution,
-        "approved_answer": solution,
-        "keywords": str(payload.get("keywords") or "")[:5000],
-        "source_type": WEBSITE_IMAGE_INDEX_SOURCE_V68883,
-        "staff_confirmed": True,
-        "confidence_score": 100,
-        "updated_at": now_iso(),
-    }
+        if existing:
+            result = (
+                supabase.table("learned_knowledge")
+                .update(durable_row)
+                .eq("id", existing[0]["id"])
+                .execute()
+            )
+        else:
+            result = (
+                supabase.table("learned_knowledge")
+                .insert(durable_row)
+                .execute()
+            )
 
-    clean_row = filter_payload_for_table("learned_knowledge", row)
-    if existing:
-        (
-            supabase.table("learned_knowledge")
-            .update(clean_row)
-            .eq("id", existing[0]["id"])
-            .execute()
+        readback = _website_image_index_readback_v69123(issue)
+        if not readback:
+            # Never report an insert/update as indexed unless the exact retrieval
+            # discriminator survived the database write.
+            inserted_rows = list(getattr(result, "data", None) or [])
+            if not existing:
+                for item in inserted_rows:
+                    row_id = str((item or {}).get("id") or "").strip()
+                    if row_id:
+                        try:
+                            supabase.table("learned_knowledge").delete().eq(
+                                "id", row_id
+                            ).execute()
+                        except Exception:
+                            pass
+            diagnostic_log(
+                "website_image_index_readback_failed_v69123",
+                issue=issue[:120],
+            )
+            return False
+    except Exception as error:
+        diagnostic_log(
+            "website_image_index_save_failed_v69123",
+            issue=issue[:120],
+            error_type=type(error).__name__,
+            error=str(error)[:500],
         )
-    else:
-        safe_insert_row("learned_knowledge", clean_row)
+        return False
+
     try:
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
@@ -53924,12 +54040,7 @@ def _website_image_durability_verification_v69114(
     image_stats,
     image_sync,
 ):
-    """Verify that every approved website image is durably reconstructable.
-
-    A factual vector commit may remain authoritative even if image persistence is
-    incomplete, but Admin must never report full image-learning success until the
-    durable page index can read back every approved image identity.
-    """
+    """Verify approved images are durable, retrievable, and convertible to chat images."""
     approved = [
         dict(item) for item in (approved_images or [])
         if isinstance(item, dict)
@@ -53948,7 +54059,10 @@ def _website_image_durability_verification_v69114(
         extraction, database_choice
     )
     durable_issues = set()
+    renderable_issues = set()
     publishable_rows = 0
+    renderable_rows = 0
+
     for entry in rows or []:
         row = dict((entry or {}).get("row") or {})
         payload = dict((entry or {}).get("payload") or {})
@@ -53960,7 +54074,18 @@ def _website_image_durability_verification_v69114(
         if direct_url.startswith("https://") or archive_path:
             publishable_rows += 1
 
+        try:
+            chat_record = _website_image_record_for_chat_v68883(payload)
+        except Exception:
+            chat_record = None
+        display_source = str((chat_record or {}).get("data_url") or "").strip()
+        if display_source.startswith(("data:image/", "https://")):
+            renderable_rows += 1
+            if issue:
+                renderable_issues.add(issue)
+
     missing = sorted(expected_issues - durable_issues)
+    missing_renderable = sorted(expected_issues - renderable_issues)
     approved_count = len(expected_issues)
     indexed = int((image_stats or {}).get("indexed") or 0)
     archived = int((image_stats or {}).get("archived") or 0)
@@ -53972,8 +54097,10 @@ def _website_image_durability_verification_v69114(
         loaded_ok
         and sync_completed
         and not missing
+        and not missing_renderable
         and indexed >= approved_count
         and publishable_rows >= approved_count
+        and renderable_rows >= approved_count
         and index_failures == 0
         and sync_failures == 0
     ) if approved_count else bool(loaded_ok and sync_completed)
@@ -53983,12 +54110,15 @@ def _website_image_durability_verification_v69114(
         "indexed": indexed,
         "archived": archived,
         "publishable_rows": publishable_rows,
+        "renderable_rows": renderable_rows,
         "read_after_write_loaded": bool(loaded_ok),
         "sync_completed": sync_completed,
         "index_failures": index_failures,
         "sync_failures": sync_failures,
         "missing_issue_count": len(missing),
         "missing_issues": missing[:20],
+        "missing_renderable_count": len(missing_renderable),
+        "missing_renderable_issues": missing_renderable[:20],
         "complete": complete,
         "status": "complete" if complete else "image_learning_incomplete",
     }
@@ -54023,6 +54153,157 @@ def _technical_active_package_failure_state_v69114(status, reason_code, message)
         ),
         "rows": [],
     }
+
+
+
+def _technical_settings_learned_record_v69123(row):
+    text = " ".join((
+        str((row or {}).get("vehicle") or ""),
+        str((row or {}).get("issue") or ""),
+        str((row or {}).get("keywords") or ""),
+        str((row or {}).get("solution") or (row or {}).get("approved_answer") or ""),
+        str((row or {}).get("source_question") or (row or {}).get("question") or ""),
+    ))
+    return bool(re.search(
+        r"(?i)\bcar\s*model\b|\bprotocol\b|\bcan\s*bus\b|\bcanbus\b|"
+        r"\bclimate\b|\ba\s*/?\s*c\b|\bmanual\s+a/?c\b|\bautomatic\s+a/?c\b",
+        text,
+    ))
+
+
+def _website_supersede_conflicting_technical_learned_records_v69123(
+    extraction,
+    reviewed_content,
+):
+    """Detach older staff-learned Technical setting vectors for the same configuration.
+
+    Admin-reviewed website knowledge is the current source of truth for an exact
+    vehicle/product/year/system settings configuration. Only staff-confirmed
+    Car Model/Protocol/A-C/CANBUS records with strong identity overlap are affected.
+    Troubleshooting, wiring, camera, installation, and unrelated learned knowledge
+    remain searchable.
+    """
+    reviewed = str(reviewed_content or "")
+    identity_text = " ".join((
+        str((extraction or {}).get("title") or ""),
+        str((extraction or {}).get("source_url") or ""),
+        reviewed[:30000],
+        json.dumps(
+            dict((extraction or {}).get("page_identity_v69024") or {}),
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
+    ))
+
+    current_families = set(_website_identity_vehicle_families_v69022(identity_text))
+    current_years = set(_website_identity_years_v69022(identity_text))
+    current_systems = set(_website_identity_systems_v69022(identity_text))
+    current_codes = set(_website_image_product_codes_v69020(identity_text))
+    if not (current_families or current_codes):
+        return {"matched": 0, "detached": 0, "failed": 0}
+
+    try:
+        rows = safe_select_rows(
+            "learned_knowledge",
+            order_columns=["updated_at", "created_at"],
+            limit=2000,
+        )
+    except Exception as error:
+        diagnostic_log(
+            "technical_learned_supersession_query_failed_v69123",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return {"matched": 0, "detached": 0, "failed": 1}
+
+    matched = detached = failed = 0
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("assistant") or "").strip().casefold() not in {
+            "technical support", "🔧 technical support"
+        }:
+            continue
+        source_type = str(row.get("source_type") or "").strip().casefold()
+        if source_type == str(WEBSITE_IMAGE_INDEX_SOURCE_V68883).casefold():
+            continue
+        if source_type.startswith("superseded_by_admin_website"):
+            continue
+        if is_pending_knowledge_row(row):
+            continue
+        if not bool(row.get("staff_confirmed")):
+            continue
+        if not _technical_settings_learned_record_v69123(row):
+            continue
+
+        row_text = " ".join((
+            str(row.get("vehicle") or ""),
+            str(row.get("issue") or ""),
+            str(row.get("keywords") or ""),
+            str(row.get("solution") or row.get("approved_answer") or "")[:12000],
+            str(row.get("source_question") or row.get("question") or ""),
+        ))
+        row_families = set(_website_identity_vehicle_families_v69022(row_text))
+        row_years = set(_website_identity_years_v69022(row_text))
+        row_systems = set(_website_identity_systems_v69022(row_text))
+        row_codes = set(_website_image_product_codes_v69020(row_text))
+
+        family_overlap = bool(current_families and row_families and (current_families & row_families))
+        code_overlap = bool(current_codes and row_codes and (current_codes & row_codes))
+        if not (family_overlap or code_overlap):
+            continue
+        if current_years and row_years and not (current_years & row_years):
+            continue
+        if current_systems and row_systems and not (current_systems & row_systems):
+            continue
+        if current_codes and row_codes and not (current_codes & row_codes):
+            continue
+
+        file_id = str(row.get("openai_file_id") or "").strip()
+        vector_store_id = str(row.get("vector_store_id") or TECHNICAL_VECTOR_STORE_ID).strip()
+        if not file_id:
+            continue
+
+        matched += 1
+        ok = False
+        for _ in range(3):
+            if remove_old_learned_vector_file(vector_store_id, file_id):
+                ok = True
+                break
+        if not ok:
+            failed += 1
+            diagnostic_log(
+                "technical_learned_supersession_detach_failed_v69123",
+                record_id=str(row.get("id") or "")[:120],
+                file_id=file_id[:120],
+            )
+            continue
+
+        detached += 1
+        row_id = row.get("id")
+        if row_id is not None:
+            try:
+                safe_update_row(
+                    "learned_knowledge",
+                    {
+                        "openai_file_id": "",
+                        "synced": False,
+                        "embedding_status": "superseded_by_admin_website",
+                        "source_type": "superseded_by_admin_website:v69123",
+                        "updated_at": now_iso(),
+                    },
+                    row_id,
+                )
+            except Exception:
+                pass
+
+    diagnostic_log(
+        "technical_learned_supersession_v69123",
+        matched=matched,
+        detached=detached,
+        failed=failed,
+    )
+    return {"matched": matched, "detached": detached, "failed": failed}
 
 
 def save_website_knowledge_package(
@@ -54088,6 +54369,13 @@ def save_website_knowledge_package(
             selected_vector_store_id, prior_same_url_files_v69109
         )
         factual_supersession_completed_v69109 = True
+        conflicting_learned_supersession_v69123 = (
+            _website_supersede_conflicting_technical_learned_records_v69123(
+                extraction, reviewed
+            )
+            if database_choice == "Technical Support Database"
+            else {"matched": 0, "detached": 0, "failed": 0}
+        )
         _website_invalidate_learning_caches_v69109([database_choice])
 
         # v69112: promote every image that individually passed ingestion QA even when
@@ -54150,6 +54438,7 @@ def save_website_knowledge_package(
             "website_image_durability_v69114": image_durability_v69114,
             "image_learning_complete_v69114": bool(image_durability_v69114.get("complete")),
             "factual_supersession_completed_v69109": True,
+            "conflicting_learned_supersession_v69123": conflicting_learned_supersession_v69123,
         }
 
     package_text = build_website_knowledge_package_document(
@@ -54180,6 +54469,13 @@ def save_website_knowledge_package(
         selected_vector_store_id, prior_same_url_files_v69109
     )
     factual_supersession_completed_v69109 = True
+    conflicting_learned_supersession_v69123 = (
+        _website_supersede_conflicting_technical_learned_records_v69123(
+            extraction, reviewed
+        )
+        if database_choice == "Technical Support Database"
+        else {"matched": 0, "detached": 0, "failed": 0}
+    )
     _website_invalidate_learning_caches_v69109([database_choice])
 
     # v69112: factual authority and image authority remain separate, but image
@@ -54267,6 +54563,7 @@ def save_website_knowledge_package(
         ),
         "factual_supersession_completed_v69109": factual_supersession_completed_v69109,
         "newest_source_authority_v69109": True,
+        "conflicting_learned_supersession_v69123": conflicting_learned_supersession_v69123,
     }
 
 
@@ -67795,22 +68092,12 @@ else:
         # change retrieval, ranking, ingestion, link saving, or Graphic behavior;
         # it only prevents a late recovered website image from bypassing the same
         # final answer-aware authority used by earlier publication paths.
-        if generated_images:
+        if generated_images and assistant != "🔧 Technical Support":
             try:
-                final_image_prompt_v69107a = (
-                    technical_request_prompt_v68879
-                    if assistant == "🔧 Technical Support"
-                    else interaction_prompt
-                )
-                final_deterministic_images_v69107a = (
-                    list(locals().get("website_index_images_v68883") or [])
-                    if assistant == "🔧 Technical Support"
-                    else []
-                )
                 generated_images = _website_image_final_authority_v68885(
-                    final_image_prompt_v69107a,
+                    interaction_prompt,
                     _dedupe_website_chat_images_v68883(generated_images),
-                    deterministic_images=final_deterministic_images_v69107a,
+                    deterministic_images=[],
                     answer_text=answer,
                 )
                 diagnostic_log(
@@ -67819,9 +68106,6 @@ else:
                     published=len(generated_images or []),
                 )
             except Exception as error:
-                # Accuracy is more important than forcing an unverified late image.
-                # On an unexpected final-gate failure, remove only website-knowledge
-                # images while preserving non-website uploads/product-library images.
                 generated_images = [
                     image for image in (generated_images or [])
                     if not (
@@ -67835,6 +68119,19 @@ else:
                     error_type=type(error).__name__,
                     error=str(error)[:500],
                 )
+        elif generated_images and assistant == "🔧 Technical Support":
+            # v69123: restore v69050 Technical late-image publication semantics.
+            # Every Technical recovery path already applies its own vehicle/year/topic/
+            # payload authority before creating a chat image. Do not run the recovered
+            # image through a second consolidated gate that depends on an unrelated
+            # early deterministic set and can erase an otherwise valid late image.
+            generated_images = _dedupe_website_chat_images_v68883(
+                generated_images
+            )
+            diagnostic_log(
+                "technical_v69050_late_image_publication_restored_v69123",
+                published=len(generated_images or []),
+            )
 
         technical_image_prefetch_executor_active_v69015 = locals().get(
             "technical_image_prefetch_executor_v69015"
