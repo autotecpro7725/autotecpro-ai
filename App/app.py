@@ -1,4 +1,4 @@
-# AutoTecPro AI v69126 — FINAL PRODUCTION: direct newest Admin Technical authority + vector-level stale settings supersession + verified dual-A/C contract; all v69125/v69123 image, learning, output, Graphic, Reference, After Install behavior preserved
+# AutoTecPro AI v69126 — FINAL PRODUCTION: split verified A/C options into separate rows + first-turn Technical image recovery from exact answer evidence; all v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
 # AutoTecPro AI v69125 — FINAL PRODUCTION: verified same-source dual-A/C contract + deterministic two-row table preservation; all v69124/v69123 image, learning, output, Graphic, Reference, After Install behavior preserved
 # AutoTecPro AI v69124 — FINAL PRODUCTION: complete same-family Manual+Automatic Technical settings retrieval; v69123 durability/F250/image fixes and all protected output/Graphic/Reference/After Install behavior preserved\n# AutoTecPro AI v69123 — FINAL PRODUCTION: durable image read-back fix + Admin website supersedes conflicting Technical settings learned vectors + clean explicit-vehicle context + v69050 Technical late-image publication restored; all output/Graphic/Reference/After Install preserved
 # AutoTecPro AI v69122 — FINAL PRODUCTION: v69050 Technical factual authority restored at the live call site; v69121 output/learning/image/Graphic/Reference/After Install preserved
@@ -38496,201 +38496,6 @@ def _technical_recent_conversation_context_v69106(limit=6):
 
 
 
-
-def _technical_settings_query_v69126(prompt_text):
-    if str(assistant or "") != "🔧 Technical Support":
-        return False
-    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    return bool(re.search(
-        r"\bcar\s*model\b|\bcare\s*model\b|\bprotocol\b|\bcanbus\b|"
-        r"\bcan\s*bus\b|\ba\s*/?\s*c\b|\bclimate\b",
-        value,
-    ))
-
-
-def _technical_current_admin_package_v69126(prompt_text):
-    """Find the newest matching Admin Technical website package without a full catalog scan."""
-    if not _technical_settings_query_v69126(prompt_text):
-        return {"status": "not_applicable"}
-
-    stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
-    if not stores:
-        return {"status": "empty", "reason_code": "NO_TECHNICAL_STORE"}
-    store = str(stores[0] or "").strip()
-
-    request = {
-        "input": (
-            "AUTOTECPRO CURRENT ADMIN TECHNICAL WEBSITE SETTINGS SOURCE ONLY. "
-            "Find the newest AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE that matches the "
-            "exact vehicle/year/product/factory-system in this request. Prefer the "
-            "current Admin website package over autotecpro_learned records and older "
-            "or nearby configuration pages. Retrieve Car Model, Protocol, CANBUS and "
-            "Manual/Automatic A/C evidence when present.\n\nUSER REQUEST:\n"
-            + str(prompt_text or "").strip()
-        ),
-        "tools": [{"type": "file_search", "vector_store_ids": [store]}],
-    }
-    try:
-        rows = _website_request_vector_search_rows_v69047(
-            request,
-            max_results=30,
-        )
-    except Exception as error:
-        diagnostic_log(
-            "technical_current_admin_search_failed_v69126",
-            error_type=type(error).__name__,
-            error=str(error)[:500],
-        )
-        return {"status": "failed", "reason_code": "DIRECT_SEARCH_FAILED"}
-
-    prompt_families = set(_website_identity_vehicle_families_v69022(prompt_text))
-    prompt_years = set(_website_identity_years_v69022(prompt_text))
-    prompt_systems = set(_website_identity_systems_v69022(prompt_text))
-    prompt_codes = set(_website_image_product_codes_v69020(prompt_text))
-
-    candidates = []
-    for row in rows or []:
-        if not isinstance(row, dict):
-            continue
-        file_id = str(row.get("file_id") or "").strip()
-        filename = str(row.get("filename") or "").strip()
-        if not file_id or not filename.startswith("website_"):
-            continue
-        text = str(_website_file_full_text_v69012(file_id) or "")
-        if (
-            "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in text
-            or _technical_package_header_value_v69113(
-                text, "Destination"
-            ) != "Technical Support Database"
-        ):
-            continue
-        webpage_text = _technical_package_webpage_text_v69113(text)
-        if not webpage_text or not _technical_settings_document_text_v69126(webpage_text):
-            continue
-
-        identity_text = " ".join((
-            _technical_package_header_value_v69113(text, "Page title"),
-            _technical_package_header_value_v69113(text, "Final source URL"),
-            webpage_text[:40000],
-            json.dumps(
-                _technical_package_page_identity_v69113(text),
-                ensure_ascii=False,
-                sort_keys=True,
-            ),
-        ))
-        families = set(_website_identity_vehicle_families_v69022(identity_text))
-        years = set(_website_identity_years_v69022(identity_text))
-        systems = set(_website_identity_systems_v69022(identity_text))
-        codes = set(_website_image_product_codes_v69020(identity_text))
-
-        if prompt_families and families and not (prompt_families & families):
-            continue
-        if prompt_years and years and not (prompt_years & years):
-            continue
-        if prompt_systems and systems and not (prompt_systems & systems):
-            continue
-        if prompt_codes and codes and not (prompt_codes & codes):
-            continue
-
-        extracted_at = str(
-            _technical_package_header_value_v69113(
-                text, "Extracted at (UTC)"
-            ) or ""
-        ).strip()
-        try:
-            score = float(row.get("score") or 0.0)
-        except Exception:
-            score = 0.0
-        candidates.append({
-            "file_id": file_id,
-            "filename": filename,
-            "text": text,
-            "webpage_text": webpage_text,
-            "source_url": (
-                _technical_package_header_value_v69113(
-                    text, "Final source URL"
-                )
-                or _technical_package_header_value_v69113(
-                    text, "Requested URL"
-                )
-            ),
-            "extracted_at": extracted_at,
-            "families": sorted(families),
-            "years": sorted(years),
-            "systems": sorted(systems),
-            "codes": sorted(codes),
-            "score": score,
-        })
-
-    if not candidates:
-        return {"status": "empty", "reason_code": "NO_CURRENT_ADMIN_PACKAGE"}
-
-    # If the prompt does not specify factory system and the matching Admin packages
-    # represent multiple explicit systems, do not silently choose one.
-    if not prompt_systems:
-        system_sets = {
-            tuple(sorted(str(x) for x in (item.get("systems") or []) if str(x)))
-            for item in candidates
-        }
-        system_sets.discard(tuple())
-        if len(system_sets) > 1:
-            return {
-                "status": "ambiguous",
-                "reason_code": "MULTIPLE_FACTORY_SYSTEM_VARIANTS",
-                "systems": [list(x) for x in sorted(system_sets)],
-            }
-
-    candidates.sort(
-        key=lambda item: (
-            str(item.get("extracted_at") or ""),
-            float(item.get("score") or 0.0),
-            str(item.get("filename") or ""),
-        ),
-        reverse=True,
-    )
-    selected = dict(candidates[0])
-
-    manual_value = _technical_extract_ac_variant_value_v69125(
-        selected.get("webpage_text"), "manual"
-    )
-    automatic_value = _technical_extract_ac_variant_value_v69125(
-        selected.get("webpage_text"), "automatic"
-    )
-
-    context = (
-        "CURRENT ADMIN TECHNICAL WEBSITE AUTHORITY (v69126):\n"
-        "The application directly retrieved the newest matching Admin website package "
-        "for this exact Technical settings subject. Use ONLY its reviewed WEBPAGE TEXT "
-        "for Car Model / Protocol / CANBUS / A-C factual values on this turn. Do not "
-        "override it with autotecpro_learned records or older/nearby website packages.\n"
-        f"Source URL: {selected.get('source_url') or ''}\n"
-        f"Extracted at (UTC): {selected.get('extracted_at') or ''}\n"
-        f"File ID: {selected.get('file_id') or ''}\n\n"
-        "WEBPAGE TEXT\n============\n"
-        + str(selected.get("webpage_text") or "")[:50000]
-    )
-
-    return {
-        "status": "recovered",
-        "exclusive": True,
-        "file_id": str(selected.get("file_id") or ""),
-        "filename": str(selected.get("filename") or ""),
-        "source_url": str(selected.get("source_url") or ""),
-        "extracted_at": str(selected.get("extracted_at") or ""),
-        "context": context,
-        "rows": [{
-            "file_id": str(selected.get("file_id") or ""),
-            "filename": str(selected.get("filename") or ""),
-            "score": float(selected.get("score") or 0.0),
-            "text": str(selected.get("text") or "")[:60000],
-            "current_admin_package_v69126": True,
-        }],
-        "manual_value": manual_value,
-        "automatic_value": automatic_value,
-        "contract_complete": bool(manual_value and automatic_value),
-    }
-
-
 def _technical_generic_ac_variant_request_v69124(prompt_text):
     """True only when a Technical settings request needs both Manual and Automatic branches."""
     if str(assistant or "") != "🔧 Technical Support":
@@ -38921,6 +38726,251 @@ def _technical_answer_has_dual_ac_rows_v69125(answer_text):
         value,
     ))
     return manual and automatic
+
+
+
+def _technical_split_combined_ac_row_v69126(answer_text):
+    """Split a combined Manual/Automatic A/C Select cell into two rows.
+
+    This parser changes presentation only. It extracts the two values exactly from
+    the already-generated answer and never supplies a product-specific setting.
+    """
+    answer = str(answer_text or "")
+    if not answer:
+        return answer
+
+    lines = answer.splitlines()
+    table_start = -1
+    table_end = -1
+    for idx, line in enumerate(lines):
+        if re.match(
+            r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$",
+            line.strip(),
+            flags=re.I,
+        ):
+            table_start = idx
+            break
+    if table_start < 0:
+        return answer
+
+    table_end = table_start + 1
+    while table_end < len(lines) and lines[table_end].strip().startswith("|"):
+        table_end += 1
+
+    for idx in range(table_start, table_end):
+        row = lines[idx].strip()
+        match = re.match(
+            r"^\|\s*A/C\s*Type\s*\|\s*(.*?)\s*\|\s*$",
+            row,
+            flags=re.I,
+        )
+        if not match:
+            continue
+        cell = re.sub(r"\s+", " ", str(match.group(1) or "")).strip()
+        if not (
+            re.search(r"(?i)\bmanual\s+a/?c\b", cell)
+            and re.search(r"(?i)\bautomatic\s+a/?c\b", cell)
+        ):
+            continue
+
+        manual_match = re.search(
+            r"(?i)([^/|;]{1,100}?)\s+for\s+(?:the\s+)?Manual\s+A/?C\b",
+            cell,
+        )
+        auto_match = re.search(
+            r"(?i)([^/|;]{1,100}?)\s+for\s+(?:the\s+)?Automatic\s+A/?C\b",
+            cell,
+        )
+        if not (manual_match and auto_match):
+            continue
+
+        manual_value = re.sub(
+            r"\s+", " ", str(manual_match.group(1) or "")
+        ).strip(" -*`:/")
+        automatic_value = re.sub(
+            r"\s+", " ", str(auto_match.group(1) or "")
+        ).strip(" -*`:/")
+
+        # If the match captured the other branch before a slash, keep only the
+        # nearest branch-specific segment.
+        if "/" in manual_value:
+            manual_value = manual_value.split("/")[-1].strip()
+        if "/" in automatic_value:
+            automatic_value = automatic_value.split("/")[-1].strip()
+
+        if not (manual_value and automatic_value):
+            continue
+
+        lines[idx:idx+1] = [
+            f"| A/C Type - Manual A/C | {manual_value} |",
+            f"| A/C Type - Automatic A/C | {automatic_value} |",
+        ]
+        return "\n".join(lines)
+
+    return answer
+
+
+def _technical_rows_auto_images_v69126(
+    prompt_text,
+    answer_text,
+    result_rows,
+    max_images=3,
+):
+    """Recover first-turn Technical images from the exact settings evidence rows.
+
+    This is the v69122-compatible replacement for the inactive active-package bridge:
+    it does not alter factual retrieval or bind a package. Every image candidate must
+    come from already-retrieved Technical evidence and pass the existing strict
+    Technical final-payload gate before publication.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+
+    rows = [
+        dict(row) for row in (result_rows or [])
+        if isinstance(row, dict)
+    ]
+    if not rows:
+        return []
+
+    effective_prompt = _website_image_effective_query_v68890(prompt_text)
+    durable_payloads = [
+        dict(item) for item in (_website_image_index_rows_v68883() or [])
+        if isinstance(item, dict)
+        and str(item.get("database_choice") or "") == "Technical Support Database"
+    ]
+
+    candidates = []
+    seen_payloads = set()
+    for row in rows[:16]:
+        file_id = str(row.get("file_id") or "").strip()
+        filename = str(row.get("filename") or "").strip()
+        package_text = str(row.get("text") or "")
+        if not package_text and file_id:
+            try:
+                package_text = str(_website_file_full_text_v69012(file_id) or "")
+            except Exception:
+                package_text = ""
+        if not package_text:
+            continue
+
+        payloads = _website_structured_image_payloads_from_file_v69012(
+            package_text, filename, file_id
+        )
+        payloads.extend(
+            _website_legacy_html_payloads_from_file_v69012(
+                package_text, filename, file_id
+            )
+        )
+
+        for raw in payloads:
+            if not isinstance(raw, dict):
+                continue
+            payload = dict(raw)
+            image_url = str(payload.get("image_url") or "").strip()
+            if not image_url or image_url in seen_payloads:
+                continue
+            seen_payloads.add(image_url)
+
+            if not _website_image_final_payload_gate_v68885(
+                effective_prompt, payload
+            ):
+                continue
+
+            try:
+                score = float(
+                    _website_image_rank_v68883(effective_prompt, payload) or 0.0
+                )
+            except Exception:
+                score = 0.0
+            candidates.append((score, payload, file_id))
+
+    candidates.sort(
+        key=lambda item: (
+            float(item[0]),
+            str(item[1].get("indexed_at") or ""),
+        ),
+        reverse=True,
+    )
+
+    output = []
+    seen_images = set()
+    limit = max(1, min(int(max_images or 3), WEBSITE_AUTO_DISPLAY_MAX_IMAGES))
+
+    for score, payload, file_id in candidates:
+        image_url = str(payload.get("image_url") or "").strip()
+        durable_match = None
+        for durable in durable_payloads:
+            if str(durable.get("image_url") or "").strip() != image_url:
+                continue
+            durable_match = durable
+            break
+
+        record = None
+        if durable_match is not None:
+            try:
+                record = _website_image_record_for_chat_v68883(durable_match)
+            except Exception:
+                record = None
+
+        # Exact retrieved-source fallback remains safe because the candidate already
+        # passed the same strict Technical payload gate above.
+        if not record and image_url.startswith("https://"):
+            record = {
+                "name": str(
+                    payload.get("caption")
+                    or payload.get("section_heading")
+                    or "Relevant Technical image"
+                ).strip()[:180],
+                "data_url": image_url,
+                "archive_web_url": image_url,
+                "source": "website_knowledge",
+                "asset_type": "website_instruction_image",
+                "generated": False,
+                "website_source_page_v69010": str(
+                    payload.get("source_page") or ""
+                ).strip(),
+                "website_page_title_v69010": str(
+                    payload.get("page_title") or ""
+                ).strip(),
+                "website_section_heading_v69010": str(
+                    payload.get("section_heading") or ""
+                ).strip(),
+                "website_nearby_instruction_text_v69010": str(
+                    payload.get("nearby_instruction_text") or ""
+                ).strip(),
+                "website_visual_analysis_v69010": str(
+                    payload.get("visual_analysis") or ""
+                ).strip(),
+            }
+
+        if not isinstance(record, dict):
+            continue
+
+        record["website_file_id_v69012"] = file_id
+        record["website_file_search_deterministic_v69012"] = True
+        record["website_turn_evidence_auto_v69126"] = True
+        record["website_image_match_score_v68883"] = round(float(score), 3)
+
+        key = str(
+            record.get("archive_web_url")
+            or record.get("data_url")
+            or ""
+        ).strip()
+        if not key or key in seen_images:
+            continue
+        seen_images.add(key)
+        output.append(record)
+        if len(output) >= limit:
+            break
+
+    diagnostic_log(
+        "technical_turn_evidence_auto_image_v69126",
+        rows=len(rows),
+        candidates=len(candidates),
+        recovered=len(output),
+    )
+    return output
 
 
 def _technical_enforce_dual_ac_table_v69125(answer_text, evidence_result):
@@ -54933,254 +54983,6 @@ def _technical_active_package_failure_state_v69114(status, reason_code, message)
 
 
 
-
-def _technical_settings_document_text_v69126(text_value):
-    text = str(text_value or "")
-    return bool(re.search(
-        r"(?i)\bcar\s*model\b|\bprotocol\b|\bcan\s*bus\b|\bcanbus\b|"
-        r"\bclimate\b|\ba\s*/?\s*c\b|\bmanual\s+a/?c\b|"
-        r"\bautomatic\s+a/?c\b|\bclimate\s+type\b",
-        text,
-    ))
-
-
-def _technical_identity_compatible_v69126(current_text, candidate_text):
-    current = str(current_text or "")
-    candidate = str(candidate_text or "")
-    current_families = set(_website_identity_vehicle_families_v69022(current))
-    current_years = set(_website_identity_years_v69022(current))
-    current_systems = set(_website_identity_systems_v69022(current))
-    current_codes = set(_website_image_product_codes_v69020(current))
-
-    candidate_families = set(_website_identity_vehicle_families_v69022(candidate))
-    candidate_years = set(_website_identity_years_v69022(candidate))
-    candidate_systems = set(_website_identity_systems_v69022(candidate))
-    candidate_codes = set(_website_image_product_codes_v69020(candidate))
-
-    family_overlap = bool(
-        current_families and candidate_families
-        and (current_families & candidate_families)
-    )
-    code_overlap = bool(
-        current_codes and candidate_codes
-        and (current_codes & candidate_codes)
-    )
-    if not (family_overlap or code_overlap):
-        return False
-    if current_years and candidate_years and not (current_years & candidate_years):
-        return False
-    if (
-        current_systems and candidate_systems
-        and not (current_systems & candidate_systems)
-    ):
-        return False
-    if current_codes and candidate_codes and not (current_codes & candidate_codes):
-        return False
-    return True
-
-
-def _technical_vector_settings_supersession_v69126(
-    vector_store_id,
-    extraction,
-    reviewed_content,
-    *,
-    keep_file_id="",
-    keep_filename="",
-):
-    """Detach stale settings vectors by reading the actual Technical store.
-
-    This closes the orphan-vector gap: an old learned/settings file can remain
-    searchable even when its learned_knowledge metadata is missing, stripped, or
-    no longer points to the OpenAI file. Only settings documents with strong
-    vehicle/year/system identity overlap are eligible.
-    """
-    store = str(vector_store_id or "").strip()
-    if not store.startswith("vs_"):
-        return {"matched": 0, "detached": 0, "failed": 0, "scanned": 0}
-
-    current_text = " ".join((
-        str((extraction or {}).get("title") or ""),
-        str((extraction or {}).get("source_url") or ""),
-        str(reviewed_content or "")[:50000],
-        json.dumps(
-            dict((extraction or {}).get("page_identity_v69024") or {}),
-            ensure_ascii=False,
-            sort_keys=True,
-        ),
-    ))
-    current_extracted_at = str(
-        (extraction or {}).get("extracted_at")
-        or (extraction or {}).get("extracted_at_utc")
-        or ""
-    ).strip()
-
-    try:
-        _vector_store_file_catalog_v69040.clear()
-    except Exception:
-        pass
-
-    try:
-        catalog = list(_vector_store_file_catalog_v69040(store) or [])
-    except Exception as error:
-        diagnostic_log(
-            "technical_vector_supersession_catalog_failed_v69126",
-            error_type=type(error).__name__,
-            error=str(error)[:500],
-        )
-        return {"matched": 0, "detached": 0, "failed": 1, "scanned": 0}
-
-    keep_id = str(keep_file_id or "").strip()
-    keep_name = str(keep_filename or "").strip()
-    candidates = []
-    for row in catalog:
-        if not isinstance(row, dict):
-            continue
-        file_id = str(row.get("file_id") or "").strip()
-        filename = str(row.get("filename") or "").strip()
-        if not file_id:
-            continue
-        if keep_id and file_id == keep_id:
-            continue
-        if keep_name and filename == keep_name:
-            continue
-
-        # Only knowledge-package/settings file families are eligible.
-        if not (
-            filename.startswith("autotecpro_learned_")
-            or filename.startswith("website_")
-        ):
-            continue
-        candidates.append((file_id, filename))
-
-    if not candidates:
-        return {"matched": 0, "detached": 0, "failed": 0, "scanned": 0}
-
-    def inspect(item):
-        file_id, filename = item
-        text = str(_website_openai_file_text_v68892(file_id) or "")
-        if not text or not _technical_settings_document_text_v69126(text):
-            return None
-        if not _technical_identity_compatible_v69126(current_text, text):
-            return None
-
-        doc_type = "learned" if filename.startswith("autotecpro_learned_") else "website"
-        candidate_extracted_at = ""
-        if doc_type == "website":
-            if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in text:
-                return None
-            if (
-                _technical_package_header_value_v69113(text, "Destination")
-                != "Technical Support Database"
-            ):
-                return None
-            candidate_extracted_at = str(
-                _technical_package_header_value_v69113(
-                    text, "Extracted at (UTC)"
-                ) or ""
-            ).strip()
-
-            # Never let an older Admin submission delete a newer website package.
-            if (
-                current_extracted_at
-                and candidate_extracted_at
-                and candidate_extracted_at > current_extracted_at
-            ):
-                return None
-
-        return {
-            "file_id": file_id,
-            "filename": filename,
-            "text": text,
-            "doc_type": doc_type,
-            "extracted_at": candidate_extracted_at,
-        }
-
-    inspected = []
-    try:
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(
-            max_workers=min(6, max(1, len(candidates))),
-            thread_name_prefix="atp-tech-vector-supersede",
-        ) as executor:
-            inspected = [
-                item for item in executor.map(inspect, candidates)
-                if isinstance(item, dict)
-            ]
-    except Exception as error:
-        diagnostic_log(
-            "technical_vector_supersession_inspect_failed_v69126",
-            error_type=type(error).__name__,
-            error=str(error)[:500],
-        )
-
-    matched = detached = failed = 0
-    detached_ids = []
-    for item in inspected:
-        matched += 1
-        file_id = str(item.get("file_id") or "")
-        ok = _website_remove_vector_file_v68892(store, file_id)
-        if ok:
-            detached += 1
-            detached_ids.append(file_id)
-        else:
-            failed += 1
-
-    # Mark any Supabase master rows that still point at the detached learned files.
-    if detached_ids:
-        try:
-            db_rows = safe_select_rows(
-                "learned_knowledge",
-                order_columns=["updated_at", "created_at"],
-                limit=5000,
-            )
-        except Exception:
-            db_rows = []
-        detached_set = set(detached_ids)
-        for row in db_rows or []:
-            if not isinstance(row, dict):
-                continue
-            file_id = str(row.get("openai_file_id") or "").strip()
-            if file_id not in detached_set:
-                continue
-            row_id = row.get("id")
-            if row_id is None:
-                continue
-            try:
-                safe_update_row(
-                    "learned_knowledge",
-                    {
-                        "openai_file_id": "",
-                        "synced": False,
-                        "embedding_status": "superseded_by_admin_website",
-                        "source_type": "superseded_by_admin_website:v69126",
-                        "updated_at": now_iso(),
-                    },
-                    row_id,
-                )
-            except Exception:
-                pass
-
-    try:
-        _vector_store_file_catalog_v69040.clear()
-        vector_store_has_filename.clear()
-    except Exception:
-        pass
-
-    diagnostic_log(
-        "technical_vector_settings_supersession_v69126",
-        scanned=len(candidates),
-        matched=matched,
-        detached=detached,
-        failed=failed,
-    )
-    return {
-        "matched": matched,
-        "detached": detached,
-        "failed": failed,
-        "scanned": len(candidates),
-    }
-
-
 def _technical_settings_learned_record_v69123(row):
     text = " ".join((
         str((row or {}).get("vehicle") or ""),
@@ -55401,16 +55203,6 @@ def save_website_knowledge_package(
             if database_choice == "Technical Support Database"
             else {"matched": 0, "detached": 0, "failed": 0}
         )
-        vector_settings_supersession_v69126 = (
-            _technical_vector_settings_supersession_v69126(
-                selected_vector_store_id,
-                extraction,
-                reviewed,
-                keep_filename=filename,
-            )
-            if database_choice == "Technical Support Database"
-            else {"matched": 0, "detached": 0, "failed": 0, "scanned": 0}
-        )
         _website_invalidate_learning_caches_v69109([database_choice])
 
         # v69112: promote every image that individually passed ingestion QA even when
@@ -55474,7 +55266,6 @@ def save_website_knowledge_package(
             "image_learning_complete_v69114": bool(image_durability_v69114.get("complete")),
             "factual_supersession_completed_v69109": True,
             "conflicting_learned_supersession_v69123": conflicting_learned_supersession_v69123,
-            "vector_settings_supersession_v69126": vector_settings_supersession_v69126,
         }
 
     package_text = build_website_knowledge_package_document(
@@ -55511,17 +55302,6 @@ def save_website_knowledge_package(
         )
         if database_choice == "Technical Support Database"
         else {"matched": 0, "detached": 0, "failed": 0}
-    )
-    vector_settings_supersession_v69126 = (
-        _technical_vector_settings_supersession_v69126(
-            selected_vector_store_id,
-            extraction,
-            reviewed,
-            keep_file_id=file_id,
-            keep_filename=filename,
-        )
-        if database_choice == "Technical Support Database"
-        else {"matched": 0, "detached": 0, "failed": 0, "scanned": 0}
     )
     _website_invalidate_learning_caches_v69109([database_choice])
 
@@ -55611,7 +55391,6 @@ def save_website_knowledge_package(
         "factual_supersession_completed_v69109": factual_supersession_completed_v69109,
         "newest_source_authority_v69109": True,
         "conflicting_learned_supersession_v69123": conflicting_learned_supersession_v69123,
-        "vector_settings_supersession_v69126": vector_settings_supersession_v69126,
     }
 
 
@@ -68524,95 +68303,17 @@ else:
                         active_workspace_rows_v69113[:12]
                     )
 
-                # v69126: direct current-Admin authority. This is a bounded
-                # query-time search over Technical evidence, not a full catalog scan.
-                technical_current_admin_v69126 = {"status": "not_applicable"}
-                if (
-                    assistant == "🔧 Technical Support"
-                    and bool(use_file_search)
-                    and _technical_settings_query_v69126(
-                        technical_request_prompt_v68879
-                    )
-                ):
-                    try:
-                        technical_current_admin_v69126 = (
-                            _technical_current_admin_package_v69126(
-                                technical_request_prompt_v68879
-                            )
-                        )
-                    except Exception as error_v69126:
-                        diagnostic_log(
-                            "technical_current_admin_authority_failed_v69126",
-                            error_type=type(error_v69126).__name__,
-                            error=str(error_v69126)[:500],
-                        )
-                        technical_current_admin_v69126 = {
-                            "status": "failed",
-                            "reason_code": "DIRECT_AUTHORITY_FAILED",
-                        }
-
-                    if (
-                        str(technical_current_admin_v69126.get("status") or "")
-                        == "recovered"
-                    ):
-                        current_context_v69126 = str(
-                            technical_current_admin_v69126.get("context") or ""
-                        ).strip()
-                        if current_context_v69126:
-                            ai_request_prompt += "\n\n" + current_context_v69126
-
-                        current_rows_v69126 = [
-                            dict(row)
-                            for row in (
-                                technical_current_admin_v69126.get("rows") or []
-                            )
-                            if isinstance(row, dict)
-                        ]
-                        if current_rows_v69126:
-                            st.session_state[
-                                "_technical_file_search_results_v69012"
-                            ] = current_rows_v69126[:12]
-                            st.session_state[
-                                "_workspace_file_search_results_v69040"
-                            ] = current_rows_v69126[:12]
-
-                        # Current Admin website is the turn-local factual authority.
-                        # This blocks orphaned stale learned vectors from overriding it.
-                        use_file_search = False
-                        diagnostic_log(
-                            "technical_current_admin_authority_bound_v69126",
-                            file_id=str(
-                                technical_current_admin_v69126.get(
-                                    "file_id"
-                                ) or ""
-                            )[:120],
-                            extracted_at=str(
-                                technical_current_admin_v69126.get(
-                                    "extracted_at"
-                                ) or ""
-                            )[:80],
-                        )
-
-                # v69124/v69125: if current Admin did not already prove both A/C
-                # branches, retrieve Manual + Automatic siblings before the main answer.
+                # v69124: for a generic Technical Car Model/A-C request, retrieve
+                # both Manual and Automatic siblings before the main answer. This
+                # supplements the proven v69050 factual search rather than replacing it.
                 technical_variant_evidence_v69124 = {
                     "context": "", "rows": [], "status": "not_applicable"
                 }
                 if (
                     assistant == "🔧 Technical Support"
+                    and bool(use_file_search)
                     and _technical_generic_ac_variant_request_v69124(
                         technical_request_prompt_v68879
-                    )
-                    and not bool(
-                        technical_current_admin_v69126.get(
-                            "contract_complete"
-                        )
-                    )
-                    and (
-                        bool(use_file_search)
-                        or str(
-                            technical_current_admin_v69126.get("status") or ""
-                        ) == "recovered"
                     )
                 ):
                     try:
@@ -68654,28 +68355,6 @@ else:
                             "_workspace_file_search_results_v69040"
                         ] = variant_rows_v69124[:12]
 
-                    if (
-                        str(technical_current_admin_v69126.get("status") or "")
-                        == "recovered"
-                        and bool(
-                            technical_current_admin_v69126.get(
-                                "contract_complete"
-                            )
-                        )
-                    ):
-                        technical_variant_evidence_v69124 = {
-                            **dict(technical_current_admin_v69126),
-                            "contract_file_id": str(
-                                technical_current_admin_v69126.get("file_id") or ""
-                            ),
-                            "contract_source_url": str(
-                                technical_current_admin_v69126.get("source_url") or ""
-                            ),
-                            "contract_extracted_at": str(
-                                technical_current_admin_v69126.get("extracted_at") or ""
-                            ),
-                        }
-
                     if bool(
                         technical_variant_evidence_v69124.get(
                             "contract_complete"
@@ -68693,35 +68372,6 @@ else:
                                 ) or ""
                             )[:120],
                         )
-
-                if (
-                    assistant == "🔧 Technical Support"
-                    and str(
-                        technical_current_admin_v69126.get("status") or ""
-                    ) == "recovered"
-                    and bool(
-                        technical_current_admin_v69126.get(
-                            "contract_complete"
-                        )
-                    )
-                    and not bool(
-                        technical_variant_evidence_v69124.get(
-                            "contract_complete"
-                        )
-                    )
-                ):
-                    technical_variant_evidence_v69124 = {
-                        **dict(technical_current_admin_v69126),
-                        "contract_file_id": str(
-                            technical_current_admin_v69126.get("file_id") or ""
-                        ),
-                        "contract_source_url": str(
-                            technical_current_admin_v69126.get("source_url") or ""
-                        ),
-                        "contract_extracted_at": str(
-                            technical_current_admin_v69126.get("extracted_at") or ""
-                        ),
-                    }
 
                 try:
                     diagnostic_log(
@@ -68826,6 +68476,15 @@ else:
                             answer_body = _technical_enforce_dual_ac_table_v69125(
                                 answer_body,
                                 technical_variant_evidence_v69124,
+                            )
+                        # v69126: if normal Technical retrieval already produced both
+                        # verified branches in one combined A/C cell, preserve those
+                        # exact values but display them in separate rows.
+                        if _technical_generic_ac_variant_request_v69124(
+                            technical_request_prompt_v68879
+                        ):
+                            answer_body = _technical_split_combined_ac_row_v69126(
+                                answer_body
                             )
 
                     answer = answer_body
@@ -68992,6 +68651,40 @@ else:
                     "The response was generated, but the downloadable "
                     f"document could not be created: {document_error}"
                 )
+
+        # v69126: first-turn Technical image recovery from the exact evidence rows
+        # that supported this answer. This is independent of the later active-package
+        # state, which v69122 intentionally stopped binding for factual retrieval.
+        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+            existing_turn_web_images_v69126 = [
+                image for image in (generated_images or [])
+                if isinstance(image, dict)
+                and str(image.get("source") or "") == "website_knowledge"
+            ]
+            if not existing_turn_web_images_v69126:
+                try:
+                    turn_rows_v69126 = list(
+                        st.session_state.get(
+                            "_technical_file_search_results_v69012"
+                        ) or []
+                    )
+                    turn_images_v69126 = _technical_rows_auto_images_v69126(
+                        technical_request_prompt_v68879,
+                        answer,
+                        turn_rows_v69126,
+                        max_images=3,
+                    )
+                    if turn_images_v69126:
+                        generated_images.extend(turn_images_v69126)
+                        generated_images = _dedupe_website_chat_images_v68883(
+                            generated_images
+                        )
+                except Exception as error_v69126:
+                    diagnostic_log(
+                        "technical_turn_evidence_auto_image_failed_v69126",
+                        error_type=type(error_v69126).__name__,
+                        error=str(error_v69126)[:500],
+                    )
 
         # v69115: newest-package automatic image bridge. Run AFTER the answer is
         # complete so provider prompts and the already-correct v69114 message/table
