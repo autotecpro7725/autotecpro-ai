@@ -1,3 +1,4 @@
+# AutoTecPro AI v69107A — FINAL PUBLICATION GATE ONLY
 # AutoTecPro AI v69106 — v69050 image authority + same-config variant continuity
 # AutoTecPro AI v69105 — rebuilt from the user-supplied v69050 production baseline.
 # Technical/Sales/Marketing image authority and runtime behavior remain v69050-exact.
@@ -66100,6 +66101,52 @@ else:
             except Exception as error:
                 diagnostic_log(
                     "workspace_website_auto_publication_failed_v69050",
+                    workspace=str(assistant),
+                    error_type=type(error).__name__,
+                    error=str(error)[:500],
+                )
+
+        # v69107A: one final fail-closed publication authority after every late
+        # Technical / Sales / Marketing image recovery stage.  This does not
+        # change retrieval, ranking, ingestion, link saving, or Graphic behavior;
+        # it only prevents a late recovered website image from bypassing the same
+        # final answer-aware authority used by earlier publication paths.
+        if generated_images:
+            try:
+                final_image_prompt_v69107a = (
+                    technical_request_prompt_v68879
+                    if assistant == "🔧 Technical Support"
+                    else interaction_prompt
+                )
+                final_deterministic_images_v69107a = (
+                    list(locals().get("website_index_images_v68883") or [])
+                    if assistant == "🔧 Technical Support"
+                    else []
+                )
+                generated_images = _website_image_final_authority_v68885(
+                    final_image_prompt_v69107a,
+                    _dedupe_website_chat_images_v68883(generated_images),
+                    deterministic_images=final_deterministic_images_v69107a,
+                    answer_text=answer,
+                )
+                diagnostic_log(
+                    "website_final_consolidated_publication_v69107a",
+                    workspace=str(assistant),
+                    published=len(generated_images or []),
+                )
+            except Exception as error:
+                # Accuracy is more important than forcing an unverified late image.
+                # On an unexpected final-gate failure, remove only website-knowledge
+                # images while preserving non-website uploads/product-library images.
+                generated_images = [
+                    image for image in (generated_images or [])
+                    if not (
+                        isinstance(image, dict)
+                        and str(image.get("source") or "") == "website_knowledge"
+                    )
+                ]
+                diagnostic_log(
+                    "website_final_consolidated_publication_failed_v69107a",
                     workspace=str(assistant),
                     error_type=type(error).__name__,
                     error=str(error)[:500],
