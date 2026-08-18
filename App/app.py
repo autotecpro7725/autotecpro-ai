@@ -1,4 +1,4 @@
-# AutoTecPro AI v69149 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
+# AutoTecPro AI v69150 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
 # AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
 V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
 # AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
@@ -40506,6 +40506,274 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
     }
 
 
+
+# ============================================================
+# v69150 — Self-healing exact Technical source recovery
+# - preserves v69125 retrieval/table behavior
+# - no vehicle/menu values are hard-coded
+# - avoids full serial catalog scans on the normal path
+# - tolerates legacy and current website-package formats
+# ============================================================
+
+def _technical_source_identity_candidate_v69150(prompt_text, row, *, hydrate=True):
+    """Return one exact learned Technical source candidate by identity only.
+
+    This deliberately does NOT require Manual/Automatic values to decide whether a
+    learned page is the correct source.  It accepts both legacy website files and
+    current hierarchy packages, then lets the existing v69125/section logic extract
+    facts from the selected source.  Vehicle/menu values are never coded here.
+    """
+    if not isinstance(row, dict):
+        return None
+    file_id = str(row.get("file_id") or "").strip()
+    if not file_id:
+        return None
+    filename = str(row.get("filename") or "").strip()
+    text_value = str(row.get("text") or "")
+    if hydrate:
+        try:
+            full = str(_website_file_full_text_v69012(file_id) or "")
+            if full:
+                text_value = full
+        except Exception:
+            pass
+    if not text_value:
+        return None
+
+    prompt_families = set(_website_identity_vehicle_families_v69022(prompt_text))
+    prompt_years = set(_website_identity_years_v69022(prompt_text))
+    prompt_systems = set(_website_identity_systems_v69022(prompt_text))
+    prompt_codes = set(_website_image_product_codes_v69020(prompt_text))
+
+    source_url = _website_file_source_url_v69012(text_value)
+    page_title = _technical_package_header_value_v69113(text_value, "Page title")
+    scope = _technical_source_url_scope_v69141(source_url, page_title)
+    source_families = set(scope.get("families") or [])
+    source_years = set(scope.get("years") or [])
+
+    evidence_text = " ".join((page_title, source_url, text_value[:30000]))
+    evidence_families = set(_website_identity_vehicle_families_v69022(evidence_text))
+    evidence_years = set(_website_identity_years_v69022(evidence_text))
+    evidence_systems = set(_website_identity_systems_v69022(evidence_text))
+    evidence_codes = set(_website_image_product_codes_v69020(evidence_text))
+
+    families = source_families or evidence_families
+    years = source_years or evidence_years
+
+    if prompt_families and families and not (prompt_families & families):
+        return None
+    if prompt_years and years and not (prompt_years & years):
+        return None
+    if prompt_systems and evidence_systems and not (prompt_systems & evidence_systems):
+        return None
+    if prompt_codes and evidence_codes and not (prompt_codes & evidence_codes):
+        return None
+
+    installation_priority = _technical_installation_source_priority_v69140(source_url, text_value)
+    # v69150 is invoked only for protected configuration/settings questions. A broad
+    # product/catalog record may confirm compatibility but must never become factual
+    # settings authority. Require a Technical installation/configuration source here;
+    # legacy package format is fine as long as the source URL/text identifies it.
+    if int(installation_priority or 0) <= 0:
+        return None
+    website_package = "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" in text_value or filename.startswith("website_")
+    identity_score = 0.0
+    if prompt_families:
+        identity_score += 80.0 * len(prompt_families & families)
+    if prompt_years:
+        identity_score += 45.0 * len(prompt_years & years)
+    if prompt_systems:
+        identity_score += 55.0 * len(prompt_systems & evidence_systems)
+    if prompt_codes:
+        identity_score += 70.0 * len(prompt_codes & evidence_codes)
+    identity_score += float(installation_priority) * 120.0
+    if website_package:
+        identity_score += 35.0
+    try:
+        vector_score = float(row.get("score") or 0.0)
+    except Exception:
+        vector_score = 0.0
+
+    hierarchy = _technical_hierarchy_excerpt_v69143(text_value, prompt_text)
+    excerpt = str(hierarchy.get("excerpt") or "").strip()
+    if not excerpt:
+        excerpt = _technical_package_section_excerpt_v69142(text_value, prompt_text)
+    if not excerpt:
+        excerpt = text_value[:30000]
+
+    extracted_at = _technical_package_header_value_v69113(text_value, "Extracted at (UTC)")
+    return {
+        "file_id": file_id,
+        "filename": filename,
+        "source_url": source_url,
+        "page_title": page_title,
+        "text": text_value,
+        "excerpt": excerpt,
+        "hierarchy": hierarchy,
+        "installation_priority": int(installation_priority or 0),
+        "identity_score": identity_score,
+        "vector_score": vector_score,
+        "extracted_at": extracted_at,
+        "website_package": bool(website_package),
+    }
+
+
+def _technical_identity_search_rows_v69150(prompt_text, store):
+    """One bounded source-identity search; values are not requested or inferred."""
+    request = {
+        "input": (
+            "AUTOTECPRO TECHNICAL SOURCE IDENTITY LOCATOR ONLY. Find the learned AutoTecPro "
+            "Technical website/file that exactly matches the vehicle family, model year, factory "
+            "system and product clues in the user request. Prefer an installation/technical page "
+            "covering that year over a broad product/catalog record. Return source/page evidence; "
+            "do not invent or answer any setting value.\n\nUSER REQUEST:\n" + str(prompt_text or "").strip()
+        ),
+        "tools": [{"type": "file_search", "vector_store_ids": [store]}],
+    }
+    return list(_website_request_vector_search_rows_v69047(request, max_results=50) or [])
+
+
+def _technical_inventory_probe_v69150(prompt_text, store, *, max_files=120, timeout_seconds=12.0):
+    """Bounded concurrent legacy recovery when semantic source search misses.
+
+    Unlike the removed v69147 cold path, this never serially downloads the entire
+    vector store.  It fetches only website-like files concurrently, has a hard time
+    budget, and is used only after all normal v69125 + bounded semantic paths fail.
+    """
+    try:
+        catalog = list(_website_vector_store_file_rows_v68892(store) or [])
+    except Exception as error:
+        diagnostic_log("technical_v69150_inventory_list_failed", error_type=type(error).__name__, error=str(error)[:500])
+        return []
+    website_rows = [
+        dict(row) for row in catalog
+        if isinstance(row, dict)
+        and str(row.get("file_id") or "").strip()
+        and (
+            str(row.get("filename") or "").startswith("website_")
+            or "website" in str(row.get("filename") or "").casefold()
+        )
+    ][:max(1, int(max_files or 1))]
+    if not website_rows:
+        return []
+
+    output = []
+    try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
+        executor = ThreadPoolExecutor(max_workers=min(12, max(2, len(website_rows))), thread_name_prefix="atp-tech-source-probe")
+        futures = {
+            executor.submit(_website_file_full_text_v69012, str(row.get("file_id") or "")): row
+            for row in website_rows
+        }
+        try:
+            for future in as_completed(futures, timeout=max(1.0, float(timeout_seconds or 12.0))):
+                row = futures[future]
+                try:
+                    full = str(future.result() or "")
+                except Exception:
+                    continue
+                if not full:
+                    continue
+                probe = dict(row)
+                probe["text"] = full
+                candidate = _technical_source_identity_candidate_v69150(prompt_text, probe, hydrate=False)
+                if candidate:
+                    output.append(candidate)
+        except FuturesTimeoutError:
+            diagnostic_log("technical_v69150_inventory_timeout", attempted=len(website_rows), recovered=len(output))
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+    except Exception as error:
+        diagnostic_log("technical_v69150_inventory_probe_failed", error_type=type(error).__name__, error=str(error)[:500])
+    return output
+
+
+def _technical_exact_source_recovery_v69150(prompt_text):
+    """Self-healing exact-source authority for protected Technical settings inquiries."""
+    stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not stores:
+        return {"status": "no_store", "context": "", "rows": []}
+    store = str(stores[0] or "").strip()
+    if not store:
+        return {"status": "no_store", "context": "", "rows": []}
+
+    candidates = []
+    try:
+        rows = _technical_identity_search_rows_v69150(prompt_text, store)
+    except Exception as error:
+        rows = []
+        diagnostic_log("technical_v69150_identity_search_failed", error_type=type(error).__name__, error=str(error)[:500])
+    seen_files = set()
+    for row in rows:
+        file_id = str((row or {}).get("file_id") or "").strip() if isinstance(row, dict) else ""
+        if not file_id or file_id in seen_files:
+            continue
+        seen_files.add(file_id)
+        candidate = _technical_source_identity_candidate_v69150(prompt_text, row, hydrate=True)
+        if candidate:
+            candidates.append(candidate)
+
+    route = "semantic_identity"
+    if not candidates:
+        candidates = _technical_inventory_probe_v69150(prompt_text, store)
+        route = "bounded_inventory"
+    if not candidates:
+        return {"status": "no_exact_source", "context": "", "rows": [], "recovery_route_v69150": route}
+
+    candidates.sort(
+        key=lambda item: (
+            int(item.get("installation_priority") or 0),
+            bool(item.get("website_package")),
+            float(item.get("identity_score") or 0.0),
+            str(item.get("extracted_at") or ""),
+            float(item.get("vector_score") or 0.0),
+        ),
+        reverse=True,
+    )
+    winner = dict(candidates[0])
+    full_text = str(winner.get("text") or "")
+    manual_value = _technical_extract_ac_variant_value_v69125(full_text, "manual")
+    automatic_value = _technical_extract_ac_variant_value_v69125(full_text, "automatic")
+    hierarchy = dict(winner.get("hierarchy") or {})
+    excerpt = str(winner.get("excerpt") or "")[:30000]
+    context = (
+        "EXACT LEARNED TECHNICAL SOURCE RECOVERY (v69150):\n"
+        "The runtime independently located one exact learned Technical source by vehicle/year/source identity. "
+        "Use ONLY this source for factual configuration values; do not substitute Product Library or nearby vehicle records.\n"
+        f"File ID: {winner.get('file_id') or ''}\n"
+        f"Source URL: {winner.get('source_url') or ''}\n"
+        f"Page title: {winner.get('page_title') or ''}\n"
+        f"Section: {hierarchy.get('section_title') or ''}\n\n"
+        + excerpt
+    )
+    row = {
+        "file_id": str(winner.get("file_id") or ""),
+        "filename": str(winner.get("filename") or ""),
+        "score": float(winner.get("vector_score") or 0.0),
+        "text": full_text[:50000],
+        "technical_exact_source_v69150": True,
+    }
+    return {
+        "status": "recovered",
+        "context": context,
+        "rows": [row],
+        "file_id": row["file_id"],
+        "filename": row["filename"],
+        "source_url": str(winner.get("source_url") or ""),
+        "page_title": str(winner.get("page_title") or ""),
+        "package_text": full_text,
+        "section_excerpt": excerpt[:26000],
+        "selected_image_urls_v69143": list(hierarchy.get("image_urls") or []),
+        "selected_section_title_v69143": str(hierarchy.get("section_title") or ""),
+        "selected_branch_paths_v69143": list(hierarchy.get("branch_paths") or []),
+        "manual_value": manual_value,
+        "automatic_value": automatic_value,
+        "contract_complete": bool(manual_value and automatic_value),
+        "contract_file_id": row["file_id"],
+        "contract_source_url": str(winner.get("source_url") or ""),
+        "recovery_route_v69150": route,
+    }
+
 def _technical_variant_retrieval_instruction_v69106(prompt_text):
     """Add generic same-family Manual/Automatic retrieval requirements.
 
@@ -70217,6 +70485,68 @@ else:
                             file_id=str(bounded_recovery_v69149.get("contract_file_id") or "")[:120],
                         )
 
+                # v69150: if both the exact v69125 contract and bounded v69050 recovery
+                # are incomplete, locate one exact learned Technical SOURCE by identity.  This
+                # is intentionally independent of Product Library and accepts legacy/current
+                # website-package formats.  Only after one exact file is located do we parse
+                # Quick Navigation/section/image evidence from that file.
+                technical_exact_source_v69150 = {}
+                if (
+                    assistant == "🔧 Technical Support"
+                    and bool(execution_plan.get("use_file_search"))
+                    and _technical_protected_settings_inquiry_v69145(
+                        technical_request_prompt_v68879
+                    )
+                    and not bool(technical_variant_evidence_v69124.get("contract_complete"))
+                ):
+                    try:
+                        technical_exact_source_v69150 = _technical_exact_source_recovery_v69150(
+                            technical_request_prompt_v68879
+                        )
+                    except Exception as error_v69150:
+                        technical_exact_source_v69150 = {"status": "failed", "context": "", "rows": []}
+                        diagnostic_log(
+                            "technical_exact_source_recovery_failed_v69150",
+                            error_type=type(error_v69150).__name__,
+                            error=str(error_v69150)[:500],
+                        )
+                    if str(technical_exact_source_v69150.get("status") or "") == "recovered":
+                        exact_context_v69150 = str(technical_exact_source_v69150.get("context") or "").strip()
+                        if exact_context_v69150:
+                            ai_request_prompt += "\n\n" + exact_context_v69150
+                        exact_rows_v69150 = [
+                            dict(row) for row in (technical_exact_source_v69150.get("rows") or [])
+                            if isinstance(row, dict)
+                        ]
+                        if exact_rows_v69150:
+                            st.session_state["_technical_file_search_results_v69012"] = exact_rows_v69150[:12]
+                            st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69150[:12]
+                        if bool(technical_exact_source_v69150.get("contract_complete")):
+                            technical_variant_evidence_v69124 = {
+                                "context": exact_context_v69150,
+                                "rows": exact_rows_v69150[:12],
+                                "status": "recovered",
+                                "contract_complete": True,
+                                "manual_value": str(technical_exact_source_v69150.get("manual_value") or ""),
+                                "automatic_value": str(technical_exact_source_v69150.get("automatic_value") or ""),
+                                "contract_file_id": str(technical_exact_source_v69150.get("file_id") or ""),
+                                "contract_source_url": str(technical_exact_source_v69150.get("source_url") or ""),
+                                "v69150_exact_source_recovery": True,
+                            }
+                            ai_request_prompt += "\n\n" + _technical_variant_contract_context_v69125(
+                                technical_variant_evidence_v69124
+                            )
+                        # Exact source evidence is now already in the prompt; prevent a broad
+                        # second provider file_search from replacing it.
+                        use_file_search = False
+                        diagnostic_log(
+                            "technical_exact_source_bound_v69150",
+                            file_id=str(technical_exact_source_v69150.get("file_id") or "")[:120],
+                            source_url=str(technical_exact_source_v69150.get("source_url") or "")[:500],
+                            route=str(technical_exact_source_v69150.get("recovery_route_v69150") or ""),
+                            contract_complete=bool(technical_exact_source_v69150.get("contract_complete")),
+                        )
+
                 # v69142: generic learned-section authority for every Technical
                 # knowledge inquiry.  This runs after the v69125 A/C sibling search so
                 # the reference contract can still complete, then prevents a broad main
@@ -70230,7 +70560,14 @@ else:
                     and str(technical_request_prompt_v68879 or "").strip()
                 ):
                     try:
-                        if bool(technical_variant_evidence_v69124.get("contract_complete")):
+                        if str((locals().get("technical_exact_source_v69150") or {}).get("status") or "") == "recovered":
+                            technical_section_evidence_v69142 = dict(technical_exact_source_v69150)
+                            diagnostic_log(
+                                "technical_v69150_exact_source_promoted",
+                                file_id=str(technical_section_evidence_v69142.get("file_id") or "")[:120],
+                                source_url=str(technical_section_evidence_v69142.get("source_url") or "")[:500],
+                            )
+                        elif bool(technical_variant_evidence_v69124.get("contract_complete")):
                             technical_section_evidence_v69142 = _technical_section_from_v69125_contract_v69148(
                                 technical_request_prompt_v68879, technical_variant_evidence_v69124
                             )
