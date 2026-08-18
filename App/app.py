@@ -37057,28 +37057,22 @@ TECHNICAL CAR MODEL / PROTOCOL / A-C SETTINGS PRESENTATION:
   factual block MUST be a compact Markdown table with exactly these columns:
   | Setting Field | Select |
 - Include every value supported by the active newest Technical evidence. Use
-  these base rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
-  Series, Screen Size, factory-system type, SYNC type, camera type, or another
-  verified selector only when the source shows it is needed for the configuration.
-- Put ONE DISTINCT VERIFIED OPTION in each row. If one base setting has multiple
-  labeled choices in the same authoritative source, expand them as separate rows
-  using `Base Setting Field - Exact Option Label` in the first column and the exact
-  corresponding Select value in the second column. The number of option rows is
-  dynamic; never assume only Manual/Automatic or any fixed option count.
-- Keep each Select value concise and preserve the exact capitalization,
-  punctuation, spelling, and menu wording found in the evidence.
+  these rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
+  Series or Screen Size only when those values are necessary to distinguish
+  the correct configuration.
+- Put one setting in each row. Keep the Select value concise and preserve the
+  exact capitalization, punctuation, spelling, and menu wording found in the
+  evidence.
 - Never invent a value, fill an unknown cell with a guess, or copy a conflicting
   value from superseded evidence. Omit an unsupported optional row. If a
   required setting is not confirmed, put **Requires Verification** in that row
   and explain what must be checked after the table.
-- When any original vehicle feature changes a menu selection (for example
-  climate panel, factory system/SYNC generation, screen size, camera package, or
-  another source-labeled variant), list ALL verified choices from the SAME
-  configuration family as separate rows in the first table. Explain how to choose
-  among them immediately after the table when the source provides the distinction.
-  Keep the base Car Model separate from secondary selectors; do not turn an option
-  label into a different Car Model unless the same Technical source explicitly
-  identifies it as the Car Model.
+- When the original climate panel changes the correct A/C selection, list ALL
+  verified Manual and Automatic choices from the SAME configuration family in
+  the first table and explain how to choose between them immediately after it.
+  Keep the base Car Model separate from the climate selector; do not turn a
+  climate label into a different Car Model unless the same Technical source
+  explicitly identifies it as the Car Model.
 - Follow the table with a short ## Menu Path numbered list when verified setup
   steps are available. Add ## Important Note only for a material warning,
   ambiguity, or fitment distinction.
@@ -58348,53 +58342,210 @@ def _technical_hierarchy_excerpt_v69143(package_text, prompt_text):
 
 
 def _technical_section_bound_chat_images_v69143(section_evidence, max_images=40):
-    """Publish all QA-approved images bound to the selected learned subtitle/section."""
-    if not isinstance(section_evidence,dict): return []
-    urls=[str(u).strip() for u in (section_evidence.get("selected_image_urls_v69143") or []) if str(u).strip().startswith("https://")]
-    if not urls: return []
-    source_url=str(section_evidence.get("source_url") or "").strip()
-    try: source_id=canonical_website_url_identity(source_url) if source_url else ""
-    except Exception: source_id=""
-    durable=[]
+    """Publish images bound to the exact selected learned Technical section.
+
+    v69153 keeps the durable Technical image index as first authority, but removes
+    its accidental single-point-of-failure. If an exact hierarchy-selected URL is
+    absent from the durable index, the SAME already-selected learned package may
+    reconstruct that URL from its structured IMAGE/AUTO_DISPLAY_IMAGE record or
+    legacy section-bound HTML. No other page, section, semantic search result, or
+    Product Library record is allowed to supply the fallback.
+    """
+    if not isinstance(section_evidence, dict):
+        return []
+
+    urls = [
+        str(u).strip()
+        for u in (section_evidence.get("selected_image_urls_v69143") or [])
+        if str(u).strip().startswith("https://")
+    ]
+    if not urls:
+        return []
+
+    source_url = str(section_evidence.get("source_url") or "").strip()
+    file_id = str(section_evidence.get("file_id") or "").strip()
+    filename = str(section_evidence.get("filename") or "").strip()
+    package_text = str(section_evidence.get("package_text") or "")
+    section_title = str(section_evidence.get("selected_section_title_v69143") or "").strip()
+    branch_paths = [
+        str(x).strip()
+        for x in (section_evidence.get("selected_branch_paths_v69143") or [])
+        if str(x).strip()
+    ]
+
     try:
-        durable=[dict(x) for x in (_website_image_index_rows_v68883() or []) if isinstance(x,dict) and str(x.get("database_choice") or "")=="Technical Support Database"]
-    except Exception: durable=[]
-    by_url={str(x.get("image_url") or "").strip():x for x in durable}
-    out=[]; seen=set()
+        source_id = canonical_website_url_identity(source_url) if source_url else ""
+    except Exception:
+        source_id = ""
+
+    # Primary authority: durable Technical image index.
+    durable = []
+    try:
+        durable = [
+            dict(x)
+            for x in (_website_image_index_rows_v68883() or [])
+            if isinstance(x, dict)
+            and str(x.get("database_choice") or "") == "Technical Support Database"
+        ]
+    except Exception:
+        durable = []
+    durable_by_url = {
+        str(x.get("image_url") or "").strip(): x
+        for x in durable
+        if str(x.get("image_url") or "").strip()
+    }
+
+    # v69153 fallback authority: image metadata reconstructed only from the exact
+    # learned package that supplied this turn's factual section evidence.
+    package_by_url = {}
+    if package_text:
+        try:
+            package_payloads = _website_structured_image_payloads_from_file_v69012(
+                package_text, filename, file_id
+            )
+            package_payloads.extend(
+                _website_legacy_html_payloads_from_file_v69012(
+                    package_text, filename, file_id
+                )
+            )
+        except Exception:
+            package_payloads = []
+
+        selected_context = " ".join([section_title] + branch_paths).casefold()
+        for raw in package_payloads:
+            if not isinstance(raw, dict):
+                continue
+            payload = dict(raw)
+            image_url = str(payload.get("image_url") or "").strip()
+            if image_url not in urls:
+                continue
+
+            payload_source = str(payload.get("source_page") or "").strip()
+            try:
+                payload_source_id = (
+                    canonical_website_url_identity(payload_source)
+                    if payload_source else ""
+                )
+            except Exception:
+                payload_source_id = ""
+            if source_id and payload_source_id and payload_source_id != source_id:
+                continue
+
+            # The URL already came from the selected hierarchy segment. Metadata
+            # must not contradict that segment when metadata is available.
+            metadata_context = " ".join((
+                str(payload.get("section_heading") or ""),
+                str(payload.get("nearby_instruction_text") or ""),
+                str(payload.get("caption") or ""),
+            )).casefold()
+            if selected_context and metadata_context:
+                branch_tokens = set(_technical_hierarchy_tokens_v69143(selected_context))
+                metadata_tokens = set(_technical_hierarchy_tokens_v69143(metadata_context))
+                # The URL itself was selected by the exact hierarchy segment, so
+                # sparse/older image metadata must not veto that exact association.
+                # Cross-page conflicts are already rejected above by source identity.
+                _ = bool(branch_tokens & metadata_tokens)
+            package_by_url[image_url] = payload
+
+    out = []
+    seen = set()
+    limit = max(1, int(max_images or 40))
+
     for url in urls:
-        payload=by_url.get(url)
+        payload = durable_by_url.get(url)
+        rec = None
+        authority = ""
+
         if payload:
             try:
-                psource=str(payload.get("source_page") or "").strip(); pid=canonical_website_url_identity(psource) if psource else ""
-            except Exception: pid=""
-            if source_id and pid and pid!=source_id: continue
-            try: rec=_website_image_record_for_chat_v68883(payload)
-            except Exception: rec=None
-        else: rec=None
-        # v69144 fail closed: hierarchy URLs are learned structural hints, but final
-        # publication requires the durable, QA-approved Technical image index row.
-        # Never resurrect an unindexed remote image solely because its URL appears
-        # in hierarchy JSON.
+                psource = str(payload.get("source_page") or "").strip()
+                pid = canonical_website_url_identity(psource) if psource else ""
+            except Exception:
+                pid = ""
+            if not (source_id and pid and pid != source_id):
+                try:
+                    rec = _website_image_record_for_chat_v68883(payload)
+                    authority = "durable_index"
+                except Exception:
+                    rec = None
+
+        if not rec:
+            payload = package_by_url.get(url)
+            if payload:
+                try:
+                    rec = _website_image_record_for_chat_v68883(payload)
+                    authority = "exact_package_payload"
+                except Exception:
+                    rec = None
+
+                # Same-package exact hierarchy URL fallback, matching the working
+                # v69115 principle. This is not an arbitrary remote URL: it must
+                # exist in selected_image_urls_v69143 AND in an IMAGE/raw-HTML
+                # payload reconstructed from the exact factual package.
+                if not rec and url.startswith("https://"):
+                    rec = {
+                        "name": str(
+                            payload.get("caption")
+                            or payload.get("section_heading")
+                            or "Relevant instruction image"
+                        ).strip()[:180],
+                        "data_url": url,
+                        "source": "website_knowledge",
+                        "asset_type": "website_instruction_image",
+                        "archive_web_url": url,
+                        "generated": False,
+                        "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
+                        "website_page_title_v69010": str(payload.get("page_title") or "").strip(),
+                        "website_section_heading_v69010": str(payload.get("section_heading") or "").strip(),
+                        "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
+                        "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
+                        "website_structured_metadata_v69017": dict(payload.get("image_structured_metadata_v69017") or {}),
+                        "website_source_zone_v69024": str(payload.get("source_zone_v69024") or "").strip(),
+                        "website_page_type_v69024": str(payload.get("page_type_v69024") or "").strip(),
+                        "website_page_identity_v69024": dict(payload.get("page_identity_v69024") or {}),
+                        "website_ingestion_authority_v69024": str(payload.get("ingestion_authority_version_v69024") or "").strip(),
+                        "website_legacy_html_section_bound_v69011": bool(payload.get("legacy_html_section_bound_v69011")),
+                        "website_file_id_v69012": file_id,
+                    }
+                    authority = "exact_package_url"
+
         if not rec:
             diagnostic_log(
-                "technical_section_image_missing_durable_index_v69144",
+                "technical_section_image_unrecoverable_v69153",
                 image_url=url[:700],
                 source_url=source_url[:700],
+                file_id=file_id[:200],
+                section=section_title[:300],
             )
             continue
-        key=str(rec.get("archive_web_url") or rec.get("data_url") or "").strip()
-        if not key or key in seen: continue
+
+        key = str(rec.get("archive_web_url") or rec.get("data_url") or "").strip()
+        if not key or key in seen:
+            continue
         seen.add(key)
-        rec["website_section_bound_v69143"]=True
-        rec["website_section_bound_v69144"]=True
-        rec["technical_authority_file_id_v69144"]=str(section_evidence.get("file_id") or "")
-        rec["technical_authority_source_url_v69144"]=source_url
-        rec["technical_authority_page_title_v69144"]=str(section_evidence.get("page_title") or "")
-        rec["technical_authority_section_title_v69144"]=str(section_evidence.get("selected_section_title_v69143") or "")
-        rec["technical_authority_branch_paths_v69144"]=list(section_evidence.get("selected_branch_paths_v69143") or [])
-        rec["technical_authority_version_v69144"]=69144
+
+        rec["website_section_bound_v69143"] = True
+        rec["website_section_bound_v69144"] = True
+        rec["website_section_bound_v69153"] = True
+        rec["website_section_image_authority_v69153"] = authority
+        rec["technical_authority_file_id_v69144"] = file_id
+        rec["technical_authority_source_url_v69144"] = source_url
+        rec["technical_authority_page_title_v69144"] = str(section_evidence.get("page_title") or "")
+        rec["technical_authority_section_title_v69144"] = section_title
+        rec["technical_authority_branch_paths_v69144"] = branch_paths
+        rec["technical_authority_version_v69144"] = 69153
         out.append(rec)
-        if len(out)>=max(1,int(max_images or 40)): break
+        if len(out) >= limit:
+            break
+
+    diagnostic_log(
+        "technical_section_bound_image_recovery_v69153",
+        selected_urls=len(urls),
+        durable_hits=sum(1 for x in out if x.get("website_section_image_authority_v69153") == "durable_index"),
+        package_hits=sum(1 for x in out if x.get("website_section_image_authority_v69153") in {"exact_package_payload", "exact_package_url"}),
+        published=len(out),
+        section=section_title[:300],
+    )
     return out
 
 def extract_public_webpage(url, page_password=""):
@@ -71115,12 +71266,41 @@ else:
                             )[:120],
                         )
 
+                # v69154 FINAL: restore the proven v69050/v69125 Technical runtime.
+                #
+                # Both working references share this authority:
+                #   - if the v69125 same-source contract is complete, use its evidence
+                #     and do not run a broader second provider file_search;
+                #   - otherwise keep the original v69050 provider file_search enabled.
+                #
+                # Later source/section/hierarchy gates may still exist for learning,
+                # diagnostics, and non-baseline compatibility, but they MUST NOT
+                # replace, disable, or pre-empt this proven live Technical path.
+                technical_v69050_v69125_baseline_v69154 = bool(
+                    assistant == "🔧 Technical Support"
+                    and bool(execution_plan.get("use_file_search"))
+                    and not bool(technical_website_learning_requested_v68870)
+                    and not bool(explicit_learning_requested)
+                )
+                if technical_v69050_v69125_baseline_v69154:
+                    # Prevent stale post-v69125 authority from a previous saved turn
+                    # from affecting publication/history in the restored baseline.
+                    st.session_state.pop("_technical_last_section_authority_v69142", None)
+                    diagnostic_log(
+                        "technical_v69050_v69125_runtime_restored_v69154",
+                        contract_complete=bool(
+                            technical_variant_evidence_v69124.get("contract_complete")
+                        ),
+                        use_file_search=bool(use_file_search),
+                    )
+
                 # v69149: bounded v69050-style recovery only when the exact v69125
                 # specialized retrieval did not complete. One normal Technical vector search
                 # is allowed, but it cannot become authority unless the unchanged v69125
                 # validator proves BOTH branches from the SAME exact file.
                 if (
                     assistant == "🔧 Technical Support"
+                    and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
                     and bool(use_file_search)
                     and _technical_generic_ac_variant_request_v69124(
                         technical_request_prompt_v68879
@@ -71164,6 +71344,7 @@ else:
                 technical_exact_source_v69150 = {}
                 if (
                     assistant == "🔧 Technical Support"
+                    and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
                     and bool(execution_plan.get("use_file_search"))
                     and _technical_protected_settings_inquiry_v69145(
                         technical_request_prompt_v68879
@@ -71227,6 +71408,7 @@ else:
                 }
                 if (
                     assistant == "🔧 Technical Support"
+                    and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
                     and bool(execution_plan.get("use_file_search"))
                     and str(technical_request_prompt_v68879 or "").strip()
                 ):
@@ -71515,25 +71697,25 @@ else:
                         answer_body = format_learning_record_for_display(answer_body)
                     if assistant == "🔧 Technical Support":
                         answer_body = remove_technical_pricing(answer_body)
-                        # v69151: interpret the exact learned section hierarchy before
-                        # the unchanged v69125 table contract is applied. This promotes
-                        # source-verified common parents such as Protocol / Make / Car Model
-                        # and strips only those verified parents from branch values.
-                        try:
-                            answer_body, technical_settings_manifest_v69151 = (
-                                _technical_normalize_interpreted_settings_v69151(
-                                    answer_body,
-                                    locals().get("technical_section_evidence_v69142") or {},
-                                    technical_variant_evidence_v69124,
+                        # v69154: the v69125 output contract is the final Technical
+                        # presentation authority for restored baseline turns. Later
+                        # hierarchy normalization is explicitly non-authoritative here.
+                        if not bool(locals().get("technical_v69050_v69125_baseline_v69154")):
+                            try:
+                                answer_body, technical_settings_manifest_v69151 = (
+                                    _technical_normalize_interpreted_settings_v69151(
+                                        answer_body,
+                                        locals().get("technical_section_evidence_v69142") or {},
+                                        technical_variant_evidence_v69124,
+                                    )
                                 )
-                            )
-                        except Exception as error_v69151:
-                            technical_settings_manifest_v69151 = {}
-                            diagnostic_log(
-                                "technical_settings_normalization_failed_v69151",
-                                error_type=type(error_v69151).__name__,
-                                error=str(error_v69151)[:500],
-                            )
+                            except Exception as error_v69151:
+                                technical_settings_manifest_v69151 = {}
+                                diagnostic_log(
+                                    "technical_settings_normalization_failed_v69151",
+                                    error_type=type(error_v69151).__name__,
+                                    error=str(error_v69151)[:500],
+                                )
                         if (
                             _technical_generic_ac_variant_request_v69124(
                                 technical_request_prompt_v68879
@@ -72113,9 +72295,13 @@ else:
         # images that were explicitly learned underneath the selected subtitle. It
         # changes no answer formatting or renderer; it only replaces website images
         # with the QA-approved images bound to the resolved learned section/branch.
-        if assistant == "🔧 Technical Support":
+        if (
+            assistant == "🔧 Technical Support"
+            and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+        ):
             try:
-                section_state_v69143 = locals().get("technical_section_evidence_v69142") or {}
+                section_state_v69143 = dict(locals().get("technical_section_evidence_v69142") or {})
+                section_state_v69143["technical_prompt_v69153"] = technical_request_prompt_v68879
                 section_status_v69145=str(section_state_v69143.get("status") or "")
                 section_images_v69143 = _technical_section_bound_chat_images_v69143(section_state_v69143)
                 if section_status_v69145 in {"recovered", "recovered_followup"}:
@@ -72216,7 +72402,10 @@ else:
                 _technical_clear_photo_context_v68879()
 
         technical_authority_marker_v69144 = ""
-        if assistant == "🔧 Technical Support":
+        if (
+            assistant == "🔧 Technical Support"
+            and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+        ):
             technical_authority_marker_v69144 = serialize_technical_authority_marker_v69144(
                 st.session_state.get("_technical_last_section_authority_v69142") or {}
             )
