@@ -39944,7 +39944,7 @@ def _technical_section_package_candidate_v69142(prompt_text, row):
     if prompt_codes and package_codes and not (prompt_codes & package_codes):
         return None
 
-    hierarchy_pick_v69143 = _technical_hierarchy_excerpt_v69143(package_text, prompt_text)
+    hierarchy_pick_v69143 = _technical_hierarchy_excerpt_v69152(package_text, prompt_text)
     excerpt = str(hierarchy_pick_v69143.get("excerpt") or "").strip() or _technical_package_section_excerpt_v69142(package_text, prompt_text)
     qtokens = _technical_section_authority_tokens_v69142(prompt_text)
     etokens = _technical_section_authority_tokens_v69142(excerpt)
@@ -41076,7 +41076,7 @@ def _technical_source_identity_candidate_v69150(prompt_text, row, *, hydrate=Tru
     except Exception:
         vector_score = 0.0
 
-    hierarchy = _technical_hierarchy_excerpt_v69143(text_value, prompt_text)
+    hierarchy = _technical_hierarchy_excerpt_v69152(text_value, prompt_text)
     excerpt = str(hierarchy.get("excerpt") or "").strip()
     if not excerpt:
         excerpt = _technical_package_section_excerpt_v69142(text_value, prompt_text)
@@ -41214,10 +41214,14 @@ def _technical_exact_source_recovery_v69150(prompt_text):
     )
     winner = dict(candidates[0])
     full_text = str(winner.get("text") or "")
-    manual_value = _technical_extract_ac_variant_value_v69125(full_text, "manual")
-    automatic_value = _technical_extract_ac_variant_value_v69125(full_text, "automatic")
     hierarchy = dict(winner.get("hierarchy") or {})
     excerpt = str(winner.get("excerpt") or "")[:30000]
+
+    # v69152: factual branch values are section-scoped. Never scan the complete
+    # webpage for Manual/Automatic values because unrelated compatibility sections
+    # can contain the same words and poison the settings contract.
+    manual_value = _technical_extract_ac_variant_value_v69125(excerpt, "manual")
+    automatic_value = _technical_extract_ac_variant_value_v69125(excerpt, "automatic")
     context = (
         "EXACT LEARNED TECHNICAL SOURCE RECOVERY (v69150):\n"
         "The runtime independently located one exact learned Technical source by vehicle/year/source identity. "
@@ -41225,7 +41229,8 @@ def _technical_exact_source_recovery_v69150(prompt_text):
         f"File ID: {winner.get('file_id') or ''}\n"
         f"Source URL: {winner.get('source_url') or ''}\n"
         f"Page title: {winner.get('page_title') or ''}\n"
-        f"Section: {hierarchy.get('section_title') or ''}\n\n"
+        f"Section: {hierarchy.get('section_title') or ''}\n"
+        f"Section selector: {hierarchy.get('selector_v69152') or 'legacy'}\n\n"
         + excerpt
     )
     row = {
@@ -58108,6 +58113,190 @@ def _technical_hierarchy_tokens_v69143(value):
         output.add(f"{prefix}:{discriminator}")
     return output
 
+
+
+def _technical_intent_roles_v69152(prompt_text):
+    """Classify Technical section intent using generic menu concepts only."""
+    q = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    roles = set()
+    if re.search(r"\bcar\s*model\b|\bcanbus\b|\bcan\s*bus\b|\bprotocol\b|\ba\s*/?\s*c\s*model\b", q):
+        roles.add("car_model_protocol")
+    if re.search(r"\ba\s*/?\s*c\b|\bac\b|\bclimate\b|\bheating\b|\btemperature\b", q):
+        roles.add("climate")
+    if re.search(r"\bsync\s*[123]?\b", q):
+        roles.add("sync")
+    if re.search(r"\bonstar\b", q):
+        roles.add("onstar")
+    if re.search(r"\bfactory\s+radio\b|\bradio\s+type\b|\baudio\b|\bamplifier\b|\bamp\b", q):
+        roles.add("radio_audio")
+    if re.search(r"\bfactory\s+camera\b|\boriginal\s+camera\b|\breverse\s+camera\b|\bcamera\b", q):
+        roles.add("camera")
+    if re.search(r"\bscreen\s+size\b|\bfactory\s+screen\b|\b\d+(?:\.\d+)?\s*(?:inch|\")", q):
+        roles.add("screen")
+    return roles
+
+
+def _technical_hierarchy_role_score_v69152(text_value, roles, *, title_weight=True):
+    """Return structural relevance for a hierarchy title/path/text.
+
+    This intentionally rewards menu/section labels far more than body overlap so
+    generic compatibility notes cannot outrank the actual configuration section.
+    """
+    value = re.sub(r"\s+", " ", str(text_value or "")).strip().casefold()
+    if not value or not roles:
+        return 0.0
+
+    role_terms = {
+        "car_model_protocol": (
+            ("car model", 90), ("car model / a/c", 120), ("car model/ac", 120),
+            ("protocol", 95), ("canbus", 85), ("can bus", 85),
+            ("setting guide", 55), ("vehicle model", 70),
+        ),
+        "climate": (
+            ("a/c", 70), ("ac model", 70), ("climate", 65),
+            ("manual a/c", 75), ("automatic a/c", 75),
+        ),
+        "sync": (("sync 1", 85), ("sync 2", 85), ("sync 3", 85), ("sync", 55)),
+        "onstar": (("onstar", 80),),
+        "radio_audio": (
+            ("factory radio", 75), ("radio type", 70), ("audio", 45),
+            ("amplifier", 55), ("factory amp", 60),
+        ),
+        "camera": (
+            ("factory camera", 80), ("original camera", 80),
+            ("reverse camera", 65), ("camera", 45),
+        ),
+        "screen": (
+            ("screen size", 75), ("factory screen", 70), ("display size", 60),
+        ),
+    }
+    score = 0.0
+    for role in roles:
+        for term, weight in role_terms.get(role, ()):
+            if term in value:
+                score += float(weight)
+    # Compatibility/troubleshooting prose is useful context but is not a settings
+    # section authority when the user explicitly asks for a configuration value.
+    if "car_model_protocol" in roles:
+        if re.search(r"\bcompatib(?:le|ility)\b|\bimportant note\b|\bcommon mistake\b|\btroubleshoot", value):
+            score -= 55.0
+        if re.search(r"\bconfirm vehicle\b|\bcheck whether\b|\bverify whether\b", value):
+            score -= 35.0
+    return score
+
+
+def _technical_hierarchy_excerpt_v69152(package_text, prompt_text):
+    """Deterministically bind the exact hierarchy section for the inquiry.
+
+    Page identity is resolved elsewhere. This function never searches another page.
+    It selects among sections/segments already stored inside that exact learned file.
+    """
+    hierarchy = _technical_package_hierarchy_v69143(package_text)
+    sections = [x for x in (hierarchy.get("sections") or []) if isinstance(x, dict)]
+    if not sections:
+        return {"excerpt": "", "image_urls": [], "section_title": "", "branch_paths": [], "selector_v69152": "no_hierarchy"}
+
+    roles = _technical_intent_roles_v69152(prompt_text)
+    qtokens = _technical_hierarchy_tokens_v69143(prompt_text)
+    scored_sections = []
+
+    for index, section in enumerate(sections):
+        title = str(section.get("title") or "")
+        role_score = _technical_hierarchy_role_score_v69152(title, roles)
+        title_tokens = _technical_hierarchy_tokens_v69143(title)
+        lexical = len(qtokens & title_tokens)
+
+        # Segment headings are structural evidence and may carry the real section
+        # name even when Quick Navigation uses a broader parent title.
+        seg_heading_role = 0.0
+        seg_heading_lex = 0
+        for seg in (section.get("segments") or []):
+            if not isinstance(seg, dict):
+                continue
+            path = " > ".join(str(x) for x in (seg.get("path") or []) if str(x).strip())
+            heading = str(seg.get("heading") or "")
+            label = " ".join((path, heading))
+            seg_heading_role = max(seg_heading_role, _technical_hierarchy_role_score_v69152(label, roles))
+            seg_heading_lex = max(seg_heading_lex, len(qtokens & _technical_hierarchy_tokens_v69143(label)))
+
+        # Body overlap is only a tie-breaker; it must not overpower structural labels.
+        body_tokens = _technical_hierarchy_tokens_v69143(str(section.get("text") or "")[:18000])
+        body_overlap = len(qtokens & body_tokens)
+        total = role_score * 10.0 + seg_heading_role * 6.0 + lexical * 40.0 + seg_heading_lex * 24.0 + body_overlap * 1.0
+        scored_sections.append((total, role_score, seg_heading_role, -index, section))
+
+    scored_sections.sort(key=lambda row: row[:4], reverse=True)
+    best_total, _, _, _, best = scored_sections[0]
+    if best_total <= 0:
+        # Preserve old generic behavior only when no structural intent can be proven.
+        legacy = _technical_hierarchy_excerpt_v69143(package_text, prompt_text)
+        if legacy:
+            legacy = dict(legacy)
+            legacy["selector_v69152"] = "legacy_no_structural_match"
+        return legacy
+
+    segments = [x for x in (best.get("segments") or []) if isinstance(x, dict)]
+    branch_candidates = []
+    for index, seg in enumerate(segments):
+        path = " > ".join(str(x) for x in (seg.get("path") or []) if str(x).strip())
+        heading = str(seg.get("heading") or "")
+        label = path or heading or str(best.get("title") or "")
+        role_score = _technical_hierarchy_role_score_v69152(" ".join((label, heading)), roles)
+        heading_overlap = len(qtokens & _technical_hierarchy_tokens_v69143(label))
+        body_overlap = len(qtokens & _technical_hierarchy_tokens_v69143(str(seg.get("text") or "")[:12000]))
+        branch_candidates.append((
+            role_score * 8.0 + heading_overlap * 30.0 + body_overlap * 1.0,
+            role_score,
+            heading_overlap,
+            -index,
+            seg,
+            label,
+        ))
+
+    # If the user named a discriminator such as SYNC 2 / OnStar Type B, keep only
+    # the matching branch. Otherwise preserve all structurally relevant branches
+    # inside the selected configuration section.
+    structural_discriminator = bool(re.search(
+        r"(?i)\b(?:sync\s*[123]|onstar\s*(?:type|version)?\s*[a-z0-9]|"
+        r"type\s*[a-z0-9]|option\s*[a-z0-9]|\d+(?:\.\d+)?\s*(?:inch|\"))\b",
+        str(prompt_text or ""),
+    ))
+
+    if structural_discriminator:
+        chosen = [x for x in sorted(branch_candidates, key=lambda row: row[:4], reverse=True) if x[0] > 0][:12]
+        if chosen:
+            top = chosen[0][0]
+            chosen = [x for x in chosen if x[0] >= top - 25.0]
+    else:
+        relevant = [x for x in branch_candidates if x[1] > 0 or x[2] > 0]
+        chosen = relevant if relevant else branch_candidates
+        chosen = sorted(chosen, key=lambda row: -row[3])[:40]
+
+    lines = [f"NAVIGATION_SECTION_V69152: {best.get('title') or ''}"]
+    images = []
+    paths = []
+    for _, _, _, _, seg, label in chosen:
+        path = label or str(seg.get("heading") or best.get("title") or "")
+        paths.append(path)
+        lines.append(f"SUBTITLE_BRANCH_V69152: {path}")
+        txt = re.sub(r"\s+", " ", str(seg.get("text") or "")).strip()
+        if txt:
+            lines.append("SECTION_CONTENT_V69152: " + txt[:14000])
+        urls = [str(u).strip() for u in (seg.get("images") or []) if str(u).strip().startswith("https://")]
+        if urls:
+            lines.append("SECTION_IMAGES_V69152: " + " | ".join(urls))
+            for u in urls:
+                if u not in images:
+                    images.append(u)
+        lines.append("")
+
+    return {
+        "excerpt": "\n".join(lines)[:30000],
+        "image_urls": images,
+        "section_title": str(best.get("title") or ""),
+        "branch_paths": paths,
+        "selector_v69152": "deterministic_hierarchy",
+    }
 
 def _technical_hierarchy_excerpt_v69143(package_text, prompt_text):
     """Select a learned section/branch by literal semantic overlap, never by coded values."""
