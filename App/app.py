@@ -1,3 +1,4 @@
+# AutoTecPro AI v69138 — FINAL PRODUCTION: v69125 Technical settings output contract restored on top of v69137 durability baseline; v69127/v69128 generic multi-option presentation no longer overrides v69125 settings output. Graphic/Reference/After Install and durable image persistence unchanged.
 # AutoTecPro AI v69137 — FINAL PRODUCTION: exact v69128 Technical retrieval/display baseline restored and locked; only v69131 durable image schema compatibility/read-back and failure accounting added. No v69132+ active-package prompt/source overrides imported.
 # AutoTecPro AI v69128 — FINAL PRODUCTION: generic dynamic multi-option Technical settings rows across Ford/GM/future sources; v69126 first-turn image publication and all protected pipelines preserved
 # AutoTecPro AI v69127 — FINAL PRODUCTION: dynamic multi-option settings rows + preserved first-turn Technical images; all v69126/v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
@@ -37014,28 +37015,22 @@ TECHNICAL CAR MODEL / PROTOCOL / A-C SETTINGS PRESENTATION:
   factual block MUST be a compact Markdown table with exactly these columns:
   | Setting Field | Select |
 - Include every value supported by the active newest Technical evidence. Use
-  these base rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
-  Series, Screen Size, factory-system type, SYNC type, camera type, or another
-  verified selector only when the source shows it is needed for the configuration.
-- Put ONE DISTINCT VERIFIED OPTION in each row. If one base setting has multiple
-  labeled choices in the same authoritative source, expand them as separate rows
-  using `Base Setting Field - Exact Option Label` in the first column and the exact
-  corresponding Select value in the second column. The number of option rows is
-  dynamic; never assume only Manual/Automatic or any fixed option count.
-- Keep each Select value concise and preserve the exact capitalization,
-  punctuation, spelling, and menu wording found in the evidence.
+  these rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
+  Series or Screen Size only when those values are necessary to distinguish
+  the correct configuration.
+- Put one setting in each row. Keep the Select value concise and preserve the
+  exact capitalization, punctuation, spelling, and menu wording found in the
+  evidence.
 - Never invent a value, fill an unknown cell with a guess, or copy a conflicting
   value from superseded evidence. Omit an unsupported optional row. If a
   required setting is not confirmed, put **Requires Verification** in that row
   and explain what must be checked after the table.
-- When any original vehicle feature changes a menu selection (for example
-  climate panel, factory system/SYNC generation, screen size, camera package, or
-  another source-labeled variant), list ALL verified choices from the SAME
-  configuration family as separate rows in the first table. Explain how to choose
-  among them immediately after the table when the source provides the distinction.
-  Keep the base Car Model separate from secondary selectors; do not turn an option
-  label into a different Car Model unless the same Technical source explicitly
-  identifies it as the Car Model.
+- When the original climate panel changes the correct A/C selection, list ALL
+  verified Manual and Automatic choices from the SAME configuration family in
+  the first table and explain how to choose between them immediately after it.
+  Keep the base Car Model separate from the climate selector; do not turn a
+  climate label into a different Car Model unless the same Technical source
+  explicitly identifies it as the Car Model.
 - Follow the table with a short ## Menu Path numbered list when verified setup
   steps are available. Add ## Important Note only for a material warning,
   ambiguity, or fitment distinction.
@@ -68718,17 +68713,9 @@ else:
                                 answer_body,
                                 technical_variant_evidence_v69124,
                             )
-                        # v69126: if normal Technical retrieval already produced both
-                        # verified branches in one combined A/C cell, preserve those
-                        # exact values but display them in separate rows.
-                        if _technical_generic_settings_request_v69127(
-                            technical_request_prompt_v68879
-                        ):
-                            answer_body = _technical_split_combined_ac_row_v69126(
-                                answer_body
-                            )
-                            answer_body = _technical_expand_combined_setting_rows_v69127(
-                                answer_body
+                            diagnostic_log(
+                                "technical_v69125_output_contract_applied_v69138",
+                                contract_complete=True,
                             )
 
                     answer = answer_body
