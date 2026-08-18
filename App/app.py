@@ -1,3 +1,5 @@
+# AutoTecPro AI v69141 — FINAL PRODUCTION: typo-tolerant multi-model protected-installation source authority; v69125 output contract + v69137 image durability preserved.
+# AutoTecPro AI v69140 — FINAL PRODUCTION: Technical installation-page source authority restored over broader product/series records; v69125 output contract + v69137 image durability preserved.
 # AutoTecPro AI v69137 — FINAL PRODUCTION: exact v69128 Technical retrieval/display baseline restored and locked; only v69131 durable image schema compatibility/read-back and failure accounting added. No v69132+ active-package prompt/source overrides imported.
 V69139_EXACT_V69125_TECH_OUTPUT_ON_V69137_DURABILITY = True
 # AutoTecPro AI v69128 — FINAL PRODUCTION: generic dynamic multi-option Technical settings rows across Ford/GM/future sources; v69126 first-turn image publication and all protected pipelines preserved
@@ -38534,13 +38536,101 @@ def _technical_variant_search_query_v69124(prompt_text, branch):
         "AUTOTECPRO TECHNICAL SAME-CONFIGURATION SETTINGS RETRIEVAL ONLY. "
         "Find the CURRENT learned Technical source for the exact vehicle/year/product/"
         "factory-system in the user request. Retrieve the Car Model / Protocol / climate "
-        f"settings evidence for the {branch_name} branch. Prefer an Admin website knowledge "
-        "package with the newest Extracted at timestamp when it matches the same configuration. "
-        "Do not substitute a nearby vehicle family, screen family, SYNC/factory-system variant, "
-        "or older conflicting learned settings record. Return evidence only; never infer a "
-        "setting that is not present in the retrieved source.\n\n"
+        f"settings evidence for the {branch_name} branch. HIGHEST SOURCE AUTHORITY: when an "
+        "AutoTecPro website knowledge package comes from an exact matching protected "
+        "installation-instruction Technical page (including legacy technical-inforamtion slugs), prefer that Technical installation "
+        "page over a broader product page, product-series record, catalog record, or generic "
+        "same-family record, even when the broader record is newer. Among equally exact Technical "
+        "installation pages, prefer the newest Extracted at timestamp. Do not substitute a nearby "
+        "vehicle family, screen family, SYNC/factory-system variant, or older conflicting learned "
+        "settings record. Return evidence only; never infer a setting that is not present in the "
+        "retrieved source.\n\n"
         f"USER REQUEST:\n{str(prompt_text or '').strip()}"
     )
+
+
+def _technical_normalize_installation_source_text_v69141(value):
+    """Normalize known AutoTecPro installation-page spelling/slug variants only."""
+    text = str(value or "").casefold()
+    # The live Silverado/Sierra protected page intentionally exists with the legacy
+    # `technical-inforamtion` slug.  Treat that spelling as the same page type; this
+    # changes source classification only and never changes a learned setting value.
+    text = text.replace("technical-inforamtion", "technical-information")
+    text = text.replace("technical inforamtion", "technical information")
+    return text
+
+
+def _technical_source_url_scope_v69141(source_url, page_title=""):
+    """Return conservative vehicle/year scope from the protected source identity.
+
+    URL families are literal scope hints.  When the learned Page title contains a
+    year range it is preferred over the URL slug because titles/content can narrow
+    a legacy URL whose slug spans a broader range.  This helper never produces
+    protocol, Car Model, A/C, or other setting values.
+    """
+    raw_url = str(source_url or "").strip()
+    title = str(page_title or "").strip()
+    try:
+        parsed = urlparse(raw_url)
+        host = str(parsed.hostname or "").casefold().rstrip(".")
+        path_text = unquote(str(parsed.path or "")).casefold()
+    except Exception:
+        host = ""
+        path_text = raw_url.casefold()
+    normalized_path = _technical_normalize_installation_source_text_v69141(path_text)
+
+    families = set()
+    for m in re.finditer(r"\b(?:ford[-_ ]*)?([fe])[-_ ]?(150|250|350|450|550|650)\b", normalized_path):
+        families.add(f"{m.group(1)}{m.group(2)}")
+    # AutoTecPro Ford URL slugs commonly omit the leading F after the word Ford,
+    # e.g. `ford-150-250-350-...`.  Those are literal F-series model scopes.
+    if re.search(r"(?:^|[-_/])ford(?:[-_/]|$)", normalized_path):
+        for number in re.findall(r"(?:^|[-_/])(150|250|350|450|550|650)(?=[-_/]|$)", normalized_path):
+            families.add("f" + number)
+    for name in ("silverado", "sierra", "suburban", "tahoe", "yukon", "escalade",
+                 "explorer", "fusion", "mustang", "expedition", "edge", "escape",
+                 "tundra", "tacoma", "4runner", "q50", "q60", "wrangler", "durango"):
+        if re.search(rf"\b{re.escape(name)}\b", normalized_path):
+            families.add(name)
+
+    title_years = set(_website_identity_years_v69022(title)) if title else set()
+    url_years = set(_website_identity_years_v69022(normalized_path))
+    years = title_years or url_years
+
+    return {
+        "host": host,
+        "normalized_path": normalized_path,
+        "families": families,
+        "years": years,
+        "title_years": title_years,
+        "url_years": url_years,
+        "is_autotecpro": host in {"autotecpro.com", "www.autotecpro.com"},
+        "is_installation_technical": bool(
+            "installation-instruction" in normalized_path
+            and "technical-information" in normalized_path
+        ),
+    }
+
+
+def _technical_installation_source_priority_v69140(source_url, evidence_text=""):
+    """Rank exact AutoTecPro Technical installation pages above broader records.
+
+    v69141 makes this tolerant to the live `technical-inforamtion` legacy slug.
+    This is source-type authority only: no vehicle-specific setting is hard-coded.
+    """
+    combined = _technical_normalize_installation_source_text_v69141(
+        str(source_url or "") + "\n" + str(evidence_text or "")
+    )
+    scope = _technical_source_url_scope_v69141(source_url)
+    if scope.get("is_autotecpro") and scope.get("is_installation_technical"):
+        return 4
+    if "installation-instruction-technical-information" in combined:
+        return 3
+    if "installation instruction" in combined and "technical" in combined:
+        return 2
+    if "autotecpro website knowledge package" in combined:
+        return 1
+    return 0
 
 
 def _technical_variant_candidate_v69124(prompt_text, row, branch):
@@ -38570,10 +38660,15 @@ def _technical_variant_candidate_v69124(prompt_text, row, branch):
     evidence_systems = set(_website_identity_systems_v69022(evidence))
     evidence_codes = set(_website_image_product_codes_v69020(evidence))
 
-    if prompt_families and evidence_families and not (prompt_families & evidence_families):
-        return None
-    if prompt_years and evidence_years and not (prompt_years & evidence_years):
-        return None
+    # v69141: broad page bodies can mention several supported models.  Defer the
+    # family/year rejection for protected installation packages until their exact
+    # source URL + learned Page title scope is available below.
+    preliminary_family_mismatch_v69141 = bool(
+        prompt_families and evidence_families and not (prompt_families & evidence_families)
+    )
+    preliminary_year_mismatch_v69141 = bool(
+        prompt_years and evidence_years and not (prompt_years & evidence_years)
+    )
     if prompt_systems and evidence_systems and not (prompt_systems & evidence_systems):
         return None
     if prompt_codes and evidence_codes and not (prompt_codes & evidence_codes):
@@ -38608,6 +38703,43 @@ def _technical_variant_candidate_v69124(prompt_text, row, branch):
         or _technical_package_header_value_v69113(evidence, "Requested URL")
         if is_website_package else ""
     )
+    page_title_v69141 = (
+        _technical_package_header_value_v69113(evidence, "Page title")
+        if is_website_package else ""
+    )
+    source_scope_v69141 = _technical_source_url_scope_v69141(
+        source_url, page_title_v69141
+    )
+    installation_priority_pre_v69141 = _technical_installation_source_priority_v69140(
+        source_url, evidence
+    )
+
+    # For an exact protected installation source, use its literal URL/title scope
+    # to disambiguate overlapping model/year pages before broad body-frequency
+    # heuristics.  Example: 2009-2014 F150 vs 2015-2021 F150/F250/F350.
+    source_families_v69141 = set(source_scope_v69141.get("families") or [])
+    source_years_v69141 = set(source_scope_v69141.get("years") or [])
+    if installation_priority_pre_v69141 >= 3:
+        if prompt_families and source_families_v69141 and not (prompt_families & source_families_v69141):
+            return None
+        if prompt_years and source_years_v69141 and not (prompt_years & source_years_v69141):
+            return None
+        source_family_match_v69141 = bool(
+            not prompt_families or not source_families_v69141
+            or (prompt_families & source_families_v69141)
+        )
+        source_year_match_v69141 = bool(
+            not prompt_years or not source_years_v69141
+            or (prompt_years & source_years_v69141)
+        )
+        if preliminary_family_mismatch_v69141 and not source_family_match_v69141:
+            return None
+        if preliminary_year_mismatch_v69141 and not source_year_match_v69141:
+            return None
+    else:
+        if preliminary_family_mismatch_v69141 or preliminary_year_mismatch_v69141:
+            return None
+
     try:
         base_score = float(row.get("score") or 0.0)
     except Exception:
@@ -38621,6 +38753,12 @@ def _technical_variant_candidate_v69124(prompt_text, row, branch):
     if is_website_package:
         identity_score += 35.0
 
+    installation_source_priority_v69140 = installation_priority_pre_v69141
+    if prompt_families and source_families_v69141 and (prompt_families & source_families_v69141):
+        identity_score += 80.0
+    if prompt_years and source_years_v69141 and (prompt_years & source_years_v69141):
+        identity_score += 45.0
+
     return {
         "file_id": file_id,
         "filename": filename,
@@ -38628,8 +38766,12 @@ def _technical_variant_candidate_v69124(prompt_text, row, branch):
         "identity_score": identity_score,
         "text": evidence[:50000],
         "source_url": str(source_url or "").strip(),
+        "page_title_v69141": str(page_title_v69141 or "").strip(),
+        "source_scope_families_v69141": sorted(source_families_v69141),
+        "source_scope_years_v69141": sorted(source_years_v69141),
         "extracted_at": str(extracted_at or "").strip(),
         "website_package": is_website_package,
+        "installation_source_priority_v69140": installation_source_priority_v69140,
         "branch": branch,
     }
 
@@ -39247,9 +39389,10 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
                 output.append(candidate)
         output.sort(
             key=lambda item: (
+                int(item.get("installation_source_priority_v69140") or 0),
                 bool(item.get("website_package")),
-                str(item.get("extracted_at") or ""),
                 float(item.get("identity_score") or 0.0),
+                str(item.get("extracted_at") or ""),
                 float(item.get("score") or 0.0),
             ),
             reverse=True,
@@ -39263,8 +39406,9 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
                 "Find the CURRENT Technical source for the exact vehicle/year/product/"
                 "factory-system in the user request that contains BOTH the Manual A/C "
                 "and Automatic A/C Car Model / Protocol / climate menu selections. "
-                "Prefer the newest Admin website package. Do not use a nearby vehicle "
-                "or factory-system family.\n\nUSER REQUEST:\n"
+                "Prefer the exact matching AutoTecPro protected installation-instruction Technical website package (including legacy technical-inforamtion slugs) over broader product/series/catalog "
+                "records; among equally exact installation pages prefer the newest extraction. "
+                "Do not use a nearby vehicle or factory-system family.\n\nUSER REQUEST:\n"
                 + str(prompt_text or "").strip()
             ),
             "tools": [{"type": "file_search", "vector_store_ids": [store]}],
@@ -39298,9 +39442,10 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
             pair_candidates.append(item)
         pair_candidates.sort(
             key=lambda item: (
+                int(item.get("installation_source_priority_v69140") or 0),
                 bool(item.get("website_package")),
-                str(item.get("extracted_at") or ""),
                 float(item.get("identity_score") or 0.0),
+                str(item.get("extracted_at") or ""),
                 float(item.get("score") or 0.0),
             ),
             reverse=True,
@@ -39379,9 +39524,10 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
 
     common.sort(
         key=lambda item: (
+            int(item.get("installation_source_priority_v69140") or 0),
             bool(item.get("website_package")),
-            str(item.get("extracted_at") or ""),
             float(item.get("identity_score") or 0.0),
+            str(item.get("extracted_at") or ""),
             min(
                 float(item.get("manual_branch_score_v69125") or 0.0),
                 float(item.get("automatic_branch_score_v69125") or 0.0),
