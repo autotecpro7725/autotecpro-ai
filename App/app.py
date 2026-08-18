@@ -1,3 +1,5 @@
+# AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
+V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
 # AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
 V69144_RUNTIME_AUTHORITY_LOCK = True
 # AutoTecPro AI v69143 — FINAL PRODUCTION: Quick-Navigation + full-section/subtitle/image learning; v69142 output format and v69125 behavior preserved.
@@ -14333,7 +14335,10 @@ def _graphic_material_finish_profile_v68848(name, prompt_text=""):
 
 
 def _graphic_v68848_action_path(result_id):
-    username, conversation = _graphic_v68848_owner_context()
+    # v69146 orchestration-only repair: owner context includes the browser-tab scope.
+    # Action state remains result/conversation scoped so existing persisted action
+    # state stays backward-compatible across reconnect/history.
+    username, conversation, _scope = _graphic_v68848_owner_context()
     return f"actions/{username}/{conversation}/{_graphic_v68848_safe_segment(result_id, 'result')}.json"
 
 
