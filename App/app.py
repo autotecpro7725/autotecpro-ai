@@ -59436,14 +59436,767 @@ def _technical_replace_settings_table_v69156(answer_text, structured):
     return "\n".join(lines)
 
 
-def _technical_full_package_authority_v69156(prompt_text):
-    """v69156 exact page -> real mapping segment -> literal+validated extraction."""
+
+def _technical_package_candidate_score_v69157(prompt_text, package):
+    """Score one complete reviewed Technical website package by deterministic identity."""
+    if not isinstance(package, dict):
+        return None
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    prompt_families = set(_website_identity_vehicle_families_v69022(prompt))
+    prompt_years = set(_website_identity_years_v69022(prompt))
+    prompt_systems = set(_website_identity_systems_v69022(prompt))
+    prompt_codes = set(_website_image_product_codes_v69020(prompt))
+    families = set(str(x) for x in (package.get('vehicle_families') or []) if str(x))
+    years = set()
+    for raw in (package.get('years') or []):
+        try: years.add(int(raw))
+        except Exception: pass
+    systems = set(str(x) for x in (package.get('systems') or []) if str(x))
+    codes = set(str(x).casefold() for x in (package.get('product_codes') or []) if str(x))
+    prompt_codes_cf = set(str(x).casefold() for x in prompt_codes)
+    source_url = str(package.get('source_url') or '').strip()
+    title = str(package.get('title') or '').strip()
+    scope = _technical_source_url_scope_v69141(source_url, title)
+    scope_families = set(scope.get('families') or [])
+    scope_years = set(scope.get('years') or [])
+    effective_families = scope_families or families
+    effective_years = scope_years or years
+    if prompt_families:
+        if effective_families and not prompt_families.issubset(effective_families): return None
+        if families and not (prompt_families & families): return None
+    if prompt_years and effective_years and not prompt_years.issubset(effective_years): return None
+    if prompt_systems and systems and not prompt_systems.issubset(systems): return None
+    if prompt_codes_cf and codes and not (prompt_codes_cf & codes): return None
+    installation_priority = _technical_installation_source_priority_v69140(source_url, str(package.get('webpage_text') or '')[:12000])
+    family_exact = bool(prompt_families and effective_families == prompt_families)
+    family_extra = max(0, len(effective_families - prompt_families)) if prompt_families else 0
+    year_cover = len(prompt_years & effective_years) if prompt_years and effective_years else 0
+    year_span = len(effective_years) if effective_years else 9999
+    system_overlap = len(prompt_systems & systems) if prompt_systems else 0
+    code_overlap = len(prompt_codes_cf & codes) if prompt_codes_cf else 0
+    identity_score = installation_priority*10000 + (5000 if family_exact else 0) - family_extra*700 + code_overlap*1800 + system_overlap*1400 + year_cover*120
+    return {
+        'package':dict(package),'identity_score_v69157':int(identity_score),'installation_priority_v69157':int(installation_priority),
+        'family_exact_v69157':bool(family_exact),'family_extra_v69157':int(family_extra),'year_span_v69157':int(year_span),
+        'source_scope_v69157':{'families':sorted(effective_families),'years':sorted(effective_years),'is_installation_technical':bool(scope.get('is_installation_technical'))},
+    }
+
+
+def _technical_concurrent_catalog_refresh_v69157(store, revision, *, timeout_seconds=18.0):
+    """Cold-start deterministic package inventory with no arbitrary website-file cap."""
+    clean_store=str(store or '').strip()
+    if not clean_store.startswith('vs_'): return []
+    try:
+        rows=[dict(row) for row in (_website_vector_store_file_rows_v68892(clean_store) or []) if isinstance(row,dict) and str(row.get('file_id') or '').strip() and str(row.get('filename') or '').strip().startswith('website_')]
+    except Exception as error:
+        diagnostic_log('technical_catalog_list_failed_v69157',error_type=type(error).__name__,error=str(error)[:500]); return []
+    if not rows: return []
+    from concurrent.futures import ThreadPoolExecutor,as_completed,TimeoutError as FuturesTimeoutError
+    workers=max(4,min(24,len(rows))); parsed=[]
+    executor=ThreadPoolExecutor(max_workers=workers,thread_name_prefix='atp-tech-registry-v69157')
+    futures={executor.submit(_website_openai_file_text_v68892,str(row.get('file_id') or '')):row for row in rows}
+    try:
+        for future in as_completed(futures,timeout=max(2.0,float(timeout_seconds or 18.0))):
+            row=futures[future]
+            try: package_text=str(future.result() or '')
+            except Exception: continue
+            if not package_text: continue
+            package=_technical_package_from_text_v69121(str(row.get('file_id') or ''),str(row.get('filename') or ''),package_text)
+            if isinstance(package,dict): parsed.append(package)
+    except FuturesTimeoutError:
+        diagnostic_log('technical_catalog_refresh_timeout_v69157',attempted=len(rows),parsed=len(parsed),timeout_seconds=float(timeout_seconds or 18.0))
+    finally:
+        executor.shutdown(wait=False,cancel_futures=True)
+    if parsed:
+        state=_technical_package_prewarm_state_v69119()
+        with state['lock']:
+            merged=[dict(x) for x in (state.get('packages') or []) if isinstance(x,dict)]+[dict(x) for x in parsed]
+            best={}
+            for item in merged:
+                source_url=str(item.get('source_url') or '').strip()
+                try: canonical=canonical_website_url_identity(source_url) if source_url else ''
+                except Exception: canonical=''
+                key='url:'+canonical if canonical else 'file:'+str(item.get('file_id') or item.get('filename') or '')
+                old=best.get(key)
+                if old is None or (str(item.get('extracted_at') or ''),str(item.get('filename') or ''))>(str(old.get('extracted_at') or ''),str(old.get('filename') or '')): best[key]=item
+            packages=list(best.values()); packages.sort(key=lambda item:(str(item.get('extracted_at') or ''),str(item.get('filename') or '')),reverse=True)
+            state['packages']=packages; state['status']='ready'; state['completed_at']=time.monotonic(); state['error']=''
+    return parsed
+
+
+
+def _technical_vector_store_fingerprint_v69158(store):
+    """Read a live metadata fingerprint of every website package in the Technical store."""
+    clean_store = str(store or "").strip()
+    if not clean_store.startswith("vs_"):
+        return {"status": "invalid_store", "fingerprint": "", "rows": [], "count": 0}
+    try:
+        rows = [
+            dict(row)
+            for row in (_website_vector_store_file_rows_v68892(clean_store) or [])
+            if isinstance(row, dict)
+            and str(row.get("file_id") or "").strip()
+            and str(row.get("filename") or "").strip().startswith("website_")
+        ]
+    except Exception as error:
+        diagnostic_log(
+            "technical_vector_fingerprint_failed_v69158",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return {"status": "failed", "fingerprint": "", "rows": [], "count": 0}
+
+    identities = sorted(
+        (
+            str(row.get("file_id") or "").strip(),
+            str(row.get("filename") or "").strip(),
+        )
+        for row in rows
+    )
+    payload = json.dumps(identities, ensure_ascii=True, separators=(",", ":"))
+    fingerprint = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return {
+        "status": "ready",
+        "fingerprint": fingerprint,
+        "rows": rows,
+        "count": len(rows),
+    }
+
+
+def _technical_catalog_refresh_from_rows_v69158(
+    store,
+    revision,
+    rows,
+    *,
+    fingerprint="",
+    timeout_seconds=12.0,
+):
+    """Hydrate the complete live website-file set concurrently and stamp its fingerprint."""
+    clean_store = str(store or "").strip()
+    website_rows = [
+        dict(row)
+        for row in (rows or [])
+        if isinstance(row, dict)
+        and str(row.get("file_id") or "").strip()
+        and str(row.get("filename") or "").strip().startswith("website_")
+    ]
+    if not clean_store.startswith("vs_") or not website_rows:
+        return []
+
+    from concurrent.futures import (
+        ThreadPoolExecutor,
+        as_completed,
+        TimeoutError as FuturesTimeoutError,
+    )
+
+    workers = max(4, min(24, len(website_rows)))
+    parsed = []
+    executor = ThreadPoolExecutor(
+        max_workers=workers,
+        thread_name_prefix="atp-tech-fingerprint-v69158",
+    )
+    futures = {
+        executor.submit(
+            _website_openai_file_text_v68892,
+            str(row.get("file_id") or ""),
+        ): row
+        for row in website_rows
+    }
+    try:
+        for future in as_completed(
+            futures,
+            timeout=max(2.0, float(timeout_seconds or 12.0)),
+        ):
+            row = futures[future]
+            try:
+                package_text = str(future.result() or "")
+            except Exception:
+                continue
+            if not package_text:
+                continue
+            package = _technical_package_from_text_v69121(
+                str(row.get("file_id") or ""),
+                str(row.get("filename") or ""),
+                package_text,
+            )
+            if isinstance(package, dict):
+                parsed.append(package)
+    except FuturesTimeoutError:
+        diagnostic_log(
+            "technical_fingerprint_refresh_timeout_v69158",
+            attempted=len(website_rows),
+            parsed=len(parsed),
+            timeout_seconds=float(timeout_seconds or 12.0),
+        )
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    if not parsed:
+        return []
+
+    state = _technical_package_prewarm_state_v69119()
+    best = {}
+    for item in parsed:
+        source_url = str(item.get("source_url") or "").strip()
+        try:
+            canonical = canonical_website_url_identity(source_url) if source_url else ""
+        except Exception:
+            canonical = ""
+        key = (
+            "url:" + canonical
+            if canonical
+            else "file:" + str(item.get("file_id") or item.get("filename") or "")
+        )
+        old = best.get(key)
+        if old is None or (
+            str(item.get("extracted_at") or ""),
+            str(item.get("filename") or ""),
+        ) > (
+            str(old.get("extracted_at") or ""),
+            str(old.get("filename") or ""),
+        ):
+            best[key] = dict(item)
+
+    packages = list(best.values())
+    packages.sort(
+        key=lambda item: (
+            str(item.get("extracted_at") or ""),
+            str(item.get("filename") or ""),
+        ),
+        reverse=True,
+    )
+    with state["lock"]:
+        state["packages"] = packages
+        state["status"] = "ready"
+        state["completed_at"] = time.monotonic()
+        state["error"] = ""
+        state["vector_fingerprint_v69158"] = str(fingerprint or "")
+        state["vector_file_count_v69158"] = len(website_rows)
+        state["fingerprint_verified_at_v69158"] = time.monotonic()
+
+    diagnostic_log(
+        "technical_registry_fingerprint_committed_v69158",
+        packages=len(packages),
+        live_files=len(website_rows),
+        fingerprint=str(fingerprint or "")[:24],
+    )
+    return packages
+
+def _technical_current_package_authority_v69157(prompt_text):
+    """v69158: resolve a fingerprint-proven current Technical website package."""
+    if str(assistant or "") != "🔧 Technical Support":
+        return {"status": "not_applicable"}
     if not _technical_configuration_query_v69155(prompt_text):
         return {"status": "not_applicable"}
 
-    source = _technical_exact_source_recovery_v69150(prompt_text)
+    stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not stores:
+        return {"status": "no_store"}
+    store = str(stores[0] or "").strip()
+    if not store.startswith("vs_"):
+        return {"status": "no_store"}
+
+    revision = _website_destination_revision_v69109("Technical Support Database")
+    fingerprint_state = _technical_vector_store_fingerprint_v69158(store)
+    live_fingerprint = str(fingerprint_state.get("fingerprint") or "")
+    live_rows = list(fingerprint_state.get("rows") or [])
+    fingerprint_ready = str(fingerprint_state.get("status") or "") == "ready"
+
+    state = _technical_package_prewarm_state_v69119()
+    with state["lock"]:
+        cached_fingerprint = str(state.get("vector_fingerprint_v69158") or "")
+        verified_at = float(state.get("fingerprint_verified_at_v69158") or 0.0)
+        registry_age = (
+            max(0.0, time.monotonic() - verified_at)
+            if verified_at > 0
+            else 10**9
+        )
+
+    packages, registry_status = _technical_package_prewarm_snapshot_v69119(
+        store,
+        revision,
+        wait_seconds=0.0,
+    )
+
+    # Never bind merely because registry_status says "ready". A current vector-store
+    # fingerprint must match the registry. If the fingerprint cannot be read, only a
+    # very recently verified snapshot is allowed; otherwise fail closed.
+    fingerprint_matches = bool(
+        fingerprint_ready
+        and live_fingerprint
+        and cached_fingerprint
+        and live_fingerprint == cached_fingerprint
+    )
+
+    # Performance fast path: background prewarm may already contain the exact live
+    # website-file membership but predate the v69158 fingerprint fields. Prove
+    # membership by file_id+filename, stamp the fingerprint, and avoid rehydration.
+    if fingerprint_ready and not fingerprint_matches and packages:
+        live_members = {
+            (
+                str(row.get("file_id") or "").strip(),
+                str(row.get("filename") or "").strip(),
+            )
+            for row in live_rows
+        }
+        cached_members = {
+            (
+                str(item.get("file_id") or "").strip(),
+                str(item.get("filename") or "").strip(),
+            )
+            for item in packages
+            if isinstance(item, dict)
+            and str(item.get("file_id") or "").strip()
+        }
+        if live_members and cached_members == live_members:
+            with state["lock"]:
+                state["vector_fingerprint_v69158"] = live_fingerprint
+                state["vector_file_count_v69158"] = len(live_rows)
+                state["fingerprint_verified_at_v69158"] = time.monotonic()
+            cached_fingerprint = live_fingerprint
+            fingerprint_matches = True
+            registry_age = 0.0
+            diagnostic_log(
+                "technical_registry_membership_fingerprint_promoted_v69158",
+                files=len(live_members),
+                fingerprint=live_fingerprint[:24],
+            )
+
+    recently_verified = bool(
+        cached_fingerprint and registry_age <= 15.0
+    )
+
+    if fingerprint_ready and not fingerprint_matches:
+        packages = _technical_catalog_refresh_from_rows_v69158(
+            store,
+            revision,
+            live_rows,
+            fingerprint=live_fingerprint,
+            timeout_seconds=12.0,
+        )
+        registry_status = "ready" if packages else "refresh_failed"
+        fingerprint_matches = bool(packages)
+        registry_age = 0.0 if packages else registry_age
+    elif not fingerprint_ready and not recently_verified:
+        diagnostic_log(
+            "technical_registry_fingerprint_unavailable_fail_closed_v69158",
+            registry_status=registry_status,
+            registry_age_seconds=round(registry_age, 3),
+        )
+        return {
+            "status": "no_exact_source",
+            "reason_code": "VECTOR_FINGERPRINT_UNAVAILABLE",
+            "registry_status_v69157": registry_status,
+            "package_count_v69157": len(packages or []),
+        }
+
+    def rank(current_packages):
+        candidates = []
+        for package in (current_packages or []):
+            scored = _technical_package_candidate_score_v69157(
+                prompt_text,
+                package,
+            )
+            if scored:
+                candidates.append(scored)
+        candidates.sort(
+            key=lambda item: (
+                int(item.get("installation_priority_v69157") or 0),
+                bool(item.get("family_exact_v69157")),
+                int(item.get("identity_score_v69157") or 0),
+                str((item.get("package") or {}).get("extracted_at") or ""),
+                -int(item.get("year_span_v69157") or 9999),
+                str((item.get("package") or {}).get("filename") or ""),
+            ),
+            reverse=True,
+        )
+        return candidates
+
+    candidates = rank(packages)
+    if not candidates and fingerprint_ready:
+        # A matching fingerprint but no compatible package can happen after a partial
+        # prewarm parse. Rehydrate the same live file set once before failing closed.
+        packages = _technical_catalog_refresh_from_rows_v69158(
+            store,
+            revision,
+            live_rows,
+            fingerprint=live_fingerprint,
+            timeout_seconds=12.0,
+        )
+        candidates = rank(packages)
+
+    if not candidates:
+        diagnostic_log(
+            "technical_current_package_not_found_v69158",
+            registry_status=registry_status,
+            package_count=len(packages or []),
+            fingerprint_ready=fingerprint_ready,
+        )
+        return {
+            "status": "no_exact_source",
+            "reason_code": "NO_COMPATIBLE_CURRENT_PACKAGE",
+            "registry_status_v69157": registry_status,
+            "package_count_v69157": len(packages or []),
+        }
+
+    meta = dict(candidates[0])
+    package = dict(meta.get("package") or {})
+    package_text = str(package.get("package_text") or "")
+    if not package_text:
+        return {
+            "status": "no_exact_source",
+            "reason_code": "EMPTY_PACKAGE_TEXT",
+        }
+
+    source_url = str(package.get("source_url") or "").strip()
+    row = {
+        "file_id": str(package.get("file_id") or ""),
+        "filename": str(package.get("filename") or ""),
+        "score": 1.0,
+        "text": package_text[:50000],
+        "technical_current_package_authority_v69157": True,
+        "technical_vector_fingerprint_v69158": live_fingerprint,
+    }
+    diagnostic_log(
+        "technical_current_package_bound_v69158",
+        file_id=row["file_id"][:160],
+        source_url=source_url[:700],
+        extracted_at=str(package.get("extracted_at") or "")[:120],
+        identity_score=int(meta.get("identity_score_v69157") or 0),
+        family_exact=bool(meta.get("family_exact_v69157")),
+        registry_status=registry_status,
+        package_count=len(packages or []),
+        vector_file_count=int(fingerprint_state.get("count") or 0),
+        fingerprint=live_fingerprint[:24],
+        registry_age_seconds=round(registry_age, 3),
+    )
+    return {
+        "status": "recovered",
+        "recovery_route_v69157": "fingerprint_proven_current_package_registry_v69158",
+        "registry_status_v69157": registry_status,
+        "package_count_v69157": len(packages or []),
+        "vector_file_count_v69158": int(fingerprint_state.get("count") or 0),
+        "vector_fingerprint_v69158": live_fingerprint,
+        "file_id": row["file_id"],
+        "filename": row["filename"],
+        "source_url": source_url,
+        "page_title": str(package.get("title") or ""),
+        "extracted_at": str(package.get("extracted_at") or ""),
+        "package_text": package_text,
+        "rows": [row],
+        "source_scope_v69157": dict(meta.get("source_scope_v69157") or {}),
+        "identity_score_v69157": int(meta.get("identity_score_v69157") or 0),
+    }
+
+
+def _technical_request_display_label_v69158(prompt_text, authority):
+    years = []
+    families = []
+    try:
+        years = sorted(set(_website_identity_years_v69022(prompt_text)))
+    except Exception:
+        years = []
+    try:
+        families = sorted(set(_website_identity_vehicle_families_v69022(prompt_text)))
+    except Exception:
+        families = []
+
+    year_label = str(years[0]) if len(years) == 1 else (
+        f"{min(years)}–{max(years)}" if years else ""
+    )
+    family_label = ""
+    if families:
+        raw = str(families[0])
+        family_label = raw.upper() if re.fullmatch(r"f\d{2,4}", raw, flags=re.I) else raw.title()
+    base = " ".join(x for x in (year_label, family_label) if x).strip()
+    section = str((authority or {}).get("section_title") or "Technical Configuration").strip()
+    return f"{base} {section}".strip()
+
+
+def _technical_menu_path_from_authority_v69158(authority):
+    text_value = re.sub(r"\s+", " ", str((authority or {}).get("section_text") or "")).strip()
+    if not text_value:
+        return ""
+    patterns = (
+        r"(?i)\b(?:go\s+to|path)\s*:?\s*((?:settings?|setting)\s*(?:→|->|-)\s*system.{0,220}?(?:car\s*model|a/?c|canbus|protocol)[^.;]{0,120})",
+        r"(?i)\b((?:settings?|setting)\s*(?:→|->|-)\s*system\s*(?:→|->|-).{0,220}?(?:car\s*model|a/?c|canbus|protocol)[^.;]{0,120})",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text_value)
+        if match:
+            return re.sub(r"\s+", " ", match.group(1)).strip(" .")
+    return ""
+
+
+def _technical_verified_configuration_answer_v69158(prompt_text, authority):
+    """Build the entire visible Technical configuration answer from verified authority."""
+    authority = dict(authority or {})
+    structured = dict(authority.get("structured") or {})
+    rows = _technical_table_rows_from_structured_v69156(structured)
+    if not rows:
+        return ""
+
+    title = _technical_request_display_label_v69158(prompt_text, authority)
+    lines = [
+        f"## {title}",
+        "",
+        "Verified AutoTecPro Technical configuration:",
+        "",
+        "| Setting Field | Select |",
+        "|---|---|",
+    ]
+    for field, value in rows:
+        clean_field = str(field or "").replace("|", "/").strip()
+        clean_value = str(value or "").replace("|", "/").strip()
+        if clean_field and clean_value:
+            lines.append(f"| {clean_field} | {clean_value} |")
+
+    menu_path = _technical_menu_path_from_authority_v69158(authority)
+    if menu_path:
+        lines.extend(["", "## Menu Path", "", menu_path])
+
+    branch_paths = [
+        str(x).strip()
+        for x in (authority.get("branch_paths") or [])
+        if str(x).strip()
+    ]
+    if len(branch_paths) > 1 and len(structured.get("branches") or []) > 1:
+        lines.extend([
+            "",
+            "## Important Note",
+            "",
+            "The verified Technical source contains multiple configuration branches. "
+            "Use the row matching the vehicle's original factory configuration.",
+        ])
+    return "\n".join(lines).strip()
+
+
+def _technical_first_settings_table_v69158(answer_text):
+    lines = str(answer_text or "").splitlines()
+    start = next(
+        (
+            i for i, line in enumerate(lines)
+            if re.match(
+                r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$",
+                line.strip(),
+                flags=re.I,
+            )
+        ),
+        -1,
+    )
+    if start < 0:
+        return ""
+    end = start + 1
+    while end < len(lines) and lines[end].strip().startswith("|"):
+        end += 1
+    return "\n".join(lines[start:end]).strip()
+
+
+def _technical_final_factual_qa_v69158(
+    prompt_text,
+    answer_text,
+    authority,
+    variant_evidence,
+):
+    """Final whole-answer QA for protected Technical configuration responses."""
+    authority = dict(authority or {})
+    if str(authority.get("status") or "") == "recovered":
+        verified = _technical_verified_configuration_answer_v69158(
+            prompt_text,
+            authority,
+        )
+        if verified:
+            return verified
+
+    # Compatibility fallback: after v69125 has enforced a same-source table,
+    # publish only the verified table instead of retaining provider prose that may
+    # mention a conflicting Car Model / Protocol / A-C value.
+    if bool((variant_evidence or {}).get("contract_complete")):
+        table = _technical_first_settings_table_v69158(answer_text)
+        if table:
+            return (
+                "## Verified Technical Configuration\n\n"
+                "The following values are limited to the verified same-source Technical evidence.\n\n"
+                + table
+            )
+
+    return str(answer_text or "")
+
+
+def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_images=16):
+    """Select every inquiry-relevant image from the exact selected section/subtitle."""
+    authority = dict(authority or {})
+    selected = []
+    seen = set()
+
+    def add(url):
+        url = str(url or "").strip()
+        if url.startswith("https://") and url not in seen:
+            seen.add(url)
+            selected.append(url)
+
+    # Every image physically bound to the structurally selected subtitle/branch is relevant.
+    for url in (authority.get("selected_image_urls_v69143") or []):
+        add(url)
+
+    package_text = str(authority.get("package_text") or "")
+    if not package_text:
+        return selected[:max(1, int(max_images or 16))]
+
+    try:
+        payloads = _website_structured_image_payloads_from_file_v69012(
+            package_text,
+            str(authority.get("filename") or ""),
+            str(authority.get("file_id") or ""),
+        )
+        payloads.extend(
+            _website_legacy_html_payloads_from_file_v69012(
+                package_text,
+                str(authority.get("filename") or ""),
+                str(authority.get("file_id") or ""),
+            )
+        )
+    except Exception:
+        payloads = []
+
+    query_role = ""
+    try:
+        query_role = _website_image_query_role_v68884(prompt_text)
+    except Exception:
+        query_role = ""
+
+    selected_context = " ".join(
+        [
+            str(authority.get("section_title") or ""),
+            *[
+                str(x)
+                for x in (authority.get("branch_paths") or [])
+                if str(x).strip()
+            ],
+        ]
+    )
+    context_tokens = set(_technical_hierarchy_tokens_v69143(selected_context))
+
+    source_url = str(authority.get("source_url") or "").strip()
+    try:
+        source_id = canonical_website_url_identity(source_url) if source_url else ""
+    except Exception:
+        source_id = ""
+
+    for payload in payloads:
+        if not isinstance(payload, dict):
+            continue
+        url = str(payload.get("image_url") or "").strip()
+        if not url.startswith("https://"):
+            continue
+
+        payload_source = str(payload.get("source_page") or "").strip()
+        try:
+            payload_source_id = (
+                canonical_website_url_identity(payload_source)
+                if payload_source else ""
+            )
+        except Exception:
+            payload_source_id = ""
+        if source_id and payload_source_id and source_id != payload_source_id:
+            continue
+
+        metadata_context = " ".join(
+            (
+                str(payload.get("section_heading") or ""),
+                str(payload.get("nearby_instruction_text") or ""),
+                str(payload.get("caption") or ""),
+                str(payload.get("visual_analysis") or ""),
+            )
+        )
+        metadata_tokens = set(_technical_hierarchy_tokens_v69143(metadata_context))
+        same_subtitle = bool(
+            context_tokens
+            and metadata_tokens
+            and len(context_tokens & metadata_tokens) >= 2
+        )
+        role_match = False
+        if query_role:
+            try:
+                role_match = bool(
+                    _website_image_metadata_matches_role_v69004(
+                        payload,
+                        query_role,
+                    )
+                )
+            except Exception:
+                role_match = False
+
+        # Require either exact subtitle/branch association OR inquiry-role relevance
+        # that still overlaps the selected structural context.
+        if same_subtitle or (role_match and bool(context_tokens & metadata_tokens)):
+            add(url)
+        if len(selected) >= max(1, int(max_images or 16)):
+            break
+
+    return selected[:max(1, int(max_images or 16))]
+
+
+def _technical_verify_published_images_v69158(images, authority, prompt_text):
+    """Final image provenance assertion before serialization/history persistence."""
+    authority = dict(authority or {})
+    if str(authority.get("status") or "") != "recovered":
+        return list(images or [])
+
+    allowed = set(
+        _technical_inquiry_relevant_image_urls_v69158(
+            authority,
+            prompt_text,
+            max_images=24,
+        )
+    )
+    source_url = str(authority.get("source_url") or "").strip()
+    file_id = str(authority.get("file_id") or "").strip()
+    output = []
+    for image in (images or []):
+        if not isinstance(image, dict):
+            continue
+        if str(image.get("source") or "") != "website_knowledge":
+            output.append(image)
+            continue
+        url = str(image.get("archive_web_url") or image.get("data_url") or "").strip()
+        image_file_id = str(
+            image.get("technical_authority_file_id_v69144")
+            or image.get("website_file_id_v69012")
+            or ""
+        ).strip()
+        image_source = str(
+            image.get("technical_authority_source_url_v69144")
+            or image.get("website_source_page_v69010")
+            or ""
+        ).strip()
+        if url not in allowed:
+            continue
+        if file_id and image_file_id and file_id != image_file_id:
+            continue
+        if source_url and image_source:
+            try:
+                if canonical_website_url_identity(source_url) != canonical_website_url_identity(image_source):
+                    continue
+            except Exception:
+                continue
+        output.append(image)
+    return _dedupe_website_chat_images_v68883(output)
+
+def _technical_full_package_authority_v69156(prompt_text):
+    """v69157 current package -> v69156 real mapping -> literal+validated extraction."""
+    if not _technical_configuration_query_v69155(prompt_text):
+        return {"status": "not_applicable"}
+
+    source = _technical_current_package_authority_v69157(prompt_text)
     if str(source.get("status") or "") != "recovered":
-        return {"status": "no_exact_source", "source_status": str(source.get("status") or "")}
+        return {
+            "status": "no_exact_source",
+            "source_status": str(source.get("status") or ""),
+            "source_reason_v69157": str(source.get("reason_code") or ""),
+            "registry_status_v69157": str(source.get("registry_status_v69157") or ""),
+            "package_count_v69157": int(source.get("package_count_v69157") or 0),
+        }
 
     package_text = str(source.get("package_text") or "")
     structural = _technical_exact_package_structure_v69156(package_text, prompt_text)
@@ -59473,6 +60226,7 @@ def _technical_full_package_authority_v69156(prompt_text):
         "selected_branch_paths_v69143": list(structural.get("branch_paths") or []),
         "image_evidence": image_evidence,
         "selector_version": 69156,
+        "selected_segments_v69158": list(structural.get("segments") or []),
     }
 
     literal = _technical_literal_configuration_v69156(prompt_text, authority)
@@ -72470,6 +73224,34 @@ else:
                         active_workspace_rows_v69113[:12]
                     )
 
+                # v69158: deterministic current-package authority is primary.
+                # v69124 sibling retrieval is now compatibility fallback only.
+                technical_full_package_authority_v69155 = {"status": "not_applicable"}
+                technical_v69156_fail_closed = False
+                technical_v69156_configuration_required = bool(
+                    assistant == "🔧 Technical Support"
+                    and bool(execution_plan.get("use_file_search"))
+                    and not bool(technical_website_learning_requested_v68870)
+                    and not bool(explicit_learning_requested)
+                    and _technical_configuration_query_v69155(
+                        technical_request_prompt_v68879
+                    )
+                )
+                if technical_v69156_configuration_required:
+                    try:
+                        technical_full_package_authority_v69155 = (
+                            _technical_full_package_authority_v69156(
+                                technical_request_prompt_v68879
+                            )
+                        )
+                    except Exception as error_v69158_preflight:
+                        technical_full_package_authority_v69155 = {"status": "failed"}
+                        diagnostic_log(
+                            "technical_primary_authority_failed_v69158",
+                            error_type=type(error_v69158_preflight).__name__,
+                            error=str(error_v69158_preflight)[:700],
+                        )
+
                 # v69124: for a generic Technical Car Model/A-C request, retrieve
                 # both Manual and Automatic siblings before the main answer. This
                 # supplements the proven v69050 factual search rather than replacing it.
@@ -72479,6 +73261,9 @@ else:
                 if (
                     assistant == "🔧 Technical Support"
                     and bool(use_file_search)
+                    and str(
+                        (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                    ) != "recovered"
                     and _technical_generic_ac_variant_request_v69124(
                         technical_request_prompt_v68879
                     )
@@ -72546,35 +73331,9 @@ else:
                 # The factual subsection is then selected from the FULL learned package
                 # hierarchy, not by semantic chunk ranking. Dynamic setting fields and
                 # exact-section images are extracted from that one structural authority.
-                technical_full_package_authority_v69155 = {"status": "not_applicable"}
-                technical_v69156_fail_closed = False
-                technical_v69156_configuration_required = False
-                if (
-                    assistant == "🔧 Technical Support"
-                    and bool(execution_plan.get("use_file_search"))
-                    and not bool(technical_website_learning_requested_v68870)
-                    and not bool(explicit_learning_requested)
-                    and _technical_configuration_query_v69155(
-                        technical_request_prompt_v68879
-                    )
-                ):
-                    technical_v69156_configuration_required = True
-                    try:
-                        technical_full_package_authority_v69155 = (
-                            _technical_full_package_authority_v69156(
-                                technical_request_prompt_v68879
-                            )
-                        )
-                    except Exception as error_v69155:
-                        technical_full_package_authority_v69155 = {
-                            "status": "failed"
-                        }
-                        diagnostic_log(
-                            "technical_full_package_authority_failed_v69155",
-                            error_type=type(error_v69155).__name__,
-                            error=str(error_v69155)[:700],
-                        )
-
+                # v69158: source/structure resolution already ran before v69124.
+                # This block only binds the recovered authority or applies fallback safety.
+                if technical_v69156_configuration_required:
                     if str(
                         technical_full_package_authority_v69155.get("status") or ""
                     ) == "recovered":
@@ -73080,17 +73839,36 @@ else:
                         use_file_search=bool(use_file_search),
                         upload_count=len(graphic_generation_files or []),
                     )
-                    for delta in ask_ai_stream(
-                        ai_request_prompt,
-                        graphic_generation_files,
-                        detected_live_request=detected_request,
-                        detected_technical_tool=detected_technical_tool,
-                        detected_workspace_tool=detected_workspace_tool,
-                        response_mode=response_mode,
-                        use_file_search=use_file_search,
-                        live_data_override=preloaded_live_data,
-                        order_displayed_by_app=bool(order_display_text),
+                    technical_direct_answer_v69158 = ""
+                    if (
+                        assistant == "🔧 Technical Support"
+                        and str(
+                            (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                        ) == "recovered"
                     ):
+                        technical_direct_answer_v69158 = (
+                            _technical_verified_configuration_answer_v69158(
+                                technical_request_prompt_v68879,
+                                technical_full_package_authority_v69155,
+                            )
+                        )
+
+                    stream_source_v69158 = (
+                        [technical_direct_answer_v69158]
+                        if technical_direct_answer_v69158
+                        else ask_ai_stream(
+                            ai_request_prompt,
+                            graphic_generation_files,
+                            detected_live_request=detected_request,
+                            detected_technical_tool=detected_technical_tool,
+                            detected_workspace_tool=detected_workspace_tool,
+                            response_mode=response_mode,
+                            use_file_search=use_file_search,
+                            live_data_override=preloaded_live_data,
+                            order_displayed_by_app=bool(order_display_text),
+                        )
+                    )
+                    for delta in stream_source_v69158:
                         delta_text = str(delta or "")
                         if delta_text and not first_stream_delta_received:
                             first_stream_delta_received = True
@@ -73217,6 +73995,12 @@ else:
                                 answer_body,
                                 technical_variant_evidence_v69124,
                             )
+                        answer_body = _technical_final_factual_qa_v69158(
+                            technical_request_prompt_v68879,
+                            answer_body,
+                            locals().get("technical_full_package_authority_v69155") or {},
+                            technical_variant_evidence_v69124,
+                        )
                         # v69139: exact v69125 Technical-output authority restored.
                         # Do not run the later v69126/v69127 generic row split/expansion
                         # after the v69125 contract.  v69137 durability/persistence and
@@ -73272,6 +74056,14 @@ else:
                     if assistant == "🔧 Technical Support":
                         partial_answer_body = remove_technical_pricing(
                             partial_answer_body
+                        )
+                        # v69158: interruption path receives the exact same final
+                        # deterministic factual enforcement as a successful stream.
+                        partial_answer_body = _technical_final_factual_qa_v69158(
+                            technical_request_prompt_v68879,
+                            partial_answer_body,
+                            locals().get("technical_full_package_authority_v69155") or {},
+                            technical_variant_evidence_v69124,
                         )
 
                     if not partial_answer_body:
@@ -73827,6 +74619,14 @@ else:
                         locals().get("technical_section_evidence_v69142") or {}
                     )
                 section_state_v69143["technical_prompt_v69153"] = technical_request_prompt_v68879
+                if str(section_state_v69143.get("status") or "") in {"recovered", "recovered_followup"}:
+                    section_state_v69143["selected_image_urls_v69143"] = (
+                        _technical_inquiry_relevant_image_urls_v69158(
+                            section_state_v69143,
+                            technical_request_prompt_v68879,
+                            max_images=16,
+                        )
+                    )
                 section_status_v69145=str(section_state_v69143.get("status") or "")
                 section_images_v69143 = _technical_section_bound_chat_images_v69143(section_state_v69143)
                 if section_status_v69145 in {"recovered", "recovered_followup"}:
@@ -73913,6 +74713,18 @@ else:
         # uploaded/generated images. This keeps them visible after Streamlit
         # reruns and when a saved conversation is reopened.
         assistant_images_to_save = list(generated_images or [])
+        if (
+            assistant == "🔧 Technical Support"
+            and str(
+                (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+            ) == "recovered"
+        ):
+            assistant_images_to_save = _technical_verify_published_images_v69158(
+                assistant_images_to_save,
+                technical_full_package_authority_v69155,
+                technical_request_prompt_v68879,
+            )
+            generated_images = list(assistant_images_to_save)
 
         if assistant == "🔧 Technical Support":
             resolved_visual_sources_v68879 = {
