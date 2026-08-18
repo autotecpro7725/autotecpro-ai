@@ -1,15 +1,6 @@
+# AutoTecPro AI v69164 FINAL RELEASE — current-source family/year lock; stale semantic authority blocked; v69050/v69125 fallback preserved.
 # AutoTecPro AI v69163 FINAL RELEASE — v69050/v69125 baseline first; all newer Technical authority additive only.\n# AutoTecPro AI v69159 FINAL RELEASE — Graphic durable-job UUID runtime dependency repair; v69158 Technical fixes preserved.
 # AutoTecPro AI v69150 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
-# AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
-V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
-# AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
-V69144_RUNTIME_AUTHORITY_LOCK = True
-# AutoTecPro AI v69143 — FINAL PRODUCTION: Quick-Navigation + full-section/subtitle/image learning; v69142 output format and v69125 behavior preserved.
-V69143_QUICK_NAV_SECTION_CONTENT_IMAGE_LEARNING = True
-# AutoTecPro AI v69142 — FINAL PRODUCTION: generic learned-section authority; v69125 behavioral reference + v69141 durability/source compatibility preserved.
-V69142_GENERIC_SECTION_LEARNING_AUTHORITY = True
-# AutoTecPro AI v69141 — FINAL PRODUCTION: typo-tolerant multi-model protected-installation source authority; v69125 output contract + v69137 image durability preserved.
-# AutoTecPro AI v69140 — FINAL PRODUCTION: Technical installation-page source authority restored over broader product/series records; v69125 output contract + v69137 image durability preserved.
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -57401,6 +57392,11 @@ def save_website_knowledge_package(
                             package_v69162,
                             selected_vector_store_id,
                         )
+                        _technical_active_authority_upsert_package_v69164(
+                            package_v69162,
+                            selected_vector_store_id,
+                            force=True,
+                        )
             except Exception as registry_error_v69162:
                 diagnostic_log(
                     "technical_registry_duplicate_bootstrap_failed_v69162",
@@ -57529,6 +57525,10 @@ def save_website_knowledge_package(
             )
             if isinstance(package_v69162, dict):
                 _technical_registry_upsert_package_v69162(
+                    package_v69162,
+                    selected_vector_store_id,
+                )
+                _technical_active_authority_upsert_package_v69164(
                     package_v69162,
                     selected_vector_store_id,
                 )
@@ -60478,12 +60478,14 @@ def _technical_image_index_source_urls_v69162(prompt_text, max_sources=6):
             + 100 * len(prompt_years & (scope_years or years))
             + 50 * len(prompt_systems & systems)
         )
-        ranked.append((score, source_url))
+        indexed_at = str(payload.get("indexed_at") or "")
+        ranked.append((score, indexed_at, source_url))
 
-    ranked.sort(key=lambda row: row[0], reverse=True)
+    # Same vehicle/year/topic score: the most recently indexed reviewed page wins.
+    ranked.sort(key=lambda row: (row[0], row[1]), reverse=True)
     output = []
     seen = set()
-    for _, source_url in ranked:
+    for _, _, source_url in ranked:
         try:
             canonical = canonical_website_url_identity(source_url)
         except Exception:
@@ -61195,6 +61197,408 @@ def _technical_verify_published_images_v69158(images, authority, prompt_text):
         output.append(image)
     return _dedupe_website_chat_images_v68883(output)
 
+
+
+TECHNICAL_ACTIVE_AUTHORITY_PREFIX_V69164 = "__ATP_TECH_ACTIVE_AUTHORITY_V69164__:"
+
+
+def _technical_active_authority_key_v69164(family, year):
+    family = re.sub(r"[^a-z0-9]+", "", str(family or "").casefold())
+    try:
+        year = int(year)
+    except Exception:
+        return ""
+    if not family or year < 1980 or year > 2100:
+        return ""
+    return f"{TECHNICAL_ACTIVE_AUTHORITY_PREFIX_V69164}{family}:{year}"
+
+
+def _technical_active_authority_schema_v69164():
+    profile = dict(_website_image_index_schema_profile_v69129() or {})
+    mode = str(profile.get("mode") or "")
+    columns = set(profile.get("columns") or [])
+    if mode == "modern" and {"issue", "solution"}.issubset(columns):
+        return mode, columns, "issue", "solution", "updated_at"
+    return "legacy", columns, "question", "approved_answer", "created_at"
+
+
+@st.cache_data(ttl=1, max_entries=512, show_spinner=False)
+def _technical_active_authority_row_v69164(family, year, vector_store_id):
+    key = _technical_active_authority_key_v69164(family, year)
+    if not key:
+        return {}
+    try:
+        mode, columns, key_col, value_col, time_col = _technical_active_authority_schema_v69164()
+        wanted = [
+            x for x in ("id", key_col, value_col, "solution", "approved_answer",
+                        "source_type", "updated_at", "created_at")
+            if x and (not columns or x in columns)
+        ]
+        rows = list(
+            supabase.table("learned_knowledge")
+            .select(",".join(dict.fromkeys(wanted)))
+            .eq(key_col, key)
+            .order(time_col, desc=True)
+            .limit(1)
+            .execute().data or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "technical_active_authority_read_failed_v69164",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return {}
+    if not rows or not isinstance(rows[0], dict):
+        return {}
+    row = dict(rows[0])
+    raw = str(row.get(value_col) or row.get("solution") or row.get("approved_answer") or "")
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    store = str(vector_store_id or "").strip()
+    payload_store = str(payload.get("vector_store_id") or "").strip()
+    if store and payload_store and payload_store != store:
+        return {}
+    payload = dict(payload)
+    payload["row_id_v69164"] = row.get("id")
+    return payload
+
+
+def _technical_active_authority_upsert_package_v69164(
+    package,
+    vector_store_id="",
+    *,
+    force=False,
+):
+    if not isinstance(package, dict):
+        return {"attempted": 0, "updated": 0, "skipped_older": 0, "failed": 0}
+    families = sorted({
+        str(x).casefold() for x in (package.get("vehicle_families") or [])
+        if str(x).strip()
+    })
+    years = []
+    for raw in (package.get("years") or []):
+        try:
+            year = int(raw)
+        except Exception:
+            continue
+        if 1980 <= year <= 2100:
+            years.append(year)
+    years = sorted(set(years))
+    if not families or not years:
+        return {"attempted": 0, "updated": 0, "skipped_older": 0, "failed": 0}
+
+    mode, columns, key_col, value_col, _ = _technical_active_authority_schema_v69164()
+    incoming_at = str(package.get("extracted_at") or "")
+    stats = {"attempted": 0, "updated": 0, "skipped_older": 0, "failed": 0}
+
+    for family in families:
+        for year in years:
+            stats["attempted"] += 1
+            key = _technical_active_authority_key_v69164(family, year)
+            existing = _technical_active_authority_row_v69164(
+                family, year, vector_store_id
+            )
+            existing_at = str(
+                existing.get("authority_effective_at")
+                or existing.get("extracted_at")
+                or ""
+            )
+            if (
+                not bool(force)
+                and existing_at
+                and incoming_at
+                and incoming_at < existing_at
+            ):
+                stats["skipped_older"] += 1
+                continue
+            payload = {
+                "schema_version": 69164,
+                "authority_key": key,
+                "family": family,
+                "year": year,
+                "file_id": str(package.get("file_id") or ""),
+                "filename": str(package.get("filename") or "")[:500],
+                "source_url": str(package.get("source_url") or "")[:2000],
+                "title": str(package.get("title") or "")[:1000],
+                "extracted_at": incoming_at[:120],
+                "authority_effective_at": (
+                    now_iso() if bool(force) else incoming_at[:120]
+                ),
+                "systems": [str(x) for x in (package.get("systems") or []) if str(x).strip()][:32],
+                "product_codes": [str(x) for x in (package.get("product_codes") or []) if str(x).strip()][:32],
+                "vector_store_id": str(vector_store_id or "")[:300],
+            }
+            if not payload["file_id"] or not payload["source_url"]:
+                stats["failed"] += 1
+                continue
+            encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+            if mode == "modern":
+                row_payload = {
+                    "issue": key, "solution": encoded, "approved_answer": encoded,
+                    "source_type": "technical_active_authority_v69164",
+                    "updated_at": now_iso(), "staff_confirmed": True,
+                    "record_type": "technical_active_authority",
+                    "assistant": "Technical Support", "department": "technical",
+                }
+            else:
+                row_payload = {
+                    "question": key, "approved_answer": encoded,
+                    "keywords": f"technical_active_authority_v69164 {family} {year}",
+                    "source_type": "technical_active_authority_v69164",
+                    "created_at": now_iso(), "staff_confirmed": True,
+                    "record_type": "technical_active_authority",
+                    "assistant": "Technical Support", "department": "technical",
+                }
+            row_payload = filter_payload_for_table("learned_knowledge", row_payload)
+            if key_col not in row_payload:
+                stats["failed"] += 1
+                continue
+            try:
+                row_id = existing.get("row_id_v69164")
+                if row_id is not None:
+                    update_payload = dict(row_payload)
+                    update_payload.pop("created_at", None)
+                    safe_update_row("learned_knowledge", update_payload, row_id)
+                else:
+                    safe_insert_row("learned_knowledge", row_payload)
+                stats["updated"] += 1
+                try:
+                    _technical_active_authority_row_v69164.clear()
+                except Exception:
+                    pass
+            except Exception as error:
+                stats["failed"] += 1
+                diagnostic_log(
+                    "technical_active_authority_upsert_failed_v69164",
+                    family=family, year=year,
+                    error_type=type(error).__name__, error=str(error)[:500],
+                )
+    return stats
+
+
+def _technical_active_authority_bootstrap_v69164(prompt_text, vector_store_id):
+    """Use the durable per-URL registry, never semantic ranking, to seed old knowledge."""
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    families = set(_website_identity_vehicle_families_v69022(prompt))
+    years = set(_website_identity_years_v69022(prompt))
+    if len(families) != 1 or len(years) != 1:
+        return {}
+    family = next(iter(families))
+    year = next(iter(years))
+    try:
+        rows = list(_technical_registry_rows_v69162(vector_store_id) or [])
+    except Exception:
+        rows = []
+    candidates = []
+    for payload in rows:
+        if not isinstance(payload, dict):
+            continue
+        pf = {str(x).casefold() for x in (payload.get("vehicle_families") or []) if str(x)}
+        py = set()
+        for raw in (payload.get("years") or []):
+            try:
+                py.add(int(raw))
+            except Exception:
+                pass
+        if pf and family not in pf:
+            continue
+        if py and year not in py:
+            continue
+        scored = _technical_registry_candidate_v69162(prompt_text, payload)
+        if not scored:
+            continue
+        candidates.append((
+            str(payload.get("extracted_at") or ""),
+            int(scored.get("identity_score_v69157") or 0),
+            -int(scored.get("year_span_v69157") or 9999),
+            str(payload.get("source_url") or ""),
+            dict(payload),
+        ))
+    candidates.sort(reverse=True)
+
+    # Also inspect exact source URLs recovered from durable image provenance.
+    # This runs even when the per-URL registry has rows, because an older registry
+    # can be only partially backfilled while the newer reviewed page's image index
+    # is already durable. Both sources are exact-URL evidence, never broad semantic
+    # vehicle ranking.
+    try:
+        exact_items = list(
+            _technical_exact_source_url_candidates_v69162(
+                prompt_text,
+                vector_store_id,
+            )
+            or []
+        )
+    except Exception:
+        exact_items = []
+    seen_exact_files_v69164 = {
+        str(item[-1].get("file_id") or "")
+        for item in candidates
+        if isinstance(item[-1], dict)
+    }
+    for item in exact_items:
+        if not isinstance(item, dict):
+            continue
+        file_id = str(item.get("file_id") or "").strip()
+        full = str(item.get("text") or "")
+        if not file_id or not full or file_id in seen_exact_files_v69164:
+            continue
+        package = _technical_package_from_text_v69121(
+            file_id,
+            str(item.get("filename") or ""),
+            full,
+        )
+        if not isinstance(package, dict):
+            continue
+        scored = _technical_package_candidate_score_v69157(
+            prompt_text,
+            package,
+        )
+        if not scored:
+            continue
+        candidates.append(
+            (
+                str(package.get("extracted_at") or ""),
+                int(scored.get("identity_score_v69157") or 0),
+                -int(scored.get("year_span_v69157") or 9999),
+                str(package.get("source_url") or ""),
+                {
+                    "file_id": file_id,
+                    "filename": str(package.get("filename") or ""),
+                    "source_url": str(package.get("source_url") or ""),
+                    "extracted_at": str(package.get("extracted_at") or ""),
+                    "vehicle_families": list(package.get("vehicle_families") or []),
+                    "years": list(package.get("years") or []),
+                    "_package_v69164": package,
+                },
+            )
+        )
+    candidates.sort(reverse=True)
+
+    for _, _, _, _, payload in candidates:
+        file_id = str(payload.get("file_id") or "").strip()
+        if not file_id:
+            continue
+        package = (
+            dict(payload.get("_package_v69164") or {})
+            if isinstance(payload.get("_package_v69164"), dict)
+            else {}
+        )
+        if not package:
+            try:
+                full = str(_website_file_full_text_v69012(file_id) or "")
+            except Exception:
+                full = ""
+            if not full:
+                continue
+            package = _technical_package_from_text_v69121(
+                file_id, str(payload.get("filename") or ""), full
+            )
+        if not isinstance(package, dict):
+            continue
+        if not _technical_package_candidate_score_v69157(prompt_text, package):
+            continue
+        _technical_active_authority_upsert_package_v69164(package, vector_store_id)
+        return package
+    return {}
+
+
+def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    families = sorted(set(_website_identity_vehicle_families_v69022(prompt)))
+    years = sorted(set(_website_identity_years_v69022(prompt)))
+    if len(families) != 1 or len(years) != 1:
+        return {"status": "not_applicable", "reason_code": "NEEDS_SINGLE_FAMILY_YEAR"}
+    family, year = families[0], years[0]
+    payload = _technical_active_authority_row_v69164(family, year, vector_store_id)
+    if not payload:
+        package = _technical_active_authority_bootstrap_v69164(
+            prompt_text, vector_store_id
+        )
+        if package:
+            payload = _technical_active_authority_row_v69164(
+                family, year, vector_store_id
+            )
+            if not payload:
+                payload = {
+                    "file_id": package.get("file_id"),
+                    "filename": package.get("filename"),
+                    "source_url": package.get("source_url"),
+                    "title": package.get("title"),
+                    "extracted_at": package.get("extracted_at"),
+                    "vector_store_id": vector_store_id,
+                }
+    if not payload:
+        return {"status": "no_active_authority", "family": family, "year": year}
+
+    file_id = str(payload.get("file_id") or "").strip()
+    if not file_id:
+        return {
+            "status": "known_current_unavailable",
+            "reason_code": "ACTIVE_FILE_ID_MISSING",
+            "family": family, "year": year,
+        }
+    try:
+        full = str(_website_file_full_text_v69012(file_id) or "")
+    except Exception:
+        full = ""
+    if not full:
+        return {
+            "status": "known_current_unavailable",
+            "reason_code": "ACTIVE_FILE_UNAVAILABLE",
+            "family": family, "year": year, "file_id": file_id,
+            "source_url": str(payload.get("source_url") or ""),
+        }
+    package = _technical_package_from_text_v69121(
+        file_id, str(payload.get("filename") or ""), full
+    )
+    if not isinstance(package, dict) or not _technical_package_candidate_score_v69157(
+        prompt_text, package
+    ):
+        return {
+            "status": "known_current_unavailable",
+            "reason_code": "ACTIVE_PACKAGE_IDENTITY_REJECTED",
+            "family": family, "year": year, "file_id": file_id,
+        }
+    return {
+        "status": "locked",
+        "family": family, "year": year,
+        "file_id": file_id,
+        "filename": str(package.get("filename") or ""),
+        "source_url": str(package.get("source_url") or ""),
+        "page_title": str(package.get("title") or ""),
+        "extracted_at": str(package.get("extracted_at") or ""),
+        "package_text": full,
+        "package": package,
+    }
+
+
+def _technical_active_structural_authority_v69164(prompt_text, vector_store_id):
+    lock = _technical_active_source_lock_v69164(prompt_text, vector_store_id)
+    if str(lock.get("status") or "") != "locked":
+        return dict(lock)
+    authority = _technical_full_package_authority_from_file_v69163(
+        prompt_text, lock.get("file_id"), lock.get("filename")
+    )
+    if str(authority.get("status") or "") == "recovered":
+        authority = dict(authority)
+        authority["active_source_lock_v69164"] = True
+        authority["active_source_extracted_at_v69164"] = str(lock.get("extracted_at") or "")
+        return authority
+    return {
+        "status": "known_current_structural_unavailable",
+        "reason_code": str(authority.get("status") or "STRUCTURAL_AUTHORITY_UNAVAILABLE"),
+        "file_id": str(lock.get("file_id") or ""),
+        "filename": str(lock.get("filename") or ""),
+        "source_url": str(lock.get("source_url") or ""),
+        "page_title": str(lock.get("page_title") or ""),
+        "package_text": str(lock.get("package_text") or ""),
+    }
 
 def _technical_full_package_authority_from_file_v69163(
     prompt_text,
@@ -62432,6 +62836,19 @@ def _technical_package_prewarm_start_v69119(store, revision):
                         packages,
                         clean_store,
                     )
+                    # v69164 backfill is intentionally oldest -> newest so the
+                    # per-family/year active pointer finishes on the latest reviewed package.
+                    for package_v69164 in sorted(
+                        [dict(x) for x in (packages or []) if isinstance(x, dict)],
+                        key=lambda x: (
+                            str(x.get("extracted_at") or ""),
+                            str(x.get("filename") or ""),
+                        ),
+                    ):
+                        _technical_active_authority_upsert_package_v69164(
+                            package_v69164,
+                            clean_store,
+                        )
                 except Exception as registry_error_v69162:
                     diagnostic_log(
                         "technical_registry_background_backfill_failed_v69162",
@@ -64156,6 +64573,14 @@ def load_admin_analytics_rows():
         )
         and str((row or {}).get("source_type") or "")
         != "technical_package_registry_v69162"
+        and not str((row or {}).get("question") or "").startswith(
+            TECHNICAL_ACTIVE_AUTHORITY_PREFIX_V69164
+        )
+        and not str((row or {}).get("issue") or "").startswith(
+            TECHNICAL_ACTIVE_AUTHORITY_PREFIX_V69164
+        )
+        and str((row or {}).get("source_type") or "")
+        != "technical_active_authority_v69164"
     ]
     return analytics_rows, learned_rows
 
@@ -74485,6 +74910,81 @@ else:
                     )
                 )
 
+                # v69164: current-source lock is allowed to PRE-EMPT the broad
+                # baseline only when it proves one explicit current family/year
+                # file and the unchanged structural parser recovers verified fields.
+                # Failure with NO known current source falls through to v69125/v69050.
+                # Failure after a current source is known fails safe rather than
+                # silently searching an older competing package.
+                technical_current_source_safe_answer_v69164 = ""
+                technical_current_source_lock_v69164 = {
+                    "status": "not_applicable"
+                }
+                if technical_v69156_configuration_required:
+                    try:
+                        store_ids_v69164 = _configured_vector_store_ids(
+                            TECHNICAL_VECTOR_STORE_ID
+                        )
+                        if store_ids_v69164:
+                            technical_current_source_lock_v69164 = (
+                                _technical_active_structural_authority_v69164(
+                                    technical_request_prompt_v68879,
+                                    str(store_ids_v69164[0] or "").strip(),
+                                )
+                            )
+                            lock_status_v69164 = str(
+                                technical_current_source_lock_v69164.get("status")
+                                or ""
+                            )
+                            if lock_status_v69164 == "recovered":
+                                technical_full_package_authority_v69155 = dict(
+                                    technical_current_source_lock_v69164
+                                )
+                                use_file_search = False
+                                diagnostic_log(
+                                    "technical_active_source_locked_v69164",
+                                    file_id=str(
+                                        technical_current_source_lock_v69164.get(
+                                            "file_id"
+                                        )
+                                        or ""
+                                    )[:160],
+                                    source_url=str(
+                                        technical_current_source_lock_v69164.get(
+                                            "source_url"
+                                        )
+                                        or ""
+                                    )[:700],
+                                )
+                            elif lock_status_v69164.startswith(
+                                "known_current"
+                            ):
+                                use_file_search = False
+                                technical_current_source_safe_answer_v69164 = (
+                                    "## Current Technical Source Temporarily Unavailable\n\n"
+                                    "The app identified the current reviewed AutoTecPro "
+                                    "Technical source for this vehicle/year, but could not "
+                                    "verify its exact configuration section on this request. "
+                                    "No older or conflicting source was used. Please retry "
+                                    "after the current source is available."
+                                )
+                                diagnostic_log(
+                                    "technical_known_current_fail_safe_v69164",
+                                    status=lock_status_v69164[:120],
+                                    file_id=str(
+                                        technical_current_source_lock_v69164.get(
+                                            "file_id"
+                                        )
+                                        or ""
+                                    )[:160],
+                                )
+                    except Exception as error_v69164:
+                        diagnostic_log(
+                            "technical_active_source_lock_failed_v69164",
+                            error_type=type(error_v69164).__name__,
+                            error=str(error_v69164)[:600],
+                        )
+
                 # v69124: for a generic Technical Car Model/A-C request, retrieve
                 # both Manual and Automatic siblings before the main answer. This
                 # supplements the proven v69050 factual search rather than replacing it.
@@ -74494,6 +74994,11 @@ else:
                 if (
                     assistant == "🔧 Technical Support"
                     and bool(use_file_search)
+                    and str(
+                        (technical_full_package_authority_v69155 or {}).get("status")
+                        or ""
+                    ) != "recovered"
+                    and not bool(technical_current_source_safe_answer_v69164)
                     and _technical_generic_ac_variant_request_v69124(
                         technical_request_prompt_v68879
                     )
@@ -74772,6 +75277,7 @@ else:
                     and bool(execution_plan.get("use_file_search"))
                     and not bool(technical_website_learning_requested_v68870)
                     and not bool(explicit_learning_requested)
+                    and not bool(technical_current_source_safe_answer_v69164)
                     and str(
                         (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
                     ) != "recovered"
@@ -75136,9 +75642,12 @@ else:
                         )
 
                     stream_source_v69158 = (
-                        [technical_direct_answer_v69158]
-                        if technical_direct_answer_v69158
-                        else ask_ai_stream(
+                        [technical_current_source_safe_answer_v69164]
+                        if technical_current_source_safe_answer_v69164
+                        else (
+                            [technical_direct_answer_v69158]
+                            if technical_direct_answer_v69158
+                            else ask_ai_stream(
                             ai_request_prompt,
                             graphic_generation_files,
                             detected_live_request=detected_request,
@@ -75148,6 +75657,7 @@ else:
                             use_file_search=use_file_search,
                             live_data_override=preloaded_live_data,
                             order_displayed_by_app=bool(order_display_text),
+                            )
                         )
                     )
                     for delta in stream_source_v69158:
