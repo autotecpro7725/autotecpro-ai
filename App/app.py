@@ -1,5 +1,7 @@
-# AutoTecPro AI v69136 — FINAL PRODUCTION COMPOSITE LOCK: v69125 factual baseline + v69128 proven dynamic multi-option rows + v69131 image durability + v69134 persistent newest-source authority. Existing table structure/style and Graphic/Reference/After Install preserved.
-# AutoTecPro AI v69134 — FINAL PRODUCTION: persistent Technical package authority state fixes lost newest-source binding and repeated catalog rebuilds; v69125 table/output locked, v69131 image durability preserved, v69133 shared-variant rule preserved.\n# AutoTecPro AI v69133 — FINAL PRODUCTION: v69125 factual/output baseline locked; v69131 image durability preserved; existing v69113 active package binding plus generic shared Technical product/screen-variant authority. Table format unchanged.\n# AutoTecPro AI v69132 — FINAL PRODUCTION: v69125 factual/output baseline locked; v69131 image durability preserved; existing v69113 newest Admin package resolver reconnected at the Technical settings call site only. Table/output unchanged.\n# AutoTecPro AI v69131 — FINAL PRODUCTION: v69125 factual/output baseline LOCKED; only durable website-image schema compatibility/read-back/failure accounting repaired. No later Technical source-authority, dynamic table, Graphic, Reference, or After Install changes imported.
+# AutoTecPro AI v69137 — FINAL PRODUCTION: exact v69128 Technical retrieval/display baseline restored and locked; only v69131 durable image schema compatibility/read-back and failure accounting added. No v69132+ active-package prompt/source overrides imported.
+# AutoTecPro AI v69128 — FINAL PRODUCTION: generic dynamic multi-option Technical settings rows across Ford/GM/future sources; v69126 first-turn image publication and all protected pipelines preserved
+# AutoTecPro AI v69127 — FINAL PRODUCTION: dynamic multi-option settings rows + preserved first-turn Technical images; all v69126/v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
+# AutoTecPro AI v69126 — FINAL PRODUCTION: split verified A/C options into separate rows + first-turn Technical image recovery from exact answer evidence; all v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
 # AutoTecPro AI v69125 — FINAL PRODUCTION: verified same-source dual-A/C contract + deterministic two-row table preservation; all v69124/v69123 image, learning, output, Graphic, Reference, After Install behavior preserved
 # AutoTecPro AI v69124 — FINAL PRODUCTION: complete same-family Manual+Automatic Technical settings retrieval; v69123 durability/F250/image fixes and all protected output/Graphic/Reference/After Install behavior preserved\n# AutoTecPro AI v69123 — FINAL PRODUCTION: durable image read-back fix + Admin website supersedes conflicting Technical settings learned vectors + clean explicit-vehicle context + v69050 Technical late-image publication restored; all output/Graphic/Reference/After Install preserved
 # AutoTecPro AI v69122 — FINAL PRODUCTION: v69050 Technical factual authority restored at the live call site; v69121 output/learning/image/Graphic/Reference/After Install preserved
@@ -37046,7 +37048,6 @@ TECHNICAL CAR MODEL / PROTOCOL / A-C SETTINGS PRESENTATION:
 """
 
 
-
 @st.cache_data(ttl=3600, max_entries=32, show_spinner=False)
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
@@ -38736,6 +38737,7 @@ def _technical_answer_has_dual_ac_rows_v69125(answer_text):
     return manual and automatic
 
 
+
 def _technical_split_combined_ac_row_v69126(answer_text):
     """Split a combined Manual/Automatic A/C Select cell into two rows.
 
@@ -38816,6 +38818,172 @@ def _technical_split_combined_ac_row_v69126(answer_text):
 
     return answer
 
+
+def _technical_rows_auto_images_v69126(
+    prompt_text,
+    answer_text,
+    result_rows,
+    max_images=3,
+):
+    """Recover first-turn Technical images from the exact settings evidence rows.
+
+    This is the v69122-compatible replacement for the inactive active-package bridge:
+    it does not alter factual retrieval or bind a package. Every image candidate must
+    come from already-retrieved Technical evidence and pass the existing strict
+    Technical final-payload gate before publication.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+
+    rows = [
+        dict(row) for row in (result_rows or [])
+        if isinstance(row, dict)
+    ]
+    if not rows:
+        return []
+
+    effective_prompt = _website_image_effective_query_v68890(prompt_text)
+    durable_payloads = [
+        dict(item) for item in (_website_image_index_rows_v68883() or [])
+        if isinstance(item, dict)
+        and str(item.get("database_choice") or "") == "Technical Support Database"
+    ]
+
+    candidates = []
+    seen_payloads = set()
+    for row in rows[:16]:
+        file_id = str(row.get("file_id") or "").strip()
+        filename = str(row.get("filename") or "").strip()
+        package_text = str(row.get("text") or "")
+        if not package_text and file_id:
+            try:
+                package_text = str(_website_file_full_text_v69012(file_id) or "")
+            except Exception:
+                package_text = ""
+        if not package_text:
+            continue
+
+        payloads = _website_structured_image_payloads_from_file_v69012(
+            package_text, filename, file_id
+        )
+        payloads.extend(
+            _website_legacy_html_payloads_from_file_v69012(
+                package_text, filename, file_id
+            )
+        )
+
+        for raw in payloads:
+            if not isinstance(raw, dict):
+                continue
+            payload = dict(raw)
+            image_url = str(payload.get("image_url") or "").strip()
+            if not image_url or image_url in seen_payloads:
+                continue
+            seen_payloads.add(image_url)
+
+            if not _website_image_final_payload_gate_v68885(
+                effective_prompt, payload
+            ):
+                continue
+
+            try:
+                score = float(
+                    _website_image_rank_v68883(effective_prompt, payload) or 0.0
+                )
+            except Exception:
+                score = 0.0
+            candidates.append((score, payload, file_id))
+
+    candidates.sort(
+        key=lambda item: (
+            float(item[0]),
+            str(item[1].get("indexed_at") or ""),
+        ),
+        reverse=True,
+    )
+
+    output = []
+    seen_images = set()
+    limit = max(1, min(int(max_images or 3), WEBSITE_AUTO_DISPLAY_MAX_IMAGES))
+
+    for score, payload, file_id in candidates:
+        image_url = str(payload.get("image_url") or "").strip()
+        durable_match = None
+        for durable in durable_payloads:
+            if str(durable.get("image_url") or "").strip() != image_url:
+                continue
+            durable_match = durable
+            break
+
+        record = None
+        if durable_match is not None:
+            try:
+                record = _website_image_record_for_chat_v68883(durable_match)
+            except Exception:
+                record = None
+
+        # Exact retrieved-source fallback remains safe because the candidate already
+        # passed the same strict Technical payload gate above.
+        if not record and image_url.startswith("https://"):
+            record = {
+                "name": str(
+                    payload.get("caption")
+                    or payload.get("section_heading")
+                    or "Relevant Technical image"
+                ).strip()[:180],
+                "data_url": image_url,
+                "archive_web_url": image_url,
+                "source": "website_knowledge",
+                "asset_type": "website_instruction_image",
+                "generated": False,
+                "website_source_page_v69010": str(
+                    payload.get("source_page") or ""
+                ).strip(),
+                "website_page_title_v69010": str(
+                    payload.get("page_title") or ""
+                ).strip(),
+                "website_section_heading_v69010": str(
+                    payload.get("section_heading") or ""
+                ).strip(),
+                "website_nearby_instruction_text_v69010": str(
+                    payload.get("nearby_instruction_text") or ""
+                ).strip(),
+                "website_visual_analysis_v69010": str(
+                    payload.get("visual_analysis") or ""
+                ).strip(),
+            }
+
+        if not isinstance(record, dict):
+            continue
+
+        record["website_file_id_v69012"] = file_id
+        record["website_file_search_deterministic_v69012"] = True
+        record["website_turn_evidence_auto_v69126"] = True
+        record["website_image_match_score_v68883"] = round(float(score), 3)
+
+        key = str(
+            record.get("archive_web_url")
+            or record.get("data_url")
+            or ""
+        ).strip()
+        if not key or key in seen_images:
+            continue
+        seen_images.add(key)
+        output.append(record)
+        if len(output) >= limit:
+            break
+
+    diagnostic_log(
+        "technical_turn_evidence_auto_image_v69126",
+        rows=len(rows),
+        candidates=len(candidates),
+        recovered=len(output),
+    )
+    return output
+
+
+
+
 def _technical_generic_settings_request_v69127(prompt_text):
     """Detect generic Technical settings/configuration questions.
 
@@ -38831,6 +38999,7 @@ def _technical_generic_settings_request_v69127(prompt_text):
         r"\bcar\s*model\b|\bcare\s*model\b|\bprotocol\b|\bcanbus\b|\bsetting\b|\bsettings\b|\bconfiguration\b|\bsync\b|\bscreen\b|\bclimate\b|\ba\s*/?\s*c\b|\bcamera\b",
         prompt,
     ))
+
 
 def _technical_parse_multi_option_select_cell_v69127(cell_text):
     """Parse multiple exact option/value pairs from one Select cell.
@@ -38895,6 +39064,7 @@ def _technical_parse_multi_option_select_cell_v69127(cell_text):
             return []
         add_pair(match.group(1), match.group(2))
     return output if len(output) >= 2 else []
+
 
 def _technical_expand_combined_setting_rows_v69127(answer_text):
     """Expand one combined Select cell into one row per verified option.
@@ -39340,7 +39510,6 @@ def _technical_variant_retrieval_instruction_v69106(prompt_text):
         "- These rules change retrieval/continuity and table presentation only. Existing v69050/v69126 image publication, vehicle/year/product/topic gates, Sales/Marketing routing, Graphic pipeline, security, and persistence remain unchanged.",
     ]
     return "\n".join(lines)
-
 
 
 def build_user_input(
@@ -56296,15 +56465,8 @@ def _technical_settings_routing_prompt_v69117(prompt_text):
 
 
 @st.cache_resource(show_spinner=False)
-@st.cache_resource(show_spinner=False)
 def _technical_package_prewarm_state_v69119():
-    """Process-persistent company-knowledge prewarm state across Streamlit reruns.
-
-    v69134: this object MUST be shared by prewarm-start, learning injection,
-    resolver snapshot, and later inquiry turns. Returning a fresh dictionary on
-    every call discards injected/current packages and repeatedly rebuilds the
-    Technical catalog.
-    """
+    """Process-persistent company-knowledge prewarm state across Streamlit reruns."""
     return {
         "lock": threading.RLock(),
         "key": "",
@@ -56622,15 +56784,6 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
 
     candidates.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
     package = dict(candidates[0][3])
-    diagnostic_log(
-        "technical_active_package_resolver_selected_v69134",
-        prewarm_status=str(prewarm_status_v69119),
-        package_count=len(packages),
-        candidate_count=len(candidates),
-        selected_file_id=str(package.get("file_id") or "")[:120],
-        selected_source_url=str(package.get("source_url") or "")[:300],
-        selected_extracted_at=str(package.get("extracted_at") or "")[:80],
-    )
     source_url = str(package.get("source_url") or "").strip()
     try:
         canonical_source = (
@@ -68391,112 +68544,9 @@ else:
                         active_workspace_rows_v69113[:12]
                     )
 
-                # v69132: the v69113 active-package resolver already exists in the
-                # v69125 baseline but had no live pre-provider call site after the
-                # v69122 rollback. Bind it ONLY for Technical settings turns. When a
-                # newest Admin-reviewed package is confidently recovered, inject that
-                # exact reviewed webpage text and prevent broad/sibling file_search from
-                # reintroducing a stale cross-URL package in the same turn.
-                technical_active_package_v69132 = {"status": "not_applicable"}
-                if (
-                    assistant == "🔧 Technical Support"
-                    and bool(use_file_search)
-                    and _technical_settings_authority_intent_v69113(
-                        technical_request_prompt_v68879
-                    )
-                ):
-                    try:
-                        technical_active_package_v69132 = (
-                            _technical_resolve_active_admin_package_v69113(
-                                technical_request_prompt_v68879
-                            )
-                        )
-                    except Exception as error_v69132:
-                        diagnostic_log(
-                            "technical_active_package_binding_failed_v69132",
-                            error_type=type(error_v69132).__name__,
-                            error=str(error_v69132)[:500],
-                        )
-                        technical_active_package_v69132 = {"status": "failed"}
-
-                    if (
-                        str(technical_active_package_v69132.get("status") or "")
-                        == "recovered"
-                    ):
-                        active_context_v69132 = str(
-                            technical_active_package_v69132.get("context") or ""
-                        ).strip()
-                        if active_context_v69132:
-                            ai_request_prompt += "\n\n" + active_context_v69132
-                            ai_request_prompt += (
-                                "\n\nSHARED TECHNICAL VARIANT AUTHORITY (v69133):\n"
-                                "- A single reviewed installation page may explicitly cover "
-                                "multiple product/series or screen-size variants that share "
-                                "the SAME Technical configuration. Treat those variants as "
-                                "one Technical family unless the reviewed source explicitly "
-                                "documents a difference in Car Model, protocol, wiring, "
-                                "camera, climate, retained functions, or another Technical "
-                                "setting.\n"
-                                "- When the user does NOT specify a screen size/product "
-                                "variant and the active reviewed source verifies multiple "
-                                "variants sharing the same Technical settings, do not "
-                                "arbitrarily select only one. Preserve all verified "
-                                "Product / Series variants from that source in the existing "
-                                "table format.\n"
-                                "- Screen size or product-series differences alone must not "
-                                "cause Car Model/wiring/settings to be mixed with a different "
-                                "vehicle family or older URL.\n"
-                                "- If the user explicitly specifies one size/series, answer "
-                                "for that verified variant while retaining the shared "
-                                "Technical settings from this same reviewed page.\n"
-                                "- Never invent product codes, sizes, or shared-setting "
-                                "relationships; they must be stated by the active reviewed "
-                                "source.\n"
-                                "- For ANY settings field on this bound reviewed page that "
-                                "has two or more explicitly labeled choices, include EVERY "
-                                "verified choice in the first settings table. This is not "
-                                "limited to Manual/Automatic A/C. Use one row per option and "
-                                "preserve the source labels/Select values exactly."
-                            )
-
-                        active_rows_v69132 = [
-                            dict(row)
-                            for row in (
-                                technical_active_package_v69132.get("rows") or []
-                            )
-                            if isinstance(row, dict)
-                        ]
-                        if active_rows_v69132:
-                            st.session_state[
-                                "_technical_file_search_results_v69012"
-                            ] = active_rows_v69132[:12]
-                            st.session_state[
-                                "_workspace_file_search_results_v69040"
-                            ] = active_rows_v69132[:12]
-
-                        st.session_state[
-                            "_technical_active_admin_package_v69113"
-                        ] = dict(technical_active_package_v69132)
-
-                        # The exact reviewed webpage text is already in the request.
-                        # Suppress only the competing broad/sibling file_search for
-                        # this turn. If resolver is empty/ambiguous/failed, retain the
-                        # original v69125/v69050/v69124 fallback unchanged.
-                        use_file_search = False
-                        diagnostic_log(
-                            "technical_active_package_bound_v69132",
-                            file_id=str(
-                                technical_active_package_v69132.get("file_id") or ""
-                            )[:120],
-                            source_url=str(
-                                technical_active_package_v69132.get("source_url") or ""
-                            )[:300],
-                        )
-
                 # v69124: for a generic Technical Car Model/A-C request, retrieve
                 # both Manual and Automatic siblings before the main answer. This
-                # remains the original v69125 fallback when the active package resolver
-                # does not confidently recover a current package.
+                # supplements the proven v69050 factual search rather than replacing it.
                 technical_variant_evidence_v69124 = {
                     "context": "", "rows": [], "status": "not_applicable"
                 }
@@ -68668,11 +68718,9 @@ else:
                                 answer_body,
                                 technical_variant_evidence_v69124,
                             )
-                        # v69136 composite lock: restore the proven v69128 dynamic
-                        # multi-option presentation layer exactly. The current newest
-                        # Technical package remains the factual authority; this step
-                        # only expands already-verified combined options into one row
-                        # per option without changing the locked table structure.
+                        # v69126: if normal Technical retrieval already produced both
+                        # verified branches in one combined A/C cell, preserve those
+                        # exact values but display them in separate rows.
                         if _technical_generic_settings_request_v69127(
                             technical_request_prompt_v68879
                         ):
@@ -68847,6 +68895,40 @@ else:
                     "The response was generated, but the downloadable "
                     f"document could not be created: {document_error}"
                 )
+
+        # v69126: first-turn Technical image recovery from the exact evidence rows
+        # that supported this answer. This is independent of the later active-package
+        # state, which v69122 intentionally stopped binding for factual retrieval.
+        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+            existing_turn_web_images_v69126 = [
+                image for image in (generated_images or [])
+                if isinstance(image, dict)
+                and str(image.get("source") or "") == "website_knowledge"
+            ]
+            if not existing_turn_web_images_v69126:
+                try:
+                    turn_rows_v69126 = list(
+                        st.session_state.get(
+                            "_technical_file_search_results_v69012"
+                        ) or []
+                    )
+                    turn_images_v69126 = _technical_rows_auto_images_v69126(
+                        technical_request_prompt_v68879,
+                        answer,
+                        turn_rows_v69126,
+                        max_images=3,
+                    )
+                    if turn_images_v69126:
+                        generated_images.extend(turn_images_v69126)
+                        generated_images = _dedupe_website_chat_images_v68883(
+                            generated_images
+                        )
+                except Exception as error_v69126:
+                    diagnostic_log(
+                        "technical_turn_evidence_auto_image_failed_v69126",
+                        error_type=type(error_v69126).__name__,
+                        error=str(error_v69126)[:500],
+                    )
 
         # v69115: newest-package automatic image bridge. Run AFTER the answer is
         # complete so provider prompts and the already-correct v69114 message/table
