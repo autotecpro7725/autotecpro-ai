@@ -1,5 +1,9 @@
-# AutoTecPro AI v69131 — FINAL PRODUCTION: v69125 factual/output baseline LOCKED; only durable website-image schema compatibility/read-back/failure accounting repaired. No later Technical source-authority, dynamic table, Graphic, Reference, or After Install changes imported.
+# AutoTecPro AI v69134 — FINAL PRODUCTION: persistent Technical package authority state fixes lost newest-source binding and repeated catalog rebuilds; v69125 table/output locked, v69131 image durability preserved, v69133 shared-variant rule preserved.\n# AutoTecPro AI v69133 — FINAL PRODUCTION: v69125 factual/output baseline locked; v69131 image durability preserved; existing v69113 active package binding plus generic shared Technical product/screen-variant authority. Table format unchanged.\n# AutoTecPro AI v69132 — FINAL PRODUCTION: v69125 factual/output baseline locked; v69131 image durability preserved; existing v69113 newest Admin package resolver reconnected at the Technical settings call site only. Table/output unchanged.\n# AutoTecPro AI v69131 — FINAL PRODUCTION: v69125 factual/output baseline LOCKED; only durable website-image schema compatibility/read-back/failure accounting repaired. No later Technical source-authority, dynamic table, Graphic, Reference, or After Install changes imported.
 # AutoTecPro AI v69125 — FINAL PRODUCTION: verified same-source dual-A/C contract + deterministic two-row table preservation; all v69124/v69123 image, learning, output, Graphic, Reference, After Install behavior preserved
+# AutoTecPro AI v69124 — FINAL PRODUCTION: complete same-family Manual+Automatic Technical settings retrieval; v69123 durability/F250/image fixes and all protected output/Graphic/Reference/After Install behavior preserved\n# AutoTecPro AI v69123 — FINAL PRODUCTION: durable image read-back fix + Admin website supersedes conflicting Technical settings learned vectors + clean explicit-vehicle context + v69050 Technical late-image publication restored; all output/Graphic/Reference/After Install preserved
+# AutoTecPro AI v69122 — FINAL PRODUCTION: v69050 Technical factual authority restored at the live call site; v69121 output/learning/image/Graphic/Reference/After Install preserved
+# AutoTecPro AI v69121 — FINAL PRODUCTION RELEASE: resilient optional Technical prewarm + last-known-good snapshot + immediate new-package promotion + v69120 same-turn explicit photos; all protected output/Graphic/Reference/After Install preserved
+# AutoTecPro AI v69120 — immediate explicit photo publication across Technical/Sales/Marketing; all v69119 output/result, Graphic, Reference, After Install, and QA behavior preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -56064,8 +56068,15 @@ def _technical_settings_routing_prompt_v69117(prompt_text):
 
 
 @st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner=False)
 def _technical_package_prewarm_state_v69119():
-    """Process-persistent company-knowledge prewarm state across Streamlit reruns."""
+    """Process-persistent company-knowledge prewarm state across Streamlit reruns.
+
+    v69134: this object MUST be shared by prewarm-start, learning injection,
+    resolver snapshot, and later inquiry turns. Returning a fresh dictionary on
+    every call discards injected/current packages and repeatedly rebuilds the
+    Technical catalog.
+    """
     return {
         "lock": threading.RLock(),
         "key": "",
@@ -56383,6 +56394,15 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
 
     candidates.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
     package = dict(candidates[0][3])
+    diagnostic_log(
+        "technical_active_package_resolver_selected_v69134",
+        prewarm_status=str(prewarm_status_v69119),
+        package_count=len(packages),
+        candidate_count=len(candidates),
+        selected_file_id=str(package.get("file_id") or "")[:120],
+        selected_source_url=str(package.get("source_url") or "")[:300],
+        selected_extracted_at=str(package.get("extracted_at") or "")[:80],
+    )
     source_url = str(package.get("source_url") or "").strip()
     try:
         canonical_source = (
@@ -68143,9 +68163,107 @@ else:
                         active_workspace_rows_v69113[:12]
                     )
 
+                # v69132: the v69113 active-package resolver already exists in the
+                # v69125 baseline but had no live pre-provider call site after the
+                # v69122 rollback. Bind it ONLY for Technical settings turns. When a
+                # newest Admin-reviewed package is confidently recovered, inject that
+                # exact reviewed webpage text and prevent broad/sibling file_search from
+                # reintroducing a stale cross-URL package in the same turn.
+                technical_active_package_v69132 = {"status": "not_applicable"}
+                if (
+                    assistant == "🔧 Technical Support"
+                    and bool(use_file_search)
+                    and _technical_settings_authority_intent_v69113(
+                        technical_request_prompt_v68879
+                    )
+                ):
+                    try:
+                        technical_active_package_v69132 = (
+                            _technical_resolve_active_admin_package_v69113(
+                                technical_request_prompt_v68879
+                            )
+                        )
+                    except Exception as error_v69132:
+                        diagnostic_log(
+                            "technical_active_package_binding_failed_v69132",
+                            error_type=type(error_v69132).__name__,
+                            error=str(error_v69132)[:500],
+                        )
+                        technical_active_package_v69132 = {"status": "failed"}
+
+                    if (
+                        str(technical_active_package_v69132.get("status") or "")
+                        == "recovered"
+                    ):
+                        active_context_v69132 = str(
+                            technical_active_package_v69132.get("context") or ""
+                        ).strip()
+                        if active_context_v69132:
+                            ai_request_prompt += "\n\n" + active_context_v69132
+                            ai_request_prompt += (
+                                "\n\nSHARED TECHNICAL VARIANT AUTHORITY (v69133):\n"
+                                "- A single reviewed installation page may explicitly cover "
+                                "multiple product/series or screen-size variants that share "
+                                "the SAME Technical configuration. Treat those variants as "
+                                "one Technical family unless the reviewed source explicitly "
+                                "documents a difference in Car Model, protocol, wiring, "
+                                "camera, climate, retained functions, or another Technical "
+                                "setting.\n"
+                                "- When the user does NOT specify a screen size/product "
+                                "variant and the active reviewed source verifies multiple "
+                                "variants sharing the same Technical settings, do not "
+                                "arbitrarily select only one. Preserve all verified "
+                                "Product / Series variants from that source in the existing "
+                                "table format.\n"
+                                "- Screen size or product-series differences alone must not "
+                                "cause Car Model/wiring/settings to be mixed with a different "
+                                "vehicle family or older URL.\n"
+                                "- If the user explicitly specifies one size/series, answer "
+                                "for that verified variant while retaining the shared "
+                                "Technical settings from this same reviewed page.\n"
+                                "- Never invent product codes, sizes, or shared-setting "
+                                "relationships; they must be stated by the active reviewed "
+                                "source."
+                            )
+
+                        active_rows_v69132 = [
+                            dict(row)
+                            for row in (
+                                technical_active_package_v69132.get("rows") or []
+                            )
+                            if isinstance(row, dict)
+                        ]
+                        if active_rows_v69132:
+                            st.session_state[
+                                "_technical_file_search_results_v69012"
+                            ] = active_rows_v69132[:12]
+                            st.session_state[
+                                "_workspace_file_search_results_v69040"
+                            ] = active_rows_v69132[:12]
+
+                        st.session_state[
+                            "_technical_active_admin_package_v69113"
+                        ] = dict(technical_active_package_v69132)
+
+                        # The exact reviewed webpage text is already in the request.
+                        # Suppress only the competing broad/sibling file_search for
+                        # this turn. If resolver is empty/ambiguous/failed, retain the
+                        # original v69125/v69050/v69124 fallback unchanged.
+                        use_file_search = False
+                        diagnostic_log(
+                            "technical_active_package_bound_v69132",
+                            file_id=str(
+                                technical_active_package_v69132.get("file_id") or ""
+                            )[:120],
+                            source_url=str(
+                                technical_active_package_v69132.get("source_url") or ""
+                            )[:300],
+                        )
+
                 # v69124: for a generic Technical Car Model/A-C request, retrieve
                 # both Manual and Automatic siblings before the main answer. This
-                # supplements the proven v69050 factual search rather than replacing it.
+                # remains the original v69125 fallback when the active package resolver
+                # does not confidently recover a current package.
                 technical_variant_evidence_v69124 = {
                     "context": "", "rows": [], "status": "not_applicable"
                 }
