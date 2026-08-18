@@ -1,6 +1,13 @@
+# AutoTecPro AI v69165 FINAL RELEASE — Technical exact-duplicate structural migration + locked-package direct authority.
 # AutoTecPro AI v69164 FINAL RELEASE — current-source family/year lock; stale semantic authority blocked; v69050/v69125 fallback preserved.
 # AutoTecPro AI v69163 FINAL RELEASE — v69050/v69125 baseline first; all newer Technical authority additive only.\n# AutoTecPro AI v69159 FINAL RELEASE — Graphic durable-job UUID runtime dependency repair; v69158 Technical fixes preserved.
 # AutoTecPro AI v69150 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
+# AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
+V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
+# AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
+V69144_RUNTIME_AUTHORITY_LOCK = True
+# AutoTecPro AI v69143 — FINAL PRODUCTION: Quick-Navigation + full-section/subtitle/image learning; v69142 output format and v69125 behavior preserved.
+V69143_QUICK_NAV_SECTION_CONTENT_IMAGE_LEARNING = True
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -52247,6 +52254,8 @@ def build_website_knowledge_package_document(
     lines = [
         "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE",
         f"Destination: {database_choice}",
+        *(([f"TECHNICAL_STRUCTURAL_SCHEMA_V69165: {TECHNICAL_PACKAGE_STRUCTURAL_SCHEMA_V69165}"])
+          if str(database_choice or "") == "Technical Support Database" else []),
         f"Page title: {extraction.get('title')}",
         f"Requested URL: {extraction.get('requested_url') or extraction.get('source_url')}",
         f"Final source URL: {extraction.get('source_url')}",
@@ -57294,6 +57303,52 @@ def save_website_knowledge_package(
     )
 
     exact_current_exists_v69109 = vector_store_has_filename(selected_vector_store_id, filename)
+
+    # v69165: an exact filename/content hash is NOT sufficient for Technical reuse.
+    # Packages learned before durable hierarchy support can have correct text but no
+    # HIERARCHY_JSON_V69143. Re-submitting that URL must rebuild the vector package
+    # in the current structural format instead of returning early forever.
+    technical_structural_refresh_v69165 = False
+    if database_choice == "Technical Support Database" and exact_current_exists_v69109:
+        try:
+            exact_row_v69165 = next(
+                (
+                    dict(row)
+                    for row in (_vector_store_file_catalog_v69040(selected_vector_store_id) or [])
+                    if isinstance(row, dict)
+                    and str(row.get("filename") or "").strip() == filename
+                    and str(row.get("file_id") or "").strip()
+                ),
+                None,
+            )
+            if exact_row_v69165:
+                exact_file_id_v69165 = str(exact_row_v69165.get("file_id") or "").strip()
+                exact_text_v69165 = str(_website_file_full_text_v69012(exact_file_id_v69165) or "")
+                if not _technical_package_has_current_structure_v69165(exact_text_v69165):
+                    technical_structural_refresh_v69165 = True
+                    # Treat the legacy exact file as superseded, but remove it only
+                    # AFTER the replacement file is fully indexed.
+                    if not any(
+                        str((row or {}).get("file_id") or "").strip() == exact_file_id_v69165
+                        for row in (prior_same_url_files_v69109 or [])
+                        if isinstance(row, dict)
+                    ):
+                        prior_same_url_files_v69109 = list(prior_same_url_files_v69109 or []) + [exact_row_v69165]
+                    exact_current_exists_v69109 = False
+                    diagnostic_log(
+                        "technical_exact_duplicate_structural_migration_required_v69165",
+                        file_id=exact_file_id_v69165[:160],
+                        filename=filename[:500],
+                    )
+        except Exception as error_v69165_migration:
+            # Do not destroy the existing package on inspection failure. The normal
+            # duplicate path remains available and the runtime fails safe if needed.
+            diagnostic_log(
+                "technical_exact_duplicate_structural_migration_inspection_failed_v69165",
+                error_type=type(error_v69165_migration).__name__,
+                error=str(error_v69165_migration)[:600],
+            )
+
     replaced_file_count_v69109 = 0
     cleanup_pending_v69109 = False
     factual_supersession_completed_v69109 = False
@@ -61199,6 +61254,130 @@ def _technical_verify_published_images_v69158(images, authority, prompt_text):
 
 
 
+
+TECHNICAL_PACKAGE_STRUCTURAL_SCHEMA_V69165 = 69165
+
+
+def _technical_package_has_current_structure_v69165(package_text):
+    """True only when a Technical website package has durable hierarchy authority.
+
+    Older exact-duplicate website files can contain the correct reviewed webpage text
+    while predating HIERARCHY_JSON_V69143. Reusing one of those files makes the
+    current-source lock succeed but leaves the structural selector with no hierarchy.
+    """
+    value = str(package_text or "")
+    if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in value:
+        return False
+    if _technical_package_header_value_v69113(value, "Destination") != "Technical Support Database":
+        return False
+    if not re.search(r"(?m)^HIERARCHY_JSON_V69143:\s*\{", value):
+        return False
+    if "WEBSITE SECTION EVIDENCE MAP V69142" not in value:
+        return False
+    return True
+
+
+def _technical_locked_package_authority_v69165(prompt_text, lock):
+    """Build structural authority from the file already proven by v69164.
+
+    The active-source lock has already verified family/year/source identity. Do not
+    send the same file through the older v69150 source detector again; that redundant
+    validation can reject a newly re-indexed package because of legacy header/filename
+    assumptions. This function performs structural + literal validation only.
+    """
+    lock = dict(lock or {})
+    if str(lock.get("status") or "") != "locked":
+        return dict(lock)
+    package_text = str(lock.get("package_text") or "")
+    if not package_text:
+        return {
+            "status": "known_current_structural_unavailable",
+            "reason_code": "LOCKED_PACKAGE_TEXT_EMPTY",
+            "file_id": str(lock.get("file_id") or ""),
+            "source_url": str(lock.get("source_url") or ""),
+        }
+    if not _technical_package_has_current_structure_v69165(package_text):
+        return {
+            "status": "known_current_structural_unavailable",
+            "reason_code": "LEGACY_PACKAGE_REQUIRES_RELEARN_V69165",
+            "file_id": str(lock.get("file_id") or ""),
+            "filename": str(lock.get("filename") or ""),
+            "source_url": str(lock.get("source_url") or ""),
+            "page_title": str(lock.get("page_title") or ""),
+            "package_text": package_text,
+        }
+
+    structural = _technical_exact_package_structure_v69156(package_text, prompt_text)
+    if str(structural.get("status") or "") != "selected":
+        return {
+            "status": "known_current_structural_unavailable",
+            "reason_code": str(structural.get("status") or "NO_EXACT_SECTION"),
+            "file_id": str(lock.get("file_id") or ""),
+            "filename": str(lock.get("filename") or ""),
+            "source_url": str(lock.get("source_url") or ""),
+            "page_title": str(lock.get("page_title") or ""),
+            "package_text": package_text,
+        }
+
+    authority = {
+        "status": "selected",
+        "file_id": str(lock.get("file_id") or ""),
+        "filename": str(lock.get("filename") or ""),
+        "source_url": str(lock.get("source_url") or ""),
+        "page_title": str(lock.get("page_title") or ""),
+        "package_text": package_text,
+        "section_title": str(structural.get("section_title") or ""),
+        "section_id": str(structural.get("section_id") or ""),
+        "branch_paths": list(structural.get("branch_paths") or []),
+        "section_text": str(structural.get("section_text") or ""),
+        "selected_image_urls_v69143": list(structural.get("image_urls") or []),
+        "selected_section_title_v69143": str(structural.get("section_title") or ""),
+        "selected_branch_paths_v69143": list(structural.get("branch_paths") or []),
+        "image_evidence": _technical_exact_package_image_evidence_v69155(
+            package_text, structural.get("image_urls") or []
+        ),
+        "selector_version": 69165,
+        "selected_segments_v69158": list(structural.get("segments") or []),
+        "active_source_lock_v69164": True,
+        "locked_package_direct_authority_v69165": True,
+    }
+
+    literal = _technical_literal_configuration_v69156(prompt_text, authority)
+    if not _technical_literal_is_sufficient_v69156(prompt_text, literal):
+        return {
+            "status": "known_current_structural_unavailable",
+            "reason_code": "LITERAL_CONFIGURATION_INSUFFICIENT",
+            "file_id": authority["file_id"],
+            "filename": authority["filename"],
+            "source_url": authority["source_url"],
+            "page_title": authority["page_title"],
+            "package_text": package_text,
+            "section_title": authority["section_title"],
+            "selected_image_urls_v69143": authority["selected_image_urls_v69143"],
+        }
+
+    validated_model = {"status": "not_needed", "fields": [], "branches": []}
+    structured = _technical_merge_structured_v69156(literal, validated_model)
+    authority["deterministic_literal_authority_v69156"] = True
+    authority["literal_structured_v69156"] = literal
+    authority["model_structured_v69156"] = validated_model
+    authority["structured"] = structured
+    if not _technical_table_rows_from_structured_v69155(structured):
+        authority["status"] = "known_current_structural_unavailable"
+        authority["reason_code"] = "NO_STRUCTURED_TABLE_ROWS"
+        return authority
+
+    authority["status"] = "recovered"
+    authority["context"] = _technical_authority_context_v69155(authority)
+    authority["rows"] = [{
+        "file_id": authority["file_id"],
+        "filename": authority["filename"],
+        "score": 1.0,
+        "text": authority["section_text"][:50000],
+        "technical_locked_package_authority_v69165": True,
+    }]
+    return authority
+
 TECHNICAL_ACTIVE_AUTHORITY_PREFIX_V69164 = "__ATP_TECH_ACTIVE_AUTHORITY_V69164__:"
 
 
@@ -61582,23 +61761,13 @@ def _technical_active_structural_authority_v69164(prompt_text, vector_store_id):
     lock = _technical_active_source_lock_v69164(prompt_text, vector_store_id)
     if str(lock.get("status") or "") != "locked":
         return dict(lock)
-    authority = _technical_full_package_authority_from_file_v69163(
-        prompt_text, lock.get("file_id"), lock.get("filename")
-    )
+    authority = _technical_locked_package_authority_v69165(prompt_text, lock)
     if str(authority.get("status") or "") == "recovered":
         authority = dict(authority)
         authority["active_source_lock_v69164"] = True
         authority["active_source_extracted_at_v69164"] = str(lock.get("extracted_at") or "")
         return authority
-    return {
-        "status": "known_current_structural_unavailable",
-        "reason_code": str(authority.get("status") or "STRUCTURAL_AUTHORITY_UNAVAILABLE"),
-        "file_id": str(lock.get("file_id") or ""),
-        "filename": str(lock.get("filename") or ""),
-        "source_url": str(lock.get("source_url") or ""),
-        "page_title": str(lock.get("page_title") or ""),
-        "package_text": str(lock.get("package_text") or ""),
-    }
+    return dict(authority)
 
 def _technical_full_package_authority_from_file_v69163(
     prompt_text,
