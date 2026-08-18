@@ -39881,6 +39881,84 @@ def _technical_catalog_exact_section_v69147(prompt_text, store):
     return winner
 
 
+def _technical_section_from_v69125_contract_v69148(prompt_text, variant_evidence):
+    """Promote one proven v69125 same-file contract into exact section/image authority.
+
+    The v69125 retrieval already proved Manual + Automatic branches in ONE file.  v69148
+    hydrates only that selected file (one bounded file-content read) and then applies the
+    newer Quick Navigation / section / subtitle parser.  No whole-store catalogue scan is
+    performed and no vehicle setting value is encoded here.
+    """
+    payload = dict(variant_evidence or {})
+    if not bool(payload.get("contract_complete")):
+        return {"status": "not_applicable", "context": "", "rows": []}
+    file_id = str(payload.get("contract_file_id") or "").strip()
+    if not file_id:
+        return {"status": "contract_missing_file", "context": "", "rows": []}
+    rows = [dict(row) for row in (payload.get("rows") or []) if isinstance(row, dict)]
+    row_text = str((rows[0] if rows else {}).get("text") or "")
+    # One exact-file hydration only.  This is intentionally bounded and replaces the
+    # v69147 O(N) catalogue scan that downloaded every learned website package.
+    package_text = ""
+    try:
+        package_text = str(_website_openai_file_text_v68892(file_id) or "")
+    except Exception as error:
+        diagnostic_log(
+            "technical_v69148_exact_file_hydration_failed",
+            file_id=file_id[:120], error_type=type(error).__name__, error=str(error)[:500],
+        )
+    if not package_text:
+        package_text = row_text
+
+    source_url = str(payload.get("contract_source_url") or "").strip()
+    if not source_url and package_text:
+        source_url = (
+            _technical_package_header_value_v69113(package_text, "Final source URL")
+            or _technical_package_header_value_v69113(package_text, "Requested URL")
+        )
+    page_title = _technical_package_header_value_v69113(package_text, "Page title") if package_text else ""
+    filename = str((rows[0] if rows else {}).get("filename") or "")
+
+    hierarchy = _technical_hierarchy_excerpt_v69143(package_text, prompt_text) if package_text else {}
+    excerpt = str(hierarchy.get("excerpt") or "").strip()
+    if not excerpt and package_text:
+        excerpt = _technical_package_section_excerpt_v69142(package_text, prompt_text)
+    if not excerpt:
+        excerpt = row_text[:26000]
+
+    exact_row = {
+        "file_id": file_id,
+        "filename": filename,
+        "score": 1.0,
+        "text": package_text[:90000],
+        "technical_section_authority_v69148_v69125_contract": True,
+    }
+    context = (
+        "V69125 SAME-SOURCE TECHNICAL AUTHORITY + SECTION BINDING (v69148)\n"
+        "The application first proved the exact same learned Technical file using the "
+        "v69125 Manual/Automatic same-source contract, then hydrated only that file and "
+        "selected the related learned section. Use only this same-source evidence for "
+        "factual settings. Preserve every verified branch and do not substitute another page.\n"
+        f"Source URL: {source_url}\nPage title: {page_title}\nFile ID: {file_id}\n\n"
+        "RELATED LEARNED SECTION EVIDENCE\n================================\n" + excerpt[:26000]
+    )
+    return {
+        "status": "recovered",
+        "context": context,
+        "rows": [exact_row],
+        "file_id": file_id,
+        "filename": filename,
+        "source_url": source_url,
+        "page_title": page_title,
+        "section_excerpt": excerpt[:26000],
+        "package_text": package_text,
+        "selected_image_urls_v69143": list(hierarchy.get("image_urls") or []),
+        "selected_section_title_v69143": str(hierarchy.get("section_title") or ""),
+        "selected_branch_paths_v69143": list(hierarchy.get("branch_paths") or []),
+        "v69125_contract_bound_v69148": True,
+    }
+
+
 def _technical_generic_section_evidence_v69142(prompt_text):
     """Bind one exact learned Technical installation package and its related section.
 
@@ -40023,18 +40101,12 @@ def _technical_generic_section_evidence_v69142(prompt_text):
     if not has_identity_v69142:
         return {"status": "no_identity", "context": "", "rows": []}
 
-    # v69147: discover the already-learned exact installation package deterministically
-    # before any semantic vector search. This restores the working v69125 source
-    # availability while retaining the newer section/branch safety gates.
-    catalog_exact_v69147 = _technical_catalog_exact_section_v69147(prompt_text, store)
-    if str(catalog_exact_v69147.get("status") or "") in {"recovered", "ambiguous_branch"}:
-        diagnostic_log(
-            "technical_catalog_exact_authority_v69147",
-            status=str(catalog_exact_v69147.get("status") or ""),
-            file_id=str(catalog_exact_v69147.get("file_id") or "")[:120],
-            source_url=str(catalog_exact_v69147.get("source_url") or "")[:500],
-        )
-        return catalog_exact_v69147
+    # v69148: never build/download the full Technical website package catalogue
+    # inside a live customer inquiry. Exact source discovery is performed first by
+    # the proven v69125 same-file retrieval for generic Car Model/A-C settings, or
+    # by this single bounded semantic section search for other Technical topics.
+    # Full catalogue reconciliation remains available to learning/admin/background
+    # paths but is not a prerequisite for answering a live customer question.
 
     request = {
         "input": (
@@ -70010,7 +70082,6 @@ else:
                 }
                 if (
                     assistant == "🔧 Technical Support"
-                    and False  # v69145: exact learned section first; sibling search is fallback only
                     and bool(use_file_search)
                     and _technical_generic_ac_variant_request_v69124(
                         technical_request_prompt_v68879
@@ -70086,9 +70157,19 @@ else:
                     and str(technical_request_prompt_v68879 or "").strip()
                 ):
                     try:
-                        technical_section_evidence_v69142 = _technical_generic_section_evidence_v69142(
-                            technical_request_prompt_v68879
-                        )
+                        if bool(technical_variant_evidence_v69124.get("contract_complete")):
+                            technical_section_evidence_v69142 = _technical_section_from_v69125_contract_v69148(
+                                technical_request_prompt_v68879, technical_variant_evidence_v69124
+                            )
+                            diagnostic_log(
+                                "technical_v69125_primary_contract_promoted_v69148",
+                                file_id=str(technical_section_evidence_v69142.get("file_id") or "")[:120],
+                                source_url=str(technical_section_evidence_v69142.get("source_url") or "")[:500],
+                            )
+                        else:
+                            technical_section_evidence_v69142 = _technical_generic_section_evidence_v69142(
+                                technical_request_prompt_v68879
+                            )
                     except Exception as error_v69142:
                         diagnostic_log(
                             "technical_section_authority_failed_v69142",
