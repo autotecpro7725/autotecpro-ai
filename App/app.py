@@ -1,3 +1,9 @@
+# AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
+V69144_RUNTIME_AUTHORITY_LOCK = True
+# AutoTecPro AI v69143 — FINAL PRODUCTION: Quick-Navigation + full-section/subtitle/image learning; v69142 output format and v69125 behavior preserved.
+V69143_QUICK_NAV_SECTION_CONTENT_IMAGE_LEARNING = True
+# AutoTecPro AI v69142 — FINAL PRODUCTION: generic learned-section authority; v69125 behavioral reference + v69141 durability/source compatibility preserved.
+V69142_GENERIC_SECTION_LEARNING_AUTHORITY = True
 # AutoTecPro AI v69141 — FINAL PRODUCTION: typo-tolerant multi-model protected-installation source authority; v69125 output contract + v69137 image durability preserved.
 # AutoTecPro AI v69140 — FINAL PRODUCTION: Technical installation-page source authority restored over broader product/series records; v69125 output contract + v69137 image durability preserved.
 # AutoTecPro AI v69137 — FINAL PRODUCTION: exact v69128 Technical retrieval/display baseline restored and locked; only v69131 durable image schema compatibility/read-back and failure accounting added. No v69132+ active-package prompt/source overrides imported.
@@ -7468,8 +7474,11 @@ def _workspace_begin_manual_transition_v69023(source_assistant, target_assistant
     # durable job. Never let it leak across a manual navigation boundary.
     st.session_state.pop("pending_graphic_regeneration", None)
 
-    # Technical clarification state belongs to the case/workspace that produced it.
+    # Technical clarification and learned-section authority belong to the
+    # case/workspace that produced them. Never carry them across a manual
+    # workspace boundary, even when the user later returns to Technical.
     st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
+    st.session_state.pop("_technical_last_section_authority_v69142", None)
 
     # The Graphic durable manifest itself is preserved for genuine reconnect/retry,
     # but manual entry must never resume it on the first destination paint.
@@ -9030,6 +9039,7 @@ def _start_new_case_callback():
         "chat_managed_upload_generation",
     )
     _technical_clear_photo_context_v68879()
+    st.session_state.pop("_technical_last_section_authority_v69142", None)
     clear_graphic_project_state()
 
 
@@ -9188,6 +9198,8 @@ def image_to_data_url(uploaded_file):
 
 
 IMAGE_MARKER_PREFIX = "[[ATP_IMAGES_JSON:"
+TECHNICAL_AUTHORITY_MARKER_PREFIX_V69144 = "[[ATP_TECH_AUTH_V69144:"
+TECHNICAL_AUTHORITY_MARKER_SUFFIX_V69144 = ":ATP_TECH_AUTH_V69144]]"
 
 DOCUMENT_MARKER_PREFIX = "[[[ATPDOCS_JSON:"
 DOCUMENT_MARKER_SUFFIX = ":ATPDOCS_JSON]]]"
@@ -9351,6 +9363,17 @@ def clean_visible_chat_text(text):
     try:
         marker_pattern = re.escape(IMAGE_MARKER_PREFIX) + r".*?" + re.escape(IMAGE_MARKER_SUFFIX)
         value = re.sub(marker_pattern, "", value, flags=re.DOTALL)
+        technical_authority_marker_pattern_v69144 = (
+            re.escape(TECHNICAL_AUTHORITY_MARKER_PREFIX_V69144)
+            + r".*?"
+            + re.escape(TECHNICAL_AUTHORITY_MARKER_SUFFIX_V69144)
+        )
+        value = re.sub(
+            technical_authority_marker_pattern_v69144,
+            "",
+            value,
+            flags=re.DOTALL,
+        )
         document_marker_pattern = (
             re.escape(DOCUMENT_MARKER_PREFIX)
             + r".*?"
@@ -11022,6 +11045,17 @@ def extract_images_from_message_content(content):
             "website_workspace_match_score_v69040",
             "website_workspace_durable_fallback_v69041",
             "website_workspace_archive_resolved_v69041",
+            # v69144: preserve exact learned Technical page/section/branch authority
+            # across reruns and History reconstruction. These are provenance-only
+            # fields and do not alter the visible image renderer.
+            "website_section_bound_v69143",
+            "website_section_bound_v69144",
+            "technical_authority_file_id_v69144",
+            "technical_authority_source_url_v69144",
+            "technical_authority_page_title_v69144",
+            "technical_authority_section_title_v69144",
+            "technical_authority_branch_paths_v69144",
+            "technical_authority_version_v69144",
         ):
             if key in image:
                 clean_image[key] = image.get(key)
@@ -39353,6 +39387,605 @@ def _technical_enforce_dual_ac_table_v69125(answer_text, evidence_result):
     return "\n".join(lines)
 
 
+
+def _technical_section_authority_tokens_v69142(value):
+    """Generic lexical tokens for section matching; numeric branch IDs survive in v69144."""
+    raw = re.findall(r"[a-z0-9][a-z0-9+./_-]{0,30}", str(value or "").casefold())
+    stop = {
+        "what", "whats", "what's", "which", "where", "when", "how", "the", "this",
+        "that", "for", "with", "from", "into", "show", "tell", "need", "please", "about",
+        "car", "vehicle", "model", "setting", "settings", "setup", "information", "info",
+    }
+    output=set()
+    for raw_token in raw:
+        token=raw_token.strip("._-/")
+        if not token or token in stop:
+            continue
+        if len(token) >= 2 or token.isdigit():
+            output.add(token)
+    return output
+
+
+def _technical_package_section_excerpt_v69142(package_text, prompt_text, max_windows=4):
+    """Return the most inquiry-related literal text windows from one learned package."""
+    webpage = _technical_package_webpage_text_v69113(package_text)
+    if not webpage:
+        return ""
+    lines = [re.sub(r"\s+", " ", x).strip() for x in webpage.splitlines()]
+    lines = [x for x in lines if x]
+    if not lines:
+        return webpage[:18000]
+
+    prompt_tokens = _technical_section_authority_tokens_v69142(prompt_text)
+    prompt_families = set(_website_identity_vehicle_families_v69022(prompt_text))
+    prompt_years = set(_website_identity_years_v69022(prompt_text))
+    prompt_systems = set(_website_identity_systems_v69022(prompt_text))
+    prompt_codes = set(_website_image_product_codes_v69020(prompt_text))
+
+    scored = []
+    radius = 7
+    for idx, line in enumerate(lines):
+        start = max(0, idx - radius)
+        end = min(len(lines), idx + radius + 1)
+        block = "\n".join(lines[start:end])
+        block_tokens = _technical_section_authority_tokens_v69142(block)
+        lexical = len(prompt_tokens & block_tokens)
+        families = set(_website_identity_vehicle_families_v69022(block))
+        years = set(_website_identity_years_v69022(block))
+        systems = set(_website_identity_systems_v69022(block))
+        codes = set(_website_image_product_codes_v69020(block))
+        score = lexical * 8.0
+        if prompt_families and families:
+            score += 45.0 if (prompt_families & families) else -70.0
+        if prompt_years and years:
+            score += 28.0 if (prompt_years & years) else -50.0
+        if prompt_systems and systems:
+            score += 38.0 if (prompt_systems & systems) else -80.0
+        if prompt_codes and codes:
+            score += 60.0 if (prompt_codes & codes) else -90.0
+        if re.search(r"(?i)car\s*model|protocol|canbus|a\s*/?\s*c|climate|sync|onstar|camera|audio|amplifier|screen", line):
+            score += 5.0
+        if score > 0:
+            scored.append((score, start, end, block))
+
+    if not scored:
+        return webpage[:18000]
+    scored.sort(key=lambda row: (float(row[0]), -row[1]), reverse=True)
+    selected = []
+    used = []
+    effective_max_windows = 1 if (prompt_systems or prompt_codes) else max(1, int(max_windows or 4))
+    for score, start, end, block in scored:
+        if any(not (end <= a or start >= b) for a, b in used):
+            continue
+        selected.append(block)
+        used.append((start, end))
+        if len(selected) >= effective_max_windows:
+            break
+    return "\n\n--- RELATED LEARNED SECTION ---\n\n".join(selected)[:26000]
+
+
+def _technical_section_package_candidate_v69142(prompt_text, row):
+    if not isinstance(row, dict):
+        return None
+    file_id = str(row.get("file_id") or "").strip()
+    filename = str(row.get("filename") or "").strip()
+    chunk = str(row.get("text") or "")
+    package_text = chunk
+    if file_id:
+        try:
+            full = str(_website_file_full_text_v69012(file_id) or "")
+            if full:
+                package_text = full
+        except Exception:
+            pass
+    if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text:
+        return None
+    if _technical_package_header_value_v69113(package_text, "Destination") != "Technical Support Database":
+        return None
+
+    source_url = (
+        _technical_package_header_value_v69113(package_text, "Final source URL")
+        or _technical_package_header_value_v69113(package_text, "Requested URL")
+    )
+    page_title = _technical_package_header_value_v69113(package_text, "Page title")
+    extracted_at = _technical_package_header_value_v69113(package_text, "Extracted at (UTC)")
+    scope = _technical_source_url_scope_v69141(source_url, page_title)
+    priority = _technical_installation_source_priority_v69140(source_url, package_text)
+
+    prompt_families = set(_website_identity_vehicle_families_v69022(prompt_text))
+    prompt_years = set(_website_identity_years_v69022(prompt_text))
+    prompt_systems = set(_website_identity_systems_v69022(prompt_text))
+    prompt_codes = set(_website_image_product_codes_v69020(prompt_text))
+    source_families = set(scope.get("families") or [])
+    source_years = set(scope.get("years") or [])
+
+    # Exact URL/title scope is a hard safety gate when present.  This is generic
+    # identity routing, not a table of vehicle-specific settings.
+    if prompt_families and source_families and not (prompt_families & source_families):
+        return None
+    if prompt_years and source_years and not (prompt_years & source_years):
+        return None
+
+    identity_text = " ".join((page_title, source_url, package_text[:28000]))
+    package_systems = set(_website_identity_systems_v69022(identity_text))
+    package_codes = set(_website_image_product_codes_v69020(identity_text))
+    if prompt_codes and package_codes and not (prompt_codes & package_codes):
+        return None
+
+    hierarchy_pick_v69143 = _technical_hierarchy_excerpt_v69143(package_text, prompt_text)
+    excerpt = str(hierarchy_pick_v69143.get("excerpt") or "").strip() or _technical_package_section_excerpt_v69142(package_text, prompt_text)
+    qtokens = _technical_section_authority_tokens_v69142(prompt_text)
+    etokens = _technical_section_authority_tokens_v69142(excerpt)
+    score = float(priority) * 1000.0
+    score += 120.0 * len(prompt_families & source_families)
+    score += 55.0 * len(prompt_years & source_years)
+    score += 90.0 * len(prompt_systems & package_systems)
+    score += 150.0 * len(prompt_codes & package_codes)
+    score += 6.0 * len(qtokens & etokens)
+    # Generic specificity reward: when two learned pages both cover the query,
+    # prefer the narrower literal URL/title scope rather than the newest broad page.
+    if prompt_years and source_years:
+        score += max(0.0, 45.0 - (3.0 * len(source_years)))
+    if prompt_families and source_families:
+        score += max(0.0, 30.0 - (5.0 * len(source_families)))
+    try: score += float(row.get("score") or 0.0) * 10.0
+    except Exception: pass
+
+    return {
+        "file_id": file_id,
+        "filename": filename,
+        "source_url": source_url,
+        "page_title": page_title,
+        "extracted_at": extracted_at,
+        "package_text": package_text,
+        "section_excerpt": excerpt,
+        "priority": priority,
+        "score": score,
+        "source_families": sorted(source_families),
+        "source_years": sorted(source_years),
+        "source_systems": sorted(package_systems),
+        "selected_image_urls_v69143": list(hierarchy_pick_v69143.get("image_urls") or []),
+        "selected_section_title_v69143": str(hierarchy_pick_v69143.get("section_title") or ""),
+        "selected_branch_paths_v69143": list(hierarchy_pick_v69143.get("branch_paths") or []),
+    }
+
+
+def _technical_authority_payload_v69144(value):
+    """Return bounded, persistence-safe Technical source/section provenance.
+
+    The marker deliberately does not store the full learned webpage package. It
+    stores the exact source identity plus the selected literal section excerpt so
+    reconnect/history follow-ups can remain source-locked without bloating chat
+    history or exposing unrelated package content.
+    """
+    if not isinstance(value, dict):
+        return {}
+    file_id=str(value.get("file_id") or "").strip()
+    source_url=str(value.get("source_url") or "").strip()
+    if not file_id and not source_url:
+        return {}
+    evidence_material="\n".join((
+        file_id, source_url, str(value.get("page_title") or ""),
+        str(value.get("selected_section_title_v69143") or ""),
+        " | ".join(str(x) for x in (value.get("selected_branch_paths_v69143") or [])),
+        str(value.get("section_excerpt") or ""),
+    ))
+    evidence_hash=hashlib.sha256(evidence_material.encode("utf-8",errors="ignore")).hexdigest()
+    return {
+        "version": 69145,
+        "evidence_hash_v69145": evidence_hash,
+        "file_id": file_id[:300],
+        "filename": str(value.get("filename") or "")[:500],
+        "source_url": source_url[:2000],
+        "page_title": str(value.get("page_title") or "")[:1000],
+        "section_excerpt": str(value.get("section_excerpt") or "")[:26000],
+        "selected_image_urls_v69143": [
+            str(x).strip() for x in (value.get("selected_image_urls_v69143") or [])
+            if str(x).strip().startswith("https://")
+        ][:40],
+        "selected_section_title_v69143": str(value.get("selected_section_title_v69143") or "")[:1000],
+        "selected_branch_paths_v69143": [
+            str(x).strip()[:1500] for x in (value.get("selected_branch_paths_v69143") or [])
+            if str(x).strip()
+        ][:40],
+    }
+
+
+def serialize_technical_authority_marker_v69144(value):
+    payload=_technical_authority_payload_v69144(value)
+    if not payload:
+        return ""
+    try:
+        packed=json.dumps(payload,ensure_ascii=False,separators=(",",":"))
+        encoded=base64.urlsafe_b64encode(packed.encode("utf-8")).decode("ascii")
+        return "\n\n" + TECHNICAL_AUTHORITY_MARKER_PREFIX_V69144 + encoded + TECHNICAL_AUTHORITY_MARKER_SUFFIX_V69144
+    except Exception:
+        return ""
+
+
+def extract_technical_authority_marker_v69144(content):
+    text=str(content or "")
+    pattern=(
+        re.escape(TECHNICAL_AUTHORITY_MARKER_PREFIX_V69144)
+        + r"([A-Za-z0-9_=-]+)"
+        + re.escape(TECHNICAL_AUTHORITY_MARKER_SUFFIX_V69144)
+    )
+    m=re.search(pattern,text)
+    if not m:
+        return {}
+    try:
+        raw=base64.urlsafe_b64decode(m.group(1).encode("ascii")).decode("utf-8")
+        value=json.loads(raw)
+        return _technical_authority_payload_v69144(value)
+    except Exception:
+        return {}
+
+
+def _technical_restore_section_authority_from_messages_v69144(messages):
+    """Rebuild exact Technical authority from the latest persisted assistant turn."""
+    for message in reversed(list(messages or [])):
+        if not isinstance(message,dict) or str(message.get("role") or "").strip().lower()!="assistant":
+            continue
+        content=str(message.get("content") or "")
+        payload=extract_technical_authority_marker_v69144(content)
+        if payload:
+            restored=dict(payload)
+            restored["rows"]=[]
+            restored["package_text"]=""
+            restored["restored_from_history_v69144"]=True
+            st.session_state["_technical_last_section_authority_v69142"]=restored
+            diagnostic_log(
+                "technical_section_authority_restored_from_history_v69144",
+                file_id=str(restored.get("file_id") or "")[:120],
+                source_url=str(restored.get("source_url") or "")[:500],
+            )
+            return restored
+    return {}
+
+
+def _technical_prior_excerpt_matches_followup_v69144(prior, prompt_text):
+    """Reuse persisted excerpt only when the follow-up stays in the same branch/section."""
+    value=re.sub(r"\s+"," ",str(prompt_text or "")).strip().casefold()
+    if _website_image_explicit_visual_request_v68888(value):
+        return True
+    q=_technical_hierarchy_tokens_v69143(value)
+    if not q:
+        return True
+    label=" ".join([
+        str(prior.get("selected_section_title_v69143") or ""),
+        " ".join(str(x) for x in (prior.get("selected_branch_paths_v69143") or [])),
+    ])
+    lt=_technical_hierarchy_tokens_v69143(label)
+    # A numeric branch mismatch (e.g. SYNC 2 -> SYNC 3) must not reuse the old excerpt.
+    qnums={x for x in q if x.isdigit()}
+    lnums={x for x in lt if x.isdigit()}
+    if qnums and lnums and not qnums.issubset(lnums):
+        return False
+    return bool((q & lt) or len(q) <= 1)
+
+
+def _technical_rehydrate_prior_source_v69144(prior, prompt_text, store):
+    """Search only the previously persisted learned file; never broaden on reconnect."""
+    file_id=str(prior.get("file_id") or "").strip()
+    source_url=str(prior.get("source_url") or "").strip()
+    if not file_id and not source_url:
+        return None
+    request={
+        "input": (
+            "AUTOTECPRO EXACT PRIOR TECHNICAL SOURCE FOLLOW-UP. Retrieve the learned package/section "
+            "for this follow-up ONLY from the exact prior file/source identified below. Do not return "
+            "another vehicle/page.\n"
+            f"PRIOR FILE ID: {file_id}\nPRIOR SOURCE URL: {source_url}\nFOLLOW-UP: {str(prompt_text or '').strip()}"
+        ),
+        "tools":[{"type":"file_search","vector_store_ids":[store]}],
+    }
+    try:
+        rows=list(_website_request_vector_search_rows_v69047(request,max_results=30) or [])
+    except Exception as error:
+        diagnostic_log("technical_prior_source_rehydrate_search_failed_v69144",error_type=type(error).__name__,error=str(error)[:500])
+        return None
+    source_identity=""
+    try: source_identity=canonical_website_url_identity(source_url) if source_url else ""
+    except Exception: source_identity=""
+    exact=[]
+    for row in rows:
+        if not isinstance(row,dict):
+            continue
+        rid=str(row.get("file_id") or "").strip()
+        if file_id and rid and rid!=file_id:
+            continue
+        candidate=_technical_section_package_candidate_v69142(prompt_text,row)
+        if not candidate:
+            continue
+        if file_id and str(candidate.get("file_id") or "").strip()!=file_id:
+            continue
+        if source_identity:
+            try: cid=canonical_website_url_identity(str(candidate.get("source_url") or ""))
+            except Exception: cid=""
+            if cid and cid!=source_identity:
+                continue
+        exact.append(candidate)
+    if not exact:
+        return None
+    exact.sort(key=lambda x:(float(x.get("score") or 0.0),str(x.get("extracted_at") or "")),reverse=True)
+    return dict(exact[0])
+
+
+def _technical_protected_settings_inquiry_v69145(prompt_text):
+    """Generic fail-closed classifier for learned installation/configuration facts.
+
+    This intentionally recognizes *types of configuration questions*, not vehicle
+    values. It contains no make/model/protocol/A-C mappings.
+    """
+    value=re.sub(r"\s+"," ",str(prompt_text or "")).strip().casefold()
+    if not value:
+        return False
+    has_identity=bool(
+        _website_identity_vehicle_families_v69022(value)
+        or _website_identity_years_v69022(value)
+        or _website_identity_systems_v69022(value)
+        or _website_image_product_codes_v69020(value)
+    )
+    if not has_identity:
+        return False
+    topics=(
+        "car model","a/c"," ac ","climate","protocol","canbus","setting guide",
+        "setting","settings","sync","onstar","factory radio","radio type",
+        "factory camera","original camera","camera setting","screen size",
+        "amplifier","rear climate","climate type","audio setting"
+    )
+    padded=f" {value} "
+    return any(topic in padded for topic in topics)
+
+
+def _technical_generic_section_evidence_v69142(prompt_text):
+    """Bind one exact learned Technical installation package and its related section.
+
+    This is the generic successor to model-specific fixes.  It searches learned
+    knowledge, validates page identity, then supplies only literal section evidence
+    from the winning package.  All future vehicle/system branches remain learned data.
+    """
+    stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not stores:
+        return {"status": "no_store", "context": "", "rows": []}
+    store = str(stores[0] or "").strip()
+
+    prompt_families_v69142 = set(_website_identity_vehicle_families_v69022(prompt_text))
+    prompt_years_v69142 = set(_website_identity_years_v69022(prompt_text))
+    prompt_systems_v69142 = set(_website_identity_systems_v69022(prompt_text))
+    prompt_codes_v69142 = set(_website_image_product_codes_v69020(prompt_text))
+    has_identity_v69142 = bool(
+        prompt_families_v69142 or prompt_years_v69142
+        or prompt_systems_v69142 or prompt_codes_v69142
+    )
+
+    # v69144: an explicit new vehicle/year/system identity starts a new authority
+    # decision. Never preserve a previous page lock if the new identity cannot be
+    # resolved; otherwise a later identity-free follow-up could resurrect stale
+    # evidence from the former case.
+    if has_identity_v69142:
+        st.session_state.pop("_technical_last_section_authority_v69142", None)
+
+    # Short follow-ups inherit only the immediately preceding exact learned package.
+    # This preserves `show me the photo` / branch follow-ups without globally pinning
+    # a vehicle package across unrelated new cases.
+    prior_v69142 = dict(st.session_state.get("_technical_last_section_authority_v69142") or {})
+    if not prior_v69142 and st.session_state.get("messages"):
+        prior_v69142 = _technical_restore_section_authority_from_messages_v69144(
+            st.session_state.get("messages") or []
+        )
+    if not has_identity_v69142 and (
+        str(prior_v69142.get("file_id") or "").strip()
+        or str(prior_v69142.get("source_url") or "").strip()
+    ):
+        prior_rows_v69142 = [
+            dict(row) for row in (prior_v69142.get("rows") or []) if isinstance(row, dict)
+        ]
+        prior_package_v69142 = str(prior_v69142.get("package_text") or "")
+        if prior_rows_v69142 and prior_package_v69142:
+            hierarchy_followup_v69143 = _technical_hierarchy_excerpt_v69143(prior_package_v69142, prompt_text)
+            excerpt_v69142 = str(hierarchy_followup_v69143.get("excerpt") or "").strip() or _technical_package_section_excerpt_v69142(
+                prior_package_v69142, prompt_text
+            )
+            return {
+                "status": "recovered_followup",
+                "context": (
+                    "TURN-LOCAL LEARNED SECTION FOLLOW-UP AUTHORITY (v69144)\n"
+                    "Continue using only the immediately preceding exact learned Technical package. "
+                    "Do not switch vehicle/page unless the user supplies a new identity.\n\n"
+                    "RELATED LEARNED SECTION EVIDENCE\n================================\n" + excerpt_v69142[:26000]
+                ),
+                "rows": prior_rows_v69142[:12],
+                "file_id": str(prior_v69142.get("file_id") or ""),
+                "filename": str(prior_v69142.get("filename") or ""),
+                "source_url": str(prior_v69142.get("source_url") or ""),
+                "page_title": str(prior_v69142.get("page_title") or ""),
+                "section_excerpt": excerpt_v69142,
+                "package_text": prior_package_v69142,
+                "selected_image_urls_v69143": list(hierarchy_followup_v69143.get("image_urls") or prior_v69142.get("selected_image_urls_v69143") or []),
+                "selected_section_title_v69143": str(hierarchy_followup_v69143.get("section_title") or prior_v69142.get("selected_section_title_v69143") or ""),
+                "selected_branch_paths_v69143": list(hierarchy_followup_v69143.get("branch_paths") or prior_v69142.get("selected_branch_paths_v69143") or []),
+            }
+
+        # Reconnect/history state intentionally persists a bounded excerpt instead
+        # of the whole webpage package. Reuse it for same-section/photo follow-ups.
+        prior_excerpt_v69144=str(prior_v69142.get("section_excerpt") or "").strip()
+        if prior_excerpt_v69144 and _technical_prior_excerpt_matches_followup_v69144(prior_v69142,prompt_text):
+            row_v69144={
+                "file_id":str(prior_v69142.get("file_id") or ""),
+                "filename":str(prior_v69142.get("filename") or ""),
+                "score":1.0,
+                "text":prior_excerpt_v69144[:26000],
+                "technical_section_authority_v69144_history":True,
+            }
+            return {
+                "status":"recovered_followup",
+                "context": (
+                    "PERSISTED EXACT TECHNICAL SECTION FOLLOW-UP AUTHORITY (v69144)\n"
+                    "Use only this persisted section from the exact prior learned source. Do not broaden to another page.\n"
+                    f"Source URL: {prior_v69142.get('source_url') or ''}\n"
+                    f"Page title: {prior_v69142.get('page_title') or ''}\n\n"
+                    "RELATED LEARNED SECTION EVIDENCE\n================================\n" + prior_excerpt_v69144[:26000]
+                ),
+                "rows":[row_v69144],
+                "file_id":str(prior_v69142.get("file_id") or ""),
+                "filename":str(prior_v69142.get("filename") or ""),
+                "source_url":str(prior_v69142.get("source_url") or ""),
+                "page_title":str(prior_v69142.get("page_title") or ""),
+                "section_excerpt":prior_excerpt_v69144,
+                "package_text":"",
+                "selected_image_urls_v69143":list(prior_v69142.get("selected_image_urls_v69143") or []),
+                "selected_section_title_v69143":str(prior_v69142.get("selected_section_title_v69143") or ""),
+                "selected_branch_paths_v69143":list(prior_v69142.get("selected_branch_paths_v69143") or []),
+            }
+
+        # A follow-up that moves to another section (for example Car Model ->
+        # Factory Camera) may search again, but only inside the exact persisted file.
+        rehydrated_v69144=_technical_rehydrate_prior_source_v69144(prior_v69142,prompt_text,store)
+        if rehydrated_v69144:
+            row_v69144={
+                "file_id":str(rehydrated_v69144.get("file_id") or ""),
+                "filename":str(rehydrated_v69144.get("filename") or ""),
+                "score":1.0,
+                "text":str(rehydrated_v69144.get("package_text") or "")[:90000],
+                "technical_section_authority_v69144_rehydrated":True,
+            }
+            excerpt_v69144=str(rehydrated_v69144.get("section_excerpt") or "").strip()
+            return {
+                "status":"recovered_followup",
+                "context": (
+                    "REHYDRATED EXACT PRIOR TECHNICAL SOURCE AUTHORITY (v69144)\n"
+                    "The follow-up was resolved only inside the exact prior learned file/source. Do not broaden.\n\n"
+                    "RELATED LEARNED SECTION EVIDENCE\n================================\n" + excerpt_v69144[:26000]
+                ),
+                "rows":[row_v69144],
+                "file_id":str(rehydrated_v69144.get("file_id") or ""),
+                "filename":str(rehydrated_v69144.get("filename") or ""),
+                "source_url":str(rehydrated_v69144.get("source_url") or ""),
+                "page_title":str(rehydrated_v69144.get("page_title") or ""),
+                "section_excerpt":excerpt_v69144,
+                "package_text":str(rehydrated_v69144.get("package_text") or ""),
+                "selected_image_urls_v69143":list(rehydrated_v69144.get("selected_image_urls_v69143") or []),
+                "selected_section_title_v69143":str(rehydrated_v69144.get("selected_section_title_v69143") or ""),
+                "selected_branch_paths_v69143":list(rehydrated_v69144.get("selected_branch_paths_v69143") or []),
+            }
+        return {
+            "status":"authority_unavailable_v69144",
+            "context": (
+                "EXACT PRIOR TECHNICAL SOURCE UNAVAILABLE (v69144). Do not provide or infer any factual setting. "
+                "Tell the user the exact learned source could not be safely restored and ask them to retry or restate the vehicle/system."
+            ),
+            "rows":[],
+        }
+    if not has_identity_v69142:
+        return {"status": "no_identity", "context": "", "rows": []}
+
+    request = {
+        "input": (
+            "AUTOTECPRO TECHNICAL SECTION AUTHORITY RETRIEVAL. Find the exact learned "
+            "AutoTecPro installation/technical page for the vehicle, year, factory system, "
+            "product code and branch clues in the user's inquiry. Return the chunk(s) from "
+            "the RELATED SECTION that answer the inquiry. A page can contain different SYNC, "
+            "OnStar, climate, radio, camera, screen or other branches; preserve those learned "
+            "branches and never collapse or infer a value. Prefer an exact installation-"
+            "instruction Technical page over product/catalog/general records.\n\nUSER REQUEST:\n"
+            + str(prompt_text or "").strip()
+        ),
+        "tools": [{"type": "file_search", "vector_store_ids": [store]}],
+    }
+    try:
+        rows = list(_website_request_vector_search_rows_v69047(request, max_results=30) or [])
+    except Exception as error:
+        diagnostic_log("technical_section_search_failed_v69142", error_type=type(error).__name__, error=str(error)[:500])
+        return {"status": "search_failed", "context": "", "rows": []}
+
+    candidates = []
+    for row in rows:
+        candidate = _technical_section_package_candidate_v69142(prompt_text, row)
+        if candidate:
+            candidates.append(candidate)
+    if not candidates:
+        return {"status": "no_exact_package", "context": "", "rows": []}
+    candidates.sort(key=lambda x: (float(x.get("score") or 0.0), str(x.get("extracted_at") or "")), reverse=True)
+
+    # If the inquiry does not identify a factory-system branch and two different
+    # exact installation pages remain similarly plausible with different system
+    # scopes, fail closed and ask for the distinguishing branch instead of guessing.
+    if not prompt_systems_v69142 and len(candidates) >= 2:
+        top_v69142 = candidates[0]
+        near_v69142 = [
+            item for item in candidates[:6]
+            if int(item.get("priority") or 0) == int(top_v69142.get("priority") or 0)
+            and float(top_v69142.get("score") or 0.0) - float(item.get("score") or 0.0) <= 90.0
+        ]
+        system_sets_v69142 = {
+            tuple(item.get("source_systems") or []) for item in near_v69142
+            if item.get("source_systems")
+        }
+        file_ids_v69142 = {str(item.get("file_id") or "") for item in near_v69142}
+        if len(file_ids_v69142) > 1 and len(system_sets_v69142) > 1:
+            choices_v69142 = []
+            for item in near_v69142[:4]:
+                choices_v69142.append(
+                    f"- {item.get('page_title') or item.get('source_url') or 'Learned Technical page'} "
+                    f"[systems: {', '.join(item.get('source_systems') or []) or 'not labeled'}]"
+                )
+            return {
+                "status": "ambiguous_branch",
+                "context": (
+                    "LEARNED TECHNICAL BRANCH AMBIGUITY (v69142)\n"
+                    "Multiple exact learned installation pages match this vehicle/year but represent "
+                    "different factory-system branches. Do NOT provide a Car Model/A-C/protocol value yet. "
+                    "Ask the user to identify the distinguishing factory system shown by the learned pages.\n"
+                    + "\n".join(choices_v69142)
+                ),
+                "rows": [],
+            }
+
+    winner = dict(candidates[0])
+    if int(winner.get("priority") or 0) < 2:
+        return {"status": "no_installation_authority", "context": "", "rows": []}
+
+    row = {
+        "file_id": str(winner.get("file_id") or ""),
+        "filename": str(winner.get("filename") or ""),
+        "score": 1.0,
+        # Keep the complete learned package for deterministic image recovery while
+        # the provider receives only the related literal section excerpt below.
+        "text": str(winner.get("package_text") or "")[:90000],
+        "technical_section_authority_v69142": True,
+    }
+    context = (
+        "TURN-LOCAL LEARNED SECTION AUTHORITY (v69142)\n"
+        "The application selected one exact learned Technical installation package and "
+        "the section(s) most related to this inquiry. Use ONLY the literal evidence below "
+        "for settings/instructions. Preserve every distinct branch the source shows (for "
+        "example different factory-system/climate/radio variants); do not merge branches, "
+        "guess a missing value, or substitute another vehicle/page. If the evidence shows "
+        "multiple possible branches and the customer's branch is not identified, present "
+        "the verified alternatives and state what characteristic must be checked.\n"
+        f"Source URL: {winner.get('source_url') or ''}\n"
+        f"Page title: {winner.get('page_title') or ''}\n"
+        f"File ID: {winner.get('file_id') or ''}\n\n"
+        "RELATED LEARNED SECTION EVIDENCE\n================================\n"
+        + str(winner.get("section_excerpt") or "")[:26000]
+    )
+    return {
+        "status": "recovered",
+        "context": context,
+        "rows": [row],
+        "file_id": str(winner.get("file_id") or ""),
+        "filename": str(winner.get("filename") or ""),
+        "source_url": str(winner.get("source_url") or ""),
+        "page_title": str(winner.get("page_title") or ""),
+        "section_excerpt": str(winner.get("section_excerpt") or ""),
+        "package_text": str(winner.get("package_text") or ""),
+        "selected_image_urls_v69143": list(winner.get("selected_image_urls_v69143") or []),
+        "selected_section_title_v69143": str(winner.get("selected_section_title_v69143") or ""),
+        "selected_branch_paths_v69143": list(winner.get("selected_branch_paths_v69143") or []),
+    }
+
+
 def _technical_same_family_variant_evidence_v69124(prompt_text):
     """Retrieve and bind one same-family source containing Manual + Automatic branches."""
     if not _technical_generic_ac_variant_request_v69124(prompt_text):
@@ -40407,6 +41040,21 @@ def _stream_one_ai_response(request):
                     retried_without_file_search_results_include_v69012 = True
                     continue
                 if not retried_without_file_search:
+                    # v69144 fail-closed Technical authority: a Technical factual
+                    # request may retry once without the optional results include,
+                    # but it must never degrade into a provider-only answer with the
+                    # file_search tool removed. Other workspaces retain the legacy
+                    # availability fallback.
+                    if str(assistant or "") == "🔧 Technical Support":
+                        diagnostic_log(
+                            "technical_file_search_fail_closed_v69144",
+                            workspace=str(assistant),
+                            error_type=type(error).__name__,
+                        )
+                        raise RuntimeError(
+                            "Technical knowledge retrieval is temporarily unavailable. "
+                            "Please retry the request; no unsupported fallback answer was published."
+                        ) from error
                     diagnostic_log(
                         "responses_bad_request_file_search_retry",
                         workspace=str(assistant),
@@ -50510,6 +51158,85 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
     }
 
 
+
+def _website_section_evidence_map_v69142(extraction, reviewed_content, image_analysis):
+    """Build a generic section/image evidence map without vehicle-specific rules.
+
+    The page body remains the factual authority.  This map only preserves section
+    boundaries already observed by the HTML parser / image ingestion pipeline so a
+    later inquiry can bind text and images from the same learned section.  It never
+    creates Car Model, A/C, SYNC, OnStar, protocol, camera, or other setting values.
+    """
+    content = clean_extracted_website_text(reviewed_content or "")
+    images = [dict(x) for x in ((image_analysis or {}).get("images") or []) if isinstance(x, dict)]
+    groups = {}
+    order = []
+    for item in images:
+        heading = re.sub(r"\s+", " ", str(item.get("nearest_heading") or "")).strip()
+        key = heading.casefold() or "__page_body__"
+        if key not in groups:
+            groups[key] = {
+                "heading": heading or "PAGE BODY",
+                "texts": [],
+                "images": [],
+            }
+            order.append(key)
+        for value in (
+            item.get("context_before_text_v69017"),
+            item.get("nearby_text"),
+            item.get("context_after_text_v69017"),
+            item.get("analysis"),
+        ):
+            cleaned = re.sub(r"\s+", " ", str(value or "")).strip()
+            if cleaned and cleaned not in groups[key]["texts"]:
+                groups[key]["texts"].append(cleaned[:3600])
+        url = str(item.get("url") or "").strip()
+        if url.startswith("https://") and url not in groups[key]["images"]:
+            groups[key]["images"].append(url)
+
+    # If no approved images survived, retain a bounded page-body section marker so
+    # future retrieval still knows this package is section-addressable.
+    if not order:
+        order = ["__page_body__"]
+        groups["__page_body__"] = {
+            "heading": "PAGE BODY",
+            "texts": [content[:6000]] if content else [],
+            "images": [],
+        }
+
+    records = []
+    for index, key in enumerate(order, start=1):
+        item = groups[key]
+        records.append({
+            "section_id": f"section-{index}",
+            "heading": item["heading"],
+            "evidence_text": " ".join(item["texts"])[:9000],
+            "image_urls": list(item["images"]),
+        })
+    return records
+
+
+def _website_section_map_lines_v69142(extraction, reviewed_content, image_analysis):
+    records = _website_section_evidence_map_v69142(
+        extraction, reviewed_content, image_analysis
+    )
+    lines = [
+        "WEBSITE SECTION EVIDENCE MAP V69142",
+        "===================================",
+        "This map preserves learned page sections and their approved images. Facts must still be copied from WEBPAGE TEXT / section evidence; never infer missing values.",
+        "",
+    ]
+    for record in records:
+        lines.extend([
+            f"SECTION_ID: {record.get('section_id') or ''}",
+            f"SECTION_HEADING_V69142: {record.get('heading') or ''}",
+            f"SECTION_EVIDENCE_TEXT_V69142: {record.get('evidence_text') or ''}",
+            "SECTION_IMAGE_URLS_V69142: " + " | ".join(record.get("image_urls") or []),
+            "",
+        ])
+    return lines
+
+
 def build_website_knowledge_package_document(
     extraction,
     database_choice,
@@ -50548,6 +51275,13 @@ def build_website_knowledge_package_document(
         content,
         "",
     ]
+
+    # v69142: durable generic section/image binding for Technical learning only.
+    # Sales/Marketing package content remains byte-for-byte on its prior path.
+    if str(database_choice or "") == "Technical Support Database":
+        lines.extend(_website_hierarchy_lines_v69143(extraction, image_analysis))
+        lines.extend(_website_section_map_lines_v69142(extraction, content, image_analysis))
+        lines.append("")
 
     if images:
         lines.extend([
@@ -50723,7 +51457,6 @@ def _website_image_scoped_issue_v69003(payload):
 
 
 @st.cache_data(ttl=300, max_entries=2, show_spinner=False)
-@st.cache_data(ttl=30, max_entries=2, show_spinner=False)
 def _website_image_index_schema_profile_v69129():
     """Detect the live durable-image storage shape without requiring a migration.
 
@@ -56047,6 +56780,424 @@ def _website_page_identity_v69024(source_url, title, content, page_type=""):
     payload["identity_sha256"] = hashlib.sha256(packed.encode("utf-8")).hexdigest()
     return payload
 
+
+# ============================================================
+# v69143 — Quick-Navigation + complete section/subtitle learner
+# ============================================================
+class _TechnicalHierarchyHTMLParserV69143(HTMLParser):
+    """Capture page structure without knowing any vehicle/system vocabulary.
+
+    Quick-Navigation fragment links are treated as the primary section map.  The
+    parser then preserves the literal text, headings/subtitles and image positions
+    inside each target range.  Meaningful headings not present in Quick Navigation
+    remain available as fallback sections.  No setting values are created here.
+    """
+    _SKIP = {"script", "style", "noscript", "svg", "canvas", "iframe", "header", "footer", "aside"}
+    _IMG_ATTRS = ("data-orig-file", "data-large-file", "data-full", "data-full-src", "data-src", "data-lazy-src", "data-original", "src")
+
+    def __init__(self, page_url=""):
+        super().__init__(convert_charrefs=True)
+        self.page_url = str(page_url or "")
+        self.skip_depth = 0
+        self.pos = 0
+        self.text_chunks = []
+        self.headings = []
+        self.id_positions = {}
+        self.fragment_links = []
+        self.images = []
+        self._heading = None
+        self._anchor = None
+
+    @staticmethod
+    def _clean(value):
+        return re.sub(r"\s+", " ", str(value or "")).strip()
+
+    def handle_starttag(self, tag, attrs):
+        tag = str(tag or "").casefold()
+        a = dict(attrs or [])
+        if tag in self._SKIP:
+            self.skip_depth += 1
+            return
+        if self.skip_depth:
+            return
+        # Advance an event position for every visible element so headings, text and
+        # images retain true DOM order even when images contain no text nodes.
+        self.pos += 1
+        node_id = self._clean(a.get("id"))
+        event_pos = self.pos + 0.1
+        if node_id and node_id not in self.id_positions:
+            self.id_positions[node_id] = event_pos
+        if tag in {"h1","h2","h3","h4","h5","h6"}:
+            self._heading = {"level": int(tag[1]), "id": node_id, "start": event_pos, "parts": []}
+        if tag == "a":
+            href = self._clean(a.get("href"))
+            self._anchor = {"href": href, "parts": [], "start": self.pos}
+        if tag == "img":
+            src = ""
+            for key in self._IMG_ATTRS:
+                if self._clean(a.get(key)):
+                    src = self._clean(a.get(key)); break
+            if src:
+                self.images.append({
+                    "pos": self.pos + 0.5,
+                    "src": urljoin(self.page_url, html.unescape(src)),
+                    "alt": self._clean(a.get("alt")),
+                    "title": self._clean(a.get("title")),
+                })
+
+    def handle_endtag(self, tag):
+        tag = str(tag or "").casefold()
+        if tag in self._SKIP:
+            if self.skip_depth:
+                self.skip_depth -= 1
+            return
+        if self.skip_depth:
+            return
+        if tag in {"h1","h2","h3","h4","h5","h6"} and self._heading:
+            h=dict(self._heading); h["text"] = self._clean(" ".join(h.pop("parts", []))); h["end"] = self.pos
+            if h["text"]:
+                self.headings.append(h)
+                if h.get("id") and h["id"] not in self.id_positions:
+                    self.id_positions[h["id"]] = h["start"]
+            self._heading=None
+        if tag == "a" and self._anchor:
+            a=dict(self._anchor); a["text"] = self._clean(" ".join(a.pop("parts", [])))
+            href=str(a.get("href") or "").strip()
+            target_id=""
+            if href.startswith("#") and len(href) > 1:
+                target_id=unquote(href[1:]).strip()
+            elif href and a["text"]:
+                # v69144: Quick Navigation menus sometimes use a full absolute
+                # URL (or a same-page relative URL) plus #fragment. Treat it as
+                # navigation only when it resolves to the current page.
+                try:
+                    resolved=urljoin(self.page_url, href)
+                    current=urlparse(self.page_url)
+                    parsed=urlparse(resolved)
+                    same_host=(parsed.netloc or "").casefold()==(current.netloc or "").casefold()
+                    current_path=(current.path or "/").rstrip("/") or "/"
+                    parsed_path=(parsed.path or "/").rstrip("/") or "/"
+                    if same_host and current_path==parsed_path and parsed.fragment:
+                        target_id=unquote(parsed.fragment).strip()
+                except Exception:
+                    target_id=""
+            if target_id and a["text"]:
+                a["target_id"] = target_id
+                self.fragment_links.append(a)
+            self._anchor=None
+
+    def handle_data(self, data):
+        if self.skip_depth:
+            return
+        value=self._clean(data)
+        if not value:
+            return
+        self.pos += 1
+        self.text_chunks.append({"pos": self.pos, "text": value})
+        if self._heading is not None:
+            self._heading["parts"].append(value)
+        if self._anchor is not None:
+            self._anchor["parts"].append(value)
+
+
+def _website_technical_hierarchy_v69143(page_html, page_url):
+    """Return deterministic Page -> Section -> Subtitle/Branch structure."""
+    parser=_TechnicalHierarchyHTMLParserV69143(page_url)
+    try:
+        parser.feed(str(page_html or "")); parser.close()
+    except Exception:
+        return {"version": 69143, "sections": [], "navigation_count": 0}
+
+    nav=[]; seen=set()
+    for link in parser.fragment_links:
+        target=str(link.get("target_id") or "").strip()
+        if not target or target not in parser.id_positions or target in seen:
+            continue
+        seen.add(target)
+        nav.append({"title": link.get("text") or target, "target_id": target, "start": parser.id_positions[target]})
+    nav.sort(key=lambda x: x["start"])
+
+    # Fallback when a page has no usable fragment menu: use significant headings.
+    if not nav:
+        hs=[h for h in parser.headings if int(h.get("level") or 9) <= 4]
+        if hs:
+            base=min(int(h.get("level") or 9) for h in hs)
+            for h in hs:
+                if int(h.get("level") or 9) == base:
+                    nav.append({"title": h.get("text") or "Section", "target_id": h.get("id") or "", "start": h.get("start") or 0})
+    else:
+        # v69144: a page can have a partial Quick Navigation menu. Preserve the
+        # menu as primary authority, but add peer-level significant headings that
+        # the author forgot to list instead of absorbing them into a neighboring
+        # navigation section. Nested subtitles remain branch segments, not top-level
+        # sections.
+        nav_positions={int(item.get("start") or 0) for item in nav}
+        target_levels=[]
+        for item in nav:
+            istart=int(item.get("start") or 0)
+            nearby=[
+                h for h in parser.headings
+                if 0 <= int(h.get("start") or 0)-istart <= 4
+            ]
+            if nearby:
+                nearby.sort(key=lambda h:(int(h.get("start") or 0)-istart,int(h.get("level") or 9)))
+                target_levels.append(int(nearby[0].get("level") or 9))
+        peer_level=min(target_levels) if target_levels else None
+        if peer_level is not None and peer_level <= 4:
+            for h in parser.headings:
+                hstart=int(h.get("start") or 0)
+                if int(h.get("level") or 9)==peer_level and hstart not in nav_positions:
+                    nav.append({
+                        "title": h.get("text") or "Section",
+                        "target_id": h.get("id") or "",
+                        "start": h.get("start") or 0,
+                        "supplemental_heading_v69144": True,
+                    })
+            nav.sort(key=lambda x: x["start"])
+    # De-duplicate same-position menu aliases.
+    compact=[]; seen_pos=set()
+    for item in nav:
+        key=(int(item.get("start") or 0), str(item.get("title") or "").casefold())
+        if key in seen_pos: continue
+        seen_pos.add(key); compact.append(item)
+    nav=compact[:80]
+
+    end_of_page=max([parser.pos+1]+[int(x.get("pos") or 0)+1 for x in parser.images])
+    sections=[]
+    for idx,item in enumerate(nav):
+        start=int(item.get("start") or 0)
+        end=int(nav[idx+1].get("start") or end_of_page) if idx+1 < len(nav) else end_of_page
+        if end <= start: continue
+        headings=[h for h in parser.headings if start <= int(h.get("start") or 0) < end]
+        chunks=[x for x in parser.text_chunks if start <= int(x.get("pos") or 0) < end]
+        imgs=[x for x in parser.images if start <= float(x.get("pos") or 0) < end]
+
+        # Build consecutive heading segments with a hierarchical heading path.
+        segments=[]; stack=[]
+        ordered=sorted(headings, key=lambda h:int(h.get("start") or 0))
+        if not ordered:
+            text=" ".join(x["text"] for x in chunks)[:18000]
+            segments=[{"path": [str(item.get("title") or "Section")], "heading": str(item.get("title") or "Section"), "level": 0, "text": text, "images": imgs}]
+        else:
+            for hidx,h in enumerate(ordered):
+                level=int(h.get("level") or 6); title=str(h.get("text") or "").strip()
+                while stack and int(stack[-1][0]) >= level:
+                    stack.pop()
+                stack.append((level,title))
+                seg_start=int(h.get("start") or start)
+                seg_end=int(ordered[hidx+1].get("start") or end) if hidx+1 < len(ordered) else end
+                seg_chunks=[x for x in chunks if seg_start <= int(x.get("pos") or 0) < seg_end]
+                seg_imgs=[x for x in imgs if seg_start <= float(x.get("pos") or 0) < seg_end]
+                seg_text=" ".join(x["text"] for x in seg_chunks)[:14000]
+                segments.append({"path":[p[1] for p in stack if p[1]], "heading":title, "level":level, "text":seg_text, "images":seg_imgs})
+            # Preserve literal content between nav target and first heading.
+            first=int(ordered[0].get("start") or start)
+            pre=" ".join(x["text"] for x in chunks if start <= int(x.get("pos") or 0) < first).strip()
+            if pre:
+                segments.insert(0,{"path":[str(item.get("title") or "Section")],"heading":str(item.get("title") or "Section"),"level":0,"text":pre[:12000],"images":[x for x in imgs if start <= float(x.get("pos") or 0) < first]})
+        section_text=" ".join(x["text"] for x in chunks)[:30000]
+        sections.append({
+            "section_id": f"nav-{idx+1}", "title": str(item.get("title") or "Section"),
+            "target_id": str(item.get("target_id") or ""), "text": section_text,
+            "segments": segments[:120],
+        })
+    return {"version":69143,"navigation_count":len(nav),"sections":sections[:80]}
+
+
+def _website_hierarchy_with_approved_images_v69143(extraction, image_analysis):
+    """Replace raw DOM images with QA-approved learned image URLs, preserving order."""
+    base=dict(extraction.get("technical_hierarchy_v69143") or {})
+    sections=[dict(x) for x in (base.get("sections") or []) if isinstance(x,dict)]
+    approved=[dict(x) for x in ((image_analysis or {}).get("images") or []) if isinstance(x,dict)]
+    by_identity={}
+    for item in approved:
+        url=str(item.get("url") or "").strip()
+        if not url: continue
+        try: key=_website_asset_identity_v68999(url)
+        except Exception: key=("","","")
+        if key and any(key): by_identity.setdefault(key,[]).append(item)
+    used=set()
+    for section in sections:
+        segs=[]
+        for seg0 in (section.get("segments") or []):
+            seg=dict(seg0); ordered=[]
+            for raw in (seg.get("images") or []):
+                src=str((raw or {}).get("src") or "").strip() if isinstance(raw,dict) else ""
+                try: key=_website_asset_identity_v68999(src)
+                except Exception: key=("","","")
+                for item in by_identity.get(key,[]):
+                    u=str(item.get("url") or "").strip()
+                    if u and u not in ordered:
+                        ordered.append(u); used.add(u)
+            seg["images"]=ordered
+            segs.append(seg)
+        section["segments"]=segs
+    # Context fallback for approved images whose DOM variant was not directly mapped.
+    for item in approved:
+        url=str(item.get("url") or "").strip()
+        if not url or url in used: continue
+        heading=re.sub(r"\s+"," ",str(item.get("nearest_heading") or "")).strip().casefold()
+        if not heading: continue
+        best=None; best_score=0
+        ht=set(re.findall(r"[a-z0-9]+",heading))
+        for si,section in enumerate(sections):
+            for gi,seg in enumerate(section.get("segments") or []):
+                label=" ".join(seg.get("path") or []) + " " + str(seg.get("heading") or "")
+                lt=set(re.findall(r"[a-z0-9]+",label.casefold()))
+                score=len(ht & lt)
+                if score>best_score: best_score=score; best=(si,gi)
+        if best and best_score:
+            arr=sections[best[0]]["segments"][best[1]].setdefault("images",[])
+            if url not in arr: arr.append(url); used.add(url)
+    base["sections"]=sections
+    return base
+
+
+def _website_hierarchy_lines_v69143(extraction, image_analysis):
+    hierarchy=_website_hierarchy_with_approved_images_v69143(extraction,image_analysis)
+    packed=json.dumps(hierarchy,ensure_ascii=False,separators=(",",":"))
+    return [
+        "WEBSITE HIERARCHY MAP V69143", "============================", 
+        "Quick Navigation is the primary section map. Each section below preserves the full learned content, subtitles/branches, and QA-approved images in DOM order. Values are literal learned evidence only.",
+        "HIERARCHY_JSON_V69143: " + packed, ""
+    ]
+
+
+def _technical_package_hierarchy_v69143(package_text):
+    m=re.search(r"(?m)^HIERARCHY_JSON_V69143:\s*(\{.*\})\s*$",str(package_text or ""))
+    if not m: return {}
+    try:
+        value=json.loads(m.group(1)); return dict(value) if isinstance(value,dict) else {}
+    except Exception: return {}
+
+
+def _technical_hierarchy_tokens_v69143(value):
+    """Structural tokens with numeric discriminator preservation (v69144).
+
+    Single-character *numeric* labels are authoritative page structure: SYNC 1,
+    SYNC 2, SYNC 3, camera 1/2, option A/B variants expressed numerically, etc.
+    Single-letter noise remains excluded.
+    """
+    raw=re.findall(r"[a-z0-9][a-z0-9+./_-]{0,30}",str(value or "").casefold())
+    stop={"what","whats","what's","which","where","when","how","the","this","that","for","with","from","into","show","tell","need","please","about","my","your","is","are","do","does","can","could","would","to","of","and","or","photo","photos","picture","pictures","image","images"}
+    output=set()
+    for raw_token in raw:
+        token=raw_token.strip("._/-")
+        if not token or token in stop:
+            continue
+        if len(token)>=2 or token.isdigit():
+            output.add(token)
+    # Preserve single-character branch labels only when explicitly attached to
+    # a structural discriminator. This distinguishes Type A/Type B, Option A/B,
+    # SYNC 1/2/3, etc. without treating ordinary article "a" as branch evidence.
+    structural=re.sub(r"\s+"," ",str(value or "").casefold())
+    for prefix, discriminator in re.findall(
+        r"\b(sync|type|option|version|ver|gen|generation|onstar|radio|screen|camera|climate)\s*[-:#]?\s*([a-z0-9])\b",
+        structural,
+    ):
+        output.add(f"{prefix}:{discriminator}")
+    return output
+
+
+def _technical_hierarchy_excerpt_v69143(package_text, prompt_text):
+    """Select a learned section/branch by literal semantic overlap, never by coded values."""
+    hierarchy=_technical_package_hierarchy_v69143(package_text)
+    sections=[x for x in (hierarchy.get("sections") or []) if isinstance(x,dict)]
+    if not sections: return {"excerpt":"","image_urls":[],"section_title":"","branch_paths":[]}
+    q=_technical_hierarchy_tokens_v69143(prompt_text)
+    scored=[]
+    for section in sections:
+        title=str(section.get("title") or "")
+        st=_technical_hierarchy_tokens_v69143(title)
+        body=_technical_hierarchy_tokens_v69143(str(section.get("text") or "")[:18000])
+        score=18*len(q&st)+2*len(q&body)
+        scored.append((score,section))
+    scored.sort(key=lambda x:x[0],reverse=True)
+    best_score,best=scored[0]
+    if best_score <= 0: return {"excerpt":"","image_urls":[],"section_title":"","branch_paths":[]}
+    segments=[x for x in (best.get("segments") or []) if isinstance(x,dict)]
+    branch_scores=[]
+    for seg in segments:
+        label=" > ".join(str(x) for x in (seg.get("path") or []) if str(x).strip())
+        lt=_technical_hierarchy_tokens_v69143(label)
+        bt=_technical_hierarchy_tokens_v69143(str(seg.get("text") or "")[:12000])
+        heading_overlap=len(q&lt)
+        score=22*heading_overlap+2*len(q&bt)
+        branch_scores.append((score,heading_overlap,seg,label))
+    max_heading=max([x[1] for x in branch_scores] or [0])
+    if max_heading>0:
+        chosen=[x for x in branch_scores if x[1]==max_heading and x[0]>0]
+        chosen=sorted(chosen,key=lambda x:x[0],reverse=True)[:12]
+    else:
+        # Inquiry identifies the section but not a branch: preserve all branches.
+        chosen=branch_scores[:40]
+    lines=[f"NAVIGATION_SECTION_V69143: {best.get('title') or ''}"]
+    images=[]; paths=[]
+    for _,_,seg,label in chosen:
+        path=label or str(seg.get("heading") or best.get("title") or "")
+        paths.append(path)
+        lines.append(f"SUBTITLE_BRANCH_V69143: {path}")
+        txt=re.sub(r"\s+"," ",str(seg.get("text") or "")).strip()
+        if txt: lines.append("SECTION_CONTENT_V69143: "+txt[:14000])
+        urls=[str(u).strip() for u in (seg.get("images") or []) if str(u).strip().startswith("https://")]
+        if urls:
+            lines.append("SECTION_IMAGES_V69143: " + " | ".join(urls))
+            for u in urls:
+                if u not in images: images.append(u)
+        lines.append("")
+    return {"excerpt":"\n".join(lines)[:30000],"image_urls":images,"section_title":str(best.get("title") or ""),"branch_paths":paths}
+
+
+def _technical_section_bound_chat_images_v69143(section_evidence, max_images=40):
+    """Publish all QA-approved images bound to the selected learned subtitle/section."""
+    if not isinstance(section_evidence,dict): return []
+    urls=[str(u).strip() for u in (section_evidence.get("selected_image_urls_v69143") or []) if str(u).strip().startswith("https://")]
+    if not urls: return []
+    source_url=str(section_evidence.get("source_url") or "").strip()
+    try: source_id=canonical_website_url_identity(source_url) if source_url else ""
+    except Exception: source_id=""
+    durable=[]
+    try:
+        durable=[dict(x) for x in (_website_image_index_rows_v68883() or []) if isinstance(x,dict) and str(x.get("database_choice") or "")=="Technical Support Database"]
+    except Exception: durable=[]
+    by_url={str(x.get("image_url") or "").strip():x for x in durable}
+    out=[]; seen=set()
+    for url in urls:
+        payload=by_url.get(url)
+        if payload:
+            try:
+                psource=str(payload.get("source_page") or "").strip(); pid=canonical_website_url_identity(psource) if psource else ""
+            except Exception: pid=""
+            if source_id and pid and pid!=source_id: continue
+            try: rec=_website_image_record_for_chat_v68883(payload)
+            except Exception: rec=None
+        else: rec=None
+        # v69144 fail closed: hierarchy URLs are learned structural hints, but final
+        # publication requires the durable, QA-approved Technical image index row.
+        # Never resurrect an unindexed remote image solely because its URL appears
+        # in hierarchy JSON.
+        if not rec:
+            diagnostic_log(
+                "technical_section_image_missing_durable_index_v69144",
+                image_url=url[:700],
+                source_url=source_url[:700],
+            )
+            continue
+        key=str(rec.get("archive_web_url") or rec.get("data_url") or "").strip()
+        if not key or key in seen: continue
+        seen.add(key)
+        rec["website_section_bound_v69143"]=True
+        rec["website_section_bound_v69144"]=True
+        rec["technical_authority_file_id_v69144"]=str(section_evidence.get("file_id") or "")
+        rec["technical_authority_source_url_v69144"]=source_url
+        rec["technical_authority_page_title_v69144"]=str(section_evidence.get("page_title") or "")
+        rec["technical_authority_section_title_v69144"]=str(section_evidence.get("selected_section_title_v69143") or "")
+        rec["technical_authority_branch_paths_v69144"]=list(section_evidence.get("selected_branch_paths_v69143") or [])
+        rec["technical_authority_version_v69144"]=69144
+        out.append(rec)
+        if len(out)>=max(1,int(max_images or 40)): break
+    return out
+
 def extract_public_webpage(url, page_password=""):
     """Download and extract readable knowledge from one public webpage.
 
@@ -56211,6 +57362,10 @@ def extract_public_webpage(url, page_password=""):
         page_identity_v69024 = _website_page_identity_v69024(
             final_url, page_title, cleaned_text, page_type_v69024
         )
+        technical_hierarchy_v69143 = (
+            _website_technical_hierarchy_v69143(page_text, final_url)
+            if page_type_v69024 == "technical_article" else {}
+        )
 
         return {
             "requested_url": requested_url,
@@ -56230,6 +57385,7 @@ def extract_public_webpage(url, page_password=""):
             "excluded_zone_count_v69024": int(getattr(parser, "excluded_zone_nodes_v69024", 0) if parser is not None else 0),
             "excluded_image_count_v69024": int(getattr(parser, "excluded_image_nodes_v69024", 0) if parser is not None else 0),
             "password_protected_access": bool(clean_page_password),
+            "technical_hierarchy_v69143": technical_hierarchy_v69143,
         }
 
 
@@ -56292,6 +57448,7 @@ def _website_knowledge_version_hash_v68892(
         "page_type_v69024": str(extraction.get("page_type_v69024") or "").strip(),
         "page_identity_v69024": dict(extraction.get("page_identity_v69024") or {}),
         "ingestion_authority_version_v69024": WEBSITE_INGESTION_AUTHORITY_VERSION_V69024,
+        "technical_hierarchy_v69143": dict(extraction.get("technical_hierarchy_v69143") or {}),
         "images": stable_images,
     }
     packed = json.dumps(
@@ -68697,6 +69854,7 @@ else:
                 }
                 if (
                     assistant == "🔧 Technical Support"
+                    and False  # v69145: exact learned section first; sibling search is fallback only
                     and bool(use_file_search)
                     and _technical_generic_ac_variant_request_v69124(
                         technical_request_prompt_v68879
@@ -68758,6 +69916,136 @@ else:
                                 ) or ""
                             )[:120],
                         )
+
+                # v69142: generic learned-section authority for every Technical
+                # knowledge inquiry.  This runs after the v69125 A/C sibling search so
+                # the reference contract can still complete, then prevents a broad main
+                # file_search from replacing the exact page/section evidence.
+                technical_section_evidence_v69142 = {
+                    "status": "not_applicable", "context": "", "rows": []
+                }
+                if (
+                    assistant == "🔧 Technical Support"
+                    and bool(execution_plan.get("use_file_search"))
+                    and str(technical_request_prompt_v68879 or "").strip()
+                ):
+                    try:
+                        technical_section_evidence_v69142 = _technical_generic_section_evidence_v69142(
+                            technical_request_prompt_v68879
+                        )
+                    except Exception as error_v69142:
+                        diagnostic_log(
+                            "technical_section_authority_failed_v69142",
+                            error_type=type(error_v69142).__name__,
+                            error=str(error_v69142)[:500],
+                        )
+                        technical_section_evidence_v69142 = {
+                            "status": "failed", "context": "", "rows": []
+                        }
+
+                    section_status_v69142 = str(technical_section_evidence_v69142.get("status") or "")
+                    if section_status_v69142 in {"recovered", "recovered_followup"}:
+                        section_context_v69142 = str(
+                            technical_section_evidence_v69142.get("context") or ""
+                        ).strip()
+                        if section_context_v69142:
+                            ai_request_prompt += "\n\n" + section_context_v69142
+                        section_rows_v69142 = [
+                            dict(row) for row in (
+                                technical_section_evidence_v69142.get("rows") or []
+                            ) if isinstance(row, dict)
+                        ]
+                        if section_rows_v69142:
+                            st.session_state["_technical_file_search_results_v69012"] = section_rows_v69142[:12]
+                            st.session_state["_workspace_file_search_results_v69040"] = section_rows_v69142[:12]
+
+                        # If the exact learned package itself proves the v69125 Manual
+                        # + Automatic contract, repair an incomplete branch search from
+                        # the same literal evidence. Values are extracted, never coded.
+                        if _technical_generic_ac_variant_request_v69124(
+                            technical_request_prompt_v68879
+                        ) and not bool(technical_variant_evidence_v69124.get("contract_complete")):
+                            package_text_v69142 = str(
+                                technical_section_evidence_v69142.get("package_text") or ""
+                            )
+                            manual_v69142 = _technical_extract_ac_variant_value_v69125(
+                                package_text_v69142, "manual"
+                            )
+                            automatic_v69142 = _technical_extract_ac_variant_value_v69125(
+                                package_text_v69142, "automatic"
+                            )
+                            if manual_v69142 and automatic_v69142:
+                                technical_variant_evidence_v69124 = {
+                                    "context": section_context_v69142,
+                                    "rows": section_rows_v69142,
+                                    "status": "recovered",
+                                    "contract_complete": True,
+                                    "manual_value": manual_v69142,
+                                    "automatic_value": automatic_v69142,
+                                    "contract_file_id": str(technical_section_evidence_v69142.get("file_id") or ""),
+                                    "contract_source_url": str(technical_section_evidence_v69142.get("source_url") or ""),
+                                }
+                            else:
+                                # v69145 performance-safe fallback: only after exact page/section
+                                # resolution, and accept sibling evidence only when it proves the
+                                # SAME exact learned file/source.
+                                try:
+                                    fallback_v69145=_technical_same_family_variant_evidence_v69124(
+                                        technical_request_prompt_v68879
+                                    )
+                                except Exception as error_v69145:
+                                    diagnostic_log("technical_variant_fallback_failed_v69145", error_type=type(error_v69145).__name__, error=str(error_v69145)[:500])
+                                    fallback_v69145={}
+                                exact_file_v69145=str(technical_section_evidence_v69142.get("file_id") or "").strip()
+                                exact_source_v69145=str(technical_section_evidence_v69142.get("source_url") or "").strip()
+                                fallback_file_v69145=str(fallback_v69145.get("contract_file_id") or "").strip()
+                                fallback_source_v69145=str(fallback_v69145.get("contract_source_url") or "").strip()
+                                same_file_v69145=bool(exact_file_v69145 and fallback_file_v69145 and exact_file_v69145==fallback_file_v69145)
+                                same_source_v69145=bool(exact_source_v69145 and fallback_source_v69145 and canonical_website_url_identity(exact_source_v69145)==canonical_website_url_identity(fallback_source_v69145))
+                                if bool(fallback_v69145.get("contract_complete")) and (same_file_v69145 or same_source_v69145):
+                                    technical_variant_evidence_v69124=fallback_v69145
+
+                        st.session_state["_technical_last_section_authority_v69142"] = {
+                            "file_id": str(technical_section_evidence_v69142.get("file_id") or ""),
+                            "filename": str(technical_section_evidence_v69142.get("filename") or ""),
+                            "source_url": str(technical_section_evidence_v69142.get("source_url") or ""),
+                            "page_title": str(technical_section_evidence_v69142.get("page_title") or ""),
+                            "package_text": str(technical_section_evidence_v69142.get("package_text") or ""),
+                            "rows": section_rows_v69142[:12],
+                            "selected_image_urls_v69143": list(technical_section_evidence_v69142.get("selected_image_urls_v69143") or []),
+                            "selected_section_title_v69143": str(technical_section_evidence_v69142.get("selected_section_title_v69143") or ""),
+                            "selected_branch_paths_v69143": list(technical_section_evidence_v69142.get("selected_branch_paths_v69143") or []),
+                            "section_excerpt": str(technical_section_evidence_v69142.get("section_excerpt") or "")[:26000],
+                        }
+                        use_file_search = False
+                        diagnostic_log(
+                            "technical_section_authority_bound_v69142",
+                            file_id=str(technical_section_evidence_v69142.get("file_id") or "")[:120],
+                            source_url=str(technical_section_evidence_v69142.get("source_url") or "")[:500],
+                        )
+                    elif section_status_v69142 in {"ambiguous_branch", "authority_unavailable_v69144"}:
+                        ambiguity_context_v69142 = str(
+                            technical_section_evidence_v69142.get("context") or ""
+                        ).strip()
+                        if ambiguity_context_v69142:
+                            ai_request_prompt += "\n\n" + ambiguity_context_v69142
+                        use_file_search = False
+                    elif (
+                        section_status_v69142 in {"search_failed", "no_exact_package", "no_installation_authority"}
+                        and _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
+                    ):
+                        # v69145: exact installation/configuration authority is mandatory.
+                        # Never substitute a broader vector-store record after exact source
+                        # resolution failed. The provider may format a safe verification
+                        # response, but it receives no authority to invent a factual value.
+                        use_file_search = False
+                        ai_request_prompt += (
+                            "\n\nEXACT TECHNICAL SOURCE AUTHORITY FAILURE (v69145)\n"
+                            "The exact learned installation/configuration source could not be safely resolved. "
+                            "Do NOT provide, infer, or guess any Car Model, A/C, protocol, SYNC, OnStar, camera, radio, or related setting value. "
+                            "Say that the exact learned source/branch must be verified or relearned before giving the setting."
+                        )
+                        diagnostic_log("technical_exact_source_fail_closed_v69145", status=section_status_v69142)
 
                 try:
                     diagnostic_log(
@@ -69423,6 +70711,31 @@ else:
                 )
             )
 
+        # v69143: exact learned section/subtitle image authority. This runs after
+        # the legacy active-package filter so a stale package cannot erase or replace
+        # images that were explicitly learned underneath the selected subtitle. It
+        # changes no answer formatting or renderer; it only replaces website images
+        # with the QA-approved images bound to the resolved learned section/branch.
+        if assistant == "🔧 Technical Support":
+            try:
+                section_state_v69143 = locals().get("technical_section_evidence_v69142") or {}
+                section_status_v69145=str(section_state_v69143.get("status") or "")
+                section_images_v69143 = _technical_section_bound_chat_images_v69143(section_state_v69143)
+                if section_status_v69145 in {"recovered", "recovered_followup"}:
+                    # v69145 final image provenance lock: once exact section authority
+                    # exists, every earlier generic/legacy website image is removed.
+                    # Zero durable exact-section images means zero website images.
+                    generated_images = [
+                        image for image in (generated_images or [])
+                        if not (isinstance(image, dict) and str(image.get("source") or "") == "website_knowledge")
+                    ]
+                    if section_images_v69143:
+                        generated_images += section_images_v69143
+                    generated_images = _dedupe_website_chat_images_v68883(generated_images)
+                    diagnostic_log("technical_section_bound_images_final_v69145", published=len(section_images_v69143), section=str(section_state_v69143.get("selected_section_title_v69143") or "")[:300])
+            except Exception as error_v69143:
+                diagnostic_log("technical_section_bound_images_failed_v69143", error_type=type(error_v69143).__name__, error=str(error_v69143)[:500])
+
         # v69107A: one final fail-closed publication authority after every late
         # Technical / Sales / Marketing image recovery stage.  This does not
         # change retrieval, ranking, ingestion, link saving, or Graphic behavior;
@@ -69495,8 +70808,14 @@ else:
             }:
                 _technical_clear_photo_context_v68879()
 
+        technical_authority_marker_v69144 = ""
+        if assistant == "🔧 Technical Support":
+            technical_authority_marker_v69144 = serialize_technical_authority_marker_v69144(
+                st.session_state.get("_technical_last_section_authority_v69142") or {}
+            )
         assistant_content_to_save = (
             answer
+            + technical_authority_marker_v69144
             + serialize_documents_marker(generated_documents)
             + serialize_images_marker(assistant_images_to_save)
         )
