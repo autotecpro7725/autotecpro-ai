@@ -1,5 +1,5 @@
-# AutoTecPro AI v69138 — FINAL PRODUCTION: v69125 Technical settings output contract restored on top of v69137 durability baseline; v69127/v69128 generic multi-option presentation no longer overrides v69125 settings output. Graphic/Reference/After Install and durable image persistence unchanged.
 # AutoTecPro AI v69137 — FINAL PRODUCTION: exact v69128 Technical retrieval/display baseline restored and locked; only v69131 durable image schema compatibility/read-back and failure accounting added. No v69132+ active-package prompt/source overrides imported.
+V69139_EXACT_V69125_TECH_OUTPUT_ON_V69137_DURABILITY = True
 # AutoTecPro AI v69128 — FINAL PRODUCTION: generic dynamic multi-option Technical settings rows across Ford/GM/future sources; v69126 first-turn image publication and all protected pipelines preserved
 # AutoTecPro AI v69127 — FINAL PRODUCTION: dynamic multi-option settings rows + preserved first-turn Technical images; all v69126/v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
 # AutoTecPro AI v69126 — FINAL PRODUCTION: split verified A/C options into separate rows + first-turn Technical image recovery from exact answer evidence; all v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
@@ -37015,22 +37015,28 @@ TECHNICAL CAR MODEL / PROTOCOL / A-C SETTINGS PRESENTATION:
   factual block MUST be a compact Markdown table with exactly these columns:
   | Setting Field | Select |
 - Include every value supported by the active newest Technical evidence. Use
-  these rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
-  Series or Screen Size only when those values are necessary to distinguish
-  the correct configuration.
-- Put one setting in each row. Keep the Select value concise and preserve the
-  exact capitalization, punctuation, spelling, and menu wording found in the
-  evidence.
+  these base rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
+  Series, Screen Size, factory-system type, SYNC type, camera type, or another
+  verified selector only when the source shows it is needed for the configuration.
+- Put ONE DISTINCT VERIFIED OPTION in each row. If one base setting has multiple
+  labeled choices in the same authoritative source, expand them as separate rows
+  using `Base Setting Field - Exact Option Label` in the first column and the exact
+  corresponding Select value in the second column. The number of option rows is
+  dynamic; never assume only Manual/Automatic or any fixed option count.
+- Keep each Select value concise and preserve the exact capitalization,
+  punctuation, spelling, and menu wording found in the evidence.
 - Never invent a value, fill an unknown cell with a guess, or copy a conflicting
   value from superseded evidence. Omit an unsupported optional row. If a
   required setting is not confirmed, put **Requires Verification** in that row
   and explain what must be checked after the table.
-- When the original climate panel changes the correct A/C selection, list ALL
-  verified Manual and Automatic choices from the SAME configuration family in
-  the first table and explain how to choose between them immediately after it.
-  Keep the base Car Model separate from the climate selector; do not turn a
-  climate label into a different Car Model unless the same Technical source
-  explicitly identifies it as the Car Model.
+- When any original vehicle feature changes a menu selection (for example
+  climate panel, factory system/SYNC generation, screen size, camera package, or
+  another source-labeled variant), list ALL verified choices from the SAME
+  configuration family as separate rows in the first table. Explain how to choose
+  among them immediately after the table when the source provides the distinction.
+  Keep the base Car Model separate from secondary selectors; do not turn an option
+  label into a different Car Model unless the same Technical source explicitly
+  identifies it as the Car Model.
 - Follow the table with a short ## Menu Path numbered list when verified setup
   steps are available. Add ## Important Note only for a material warning,
   ambiguity, or fitment distinction.
@@ -39496,13 +39502,11 @@ def _technical_variant_retrieval_instruction_v69106(prompt_text):
     else:
         lines += [
             "- Climate type is not uniquely specified. Before answering, retrieve/reconcile BOTH verified Manual and Automatic climate branches for this exact configuration family when both exist in Technical knowledge.",
-            "- If one verified settings field contains multiple distinct options in the same Technical source (for example Manual/Automatic climate, SYNC variants, screen variants, or other labeled choices), display ONE TABLE ROW PER VERIFIED OPTION using the pattern `Base Setting Field - Option Label | Select Value`. Do not collapse several verified options into one long Select cell.",
-            "- In the first settings table, keep one base Car Model row unless the same authoritative source explicitly provides distinct Car Model selections for different option labels. Do not answer with only whichever climate-specific or option-specific chunk ranked first if the same source contains multiple verified branches.",
+            "- In the first settings table, keep one base Car Model row. Show both verified climate choices together in A/C Type (or separate Manual A/C and Automatic A/C rows when clearer). Do not answer with only whichever climate-specific chunk ranked first if the same source contains both branches.",
         ]
     lines += [
-        "- For any other multi-option setting found in the same source, return every verified option as a separate first-table row using its exact source label and exact Select value. Do not cap the number of rows and do not invent missing options.",
-        "- If the same authoritative source does not support a requested variant, say which option is confirmed and which requires verification; never manufacture a missing counterpart.",
-        "- These rules change retrieval/continuity and table presentation only. Existing v69050/v69126 image publication, vehicle/year/product/topic gates, Sales/Marketing routing, Graphic pipeline, security, and persistence remain unchanged.",
+        "- If the same authoritative source does not support both variants, say which variant is confirmed and which requires verification; never manufacture the missing counterpart.",
+        "- These rules change retrieval/continuity only. Existing v69050 image publication, vehicle/year/product/topic gates, Sales/Marketing routing, Graphic pipeline, security, and persistence remain unchanged.",
     ]
     return "\n".join(lines)
 
@@ -68713,10 +68717,11 @@ else:
                                 answer_body,
                                 technical_variant_evidence_v69124,
                             )
-                            diagnostic_log(
-                                "technical_v69125_output_contract_applied_v69138",
-                                contract_complete=True,
-                            )
+                        # v69139: exact v69125 Technical-output authority restored.
+                        # Do not run the later v69126/v69127 generic row split/expansion
+                        # after the v69125 contract.  v69137 durability/persistence and
+                        # image publication remain intact; only presentation authority
+                        # returns to the verified v69125 behavior.
 
                     answer = answer_body
                     if order_display_text:
