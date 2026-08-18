@@ -1,13 +1,3 @@
-# AutoTecPro AI v69165 FINAL RELEASE — Technical exact-duplicate structural migration + locked-package direct authority.
-# AutoTecPro AI v69164 FINAL RELEASE — current-source family/year lock; stale semantic authority blocked; v69050/v69125 fallback preserved.
-# AutoTecPro AI v69163 FINAL RELEASE — v69050/v69125 baseline first; all newer Technical authority additive only.\n# AutoTecPro AI v69159 FINAL RELEASE — Graphic durable-job UUID runtime dependency repair; v69158 Technical fixes preserved.
-# AutoTecPro AI v69150 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
-# AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
-V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
-# AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
-V69144_RUNTIME_AUTHORITY_LOCK = True
-# AutoTecPro AI v69143 — FINAL PRODUCTION: Quick-Navigation + full-section/subtitle/image learning; v69142 output format and v69125 behavior preserved.
-V69143_QUICK_NAV_SECTION_CONTENT_IMAGE_LEARNING = True
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -57353,6 +57343,51 @@ def save_website_knowledge_package(
     cleanup_pending_v69109 = False
     factual_supersession_completed_v69109 = False
 
+    # v69167 exact-current commit barrier. Before deleting any older same-URL
+    # vector, prove that the exact current Technical file is structurally usable
+    # and durably committed as the active family/year authority.
+    technical_exact_commit_v69167 = {}
+    if (
+        database_choice == "Technical Support Database"
+        and exact_current_exists_v69109
+    ):
+        exact_row_commit_v69167 = next(
+            (
+                dict(row)
+                for row in (_vector_store_file_catalog_v69040(selected_vector_store_id) or [])
+                if isinstance(row, dict)
+                and str(row.get("filename") or "").strip() == filename
+                and str(row.get("file_id") or "").strip()
+            ),
+            None,
+        )
+        if not exact_row_commit_v69167:
+            raise RuntimeError(
+                "The exact Technical package exists but its vector file identity could not be resolved."
+            )
+        exact_file_commit_v69167 = str(
+            exact_row_commit_v69167.get("file_id") or ""
+        ).strip()
+        exact_text_commit_v69167 = str(
+            _website_file_full_text_v69012(exact_file_commit_v69167)
+            or ""
+        )
+        exact_package_commit_v69167 = _technical_package_from_text_v69121(
+            exact_file_commit_v69167,
+            filename,
+            exact_text_commit_v69167,
+        )
+        if not isinstance(exact_package_commit_v69167, dict):
+            raise RuntimeError(
+                "The exact Technical package could not be parsed for active-source commit."
+            )
+        technical_exact_commit_v69167 = (
+            _technical_active_authority_commit_verified_v69167(
+                exact_package_commit_v69167,
+                selected_vector_store_id,
+            )
+        )
+
     if exact_current_exists_v69109:
         replaced_file_count_v69109 = _website_remove_superseded_vectors_v69109(
             selected_vector_store_id, prior_same_url_files_v69109
@@ -57474,6 +57509,12 @@ def save_website_knowledge_package(
             "website_image_durability_v69114": image_durability_v69114,
             "image_learning_complete_v69114": bool(image_durability_v69114.get("complete")),
             "factual_supersession_completed_v69109": True,
+            "technical_active_commit_verified_v69167": bool(
+                technical_exact_commit_v69167.get("complete")
+            ) if database_choice == "Technical Support Database" else None,
+            "technical_active_commit_file_id_v69167": str(
+                technical_exact_commit_v69167.get("file_id") or ""
+            ) if database_choice == "Technical Support Database" else "",
             "conflicting_learned_supersession_v69123": conflicting_learned_supersession_v69123,
         }
 
@@ -57499,7 +57540,32 @@ def save_website_knowledge_package(
             "The new website package did not finish indexing. The prior factual package was preserved."
         )
 
-    # FACTUAL COMMIT POINT: new vector is searchable. Remove every older same-URL
+    # v69167 TRANSACTIONAL TECHNICAL COMMIT BARRIER:
+    # The new vector must parse, contain non-empty structural hierarchy, and be
+    # durably readable as the active family/year pointer BEFORE any prior vector
+    # is retired. If the pointer commit fails, all prior factual vectors remain.
+    technical_commit_v69167 = {}
+    package_v69167 = None
+    if database_choice == "Technical Support Database":
+        package_v69167 = _technical_package_from_text_v69121(
+            file_id,
+            filename,
+            package_text,
+        )
+        if not isinstance(package_v69167, dict):
+            raise RuntimeError(
+                "The newly indexed Technical package could not be parsed. Prior factual package preserved."
+            )
+        technical_commit_v69167 = (
+            _technical_active_authority_commit_verified_v69167(
+                package_v69167,
+                selected_vector_store_id,
+            )
+        )
+
+    # FACTUAL COMMIT POINT: new vector is searchable and, for Technical learning,
+    # its active-source pointer has been durably committed/read back. Only now may
+    # older same-URL vectors be retired.
     # vector NOW, before image work. Image failure can no longer resurrect old facts.
     replaced_file_count_v69109 = _website_remove_superseded_vectors_v69109(
         selected_vector_store_id, prior_same_url_files_v69109
@@ -57573,19 +57639,27 @@ def save_website_knowledge_package(
                 filename,
                 package_text,
             )
-            package_v69162 = _technical_package_from_text_v69121(
-                file_id,
-                filename,
-                package_text,
+            package_v69162 = (
+                dict(package_v69167)
+                if isinstance(locals().get("package_v69167"), dict)
+                else _technical_package_from_text_v69121(
+                    file_id,
+                    filename,
+                    package_text,
+                )
             )
             if isinstance(package_v69162, dict):
                 _technical_registry_upsert_package_v69162(
                     package_v69162,
                     selected_vector_store_id,
                 )
+                # v69167: factual pointer commit already succeeded at the transactional
+                # barrier before old-vector retirement. This second call only refreshes
+                # metadata and is not allowed to determine whether learning succeeded.
                 _technical_active_authority_upsert_package_v69164(
                     package_v69162,
                     selected_vector_store_id,
+                    force=True,
                 )
         except Exception as error_v69121:
             diagnostic_log(
@@ -57613,6 +57687,12 @@ def save_website_knowledge_package(
         ),
         "factual_supersession_completed_v69109": factual_supersession_completed_v69109,
         "newest_source_authority_v69109": True,
+        "technical_active_commit_verified_v69167": bool(
+            technical_commit_v69167.get("complete")
+        ) if database_choice == "Technical Support Database" else None,
+        "technical_active_commit_file_id_v69167": str(
+            technical_commit_v69167.get("file_id") or ""
+        ) if database_choice == "Technical Support Database" else "",
         "conflicting_learned_supersession_v69123": conflicting_learned_supersession_v69123,
     }
 
@@ -61259,22 +61339,41 @@ TECHNICAL_PACKAGE_STRUCTURAL_SCHEMA_V69165 = 69165
 
 
 def _technical_package_has_current_structure_v69165(package_text):
-    """True only when a Technical website package has durable hierarchy authority.
+    """True only when a Technical website package has usable durable hierarchy authority.
 
-    Older exact-duplicate website files can contain the correct reviewed webpage text
-    while predating HIERARCHY_JSON_V69143. Reusing one of those files makes the
-    current-source lock succeed but leaves the structural selector with no hierarchy.
+    v69167 tightens the v69165 migration test: the presence of a hierarchy marker is
+    not enough. A package with ``HIERARCHY_JSON_V69143: {}`` (or zero sections)
+    cannot satisfy the runtime structural selector and must never be marked current.
     """
     value = str(package_text or "")
     if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in value:
         return False
     if _technical_package_header_value_v69113(value, "Destination") != "Technical Support Database":
         return False
-    if not re.search(r"(?m)^HIERARCHY_JSON_V69143:\s*\{", value):
-        return False
     if "WEBSITE SECTION EVIDENCE MAP V69142" not in value:
         return False
-    return True
+    try:
+        hierarchy = dict(_technical_package_hierarchy_v69143(value) or {})
+    except Exception:
+        hierarchy = {}
+    sections = [
+        dict(item)
+        for item in (hierarchy.get("sections") or [])
+        if isinstance(item, dict)
+    ]
+    if not sections:
+        return False
+    # At least one section must carry literal text/segments. Empty navigation shells
+    # are not usable configuration authority.
+    return any(
+        str(section.get("text") or "").strip()
+        or any(
+            str(segment.get("text") or "").strip()
+            for segment in (section.get("segments") or [])
+            if isinstance(segment, dict)
+        )
+        for section in sections
+    )
 
 
 def _technical_locked_package_authority_v69165(prompt_text, lock):
@@ -61393,12 +61492,40 @@ def _technical_active_authority_key_v69164(family, year):
 
 
 def _technical_active_authority_schema_v69164():
-    profile = dict(_website_image_index_schema_profile_v69129() or {})
-    mode = str(profile.get("mode") or "")
-    columns = set(profile.get("columns") or [])
-    if mode == "modern" and {"issue", "solution"}.issubset(columns):
-        return mode, columns, "issue", "solution", "updated_at"
-    return "legacy", columns, "question", "approved_answer", "created_at"
+    """Resolve the actual learned_knowledge schema for factual source authority.
+
+    v69167 no longer depends on the durable-image schema probe. The active factual
+    source is a separate production contract and must use the real table columns.
+    """
+    try:
+        columns = set(get_table_columns("learned_knowledge") or [])
+    except Exception:
+        columns = set()
+    if {"issue", "solution"}.issubset(columns):
+        return "modern", columns, "issue", "solution", (
+            "updated_at" if "updated_at" in columns else "created_at"
+        )
+    if {"question", "approved_answer"}.issubset(columns):
+        return "legacy", columns, "question", "approved_answer", (
+            "created_at" if "created_at" in columns else "updated_at"
+        )
+
+    # Last-resort live probes when information_schema RPC is unavailable and its
+    # safe fallback does not describe the deployed schema accurately.
+    for mode, key_col, value_col, time_col in (
+        ("modern", "issue", "solution", "updated_at"),
+        ("legacy", "question", "approved_answer", "created_at"),
+    ):
+        try:
+            supabase.table("learned_knowledge").select(
+                f"id,{key_col},{value_col}"
+            ).limit(1).execute()
+            return mode, {key_col, value_col, "id", time_col}, key_col, value_col, time_col
+        except Exception:
+            continue
+    raise RuntimeError(
+        "learned_knowledge does not expose a supported active-authority schema"
+    )
 
 
 @st.cache_data(ttl=1, max_entries=512, show_spinner=False)
@@ -61560,6 +61687,115 @@ def _technical_active_authority_upsert_package_v69164(
     return stats
 
 
+
+def _technical_active_authority_commit_verified_v69167(
+    package,
+    vector_store_id,
+):
+    """Commit and read back every family/year pointer before factual supersession.
+
+    A Technical learning operation is not successful merely because the vector file
+    indexed. The exact newly indexed file must also be durable current authority in
+    Supabase. If this verification fails, callers preserve prior vectors and report
+    the learning operation as incomplete instead of silently publishing a dangling
+    or stale pointer.
+    """
+    package = dict(package or {})
+    file_id = str(package.get("file_id") or "").strip()
+    source_url = str(package.get("source_url") or "").strip()
+    package_text = str(package.get("package_text") or "")
+    if not file_id or not source_url:
+        raise RuntimeError(
+            "The indexed Technical package has no durable file/source identity."
+        )
+    if not _technical_package_has_current_structure_v69165(package_text):
+        raise RuntimeError(
+            "The indexed Technical package does not contain a usable current hierarchy."
+        )
+
+    families = sorted({
+        str(x).casefold()
+        for x in (package.get("vehicle_families") or [])
+        if str(x).strip()
+    })
+    years = []
+    for raw in (package.get("years") or []):
+        try:
+            year = int(raw)
+        except Exception:
+            continue
+        if 1980 <= year <= 2100:
+            years.append(year)
+    years = sorted(set(years))
+    if not families or not years:
+        raise RuntimeError(
+            "The indexed Technical package has no verified vehicle family/year identity."
+        )
+
+    stats = _technical_active_authority_upsert_package_v69164(
+        package,
+        vector_store_id,
+        force=True,
+    )
+    expected = len(families) * len(years)
+    if (
+        int(stats.get("attempted") or 0) != expected
+        or int(stats.get("updated") or 0) != expected
+        or int(stats.get("failed") or 0) != 0
+    ):
+        raise RuntimeError(
+            "The Technical active-source pointer commit was incomplete."
+        )
+
+    try:
+        _technical_active_authority_row_v69164.clear()
+    except Exception:
+        pass
+
+    verified = []
+    for family in families:
+        for year in years:
+            row = _technical_active_authority_row_v69164(
+                family,
+                year,
+                vector_store_id,
+            )
+            if str(row.get("file_id") or "").strip() != file_id:
+                raise RuntimeError(
+                    f"Active Technical pointer read-back mismatch for {family}/{year}."
+                )
+            row_source = str(row.get("source_url") or "").strip()
+            try:
+                same_source = (
+                    canonical_website_url_identity(row_source)
+                    == canonical_website_url_identity(source_url)
+                )
+            except Exception:
+                same_source = bool(row_source and row_source == source_url)
+            if not same_source:
+                raise RuntimeError(
+                    f"Active Technical source URL read-back mismatch for {family}/{year}."
+                )
+            verified.append({
+                "family": family,
+                "year": year,
+                "file_id": file_id,
+            })
+
+    diagnostic_log(
+        "technical_active_authority_commit_verified_v69167",
+        file_id=file_id[:160],
+        source_url=source_url[:700],
+        verified=len(verified),
+    )
+    return {
+        "complete": True,
+        "file_id": file_id,
+        "verified": verified,
+        "stats": stats,
+    }
+
+
 def _technical_active_authority_bootstrap_v69164(prompt_text, vector_store_id):
     """Use the durable per-URL registry, never semantic ranking, to seed old knowledge."""
     prompt = _technical_settings_routing_prompt_v69117(prompt_text)
@@ -61682,7 +61918,11 @@ def _technical_active_authority_bootstrap_v69164(prompt_text, vector_store_id):
             continue
         if not _technical_package_candidate_score_v69157(prompt_text, package):
             continue
-        _technical_active_authority_upsert_package_v69164(package, vector_store_id)
+        _technical_active_authority_upsert_package_v69164(
+            package,
+            vector_store_id,
+            force=True,
+        )
         return package
     return {}
 
@@ -61726,6 +61966,53 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
         full = str(_website_file_full_text_v69012(file_id) or "")
     except Exception:
         full = ""
+
+    # v69167 self-heal: v69165 could migrate/index a new package while leaving a
+    # stale active pointer on the retired legacy file. The durable per-URL registry
+    # already records the new file. Repair from that deterministic registry before
+    # returning unavailable; never use broad semantic vehicle search here.
+    if not full:
+        try:
+            repaired_package_v69167 = _technical_active_authority_bootstrap_v69164(
+                prompt_text,
+                vector_store_id,
+            )
+        except Exception:
+            repaired_package_v69167 = {}
+        repaired_file_v69167 = str(
+            (repaired_package_v69167 or {}).get("file_id") or ""
+        ).strip()
+        if repaired_file_v69167 and repaired_file_v69167 != file_id:
+            try:
+                repaired_full_v69167 = str(
+                    _website_file_full_text_v69012(repaired_file_v69167)
+                    or ""
+                )
+            except Exception:
+                repaired_full_v69167 = ""
+            if repaired_full_v69167:
+                payload = _technical_active_authority_row_v69164(
+                    family,
+                    year,
+                    vector_store_id,
+                ) or {
+                    "file_id": repaired_file_v69167,
+                    "filename": str(
+                        (repaired_package_v69167 or {}).get("filename") or ""
+                    ),
+                    "source_url": str(
+                        (repaired_package_v69167 or {}).get("source_url") or ""
+                    ),
+                }
+                file_id = repaired_file_v69167
+                full = repaired_full_v69167
+                diagnostic_log(
+                    "technical_stale_active_pointer_repaired_v69167",
+                    family=family[:80],
+                    year=year,
+                    file_id=file_id[:160],
+                )
+
     if not full:
         return {
             "status": "known_current_unavailable",
@@ -61733,17 +62020,58 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
             "family": family, "year": year, "file_id": file_id,
             "source_url": str(payload.get("source_url") or ""),
         }
+
     package = _technical_package_from_text_v69121(
         file_id, str(payload.get("filename") or ""), full
     )
     if not isinstance(package, dict) or not _technical_package_candidate_score_v69157(
         prompt_text, package
     ):
-        return {
-            "status": "known_current_unavailable",
-            "reason_code": "ACTIVE_PACKAGE_IDENTITY_REJECTED",
-            "family": family, "year": year, "file_id": file_id,
-        }
+        # One deterministic registry repair attempt for an identity-stale pointer.
+        try:
+            repaired_package_v69167 = _technical_active_authority_bootstrap_v69164(
+                prompt_text,
+                vector_store_id,
+            )
+        except Exception:
+            repaired_package_v69167 = {}
+        repaired_file_v69167 = str(
+            (repaired_package_v69167 or {}).get("file_id") or ""
+        ).strip()
+        if repaired_file_v69167 and repaired_file_v69167 != file_id:
+            try:
+                repaired_full_v69167 = str(
+                    _website_file_full_text_v69012(repaired_file_v69167)
+                    or ""
+                )
+            except Exception:
+                repaired_full_v69167 = ""
+            repaired_parsed_v69167 = (
+                _technical_package_from_text_v69121(
+                    repaired_file_v69167,
+                    str((repaired_package_v69167 or {}).get("filename") or ""),
+                    repaired_full_v69167,
+                )
+                if repaired_full_v69167 else None
+            )
+            if (
+                isinstance(repaired_parsed_v69167, dict)
+                and _technical_package_candidate_score_v69157(
+                    prompt_text,
+                    repaired_parsed_v69167,
+                )
+            ):
+                package = repaired_parsed_v69167
+                file_id = repaired_file_v69167
+                full = repaired_full_v69167
+        if not isinstance(package, dict) or not _technical_package_candidate_score_v69157(
+            prompt_text, package
+        ):
+            return {
+                "status": "known_current_unavailable",
+                "reason_code": "ACTIVE_PACKAGE_IDENTITY_REJECTED",
+                "family": family, "year": year, "file_id": file_id,
+            }
     return {
         "status": "locked",
         "family": family, "year": year,
