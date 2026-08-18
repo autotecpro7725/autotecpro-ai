@@ -1,5 +1,9 @@
 # AutoTecPro AI v69159 FINAL RELEASE — Graphic durable-job UUID runtime dependency repair; v69158 Technical fixes preserved.
 # AutoTecPro AI v69150 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
+# AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
+V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
+# AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
+V69144_RUNTIME_AUTHORITY_LOCK = True
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -57356,6 +57360,48 @@ def save_website_knowledge_package(
             image_stats,
             image_sync,
         )
+
+        # v69162: even an exact-duplicate re-submission must populate/repair the
+        # company-wide durable package registry. Reuse the filename catalogue that
+        # vector_store_has_filename() already warmed, hydrate only the exact file,
+        # and never scan package contents broadly here.
+        if database_choice == "Technical Support Database":
+            try:
+                current_row_v69162 = next(
+                    (
+                        dict(row)
+                        for row in (_vector_store_file_catalog_v69040(selected_vector_store_id) or [])
+                        if isinstance(row, dict)
+                        and str(row.get("filename") or "").strip() == filename
+                        and str(row.get("file_id") or "").strip()
+                    ),
+                    None,
+                )
+                if current_row_v69162:
+                    current_file_id_v69162 = str(
+                        current_row_v69162.get("file_id") or ""
+                    ).strip()
+                    current_text_v69162 = str(
+                        _website_file_full_text_v69012(current_file_id_v69162)
+                        or ""
+                    )
+                    package_v69162 = _technical_package_from_text_v69121(
+                        current_file_id_v69162,
+                        filename,
+                        current_text_v69162,
+                    )
+                    if isinstance(package_v69162, dict):
+                        _technical_registry_upsert_package_v69162(
+                            package_v69162,
+                            selected_vector_store_id,
+                        )
+            except Exception as registry_error_v69162:
+                diagnostic_log(
+                    "technical_registry_duplicate_bootstrap_failed_v69162",
+                    error_type=type(registry_error_v69162).__name__,
+                    error=str(registry_error_v69162)[:500],
+                )
+
         _website_invalidate_learning_caches_v69109([database_choice])
         return {
             "already_saved": True,
@@ -57470,6 +57516,16 @@ def save_website_knowledge_package(
                 filename,
                 package_text,
             )
+            package_v69162 = _technical_package_from_text_v69121(
+                file_id,
+                filename,
+                package_text,
+            )
+            if isinstance(package_v69162, dict):
+                _technical_registry_upsert_package_v69162(
+                    package_v69162,
+                    selected_vector_store_id,
+                )
         except Exception as error_v69121:
             diagnostic_log(
                 "technical_package_injection_failed_v69121",
@@ -59937,8 +59993,607 @@ def _technical_identity_search_rows_v69161(prompt_text, store):
             rows.append(dict(row))
     return rows
 
+
+TECHNICAL_PACKAGE_REGISTRY_PREFIX_V69162 = "__ATP_TECH_PACKAGE_REGISTRY_V69162__:"
+
+
+def _technical_registry_question_v69162(source_url):
+    try:
+        canonical = canonical_website_url_identity(source_url)
+    except Exception:
+        canonical = str(source_url or "").strip().casefold()
+    if not canonical:
+        return ""
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return TECHNICAL_PACKAGE_REGISTRY_PREFIX_V69162 + digest
+
+
+def _technical_registry_payload_v69162(package, vector_store_id=""):
+    if not isinstance(package, dict):
+        return {}
+    file_id = str(package.get("file_id") or "").strip()
+    source_url = str(package.get("source_url") or "").strip()
+    if not file_id or not source_url:
+        return {}
+    return {
+        "schema_version": 69162,
+        "file_id": file_id,
+        "filename": str(package.get("filename") or "")[:500],
+        "source_url": source_url[:2000],
+        "title": str(package.get("title") or "")[:1000],
+        "extracted_at": str(package.get("extracted_at") or "")[:120],
+        "vehicle_families": [
+            str(x) for x in (package.get("vehicle_families") or [])
+            if str(x).strip()
+        ][:32],
+        "years": [
+            int(x) for x in (package.get("years") or [])
+            if str(x).strip().isdigit()
+        ][:100],
+        "systems": [
+            str(x) for x in (package.get("systems") or [])
+            if str(x).strip()
+        ][:32],
+        "product_codes": [
+            str(x) for x in (package.get("product_codes") or [])
+            if str(x).strip()
+        ][:32],
+        "vector_store_id": str(vector_store_id or "")[:300],
+    }
+
+
+@st.cache_data(ttl=2, max_entries=8, show_spinner=False)
+@st.cache_data(ttl=2, max_entries=8, show_spinner=False)
+def _technical_registry_rows_v69162(vector_store_id):
+    """Read the company-wide durable current-package registry on modern or legacy schemas."""
+    store = str(vector_store_id or "").strip()
+    try:
+        profile = dict(_website_image_index_schema_profile_v69129() or {})
+    except Exception:
+        profile = {}
+    mode = str(profile.get("mode") or "")
+    available = set(profile.get("columns") or [])
+    rows = []
+
+    try:
+        if mode == "modern" and {"issue", "solution"}.issubset(available):
+            columns = [x for x in (
+                "id", "issue", "solution", "approved_answer", "source_type",
+                "openai_file_id", "vector_store_id", "synced", "updated_at",
+            ) if x in available]
+            query = supabase.table("learned_knowledge").select(",".join(columns))
+            if "source_type" in available:
+                query = query.eq("source_type", "technical_package_registry_v69162")
+            rows = list(
+                query.like("issue", TECHNICAL_PACKAGE_REGISTRY_PREFIX_V69162 + "%")
+                .order("updated_at", desc=True)
+                .limit(2000)
+                .execute().data or []
+            )
+        else:
+            columns = [x for x in (
+                "id", "question", "approved_answer", "keywords",
+                "openai_file_id", "vector_store_id", "synced", "created_at",
+            ) if not available or x in available]
+            rows = list(
+                supabase.table("learned_knowledge").select(",".join(columns))
+                .like("question", TECHNICAL_PACKAGE_REGISTRY_PREFIX_V69162 + "%")
+                .order("created_at", desc=True)
+                .limit(2000)
+                .execute().data or []
+            )
+    except Exception as error:
+        diagnostic_log(
+            "technical_registry_shared_read_failed_v69162",
+            mode=mode,
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        rows = []
+
+    output = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if store and str(row.get("vector_store_id") or "").strip() not in {"", store}:
+            continue
+        raw = str(row.get("solution") or row.get("approved_answer") or "").strip()
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            payload = {}
+        if not isinstance(payload, dict):
+            continue
+        file_id = str(payload.get("file_id") or row.get("openai_file_id") or "").strip()
+        source_url = str(payload.get("source_url") or "").strip()
+        if not file_id or not source_url:
+            continue
+        payload = dict(payload)
+        payload["file_id"] = file_id
+        payload["registry_row_id_v69162"] = row.get("id")
+        payload["registry_created_at_v69162"] = str(
+            row.get("updated_at") or row.get("created_at") or ""
+        )
+        output.append(payload)
+
+    best = {}
+    for payload in output:
+        source_url = str(payload.get("source_url") or "").strip()
+        try:
+            canonical = canonical_website_url_identity(source_url)
+        except Exception:
+            canonical = source_url.casefold()
+        old = best.get(canonical)
+        if old is None or (
+            str(payload.get("extracted_at") or ""),
+            str(payload.get("registry_created_at_v69162") or ""),
+        ) > (
+            str(old.get("extracted_at") or ""),
+            str(old.get("registry_created_at_v69162") or ""),
+        ):
+            best[canonical] = payload
+    return list(best.values())
+
+
+def _technical_registry_upsert_package_v69162(package, vector_store_id=""):
+    """Persist one reviewed Technical package into the shared registry on either schema."""
+    payload = _technical_registry_payload_v69162(package, vector_store_id)
+    if not payload:
+        return False
+    key = _technical_registry_question_v69162(payload.get("source_url"))
+    if not key:
+        return False
+
+    try:
+        profile = dict(_website_image_index_schema_profile_v69129() or {})
+    except Exception:
+        profile = {}
+    mode = str(profile.get("mode") or "")
+    available = set(profile.get("columns") or [])
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+    if mode == "modern" and {"issue", "solution"}.issubset(available):
+        row_payload = {
+            "issue": key,
+            "solution": encoded,
+            "approved_answer": encoded,
+            "source_type": "technical_package_registry_v69162",
+            "updated_at": now_iso(),
+            "openai_file_id": str(payload.get("file_id") or ""),
+            "vector_store_id": str(vector_store_id or ""),
+            "synced": True,
+            "staff_confirmed": True,
+            "record_type": "technical_package_registry",
+            "assistant": "Technical Support",
+            "department": "technical",
+        }
+        lookup_column = "issue"
+        select_columns = "id,issue,updated_at"
+    else:
+        row_payload = {
+            "question": key,
+            "approved_answer": encoded,
+            "keywords": (
+                "technical_package_registry_v69162 "
+                + " ".join(payload.get("vehicle_families") or [])
+                + " " + " ".join(str(x) for x in (payload.get("years") or []))
+            )[:2000],
+            "openai_file_id": str(payload.get("file_id") or ""),
+            "vector_store_id": str(vector_store_id or ""),
+            "synced": True,
+            "created_at": now_iso(),
+            "staff_confirmed": True,
+            "record_type": "technical_package_registry",
+            "assistant": "Technical Support",
+            "department": "technical",
+            "source_type": "technical_package_registry_v69162",
+        }
+        lookup_column = "question"
+        select_columns = "id,question,created_at"
+
+    row_payload = filter_payload_for_table("learned_knowledge", row_payload)
+    if lookup_column not in row_payload:
+        diagnostic_log(
+            "technical_registry_schema_missing_key_v69162",
+            mode=mode,
+            lookup_column=lookup_column,
+        )
+        return False
+
+    existing = None
+    try:
+        data = list(
+            supabase.table("learned_knowledge")
+            .select(select_columns)
+            .eq(lookup_column, key)
+            .limit(1)
+            .execute().data or []
+        )
+        existing = dict(data[0]) if data else None
+    except Exception:
+        existing = None
+
+    try:
+        if existing and existing.get("id") is not None:
+            update_payload = dict(row_payload)
+            update_payload.pop("created_at", None)
+            safe_update_row("learned_knowledge", update_payload, existing.get("id"))
+        else:
+            safe_insert_row("learned_knowledge", row_payload)
+        try:
+            _technical_registry_rows_v69162.clear()
+        except Exception:
+            pass
+        return True
+    except Exception as error:
+        diagnostic_log(
+            "technical_registry_shared_upsert_failed_v69162",
+            mode=mode,
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+            file_id=str(payload.get("file_id") or "")[:160],
+        )
+        return False
+
+
+def _technical_registry_upsert_packages_v69162(packages, vector_store_id=""):
+    """Background backfill for website packages learned before v69162."""
+    updated = 0
+    for package in (packages or []):
+        if not isinstance(package, dict):
+            continue
+        if _technical_registry_upsert_package_v69162(
+            package,
+            vector_store_id,
+        ):
+            updated += 1
+    diagnostic_log(
+        "technical_registry_backfill_completed_v69162",
+        packages=len(list(packages or [])),
+        updated=updated,
+    )
+    return updated
+
+
+def _technical_registry_candidate_v69162(prompt_text, payload):
+    """Apply the existing deterministic package identity scorer to one registry row."""
+    if not isinstance(payload, dict):
+        return None
+    package = {
+        "file_id": str(payload.get("file_id") or ""),
+        "filename": str(payload.get("filename") or ""),
+        "source_url": str(payload.get("source_url") or ""),
+        "title": str(payload.get("title") or ""),
+        "extracted_at": str(payload.get("extracted_at") or ""),
+        "vehicle_families": list(payload.get("vehicle_families") or []),
+        "years": list(payload.get("years") or []),
+        "systems": list(payload.get("systems") or []),
+        "product_codes": list(payload.get("product_codes") or []),
+        # Source priority can be established from URL/title without hydrating body.
+        "webpage_text": "",
+        "package_text": "",
+    }
+    scored = _technical_package_candidate_score_v69157(
+        prompt_text,
+        package,
+    )
+    if not scored:
+        return None
+    scored = dict(scored)
+    scored["registry_payload_v69162"] = dict(payload)
+    return scored
+
+
+def _technical_registry_authority_v69162(prompt_text, store):
+    """Resolve and verify the single best exact file_id from the shared durable registry."""
+    rows = list(_technical_registry_rows_v69162(store) or [])
+    candidates = []
+    for payload in rows:
+        scored = _technical_registry_candidate_v69162(
+            prompt_text,
+            payload,
+        )
+        if scored:
+            candidates.append(scored)
+
+    candidates.sort(
+        key=lambda item: (
+            int(item.get("installation_priority_v69157") or 0),
+            bool(item.get("family_exact_v69157")),
+            int(item.get("identity_score_v69157") or 0),
+            str((item.get("registry_payload_v69162") or {}).get("extracted_at") or ""),
+            -int(item.get("year_span_v69157") or 9999),
+            str((item.get("registry_payload_v69162") or {}).get("filename") or ""),
+        ),
+        reverse=True,
+    )
+
+    if not candidates:
+        return {
+            "status": "no_exact_source",
+            "reason_code": "NO_DURABLE_REGISTRY_MATCH",
+            "registry_rows_v69162": len(rows),
+        }
+
+    # Critical stale-safety rule: only the best current registry identity may bind.
+    # If that exact file cannot be read/verified, return to live discovery instead of
+    # silently falling through to an older different-URL registry package.
+    candidate = dict(candidates[0])
+    payload = dict(candidate.get("registry_payload_v69162") or {})
+    file_id = str(payload.get("file_id") or "").strip()
+    if not file_id:
+        return {
+            "status": "no_exact_source",
+            "reason_code": "TOP_REGISTRY_FILE_ID_MISSING",
+            "registry_rows_v69162": len(rows),
+        }
+    try:
+        full = str(_website_file_full_text_v69012(file_id) or "")
+    except Exception:
+        full = ""
+    if not full:
+        return {
+            "status": "no_exact_source",
+            "reason_code": "TOP_REGISTRY_FILE_UNAVAILABLE",
+            "registry_rows_v69162": len(rows),
+            "registry_top_file_id_v69162": file_id,
+        }
+
+    verified = _technical_source_identity_candidate_v69150(
+        prompt_text,
+        {
+            "file_id": file_id,
+            "filename": str(payload.get("filename") or ""),
+            "score": 1.0,
+            "text": full,
+        },
+        hydrate=False,
+    )
+    if not verified:
+        return {
+            "status": "no_exact_source",
+            "reason_code": "TOP_REGISTRY_IDENTITY_REJECTED",
+            "registry_rows_v69162": len(rows),
+            "registry_top_file_id_v69162": file_id,
+        }
+
+    package = _technical_package_from_text_v69121(
+        file_id,
+        str(payload.get("filename") or ""),
+        full,
+    )
+    if not isinstance(package, dict):
+        return {
+            "status": "no_exact_source",
+            "reason_code": "TOP_REGISTRY_PACKAGE_PARSE_FAILED",
+            "registry_rows_v69162": len(rows),
+            "registry_top_file_id_v69162": file_id,
+        }
+
+    rescored = _technical_package_candidate_score_v69157(
+        prompt_text,
+        package,
+    )
+    if not rescored:
+        return {
+            "status": "no_exact_source",
+            "reason_code": "TOP_REGISTRY_FULL_PACKAGE_REJECTED",
+            "registry_rows_v69162": len(rows),
+            "registry_top_file_id_v69162": file_id,
+        }
+
+    return {
+        "status": "recovered",
+        "recovery_route_v69162": "durable_shared_current_package_index",
+        "file_id": file_id,
+        "filename": str(payload.get("filename") or ""),
+        "source_url": str(package.get("source_url") or payload.get("source_url") or ""),
+        "page_title": str(package.get("title") or payload.get("title") or ""),
+        "extracted_at": str(package.get("extracted_at") or payload.get("extracted_at") or ""),
+        "package_text": full,
+        "registry_rows_v69162": len(rows),
+        "registry_row_id_v69162": payload.get("registry_row_id_v69162"),
+    }
+
+
+def _technical_image_index_source_urls_v69162(prompt_text, max_sources=6):
+    """Recover exact learned source-page URLs from durable Technical image metadata."""
+    prompt = str(prompt_text or "").strip()
+    try:
+        prompt_families = set(_website_identity_vehicle_families_v69022(prompt))
+        prompt_years = set(_website_identity_years_v69022(prompt))
+        prompt_systems = set(_website_identity_systems_v69022(prompt))
+        query_role = _website_image_query_role_v68884(prompt)
+    except Exception:
+        return []
+
+    try:
+        payloads = [
+            dict(x) for x in (_website_image_index_rows_v68883() or [])
+            if isinstance(x, dict)
+            and str(x.get("database_choice") or "") == "Technical Support Database"
+        ]
+    except Exception:
+        payloads = []
+
+    ranked = []
+    for payload in payloads:
+        source_url = str(payload.get("source_page") or "").strip()
+        if not source_url:
+            continue
+        context = " ".join((
+            str(payload.get("page_title") or ""),
+            source_url,
+            str(payload.get("section_heading") or ""),
+            str(payload.get("nearby_instruction_text") or ""),
+            str(payload.get("caption") or ""),
+            str(payload.get("visual_analysis") or ""),
+        ))
+        try:
+            families = set(_website_identity_vehicle_families_v69022(context))
+            years = set(_website_identity_years_v69022(context))
+            systems = set(_website_identity_systems_v69022(context))
+        except Exception:
+            continue
+        if prompt_families and families and not (prompt_families & families):
+            continue
+        if prompt_years and years and not (prompt_years & years):
+            continue
+        if prompt_systems and systems and not (prompt_systems & systems):
+            continue
+        role_match = False
+        if query_role:
+            try:
+                role_match = bool(
+                    _website_image_metadata_matches_role_v69004(
+                        payload,
+                        query_role,
+                    )
+                )
+            except Exception:
+                role_match = False
+        try:
+            scope = _technical_source_url_scope_v69141(
+                source_url,
+                str(payload.get("page_title") or ""),
+            )
+        except Exception:
+            scope = {}
+        scope_families = set(scope.get("families") or [])
+        scope_years = set(scope.get("years") or [])
+        exact_family = bool(
+            prompt_families
+            and scope_families
+            and prompt_families == scope_families
+        )
+        score = (
+            (1000 if role_match else 0)
+            + (800 if exact_family else 0)
+            + 100 * len(prompt_years & (scope_years or years))
+            + 50 * len(prompt_systems & systems)
+        )
+        ranked.append((score, source_url))
+
+    ranked.sort(key=lambda row: row[0], reverse=True)
+    output = []
+    seen = set()
+    for _, source_url in ranked:
+        try:
+            canonical = canonical_website_url_identity(source_url)
+        except Exception:
+            canonical = source_url.casefold()
+        if not canonical or canonical in seen:
+            continue
+        seen.add(canonical)
+        output.append(source_url)
+        if len(output) >= max(1, int(max_sources or 6)):
+            break
+    return output
+
+
+def _technical_exact_source_url_candidates_v69162(prompt_text, store):
+    """Bootstrap pre-v69162 packages by exact source URL with a bounded concurrent lookup."""
+    source_urls = _technical_image_index_source_urls_v69162(
+        prompt_text,
+        max_sources=6,
+    )
+    if not source_urls:
+        return []
+
+    def lookup_one(source_url):
+        request = {
+            "input": (
+                "AUTOTECPRO EXACT SOURCE PACKAGE LOOKUP. Return the reviewed website "
+                "knowledge package whose Final source URL / Source page exactly matches:\n"
+                + str(source_url)
+            ),
+            "tools": [{"type": "file_search", "vector_store_ids": [store]}],
+        }
+        try:
+            rows = list(
+                _website_request_vector_search_rows_v69047(
+                    request,
+                    max_results=12,
+                )
+                or []
+            )
+        except Exception:
+            rows = []
+        try:
+            target_identity = canonical_website_url_identity(source_url)
+        except Exception:
+            target_identity = str(source_url or "").strip().casefold()
+
+        output = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            file_id = str(row.get("file_id") or "").strip()
+            if not file_id:
+                continue
+            try:
+                full = str(_website_file_full_text_v69012(file_id) or "")
+            except Exception:
+                full = ""
+            if not full:
+                continue
+            actual_source = _website_file_source_url_v69012(full)
+            try:
+                actual_identity = canonical_website_url_identity(actual_source)
+            except Exception:
+                actual_identity = str(actual_source or "").strip().casefold()
+            if not actual_identity or actual_identity != target_identity:
+                continue
+            verified = _technical_source_identity_candidate_v69150(
+                prompt_text,
+                {
+                    "file_id": file_id,
+                    "filename": str(row.get("filename") or ""),
+                    "score": row.get("score"),
+                    "text": full,
+                },
+                hydrate=False,
+            )
+            if verified:
+                output.append(verified)
+        return output
+
+    candidates = []
+    try:
+        from concurrent.futures import (
+            ThreadPoolExecutor,
+            as_completed,
+            TimeoutError as FuturesTimeoutError,
+        )
+        executor = ThreadPoolExecutor(
+            max_workers=min(6, len(source_urls)),
+            thread_name_prefix="atp-tech-exact-url-v69162",
+        )
+        futures = {
+            executor.submit(lookup_one, source_url): source_url
+            for source_url in source_urls
+        }
+        try:
+            for future in as_completed(futures, timeout=3.0):
+                try:
+                    candidates.extend(list(future.result() or []))
+                except Exception:
+                    continue
+        except FuturesTimeoutError:
+            diagnostic_log(
+                "technical_exact_url_bootstrap_timeout_v69162",
+                sources=len(source_urls),
+                recovered=len(candidates),
+            )
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+    except Exception:
+        for source_url in source_urls[:2]:
+            candidates.extend(lookup_one(source_url))
+    return candidates
+
 def _technical_current_package_authority_v69157(prompt_text):
-    """v69161: fast current-package authority with shared generation proof."""
+    """v69162: durable shared current-package index first, bounded compatibility fallback second."""
     if str(assistant or "") != "🔧 Technical Support":
         return {"status": "not_applicable"}
     if not _technical_configuration_query_v69155(prompt_text):
@@ -59951,6 +60606,24 @@ def _technical_current_package_authority_v69157(prompt_text):
     if not store.startswith("vs_"):
         return {"status": "no_store"}
 
+    # 1. Company-wide durable registry is the primary factual package authority.
+    durable = _technical_registry_authority_v69162(
+        prompt_text,
+        store,
+    )
+    if str(durable.get("status") or "") == "recovered":
+        diagnostic_log(
+            "technical_current_package_bound_v69162",
+            route="durable_shared_current_package_index",
+            file_id=str(durable.get("file_id") or "")[:160],
+            source_url=str(durable.get("source_url") or "")[:700],
+            extracted_at=str(durable.get("extracted_at") or "")[:120],
+            registry_rows=int(durable.get("registry_rows_v69162") or 0),
+        )
+        return durable
+
+    # 2. Backward compatibility for packages learned before the durable registry
+    # was available. This path never trusts an unproven warm candidate.
     revision = _website_destination_revision_v69109(
         "Technical Support Database"
     )
@@ -59958,7 +60631,6 @@ def _technical_current_package_authority_v69157(prompt_text):
         store,
         max_age_seconds=0.75,
     )
-
     packages, registry_status = _technical_package_prewarm_snapshot_v69119(
         store,
         revision,
@@ -59992,15 +60664,33 @@ def _technical_current_package_authority_v69157(prompt_text):
         )
         return candidates
 
-    # A warm candidate is authoritative only when its shared generation matches
-    # the live vector-store generation. Unknown/mismatched generation does NOT bind.
     generation_proven = bool(
         shared_generation
         and registry_generation
         and shared_generation == registry_generation
     )
     candidates = rank(packages) if generation_proven else []
-    route = "generation_proven_warm_registry" if candidates else "targeted_identity_search_v69161"
+
+    # If an old package is already in process memory but shared generation cannot
+    # prove it is current, do NOT bind it. Use live source discovery.
+    if not candidates:
+        # First migration/bootstrap path for knowledge learned before v69162:
+        # use durable image provenance to recover exact source URLs, then locate
+        # the package by exact URL rather than vehicle semantic similarity.
+        exact_url_recovered = _technical_exact_source_url_candidates_v69162(
+            prompt_text,
+            store,
+        )
+        exact_url_packages = []
+        for item in exact_url_recovered:
+            package = _technical_package_from_text_v69121(
+                str(item.get("file_id") or ""),
+                str(item.get("filename") or ""),
+                str(item.get("text") or ""),
+            )
+            if isinstance(package, dict):
+                exact_url_packages.append(package)
+        candidates = rank(exact_url_packages)
 
     if not candidates:
         try:
@@ -60011,16 +60701,9 @@ def _technical_current_package_authority_v69157(prompt_text):
                 )
                 or []
             )
-        except Exception as error:
+        except Exception:
             rows = []
-            diagnostic_log(
-                "technical_v69161_targeted_search_failed",
-                error_type=type(error).__name__,
-                error=str(error)[:500],
-            )
 
-        # Hydrate a broader candidate set than v69160 while keeping one short
-        # concurrent deadline. Three independent identity queries improve recall.
         unique_rows = []
         seen = set()
         for row in rows:
@@ -60046,10 +60729,7 @@ def _technical_current_package_authority_v69157(prompt_text):
                 def hydrate(row):
                     file_id = str(row.get("file_id") or "").strip()
                     try:
-                        full = str(
-                            _website_file_full_text_v69012(file_id)
-                            or ""
-                        )
+                        full = str(_website_file_full_text_v69012(file_id) or "")
                     except Exception:
                         full = ""
                     if not full:
@@ -60064,7 +60744,7 @@ def _technical_current_package_authority_v69157(prompt_text):
 
                 executor = ThreadPoolExecutor(
                     max_workers=min(12, len(unique_rows)),
-                    thread_name_prefix="atp-tech-current-v69161",
+                    thread_name_prefix="atp-tech-legacy-v69162",
                 )
                 futures = {
                     executor.submit(hydrate, row): row
@@ -60083,7 +60763,7 @@ def _technical_current_package_authority_v69157(prompt_text):
                             recovered.append(candidate)
                 except FuturesTimeoutError:
                     diagnostic_log(
-                        "technical_v69161_hydration_timeout",
+                        "technical_v69162_legacy_hydration_timeout",
                         attempted=len(unique_rows),
                         recovered=len(recovered),
                     )
@@ -60092,12 +60772,8 @@ def _technical_current_package_authority_v69157(prompt_text):
                         wait=False,
                         cancel_futures=True,
                     )
-            except Exception as error:
-                diagnostic_log(
-                    "technical_v69161_hydration_failed",
-                    error_type=type(error).__name__,
-                    error=str(error)[:500],
-                )
+            except Exception:
+                recovered = []
 
         package_candidates = []
         for item in recovered:
@@ -60106,40 +60782,18 @@ def _technical_current_package_authority_v69157(prompt_text):
                 str(item.get("filename") or ""),
                 str(item.get("text") or ""),
             )
-            if not isinstance(package, dict):
-                continue
-            package_candidates.append(package)
-            try:
-                _technical_package_prewarm_inject_v69121(
-                    str(item.get("file_id") or ""),
-                    str(item.get("filename") or ""),
-                    str(item.get("text") or ""),
-                )
-            except Exception:
-                pass
-
+            if isinstance(package, dict):
+                package_candidates.append(package)
         candidates = rank(package_candidates)
-        if candidates and shared_generation:
-            # The targeted winner was read from the live vector store under the
-            # current shared generation. Stamp the local registry generation.
-            with state["lock"]:
-                state["shared_generation_v69161"] = shared_generation
 
     if not candidates:
-        diagnostic_log(
-            "technical_current_package_not_found_v69161",
-            registry_status=registry_status,
-            registry_generation=registry_generation[:80],
-            shared_generation=shared_generation[:80],
-            package_count=len(packages or []),
-            route=route,
-        )
         return {
             "status": "no_exact_source",
-            "reason_code": "NO_GENERATION_PROVEN_CURRENT_PACKAGE",
+            "reason_code": "NO_DURABLE_OR_LIVE_CURRENT_PACKAGE",
             "registry_status_v69157": registry_status,
-            "package_count_v69157": len(packages or []),
-            "recovery_route_v69160": route,
+            "durable_registry_rows_v69162": int(
+                durable.get("registry_rows_v69162") or 0
+            ),
         }
 
     meta = dict(candidates[0])
@@ -60151,48 +60805,36 @@ def _technical_current_package_authority_v69157(prompt_text):
             "reason_code": "EMPTY_PACKAGE_TEXT",
         }
 
-    source_url = str(package.get("source_url") or "").strip()
-    row = {
-        "file_id": str(package.get("file_id") or ""),
-        "filename": str(package.get("filename") or ""),
-        "score": 1.0,
-        "text": package_text[:50000],
-        "technical_current_package_authority_v69161": True,
-        "technical_shared_generation_v69161": shared_generation,
-    }
-    diagnostic_log(
-        "technical_current_package_bound_v69161",
-        route=route,
-        file_id=row["file_id"][:160],
-        source_url=source_url[:700],
-        extracted_at=str(package.get("extracted_at") or "")[:120],
-        identity_score=int(meta.get("identity_score_v69157") or 0),
-        family_exact=bool(meta.get("family_exact_v69157")),
-        registry_status=registry_status,
-        registry_packages=len(packages or []),
-        generation_proven=bool(
-            route == "generation_proven_warm_registry"
-            or shared_generation
-        ),
-    )
+    # Promote the verified legacy winner into the durable shared registry so this
+    # query and all subsequent workers no longer rely on semantic discovery.
+    try:
+        _technical_registry_upsert_package_v69162(
+            package,
+            store,
+        )
+    except Exception:
+        pass
 
     return {
         "status": "recovered",
-        "recovery_route_v69157": route,
-        "file_id": row["file_id"],
-        "filename": row["filename"],
-        "source_url": source_url,
+        "recovery_route_v69157": (
+            "generation_proven_warm_registry"
+            if generation_proven
+            else "live_legacy_bootstrap_v69162"
+        ),
+        "file_id": str(package.get("file_id") or ""),
+        "filename": str(package.get("filename") or ""),
+        "source_url": str(package.get("source_url") or ""),
         "page_title": str(package.get("title") or ""),
         "extracted_at": str(package.get("extracted_at") or ""),
         "package_text": package_text,
-        "rows": [row],
-        "source_scope_v69157": dict(
-            meta.get("source_scope_v69157") or {}
-        ),
-        "identity_score_v69157": int(
-            meta.get("identity_score_v69157") or 0
-        ),
-        "shared_generation_v69161": shared_generation,
+        "rows": [{
+            "file_id": str(package.get("file_id") or ""),
+            "filename": str(package.get("filename") or ""),
+            "score": 1.0,
+            "text": package_text[:50000],
+            "technical_current_package_authority_v69162": True,
+        }],
     }
 
 
@@ -61583,6 +62225,17 @@ def _technical_package_prewarm_start_v69119(store, revision):
                         max_age_seconds=0.0,
                     )
                 )
+                try:
+                    _technical_registry_upsert_packages_v69162(
+                        packages,
+                        clean_store,
+                    )
+                except Exception as registry_error_v69162:
+                    diagnostic_log(
+                        "technical_registry_background_backfill_failed_v69162",
+                        error_type=type(registry_error_v69162).__name__,
+                        error=str(registry_error_v69162)[:500],
+                    )
                 with state["lock"]:
                     if state.get("key") != key:
                         return packages
@@ -63269,6 +63922,7 @@ def _admin_upload_fragment_decorator(function):
 
 
 @st.cache_data(ttl=30, max_entries=32, show_spinner=False)
+@st.cache_data(ttl=30, max_entries=32, show_spinner=False)
 def load_admin_analytics_rows():
     """Load large Admin analytics datasets with a short cache."""
     try:
@@ -63289,6 +63943,18 @@ def load_admin_analytics_rows():
     except Exception:
         learned_rows = []
 
+    # Internal package-index rows are infrastructure, not human learned records.
+    learned_rows = [
+        row for row in (learned_rows or [])
+        if not str((row or {}).get("question") or "").startswith(
+            TECHNICAL_PACKAGE_REGISTRY_PREFIX_V69162
+        )
+        and not str((row or {}).get("issue") or "").startswith(
+            TECHNICAL_PACKAGE_REGISTRY_PREFIX_V69162
+        )
+        and str((row or {}).get("source_type") or "")
+        != "technical_package_registry_v69162"
+    ]
     return analytics_rows, learned_rows
 
 
