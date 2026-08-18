@@ -39338,6 +39338,488 @@ def _technical_enforce_dual_ac_table_v69125(answer_text, evidence_result):
 
 
 
+
+def _technical_setting_field_specs_v69151():
+    """Generic setting-field vocabulary. Labels only; never product values."""
+    return (
+        ("Protocol", ("protocol", "protocol setting", "canbus", "can box", "can-box")),
+        ("Make", ("make", "manufacturer", "vehicle manufacturer", "brand")),
+        ("Car Model", ("car model", "vehicle model", "model selection", "vehicle model selection")),
+        ("SYNC Type", ("sync type", "sync version", "sync")),
+        ("OnStar Type", ("onstar type", "onstar version", "onstar")),
+        ("Factory Radio", ("factory radio type", "factory radio", "radio type")),
+        ("Screen Size", ("screen size", "factory screen size", "display size")),
+        ("Climate Type", ("climate type", "a/c type", "ac type", "climate control type")),
+        ("Camera Type", ("camera type", "factory camera type", "original camera type")),
+        ("Amplifier Type", ("amplifier type", "factory amplifier", "factory amp")),
+    )
+
+
+def _technical_clean_setting_value_v69151(value):
+    value = re.sub(r"\s+", " ", str(value or "")).strip(" \t\r\n|`*_:-=→>.,;")
+    value = re.sub(r"^(?:the\s+)", "", value, flags=re.I)
+    return value[:220]
+
+
+def _technical_source_field_values_v69151(source_text):
+    """Extract literal field/value relationships from one selected learned source.
+
+    This parser recognizes generic setting labels and common instructional grammar.
+    It never supplies a vehicle-specific value.
+    """
+    text = re.sub(r"\r\n?", "\n", str(source_text or ""))
+    compact = re.sub(r"[ \t]+", " ", text)
+    result = {}
+    specs = _technical_setting_field_specs_v69151()
+
+    def add(field, raw):
+        value = _technical_clean_setting_value_v69151(raw)
+        if not value or value.casefold() in {
+            "requires verification", "verify", "verification", "unknown", "n/a", "na"
+        }:
+            return
+        # Stop values from swallowing another obvious setting label.
+        value = re.split(
+            r"(?i)\s+(?=(?:protocol|make|manufacturer|car model|vehicle model|sync(?: type| version)?|"
+            r"onstar(?: type| version)?|factory radio|radio type|screen size|climate type|a/c type|"
+            r"camera type|amplifier type)\s*(?:[:=]|is\b|to\b))",
+            value,
+            maxsplit=1,
+        )[0].strip()
+        value = _technical_clean_setting_value_v69151(value)
+        if not value or len(value) > 220:
+            return
+        bucket = result.setdefault(field, [])
+        if value.casefold() not in {x.casefold() for x in bucket}:
+            bucket.append(value)
+
+    for field, aliases in specs:
+        alias_re = "|".join(re.escape(a) for a in sorted(aliases, key=len, reverse=True))
+
+        # Preserve line-oriented labels from learned webpage text before prose
+        # normalization merges neighboring settings.
+        for m in re.finditer(
+            rf"(?im)^\s*(?:{alias_re})\s*(?:setting|selection|option|value)?\s*(?:[:=]|->|→)\s*([^\n|;]{{1,220}})",
+            text,
+        ):
+            add(field, m.group(1))
+
+        # Label-first prose: Protocol: Xinbasi / Car Model = F450 / Set Protocol to X
+        patterns = [
+            rf"(?i)(?:^|[.;]\s*)(?:{alias_re})\s*(?:setting|selection|option|value)?\s*(?:[:=]|->|→)\s*([^\n|;]{{1,220}})",
+            rf"(?i)\b(?:set|select|choose|use)\s+(?:the\s+)?(?:{alias_re})\s+(?:to|as|=)\s+([A-Za-z0-9][^.;\n|]{{0,180}})",
+            rf"(?i)\b(?:{alias_re})\s+(?:is|should be|must be)\s+([A-Za-z0-9][^.;\n|]{{0,180}})",
+        ]
+        # Value-first: Select Ford as Make / choose F450 for Car Model.
+        reverse = [
+            rf"(?i)\b(?:select|choose|use)\s+([A-Za-z0-9][^.;\n|]{{0,160}}?)\s+(?:as|for)\s+(?:the\s+)?(?:{alias_re})\b",
+        ]
+        for pattern in patterns + reverse:
+            for m in re.finditer(pattern, compact):
+                add(field, m.group(1))
+
+    return result
+
+
+def _technical_tokenize_composite_value_v69151(value):
+    """Return stable menu tokens without inventing hierarchy."""
+    raw = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not raw:
+        return []
+    # Prefer explicit menu-path delimiters when present.
+    if re.search(r"(?:→|->|>|/|\|)", raw):
+        parts = [
+            _technical_clean_setting_value_v69151(x)
+            for x in re.split(r"\s*(?:→|->|>|\|)\s*", raw)
+            if _technical_clean_setting_value_v69151(x)
+        ]
+        if len(parts) > 1:
+            return parts
+    # Provider sometimes flattens a menu path into whitespace, e.g. "Xinbasi F450 LO".
+    return re.findall(r"[A-Za-z0-9][A-Za-z0-9+._/-]*", raw)
+
+
+def _technical_common_prefix_v69151(values):
+    token_lists = [_technical_tokenize_composite_value_v69151(v) for v in values if str(v or "").strip()]
+    if len(token_lists) < 2 or any(not x for x in token_lists):
+        return [], token_lists
+    prefix = []
+    for parts in zip(*token_lists):
+        first = parts[0]
+        if all(str(x).casefold() == str(first).casefold() for x in parts[1:]):
+            prefix.append(first)
+        else:
+            break
+    return prefix, token_lists
+
+
+def _technical_field_evidence_score_v69151(source_text, field, value):
+    """Score literal association between a candidate value and a generic source label."""
+    source = re.sub(r"\s+", " ", str(source_text or ""))
+    if not source or not value:
+        return 0
+    specs = dict(_technical_setting_field_specs_v69151())
+    aliases = specs.get(field, ())
+    score = 0
+    escaped = re.escape(str(value))
+    for alias in aliases:
+        a = re.escape(alias)
+        # Same sentence/window in either direction.
+        if re.search(rf"(?i)\b{a}\b.{{0,100}}\b{escaped}\b", source):
+            score += 6
+        if re.search(rf"(?i)\b{escaped}\b.{{0,100}}\b{a}\b", source):
+            score += 5
+    return score
+
+
+def _technical_normalized_manifest_v69151(section_evidence, variant_evidence, answer_text=""):
+    """Build source-grounded normalized settings from the already-selected exact source.
+
+    Common menu parents are promoted only when the same source supports the field
+    relationship. The function contains setting labels, never product-specific values.
+    """
+    section_evidence = dict(section_evidence or {})
+    variant_evidence = dict(variant_evidence or {})
+    package_text = str(section_evidence.get("package_text") or "")
+    excerpt = str(section_evidence.get("section_excerpt") or "")
+    # Use factual webpage text, not hierarchy JSON/image-analysis metadata, for
+    # field/value association. This prevents structural serialization from being
+    # mistaken for a Technical setting.
+    package_fact_text = ""
+    if package_text:
+        m_fact = re.search(
+            r"(?ms)^WEBPAGE TEXT\s*\n=+\s*\n(.*?)(?=^WEBSITE IMAGE KNOWLEDGE\s*$|^WEBSITE HIERARCHY MAP V69143\s*$|\Z)",
+            package_text,
+        )
+        package_fact_text = str(m_fact.group(1) or "").strip() if m_fact else ""
+    branch_paths = [
+        str(x) for x in (section_evidence.get("selected_branch_paths_v69143") or [])
+        if str(x).strip()
+    ]
+    source_text = "\n".join(x for x in (excerpt, package_fact_text, "\n".join(branch_paths), str(answer_text or "")) if x)
+    explicit = _technical_source_field_values_v69151(source_text)
+
+    manifest = {
+        "common_fields": {},
+        "branch_fields": [],
+        "source_field_values": explicit,
+        "raw_branch_paths": branch_paths,
+        "normalized_manual_value": str(variant_evidence.get("manual_value") or "").strip(),
+        "normalized_automatic_value": str(variant_evidence.get("automatic_value") or "").strip(),
+    }
+
+    # Preserve unique explicitly labeled values.
+    for field, vals in explicit.items():
+        if len(vals) == 1:
+            manifest["common_fields"][field] = vals[0]
+
+    manual = str(variant_evidence.get("manual_value") or "").strip()
+    automatic = str(variant_evidence.get("automatic_value") or "").strip()
+    if manual and automatic:
+        prefix, token_lists = _technical_common_prefix_v69151([manual, automatic])
+        if prefix and len(token_lists) == 2:
+            manual_tail = token_lists[0][len(prefix):]
+            automatic_tail = token_lists[1][len(prefix):]
+
+            # Classify each common parent token by literal source-label association.
+            unresolved_fields = [
+                f for f in ("Protocol", "Make", "Car Model")
+                if f not in manifest["common_fields"]
+            ]
+            used = set()
+            explicit_values_cf = {
+                str(v).casefold() for v in manifest["common_fields"].values()
+            }
+            for token in prefix:
+                if str(token).casefold() in explicit_values_cf:
+                    continue
+                scored = sorted(
+                    (
+                        (_technical_field_evidence_score_v69151(source_text, field, token), field)
+                        for field in unresolved_fields if field not in used
+                    ),
+                    reverse=True,
+                )
+                if scored and scored[0][0] > 0:
+                    manifest["common_fields"][scored[0][1]] = token
+                    used.add(scored[0][1])
+
+            # Conservative structural fallback: if source explicitly contains the
+            # missing field labels, there are exactly as many unresolved common tokens
+            # as unresolved fields, and each token occurs in the selected source,
+            # preserve source order rather than dropping verified menu parents.
+            remaining_tokens = [
+                t for t in prefix
+                if t.casefold() not in {
+                    str(v).casefold() for v in manifest["common_fields"].values()
+                }
+            ]
+            remaining_fields = [
+                f for f in ("Protocol", "Make", "Car Model")
+                if f not in manifest["common_fields"]
+                and any(re.search(rf"(?i)\b{re.escape(a)}\b", source_text)
+                        for a in dict(_technical_setting_field_specs_v69151()).get(f, ()))
+            ]
+            if remaining_tokens and len(remaining_tokens) == len(remaining_fields):
+                # Order fields by the first occurrence of their label in source.
+                field_positions = []
+                for field in remaining_fields:
+                    aliases = dict(_technical_setting_field_specs_v69151()).get(field, ())
+                    positions = [
+                        m.start() for alias in aliases
+                        for m in [re.search(rf"(?i)\b{re.escape(alias)}\b", source_text)]
+                        if m
+                    ]
+                    field_positions.append((min(positions) if positions else 10**9, field))
+                remaining_fields = [f for _, f in sorted(field_positions)]
+                for field, token in zip(remaining_fields, remaining_tokens):
+                    if re.search(rf"(?i)\b{re.escape(token)}\b", source_text):
+                        manifest["common_fields"][field] = token
+
+            # Strip only the verified common menu prefix from A/C branch values.
+            if manual_tail and automatic_tail:
+                manifest["normalized_manual_value"] = " ".join(manual_tail)
+                manifest["normalized_automatic_value"] = " ".join(automatic_tail)
+
+    # Generic structural discriminators learned from selected branch paths.
+    structural_specs = (
+        ("SYNC Type", r"\bSYNC\s*[-:#]?\s*([A-Za-z0-9]+)\b"),
+        ("OnStar Type", r"\bOnStar\s*(?:Type|Version)?\s*[-:#]?\s*([A-Za-z0-9._/-]+)\b"),
+        ("Screen Size", r"\b(\d+(?:\.\d+)?)\s*(?:inch|inches|\")\b"),
+    )
+    for field, pattern in structural_specs:
+        if field in manifest["common_fields"]:
+            continue
+        hits = []
+        for path in branch_paths:
+            m = re.search(pattern, path, flags=re.I)
+            if m:
+                hits.append(_technical_clean_setting_value_v69151(m.group(1)))
+        unique = []
+        for x in hits:
+            if x and x.casefold() not in {u.casefold() for u in unique}:
+                unique.append(x)
+        if len(unique) == 1:
+            manifest["common_fields"][field] = unique[0]
+        elif len(unique) > 1:
+            manifest["branch_fields"].append({"field": field, "values": unique})
+
+    # v69151 multi-branch interpreter: inspect each selected hierarchy segment
+    # independently. This lets different SYNC / OnStar / screen / radio branches
+    # carry different verified Protocol / Car Model / etc. values without a
+    # vehicle-specific mapping.
+    manifest["branch_configs"] = []
+    try:
+        hierarchy = _technical_package_hierarchy_v69143(package_text) if package_text else {}
+    except Exception:
+        hierarchy = {}
+    selected_section = str(section_evidence.get("selected_section_title_v69143") or "").strip()
+    selected_paths_cf = {str(x).strip().casefold() for x in branch_paths if str(x).strip()}
+    sections = [x for x in (hierarchy.get("sections") or []) if isinstance(x, dict)]
+    for section in sections:
+        title = str(section.get("title") or "").strip()
+        if selected_section and title.casefold() != selected_section.casefold():
+            continue
+        for seg in (section.get("segments") or []):
+            if not isinstance(seg, dict):
+                continue
+            path_parts = [str(x).strip() for x in (seg.get("path") or []) if str(x).strip()]
+            path_label = " > ".join(path_parts) or str(seg.get("heading") or title).strip()
+            if selected_paths_cf and path_label.casefold() not in selected_paths_cf:
+                continue
+            seg_text = str(seg.get("text") or "")
+            seg_fields = _technical_source_field_values_v69151(seg_text)
+            compact_fields = {
+                field: vals[0] for field, vals in seg_fields.items()
+                if isinstance(vals, list) and len(vals) == 1
+            }
+            if not compact_fields:
+                continue
+            # Prefer the most specific subtitle as the branch display label.
+            branch_label = path_parts[-1] if path_parts else str(seg.get("heading") or title).strip()
+            manifest["branch_configs"].append({
+                "label": branch_label[:160],
+                "path": path_label[:800],
+                "fields": compact_fields,
+            })
+        if selected_section:
+            break
+
+    # If inquiry resolves to one exact subtitle/branch, that branch's literal
+    # settings become common for this turn even when the full page contains other
+    # variants with different values.
+    if len(manifest["branch_configs"]) == 1:
+        for field, value in (manifest["branch_configs"][0].get("fields") or {}).items():
+            if field not in manifest["common_fields"] and value:
+                manifest["common_fields"][field] = value
+
+    return manifest
+
+
+def _technical_replace_first_table_rows_v69151(answer_text, replacements, inserts=None):
+    """Update the existing first Setting Field|Select table without changing its style."""
+    answer = str(answer_text or "")
+    replacements = dict(replacements or {})
+    inserts = list(inserts or [])
+    if not answer or not (replacements or inserts):
+        return answer
+    lines = answer.splitlines()
+    start = next((i for i,l in enumerate(lines)
+                  if re.match(r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$", l.strip(), flags=re.I)), -1)
+    if start < 0:
+        return answer
+    end = start + 1
+    while end < len(lines) and lines[end].strip().startswith("|"):
+        end += 1
+
+    found = set()
+    body = []
+    for row in lines[start:end]:
+        m = re.match(r"^\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*$", row.strip())
+        if not m:
+            body.append(row); continue
+        field = re.sub(r"\s+", " ", m.group(1)).strip()
+        canonical = None
+        for key in replacements:
+            if field.casefold() == key.casefold():
+                canonical = key; break
+        if canonical:
+            body.append(f"| {field} | {replacements[canonical]} |")
+            found.add(canonical)
+        else:
+            body.append(row)
+
+    # Insert verified missing common fields in the familiar order.
+    order = ["Protocol", "Make", "Car Model", "SYNC Type", "OnStar Type",
+             "Factory Radio", "Screen Size", "Climate Type", "Camera Type", "Amplifier Type"]
+    missing = [(f, replacements[f]) for f in order if f in replacements and f not in found]
+    missing += [(f,v) for f,v in inserts if f not in {x[0] for x in missing}]
+    if missing:
+        header_rows = body[:2] if len(body) >= 2 else body[:1]
+        data_rows = body[len(header_rows):]
+        existing_fields = []
+        for r in data_rows:
+            m = re.match(r"^\|\s*(.*?)\s*\|", r.strip())
+            existing_fields.append(m.group(1).strip() if m else "")
+        for field, value in reversed(missing):
+            # Place common fields before A/C/branch-specific rows.
+            pos = next((i for i,f in enumerate(existing_fields)
+                        if re.search(r"(?i)\ba/?c\b|climate|sync|onstar|screen|camera|radio|amplifier", f)), len(data_rows))
+            data_rows.insert(pos, f"| {field} | {value} |")
+            existing_fields.insert(pos, field)
+        body = header_rows + data_rows
+
+    lines[start:end] = body
+    return "\n".join(lines)
+
+
+def _technical_normalize_interpreted_settings_v69151(answer_text, section_evidence, variant_evidence):
+    """Normalize composite learned menu paths into the existing professional table.
+
+    This is a source-grounded interpretation pass, not a vehicle-specific mapper.
+    """
+    manifest = _technical_normalized_manifest_v69151(section_evidence, variant_evidence, answer_text)
+    replacements = {}
+    for field, value in (manifest.get("common_fields") or {}).items():
+        value = _technical_clean_setting_value_v69151(value)
+        if value:
+            replacements[field] = value
+
+    original_manual = str((variant_evidence or {}).get("manual_value") or "").strip()
+    original_automatic = str((variant_evidence or {}).get("automatic_value") or "").strip()
+
+    # Update the variant evidence copy in-place so the unchanged v69125 table
+    # enforcer receives the leaf A/C values, not a flattened parent path.
+    if isinstance(variant_evidence, dict) and variant_evidence.get("contract_complete"):
+        manual = _technical_clean_setting_value_v69151(manifest.get("normalized_manual_value"))
+        automatic = _technical_clean_setting_value_v69151(manifest.get("normalized_automatic_value"))
+        if manual and automatic:
+            variant_evidence["manual_value"] = manual
+            variant_evidence["automatic_value"] = automatic
+
+    normalized = _technical_replace_first_table_rows_v69151(answer_text, replacements)
+
+    # Remove superseded composite A/C rows from the first table. The unchanged
+    # v69125 enforcer will add the verified Manual/Automatic leaf rows afterward.
+    if isinstance(variant_evidence, dict) and variant_evidence.get("contract_complete"):
+        lines = normalized.splitlines()
+        start = next((i for i,l in enumerate(lines)
+                      if re.match(r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$", l.strip(), flags=re.I)), -1)
+        if start >= 0:
+            end = start + 1
+            while end < len(lines) and lines[end].strip().startswith("|"):
+                end += 1
+            kept = []
+            originals = {original_manual.casefold(), original_automatic.casefold()} - {""}
+            for row in lines[start:end]:
+                m = re.match(r"^\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*$", row.strip())
+                if not m:
+                    kept.append(row); continue
+                field = re.sub(r"\s+", " ", m.group(1)).strip()
+                value = _technical_clean_setting_value_v69151(m.group(2))
+                is_ac_variant = bool(re.match(r"(?i)^A/C\s*Type\s*[-–—]", field))
+                is_final_named = bool(re.match(r"(?i)^A/C\s*Type\s*[-–—]\s*(?:Manual|Automatic)\s+A/C$", field))
+                if is_ac_variant and not is_final_named and value.casefold() in originals:
+                    continue
+                kept.append(row)
+            lines[start:end] = kept
+            normalized = "\n".join(lines)
+
+    # For broad multi-branch sections, preserve branch-specific verified fields
+    # as separate rows only when the same field genuinely differs by branch.
+    branch_configs = [x for x in (manifest.get("branch_configs") or []) if isinstance(x, dict)]
+    by_field = {}
+    for cfg in branch_configs:
+        label = _technical_clean_setting_value_v69151(cfg.get("label"))
+        for field, value in (cfg.get("fields") or {}).items():
+            value = _technical_clean_setting_value_v69151(value)
+            if label and value:
+                by_field.setdefault(field, []).append((label, value))
+    inserts = []
+    for field, pairs in by_field.items():
+        unique_values = {v.casefold() for _,v in pairs}
+        unique_labels = {l.casefold() for l,_ in pairs}
+        if len(unique_values) <= 1 or len(unique_labels) <= 1:
+            continue
+        # A/C rows remain under the v69125 contract when that contract exists.
+        if variant_evidence.get("contract_complete") and re.search(r"(?i)a/?c|climate", field):
+            continue
+        seen = set()
+        for label, value in pairs:
+            key = (label.casefold(), value.casefold())
+            if key in seen:
+                continue
+            seen.add(key)
+            inserts.append((f"{field} - {label}", value))
+
+    if inserts:
+        # If a field genuinely varies by branch, remove only its unresolved generic
+        # placeholder row; the branch-specific verified rows are more precise.
+        varying_fields = {field for field, pairs in by_field.items()
+                          if len({v.casefold() for _, v in pairs}) > 1}
+        lines = normalized.splitlines()
+        start = next((i for i,l in enumerate(lines)
+                      if re.match(r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$", l.strip(), flags=re.I)), -1)
+        if start >= 0 and varying_fields:
+            end = start + 1
+            while end < len(lines) and lines[end].strip().startswith("|"):
+                end += 1
+            kept = []
+            for row in lines[start:end]:
+                m = re.match(r"^\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*$", row.strip())
+                if not m:
+                    kept.append(row); continue
+                field = re.sub(r"\s+", " ", m.group(1)).strip()
+                value = _technical_clean_setting_value_v69151(m.group(2))
+                if field in varying_fields and value.casefold() == "requires verification":
+                    continue
+                kept.append(row)
+            lines[start:end] = kept
+            normalized = "\n".join(lines)
+        normalized = _technical_replace_first_table_rows_v69151(normalized, {}, inserts=inserts)
+
+    return normalized, manifest
+
 def _technical_section_authority_tokens_v69142(value):
     """Generic lexical tokens for section matching; numeric branch IDs survive in v69144."""
     raw = re.findall(r"[a-z0-9][a-z0-9+./_-]{0,30}", str(value or "").casefold())
@@ -70844,6 +71326,25 @@ else:
                         answer_body = format_learning_record_for_display(answer_body)
                     if assistant == "🔧 Technical Support":
                         answer_body = remove_technical_pricing(answer_body)
+                        # v69151: interpret the exact learned section hierarchy before
+                        # the unchanged v69125 table contract is applied. This promotes
+                        # source-verified common parents such as Protocol / Make / Car Model
+                        # and strips only those verified parents from branch values.
+                        try:
+                            answer_body, technical_settings_manifest_v69151 = (
+                                _technical_normalize_interpreted_settings_v69151(
+                                    answer_body,
+                                    locals().get("technical_section_evidence_v69142") or {},
+                                    technical_variant_evidence_v69124,
+                                )
+                            )
+                        except Exception as error_v69151:
+                            technical_settings_manifest_v69151 = {}
+                            diagnostic_log(
+                                "technical_settings_normalization_failed_v69151",
+                                error_type=type(error_v69151).__name__,
+                                error=str(error_v69151)[:500],
+                            )
                         if (
                             _technical_generic_ac_variant_request_v69124(
                                 technical_request_prompt_v68879
