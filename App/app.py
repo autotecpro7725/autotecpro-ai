@@ -1,15 +1,5 @@
 # AutoTecPro AI v69159 FINAL RELEASE — Graphic durable-job UUID runtime dependency repair; v69158 Technical fixes preserved.
 # AutoTecPro AI v69150 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
-# AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
-V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
-# AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
-V69144_RUNTIME_AUTHORITY_LOCK = True
-# AutoTecPro AI v69143 — FINAL PRODUCTION: Quick-Navigation + full-section/subtitle/image learning; v69142 output format and v69125 behavior preserved.
-V69143_QUICK_NAV_SECTION_CONTENT_IMAGE_LEARNING = True
-# AutoTecPro AI v69142 — FINAL PRODUCTION: generic learned-section authority; v69125 behavioral reference + v69141 durability/source compatibility preserved.
-V69142_GENERIC_SECTION_LEARNING_AUTHORITY = True
-# AutoTecPro AI v69141 — FINAL PRODUCTION: typo-tolerant multi-model protected-installation source authority; v69125 output contract + v69137 image durability preserved.
-# AutoTecPro AI v69140 — FINAL PRODUCTION: Technical installation-page source authority restored over broader product/series records; v69125 output contract + v69137 image durability preserved.
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -59670,8 +59660,285 @@ def _technical_catalog_refresh_from_rows_v69158(
     )
     return packages
 
+
+_TECHNICAL_VECTOR_GENERATION_CACHE_V69161 = {
+    "lock": threading.RLock(),
+    "store": "",
+    "value": "",
+    "checked_at": 0.0,
+}
+
+
+def _technical_vector_store_generation_v69161(store, *, max_age_seconds=0.75):
+    """Return a cheap cross-process Technical knowledge generation token.
+
+    Primary authority is vector-store metadata, which is shared by every app worker.
+    If metadata is unavailable, derive a stable fallback from vector-store counters.
+    No vector-store file listing is performed here.
+    """
+    clean_store = str(store or "").strip()
+    if not clean_store.startswith("vs_"):
+        return ""
+
+    cache = _TECHNICAL_VECTOR_GENERATION_CACHE_V69161
+    with cache["lock"]:
+        if (
+            cache.get("store") == clean_store
+            and str(cache.get("value") or "")
+            and time.monotonic() - float(cache.get("checked_at") or 0.0)
+            <= max(0.0, float(max_age_seconds or 0.0))
+        ):
+            return str(cache.get("value") or "")
+
+    try:
+        fast_client = client.with_options(timeout=1.0, max_retries=0)
+        try:
+            vector_store = fast_client.vector_stores.retrieve(
+                vector_store_id=clean_store
+            )
+        except TypeError:
+            vector_store = fast_client.vector_stores.retrieve(clean_store)
+    except Exception as error:
+        diagnostic_log(
+            "technical_shared_generation_read_failed_v69161",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return ""
+
+    metadata = getattr(vector_store, "metadata", None)
+    if not isinstance(metadata, dict):
+        try:
+            metadata = dict(metadata or {})
+        except Exception:
+            metadata = {}
+
+    explicit = str(
+        metadata.get("atp_technical_generation_v69161")
+        or metadata.get("atp_technical_generation")
+        or ""
+    ).strip()
+
+    if explicit:
+        generation = "meta:" + explicit
+    else:
+        file_counts = getattr(vector_store, "file_counts", None)
+        if isinstance(file_counts, dict):
+            counts = dict(file_counts)
+        else:
+            counts = {}
+            for key in ("total", "completed", "in_progress", "failed", "cancelled"):
+                try:
+                    counts[key] = getattr(file_counts, key)
+                except Exception:
+                    pass
+        fallback = {
+            "id": clean_store,
+            "status": str(getattr(vector_store, "status", "") or ""),
+            "usage_bytes": int(getattr(vector_store, "usage_bytes", 0) or 0),
+            "file_counts": {
+                str(k): int(v or 0)
+                for k, v in counts.items()
+                if v is not None
+            },
+        }
+        generation = "derived:" + hashlib.sha256(
+            json.dumps(
+                fallback,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+
+    with cache["lock"]:
+        cache["store"] = clean_store
+        cache["value"] = generation
+        cache["checked_at"] = time.monotonic()
+    return generation
+
+
+def _technical_bump_shared_generation_v69161(store):
+    """Change the shared generation token after a committed Technical website update."""
+    clean_store = str(store or "").strip()
+    if not clean_store.startswith("vs_"):
+        return ""
+
+    new_token = (
+        datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+        + "-"
+        + uuid.uuid4().hex[:12]
+    )
+    try:
+        fast_client = client.with_options(timeout=2.0, max_retries=0)
+        try:
+            current = fast_client.vector_stores.retrieve(
+                vector_store_id=clean_store
+            )
+        except TypeError:
+            current = fast_client.vector_stores.retrieve(clean_store)
+        metadata = getattr(current, "metadata", None)
+        if not isinstance(metadata, dict):
+            try:
+                metadata = dict(metadata or {})
+            except Exception:
+                metadata = {}
+        metadata = {
+            str(k): str(v)
+            for k, v in metadata.items()
+            if k and v is not None
+        }
+        metadata["atp_technical_generation_v69161"] = new_token
+        # Keep metadata bounded and preserve the new generation even on a metadata-heavy store.
+        if len(metadata) > 16:
+            keep = {
+                "atp_technical_generation_v69161": new_token,
+            }
+            for key in sorted(metadata):
+                if key == "atp_technical_generation_v69161":
+                    continue
+                if len(keep) >= 16:
+                    break
+                keep[key] = metadata[key]
+            metadata = keep
+        try:
+            fast_client.vector_stores.update(
+                vector_store_id=clean_store,
+                metadata=metadata,
+            )
+        except TypeError:
+            fast_client.vector_stores.update(
+                clean_store,
+                metadata=metadata,
+            )
+    except Exception as error:
+        diagnostic_log(
+            "technical_shared_generation_bump_failed_v69161",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        # A metadata bump failure must never make learning fail. The derived
+        # file-count/usage signature remains available on subsequent reads.
+        new_token = ""
+
+    cache = _TECHNICAL_VECTOR_GENERATION_CACHE_V69161
+    with cache["lock"]:
+        cache["store"] = clean_store if new_token else ""
+        cache["value"] = ("meta:" + new_token) if new_token else ""
+        cache["checked_at"] = time.monotonic() if new_token else 0.0
+    return ("meta:" + new_token) if new_token else ""
+
+
+def _technical_identity_search_rows_v69161(prompt_text, store):
+    """Concurrent multi-query source locator with interleaved recall."""
+    prompt = str(prompt_text or "").strip()
+    families = sorted(set(_website_identity_vehicle_families_v69022(prompt)))
+    years = sorted(set(_website_identity_years_v69022(prompt)))
+    systems = sorted(set(_website_identity_systems_v69022(prompt)))
+    codes = sorted(set(_website_image_product_codes_v69020(prompt)))
+
+    descriptors = []
+    if families:
+        descriptors.append("vehicle family " + " ".join(families))
+    if years:
+        descriptors.append("model year " + " ".join(str(x) for x in years))
+    if systems:
+        descriptors.append("factory system " + " ".join(systems))
+    if codes:
+        descriptors.append("product code " + " ".join(codes))
+    identity = "; ".join(descriptors)
+
+    queries = [
+        (
+            "AUTOTECPRO TECHNICAL SOURCE IDENTITY LOCATOR ONLY. Find the exact reviewed "
+            "AutoTecPro installation/technical website package for this user request. "
+            "Prefer exact vehicle family and year scope over broad product/catalog knowledge.\n\n"
+            + prompt
+        ),
+        (
+            "Find the AutoTecPro protected installation instruction / technical information "
+            "website package matching: " + (identity or prompt)
+        ),
+        (
+            "Locate the reviewed AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE whose source URL/title "
+            "most specifically covers: " + (identity or prompt)
+        ),
+    ]
+
+    def run_query(query):
+        request = {
+            "input": query,
+            "tools": [{"type": "file_search", "vector_store_ids": [store]}],
+        }
+        try:
+            return list(
+                _website_request_vector_search_rows_v69047(
+                    request,
+                    max_results=50,
+                )
+                or []
+            )
+        except Exception as error:
+            diagnostic_log(
+                "technical_identity_query_failed_v69161",
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+            return []
+
+    result_sets = [[] for _ in queries]
+    try:
+        from concurrent.futures import (
+            ThreadPoolExecutor,
+            as_completed,
+            TimeoutError as FuturesTimeoutError,
+        )
+        executor = ThreadPoolExecutor(
+            max_workers=3,
+            thread_name_prefix="atp-tech-identity-v69161",
+        )
+        futures = {
+            executor.submit(run_query, query): index
+            for index, query in enumerate(queries)
+        }
+        try:
+            for future in as_completed(futures, timeout=2.5):
+                index = futures[future]
+                try:
+                    result_sets[index] = list(future.result() or [])
+                except Exception:
+                    result_sets[index] = []
+        except FuturesTimeoutError:
+            diagnostic_log(
+                "technical_identity_queries_timeout_v69161",
+                completed=sum(bool(x) for x in result_sets),
+            )
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+    except Exception:
+        # Small compatibility fallback if concurrent.futures is unavailable.
+        result_sets = [run_query(query) for query in queries]
+
+    # Round-robin interleave means no one semantic formulation can consume all
+    # candidate slots before the other identity formulations contribute.
+    rows = []
+    seen = set()
+    max_len = max((len(x) for x in result_sets), default=0)
+    for index in range(max_len):
+        for result_set in result_sets:
+            if index >= len(result_set):
+                continue
+            row = result_set[index]
+            if not isinstance(row, dict):
+                continue
+            file_id = str(row.get("file_id") or "").strip()
+            if not file_id or file_id in seen:
+                continue
+            seen.add(file_id)
+            rows.append(dict(row))
+    return rows
+
 def _technical_current_package_authority_v69157(prompt_text):
-    """v69158: resolve a fingerprint-proven current Technical website package."""
+    """v69161: fast current-package authority with shared generation proof."""
     if str(assistant or "") != "🔧 Technical Support":
         return {"status": "not_applicable"}
     if not _technical_configuration_query_v69155(prompt_text):
@@ -59684,99 +59951,24 @@ def _technical_current_package_authority_v69157(prompt_text):
     if not store.startswith("vs_"):
         return {"status": "no_store"}
 
-    revision = _website_destination_revision_v69109("Technical Support Database")
-    fingerprint_state = _technical_vector_store_fingerprint_v69158(store)
-    live_fingerprint = str(fingerprint_state.get("fingerprint") or "")
-    live_rows = list(fingerprint_state.get("rows") or [])
-    fingerprint_ready = str(fingerprint_state.get("status") or "") == "ready"
-
-    state = _technical_package_prewarm_state_v69119()
-    with state["lock"]:
-        cached_fingerprint = str(state.get("vector_fingerprint_v69158") or "")
-        verified_at = float(state.get("fingerprint_verified_at_v69158") or 0.0)
-        registry_age = (
-            max(0.0, time.monotonic() - verified_at)
-            if verified_at > 0
-            else 10**9
-        )
+    revision = _website_destination_revision_v69109(
+        "Technical Support Database"
+    )
+    shared_generation = _technical_vector_store_generation_v69161(
+        store,
+        max_age_seconds=0.75,
+    )
 
     packages, registry_status = _technical_package_prewarm_snapshot_v69119(
         store,
         revision,
-        wait_seconds=0.0,
+        wait_seconds=0.15,
     )
-
-    # Never bind merely because registry_status says "ready". A current vector-store
-    # fingerprint must match the registry. If the fingerprint cannot be read, only a
-    # very recently verified snapshot is allowed; otherwise fail closed.
-    fingerprint_matches = bool(
-        fingerprint_ready
-        and live_fingerprint
-        and cached_fingerprint
-        and live_fingerprint == cached_fingerprint
-    )
-
-    # Performance fast path: background prewarm may already contain the exact live
-    # website-file membership but predate the v69158 fingerprint fields. Prove
-    # membership by file_id+filename, stamp the fingerprint, and avoid rehydration.
-    if fingerprint_ready and not fingerprint_matches and packages:
-        live_members = {
-            (
-                str(row.get("file_id") or "").strip(),
-                str(row.get("filename") or "").strip(),
-            )
-            for row in live_rows
-        }
-        cached_members = {
-            (
-                str(item.get("file_id") or "").strip(),
-                str(item.get("filename") or "").strip(),
-            )
-            for item in packages
-            if isinstance(item, dict)
-            and str(item.get("file_id") or "").strip()
-        }
-        if live_members and cached_members == live_members:
-            with state["lock"]:
-                state["vector_fingerprint_v69158"] = live_fingerprint
-                state["vector_file_count_v69158"] = len(live_rows)
-                state["fingerprint_verified_at_v69158"] = time.monotonic()
-            cached_fingerprint = live_fingerprint
-            fingerprint_matches = True
-            registry_age = 0.0
-            diagnostic_log(
-                "technical_registry_membership_fingerprint_promoted_v69158",
-                files=len(live_members),
-                fingerprint=live_fingerprint[:24],
-            )
-
-    recently_verified = bool(
-        cached_fingerprint and registry_age <= 15.0
-    )
-
-    if fingerprint_ready and not fingerprint_matches:
-        packages = _technical_catalog_refresh_from_rows_v69158(
-            store,
-            revision,
-            live_rows,
-            fingerprint=live_fingerprint,
-            timeout_seconds=12.0,
+    state = _technical_package_prewarm_state_v69119()
+    with state["lock"]:
+        registry_generation = str(
+            state.get("shared_generation_v69161") or ""
         )
-        registry_status = "ready" if packages else "refresh_failed"
-        fingerprint_matches = bool(packages)
-        registry_age = 0.0 if packages else registry_age
-    elif not fingerprint_ready and not recently_verified:
-        diagnostic_log(
-            "technical_registry_fingerprint_unavailable_fail_closed_v69158",
-            registry_status=registry_status,
-            registry_age_seconds=round(registry_age, 3),
-        )
-        return {
-            "status": "no_exact_source",
-            "reason_code": "VECTOR_FINGERPRINT_UNAVAILABLE",
-            "registry_status_v69157": registry_status,
-            "package_count_v69157": len(packages or []),
-        }
 
     def rank(current_packages):
         candidates = []
@@ -59800,31 +59992,154 @@ def _technical_current_package_authority_v69157(prompt_text):
         )
         return candidates
 
-    candidates = rank(packages)
-    if not candidates and fingerprint_ready:
-        # A matching fingerprint but no compatible package can happen after a partial
-        # prewarm parse. Rehydrate the same live file set once before failing closed.
-        packages = _technical_catalog_refresh_from_rows_v69158(
-            store,
-            revision,
-            live_rows,
-            fingerprint=live_fingerprint,
-            timeout_seconds=12.0,
-        )
-        candidates = rank(packages)
+    # A warm candidate is authoritative only when its shared generation matches
+    # the live vector-store generation. Unknown/mismatched generation does NOT bind.
+    generation_proven = bool(
+        shared_generation
+        and registry_generation
+        and shared_generation == registry_generation
+    )
+    candidates = rank(packages) if generation_proven else []
+    route = "generation_proven_warm_registry" if candidates else "targeted_identity_search_v69161"
+
+    if not candidates:
+        try:
+            rows = list(
+                _technical_identity_search_rows_v69161(
+                    prompt_text,
+                    store,
+                )
+                or []
+            )
+        except Exception as error:
+            rows = []
+            diagnostic_log(
+                "technical_v69161_targeted_search_failed",
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+
+        # Hydrate a broader candidate set than v69160 while keeping one short
+        # concurrent deadline. Three independent identity queries improve recall.
+        unique_rows = []
+        seen = set()
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            file_id = str(row.get("file_id") or "").strip()
+            if not file_id or file_id in seen:
+                continue
+            seen.add(file_id)
+            unique_rows.append(dict(row))
+            if len(unique_rows) >= 50:
+                break
+
+        recovered = []
+        if unique_rows:
+            try:
+                from concurrent.futures import (
+                    ThreadPoolExecutor,
+                    as_completed,
+                    TimeoutError as FuturesTimeoutError,
+                )
+
+                def hydrate(row):
+                    file_id = str(row.get("file_id") or "").strip()
+                    try:
+                        full = str(
+                            _website_file_full_text_v69012(file_id)
+                            or ""
+                        )
+                    except Exception:
+                        full = ""
+                    if not full:
+                        return None
+                    probe = dict(row)
+                    probe["text"] = full
+                    return _technical_source_identity_candidate_v69150(
+                        prompt_text,
+                        probe,
+                        hydrate=False,
+                    )
+
+                executor = ThreadPoolExecutor(
+                    max_workers=min(12, len(unique_rows)),
+                    thread_name_prefix="atp-tech-current-v69161",
+                )
+                futures = {
+                    executor.submit(hydrate, row): row
+                    for row in unique_rows
+                }
+                try:
+                    for future in as_completed(
+                        futures,
+                        timeout=4.5,
+                    ):
+                        try:
+                            candidate = future.result()
+                        except Exception:
+                            candidate = None
+                        if candidate:
+                            recovered.append(candidate)
+                except FuturesTimeoutError:
+                    diagnostic_log(
+                        "technical_v69161_hydration_timeout",
+                        attempted=len(unique_rows),
+                        recovered=len(recovered),
+                    )
+                finally:
+                    executor.shutdown(
+                        wait=False,
+                        cancel_futures=True,
+                    )
+            except Exception as error:
+                diagnostic_log(
+                    "technical_v69161_hydration_failed",
+                    error_type=type(error).__name__,
+                    error=str(error)[:500],
+                )
+
+        package_candidates = []
+        for item in recovered:
+            package = _technical_package_from_text_v69121(
+                str(item.get("file_id") or ""),
+                str(item.get("filename") or ""),
+                str(item.get("text") or ""),
+            )
+            if not isinstance(package, dict):
+                continue
+            package_candidates.append(package)
+            try:
+                _technical_package_prewarm_inject_v69121(
+                    str(item.get("file_id") or ""),
+                    str(item.get("filename") or ""),
+                    str(item.get("text") or ""),
+                )
+            except Exception:
+                pass
+
+        candidates = rank(package_candidates)
+        if candidates and shared_generation:
+            # The targeted winner was read from the live vector store under the
+            # current shared generation. Stamp the local registry generation.
+            with state["lock"]:
+                state["shared_generation_v69161"] = shared_generation
 
     if not candidates:
         diagnostic_log(
-            "technical_current_package_not_found_v69158",
+            "technical_current_package_not_found_v69161",
             registry_status=registry_status,
+            registry_generation=registry_generation[:80],
+            shared_generation=shared_generation[:80],
             package_count=len(packages or []),
-            fingerprint_ready=fingerprint_ready,
+            route=route,
         )
         return {
             "status": "no_exact_source",
-            "reason_code": "NO_COMPATIBLE_CURRENT_PACKAGE",
+            "reason_code": "NO_GENERATION_PROVEN_CURRENT_PACKAGE",
             "registry_status_v69157": registry_status,
             "package_count_v69157": len(packages or []),
+            "recovery_route_v69160": route,
         }
 
     meta = dict(candidates[0])
@@ -59842,29 +60157,28 @@ def _technical_current_package_authority_v69157(prompt_text):
         "filename": str(package.get("filename") or ""),
         "score": 1.0,
         "text": package_text[:50000],
-        "technical_current_package_authority_v69157": True,
-        "technical_vector_fingerprint_v69158": live_fingerprint,
+        "technical_current_package_authority_v69161": True,
+        "technical_shared_generation_v69161": shared_generation,
     }
     diagnostic_log(
-        "technical_current_package_bound_v69158",
+        "technical_current_package_bound_v69161",
+        route=route,
         file_id=row["file_id"][:160],
         source_url=source_url[:700],
         extracted_at=str(package.get("extracted_at") or "")[:120],
         identity_score=int(meta.get("identity_score_v69157") or 0),
         family_exact=bool(meta.get("family_exact_v69157")),
         registry_status=registry_status,
-        package_count=len(packages or []),
-        vector_file_count=int(fingerprint_state.get("count") or 0),
-        fingerprint=live_fingerprint[:24],
-        registry_age_seconds=round(registry_age, 3),
+        registry_packages=len(packages or []),
+        generation_proven=bool(
+            route == "generation_proven_warm_registry"
+            or shared_generation
+        ),
     )
+
     return {
         "status": "recovered",
-        "recovery_route_v69157": "fingerprint_proven_current_package_registry_v69158",
-        "registry_status_v69157": registry_status,
-        "package_count_v69157": len(packages or []),
-        "vector_file_count_v69158": int(fingerprint_state.get("count") or 0),
-        "vector_fingerprint_v69158": live_fingerprint,
+        "recovery_route_v69157": route,
         "file_id": row["file_id"],
         "filename": row["filename"],
         "source_url": source_url,
@@ -59872,8 +60186,13 @@ def _technical_current_package_authority_v69157(prompt_text):
         "extracted_at": str(package.get("extracted_at") or ""),
         "package_text": package_text,
         "rows": [row],
-        "source_scope_v69157": dict(meta.get("source_scope_v69157") or {}),
-        "identity_score_v69157": int(meta.get("identity_score_v69157") or 0),
+        "source_scope_v69157": dict(
+            meta.get("source_scope_v69157") or {}
+        ),
+        "identity_score_v69157": int(
+            meta.get("identity_score_v69157") or 0
+        ),
+        "shared_generation_v69161": shared_generation,
     }
 
 
@@ -60012,7 +60331,7 @@ def _technical_final_factual_qa_v69158(
 
 
 def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_images=16):
-    """Select every inquiry-relevant image from the exact selected section/subtitle."""
+    """v69161: auto-display exact subtitle images plus strictly inquiry-related images."""
     authority = dict(authority or {})
     selected = []
     seen = set()
@@ -60023,9 +60342,15 @@ def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_im
             seen.add(url)
             selected.append(url)
 
-    # Every image physically bound to the structurally selected subtitle/branch is relevant.
+    # Exact structural image URLs are primary and all must display.
     for url in (authority.get("selected_image_urls_v69143") or []):
         add(url)
+
+    for segment in (authority.get("selected_segments_v69158") or []):
+        if not isinstance(segment, dict):
+            continue
+        for url in (segment.get("images") or []):
+            add(url)
 
     package_text = str(authority.get("package_text") or "")
     if not package_text:
@@ -60047,35 +60372,67 @@ def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_im
     except Exception:
         payloads = []
 
-    query_role = ""
     try:
         query_role = _website_image_query_role_v68884(prompt_text)
     except Exception:
         query_role = ""
 
-    selected_context = " ".join(
-        [
-            str(authority.get("section_title") or ""),
-            *[
-                str(x)
-                for x in (authority.get("branch_paths") or [])
-                if str(x).strip()
-            ],
-        ]
-    )
-    context_tokens = set(_technical_hierarchy_tokens_v69143(selected_context))
+    def clean_label(value):
+        value = re.sub(r"<[^>]+>", " ", str(value or ""))
+        value = re.sub(r"[^a-z0-9]+", " ", value.casefold())
+        return re.sub(r"\s+", " ", value).strip()
+
+    selected_labels = []
+    for value in [
+        authority.get("section_title"),
+        authority.get("selected_section_title_v69143"),
+        *(authority.get("branch_paths") or []),
+        *(authority.get("selected_branch_paths_v69143") or []),
+    ]:
+        label = clean_label(value)
+        if label and label not in selected_labels:
+            selected_labels.append(label)
+
+    # Exact selected segment headings/paths carry stronger ancestry than text tokens.
+    for segment in (authority.get("selected_segments_v69158") or []):
+        if not isinstance(segment, dict):
+            continue
+        for value in (segment.get("heading"), segment.get("path")):
+            label = clean_label(value)
+            if label and label not in selected_labels:
+                selected_labels.append(label)
 
     source_url = str(authority.get("source_url") or "").strip()
     try:
-        source_id = canonical_website_url_identity(source_url) if source_url else ""
+        source_id = (
+            canonical_website_url_identity(source_url)
+            if source_url else ""
+        )
     except Exception:
         source_id = ""
+
+    conflict_terms = {
+        "car_model_ac": (
+            "audio", "amplifier", "factory amp", "temperature unit",
+            "weather", "navigation", "camera", "wiring", "harness",
+        ),
+        "protocol": (
+            "audio", "amplifier", "temperature unit", "weather",
+            "navigation", "camera", "wiring", "harness",
+        ),
+        "audio": (
+            "temperature unit", "weather", "navigation", "camera",
+        ),
+        "factory_camera": (
+            "audio", "amplifier", "temperature unit", "weather",
+        ),
+    }
 
     for payload in payloads:
         if not isinstance(payload, dict):
             continue
         url = str(payload.get("image_url") or "").strip()
-        if not url.startswith("https://"):
+        if not url.startswith("https://") or url in seen:
             continue
 
         payload_source = str(payload.get("source_page") or "").strip()
@@ -60089,20 +60446,38 @@ def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_im
         if source_id and payload_source_id and source_id != payload_source_id:
             continue
 
-        metadata_context = " ".join(
-            (
-                str(payload.get("section_heading") or ""),
-                str(payload.get("nearby_instruction_text") or ""),
-                str(payload.get("caption") or ""),
-                str(payload.get("visual_analysis") or ""),
+        heading = clean_label(payload.get("section_heading"))
+        nearby = clean_label(payload.get("nearby_instruction_text"))
+        caption = clean_label(payload.get("caption"))
+        analysis = clean_label(payload.get("visual_analysis"))
+        metadata_text = " ".join(
+            x for x in (heading, nearby, caption, analysis) if x
+        )
+
+        hard_conflict = bool(
+            query_role
+            and any(
+                clean_label(term) in metadata_text
+                for term in conflict_terms.get(query_role, ())
             )
         )
-        metadata_tokens = set(_technical_hierarchy_tokens_v69143(metadata_context))
-        same_subtitle = bool(
-            context_tokens
-            and metadata_tokens
-            and len(context_tokens & metadata_tokens) >= 2
-        )
+        if hard_conflict:
+            continue
+
+        # Exact heading/subtitle ancestry. Equality is strongest; containment is
+        # accepted only for a non-trivial selected label.
+        exact_ancestry = False
+        for label in selected_labels:
+            if len(label) < 5:
+                continue
+            if heading and (
+                heading == label
+                or (len(label.split()) >= 2 and label in heading)
+                or (len(heading.split()) >= 2 and heading in label)
+            ):
+                exact_ancestry = True
+                break
+
         role_match = False
         if query_role:
             try:
@@ -60115,10 +60490,11 @@ def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_im
             except Exception:
                 role_match = False
 
-        # Require either exact subtitle/branch association OR inquiry-role relevance
-        # that still overlaps the selected structural context.
-        if same_subtitle or (role_match and bool(context_tokens & metadata_tokens)):
+        # Additional images outside the exact selected URL set require BOTH:
+        # strict inquiry role match AND exact heading/subtitle ancestry.
+        if role_match and exact_ancestry:
             add(url)
+
         if len(selected) >= max(1, int(max_images or 16)):
             break
 
@@ -61201,6 +61577,12 @@ def _technical_package_prewarm_start_v69119(store, revision):
                         int(revision or 0),
                     ) or []
                 )
+                shared_generation_v69161 = (
+                    _technical_vector_store_generation_v69161(
+                        clean_store,
+                        max_age_seconds=0.0,
+                    )
+                )
                 with state["lock"]:
                     if state.get("key") != key:
                         return packages
@@ -61263,6 +61645,10 @@ def _technical_package_prewarm_start_v69119(store, revision):
                         state["status"] = "ready"
                         state["completed_at"] = time.monotonic()
                         state["error"] = ""
+                        if shared_generation_v69161:
+                            state["shared_generation_v69161"] = (
+                                shared_generation_v69161
+                            )
                     elif state.get("packages"):
                         state["status"] = "stale_ready"
                         state["error"] = "EMPTY_REFRESH"
@@ -62043,6 +62429,9 @@ def _website_invalidate_learning_caches_v69109(database_choices):
                 TECHNICAL_VECTOR_STORE_ID
             )
             if store_ids_v69119:
+                _technical_bump_shared_generation_v69161(
+                    str(store_ids_v69119[0] or "").strip()
+                )
                 _technical_package_prewarm_start_v69119(
                     str(store_ids_v69119[0] or "").strip(),
                     bumped_revisions_v69119[
