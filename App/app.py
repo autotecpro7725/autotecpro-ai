@@ -58734,6 +58734,779 @@ def _technical_replace_settings_table_v69155(answer_text, structured):
     return "\n".join(lines)
 
 
+
+def _technical_mapping_grammar_score_v69156(label, body, prompt_text):
+    """Score factual configuration-mapping segments, not troubleshooting prose.
+
+    This uses only generic structural grammar. It contains no vehicle setting value.
+    """
+    label_cf = re.sub(r"\s+", " ", str(label or "")).strip().casefold()
+    body_cf = re.sub(r"\s+", " ", str(body or "")).strip().casefold()
+    roles = _technical_intent_roles_v69152(prompt_text)
+    if "car_model_protocol" not in roles:
+        return 0.0
+
+    score = 0.0
+    # Strong structural headings used by many configuration pages.
+    heading_rules = (
+        (r"\bselect\s+the\s+correct\s+car\s+model\b", 720.0),
+        (r"\bcar\s+model\b.{0,45}\bbased\s+on\b", 620.0),
+        (r"\bcar\s+model\s*/?\s*a/?c\s+(?:settings|setting)\b", 560.0),
+        (r"\bcar\s+model\s*/?\s*a/?c\s+protocol\s+settings\b", 620.0),
+        (r"\bprotocol\s+settings\b", 500.0),
+        (r"\bvehicle\s+model\s+(?:settings|configuration)\b", 470.0),
+        (r"\bconfiguration\s+(?:settings|mapping|selection)\b", 430.0),
+        (r"\baccess\s+the\s+system\s+settings\b", 250.0),
+    )
+    for pattern, weight in heading_rules:
+        if re.search(pattern, label_cf):
+            score += weight
+
+    # Factual mapping grammar in the body.
+    arrow_count = len(re.findall(r"(?:→|->|=>)", body))
+    score += min(arrow_count, 8) * 80.0
+    if re.search(r"\bprotocol\b", body_cf):
+        score += 100.0
+    if re.search(r"\bcar\s+model\b", body_cf):
+        score += 120.0
+    if re.search(r"\b(?:select|choose|use|set)\b", body_cf):
+        score += 70.0
+    if re.search(r"\b(?:manual|automatic|auto)\s+(?:a/?c|climate)\b", body_cf):
+        score += 70.0
+
+    # Requested branch discriminator must be present in either heading or mapping body.
+    combined = f"{label_cf} {body_cf}"
+    for kind, value in _technical_branch_discriminators_v69155(prompt_text):
+        if kind == "sync":
+            if re.search(rf"\bsync\s*[-:#]?\s*{re.escape(value)}\b", combined):
+                score += 300.0
+            elif "sync" in combined:
+                score -= 90.0
+        elif kind == "no_sync":
+            if re.search(r"\bno[\s-]*sync\b", combined):
+                score += 300.0
+        elif kind == "onstar":
+            if "onstar" in combined and value in combined:
+                score += 260.0
+        elif kind == "screen":
+            if re.search(rf"\b{re.escape(value)}\s*(?:inch|inches|\")", combined):
+                score += 240.0
+        elif kind == "manual":
+            if re.search(r"\bmanual\s+(?:a/?c|climate)\b", combined):
+                score += 180.0
+        elif kind == "automatic":
+            if re.search(r"\b(?:automatic|auto)\s+(?:a/?c|climate)\b", combined):
+                score += 180.0
+
+    # Strongly demote downstream action/troubleshooting subsections when the user
+    # asked for the factual configuration itself.
+    troubleshooting = (
+        r"\btroubleshoot|\bissues?\b|\bproblem\b|\bcalibrat|\btest(?:ing)?\b|"
+        r"\baudio\b|\bamplifier\b|\bcamera\b|\btemperature\b|\bheated\b|\bcooled\b|"
+        r"\bac\s+reserve\b|\bclimate\s+control\s+issues?\b|"
+        r"^for\s+(?:manual|automatic|auto)\s+climate\s+control\b"
+    )
+    if re.search(troubleshooting, label_cf):
+        score -= 720.0
+    return score
+
+
+def _technical_segment_conflicts_discriminator_v69156(label, prompt_text):
+    """Reject an explicitly different branch while retaining common prerequisites."""
+    label_cf = re.sub(r"\s+", " ", str(label or "")).strip().casefold()
+    if not label_cf:
+        return False
+    for kind, value in _technical_branch_discriminators_v69155(prompt_text):
+        if kind == "sync":
+            found = set(re.findall(r"\bsync\s*[-:#]?\s*([123])\b", label_cf))
+            if found and value not in found:
+                return True
+        elif kind == "no_sync":
+            if re.search(r"\bsync\s*[123]\b", label_cf) and not re.search(r"\bno[\s-]*sync\b", label_cf):
+                return True
+        elif kind == "manual":
+            if re.search(r"\b(?:automatic|auto)\s+(?:a/?c|climate)\b", label_cf):
+                return True
+        elif kind == "automatic":
+            if re.search(r"\bmanual\s+(?:a/?c|climate)\b", label_cf):
+                return True
+    return False
+
+
+def _technical_exact_package_structure_v69156(package_text, prompt_text):
+    """Full-package structural selector with mapping-segment authority.
+
+    v69156 fixes a real-page failure where a heading such as
+    "For Manual Climate Control - SYNC 1, SYNC 2 & SYNC 3" could outrank the
+    actual "Select the Correct Car Model Based on SYNC Version" mapping simply
+    because both contained the requested SYNC number.
+    """
+    hierarchy = _technical_package_hierarchy_v69143(package_text)
+    sections = [dict(x) for x in (hierarchy.get("sections") or []) if isinstance(x, dict)]
+    if not sections:
+        return {
+            "status": "no_hierarchy", "section_title": "", "branch_paths": [],
+            "section_text": "", "image_urls": [], "segments": [],
+        }
+
+    ranked_sections = []
+    for index, section in enumerate(sections):
+        title = str(section.get("title") or "").strip()
+        title_score = _technical_structural_label_score_v69155(title, prompt_text)
+        segment_scores = []
+        for seg in (section.get("segments") or []):
+            if not isinstance(seg, dict):
+                continue
+            path = " > ".join(str(x).strip() for x in (seg.get("path") or []) if str(x).strip())
+            heading = str(seg.get("heading") or "").strip()
+            label = " > ".join(x for x in (path, heading) if x)
+            body = str(seg.get("text") or "")
+            segment_scores.append(
+                _technical_structural_label_score_v69155(label, prompt_text)
+                + _technical_mapping_grammar_score_v69156(label, body, prompt_text)
+            )
+        best_segment_score = max(segment_scores) if segment_scores else -10**6
+        combined = max(title_score, best_segment_score)
+        ranked_sections.append((combined, title_score, best_segment_score, -index, section))
+
+    ranked_sections.sort(key=lambda row: row[:4], reverse=True)
+    best_section_score, _, _, _, selected_section = ranked_sections[0]
+    # Fail closed instead of choosing an unrelated first section.
+    if best_section_score <= 0:
+        return {
+            "status": "no_structural_section", "section_title": "", "branch_paths": [],
+            "section_text": "", "image_urls": [], "segments": [],
+        }
+
+    segments = [dict(x) for x in (selected_section.get("segments") or []) if isinstance(x, dict)]
+    if not segments:
+        return {
+            "status": "no_structural_branch",
+            "section_title": str(selected_section.get("title") or "").strip(),
+            "branch_paths": [], "section_text": "", "image_urls": [], "segments": [],
+        }
+
+    roles = _technical_intent_roles_v69152(prompt_text)
+    discriminators = _technical_branch_discriminators_v69155(prompt_text)
+    ranked = []
+    for index, seg in enumerate(segments):
+        path_parts = [str(x).strip() for x in (seg.get("path") or []) if str(x).strip()]
+        heading = str(seg.get("heading") or "").strip()
+        path = " > ".join(path_parts) or heading or str(selected_section.get("title") or "")
+        body = str(seg.get("text") or "")
+        label_score = _technical_structural_label_score_v69155(path, prompt_text)
+        mapping_score = _technical_mapping_grammar_score_v69156(path, body, prompt_text)
+        conflict = _technical_segment_conflicts_discriminator_v69156(path, prompt_text)
+        ranked.append({
+            "score": float(label_score + mapping_score - (900.0 if conflict else 0.0)),
+            "label_score": float(label_score),
+            "mapping_score": float(mapping_score),
+            "index": index,
+            "seg": seg,
+            "path": path,
+            "conflict": conflict,
+        })
+
+    chosen = []
+    if "car_model_protocol" in roles:
+        # Mapping authority is the factual anchor. On a real F-Series page this is
+        # "Select the Correct Car Model Based on SYNC Version"; prerequisites such
+        # as Protocol/Access Settings immediately before it are retained.
+        mapping_candidates = [
+            row for row in ranked
+            if not row["conflict"] and row["mapping_score"] > 0
+        ]
+        mapping_candidates.sort(
+            key=lambda row: (row["mapping_score"], row["score"], -row["index"]),
+            reverse=True,
+        )
+        if mapping_candidates:
+            if discriminators:
+                anchor = mapping_candidates[0]
+                anchor_index = anchor["index"]
+                # Retain common prerequisite/configuration segments before the anchor,
+                # but never a conflicting SYNC/climate branch.
+                for row in ranked:
+                    if row["index"] > anchor_index or row["conflict"]:
+                        continue
+                    body_cf = re.sub(r"\s+", " ", str(row["seg"].get("text") or "")).casefold()
+                    path_cf = row["path"].casefold()
+                    prerequisite = bool(
+                        row["index"] == anchor_index
+                        or row["mapping_score"] > 0
+                        or re.search(
+                            r"\bprotocol\b|\bcar\s+model\b|\bsetting\s+guide\b|"
+                            r"\baccess\s+the\s+system\s+settings\b|\bconfiguration\b",
+                            f"{path_cf} {body_cf}",
+                        )
+                    )
+                    if prerequisite:
+                        chosen.append(row)
+            else:
+                # Broad query: preserve all factual mapping segments. Also preserve
+                # common prerequisites that occur before the first mapping anchor.
+                mapping_indexes = {row["index"] for row in mapping_candidates}
+                first_mapping = min(mapping_indexes)
+                for row in ranked:
+                    body_cf = re.sub(r"\s+", " ", str(row["seg"].get("text") or "")).casefold()
+                    path_cf = row["path"].casefold()
+                    if row["index"] in mapping_indexes:
+                        chosen.append(row)
+                    elif row["index"] < first_mapping and re.search(
+                        r"\bprotocol\b|\bcar\s+model\b|\bsetting\s+guide\b|"
+                        r"\baccess\s+the\s+system\s+settings\b|\bconfiguration\b",
+                        f"{path_cf} {body_cf}",
+                    ):
+                        chosen.append(row)
+        # If a configuration section contains no recognizable mapping grammar,
+        # fall through to the general structural selector rather than inventing.
+    if not chosen:
+        if discriminators:
+            valid = [row for row in ranked if not row["conflict"] and row["score"] > 0]
+            valid.sort(key=lambda row: (row["score"], -row["index"]), reverse=True)
+            if valid:
+                top = valid[0]["score"]
+                chosen = [row for row in valid if row["score"] >= top - 55.0][:24]
+        else:
+            chosen = [row for row in ranked if row["score"] > 0 and not row["conflict"]]
+            chosen.sort(key=lambda row: row["index"])
+            chosen = chosen[:60]
+
+    if not chosen:
+        return {
+            "status": "no_structural_branch",
+            "section_title": str(selected_section.get("title") or "").strip(),
+            "branch_paths": [], "section_text": "", "image_urls": [], "segments": [],
+        }
+
+    # DOM order, unique segment index.
+    by_index = {}
+    for row in chosen:
+        by_index[row["index"]] = row
+    chosen = [by_index[i] for i in sorted(by_index)]
+
+    branch_paths, image_urls, packed_segments, text_parts = [], [], [], []
+    for row in chosen:
+        seg = row["seg"]; path = row["path"]
+        branch_paths.append(path)
+        seg_text = re.sub(r"\s+", " ", str(seg.get("text") or "")).strip()
+        urls = [
+            str(u).strip() for u in (seg.get("images") or [])
+            if str(u).strip().startswith("https://")
+        ]
+        for url in urls:
+            if url not in image_urls:
+                image_urls.append(url)
+        packed_segments.append({
+            "path": path,
+            "heading": str(seg.get("heading") or ""),
+            "text": seg_text[:14000],
+            "images": urls,
+            "structural_score": float(row["score"]),
+            "mapping_score_v69156": float(row["mapping_score"]),
+        })
+        text_parts.append(f"BRANCH: {path}")
+        if seg_text:
+            text_parts.append(seg_text[:14000])
+
+    return {
+        "status": "selected",
+        "section_title": str(selected_section.get("title") or "").strip(),
+        "section_id": str(selected_section.get("section_id") or "").strip(),
+        "branch_paths": branch_paths,
+        "section_text": "\n\n".join(text_parts)[:42000],
+        "image_urls": image_urls,
+        "segments": packed_segments,
+        "selector_version": 69156,
+    }
+
+
+def _technical_evidence_has_value_v69156(value, authority):
+    value = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not value:
+        return False
+    evidence = " ".join((
+        str((authority or {}).get("page_title") or ""),
+        str((authority or {}).get("section_title") or ""),
+        " ".join(str(x) for x in ((authority or {}).get("branch_paths") or [])),
+        str((authority or {}).get("section_text") or ""),
+        json.dumps((authority or {}).get("image_evidence") or [], ensure_ascii=False),
+    ))
+    compact = re.sub(r"\s+", " ", evidence).casefold()
+    value_cf = value.casefold()
+    if value_cf in compact:
+        return True
+    # Normalize common Unicode menu separators without changing factual tokens.
+    norm = lambda x: re.sub(r"[\s→–—>|/_-]+", " ", str(x or "").casefold()).strip()
+    return bool(norm(value) and norm(value) in norm(evidence))
+
+
+def _technical_literal_configuration_v69156(prompt_text, authority):
+    """High-confidence literal parser for common configuration mapping grammar.
+
+    It learns values from the selected source. It contains no vehicle-specific values.
+    """
+    authority = dict(authority or {})
+    text = re.sub(r"\s+", " ", str(authority.get("section_text") or "")).strip()
+    if not text:
+        return {"status": "insufficient", "fields": [], "branches": []}
+
+    fields, branches = [], []
+    field_seen, branch_seen = set(), set()
+
+    def add_field(field, value):
+        field = re.sub(r"\s+", " ", str(field or "")).strip()
+        value = re.sub(r"\s+", " ", str(value or "")).strip(" .,:;|")
+        if not field or not value or not _technical_evidence_has_value_v69156(value, authority):
+            return
+        key = field.casefold()
+        if key in field_seen:
+            return
+        field_seen.add(key)
+        fields.append({"field": field[:120], "value": value[:240], "branch": ""})
+
+    def add_branch(label, field, value):
+        label = re.sub(r"\s+", " ", str(label or "")).strip()
+        field = re.sub(r"\s+", " ", str(field or "")).strip()
+        value = re.sub(r"\s+", " ", str(value or "")).strip(" .,:;|")
+        if not label or not field or not value or not _technical_evidence_has_value_v69156(value, authority):
+            return
+        key = (label.casefold(), field.casefold(), value.casefold())
+        if key in branch_seen:
+            return
+        branch_seen.add(key)
+        existing = next((b for b in branches if b["label"].casefold() == label.casefold()), None)
+        if existing is None:
+            existing = {"label": label[:160], "fields": []}
+            branches.append(existing)
+        existing["fields"].append({"field": field[:120], "value": value[:240]})
+
+    # Conservative Make extraction from exact page identity. Existing generic
+    # brand detection is reused; when more than one manufacturer is truly present
+    # (for example a multi-brand page), no common Make is invented.
+    try:
+        brand_evidence = " ".join((
+            str(authority.get("page_title") or ""),
+            str(authority.get("source_url") or ""),
+            str(authority.get("section_title") or ""),
+        ))
+        brands = set(_website_identity_brand_set_v69022(brand_evidence))
+    except Exception:
+        brands = set()
+    if len(brands) == 1:
+        brand = next(iter(brands))
+        display_brand = brand.upper() if len(brand) <= 3 else brand.title()
+        add_field("Make", display_brand)
+
+    # Protocol literal.
+    protocol_patterns = (
+        r"\bprotocol\b\s*:?\s*(?:is\s+)?(?:set\s+to|=)\s*[\"“”']?([A-Za-z0-9][A-Za-z0-9+._/-]{0,70})",
+        r"\b(?:ensure|make\s+sure)\s+(?:the\s+)?protocol\s+is\s+set\s+to\s*[\"“”']?([A-Za-z0-9][A-Za-z0-9+._/-]{0,70})",
+        r"\bset\s+protocol\s+to\s*[\"“”']?([A-Za-z0-9][A-Za-z0-9+._/-]{0,70})",
+    )
+    for pattern in protocol_patterns:
+        m = re.search(pattern, text, flags=re.I)
+        if m:
+            add_field("Protocol", m.group(1))
+            break
+
+    # Three-level Manual/Automatic menu routes such as Make -> Model -> leaf.
+    route_results = {}
+    for label_key, label_regex, display_label in (
+        ("manual", r"manual\s+(?:a/?c|climate(?:\s+control)?)", "Manual A/C"),
+        ("automatic", r"(?:automatic|auto)\s+(?:a/?c|climate(?:\s+control)?)", "Automatic A/C"),
+    ):
+        route_patterns = (
+            rf"{label_regex}.{{0,130}}?(?:use\s+)?([A-Za-z][A-Za-z0-9+._/-]*)\s*(?:→|->|>)\s*([A-Za-z0-9][A-Za-z0-9+._/-]*)\s*(?:→|->|>)\s*([A-Za-z0-9][A-Za-z0-9+._/-]*)",
+            rf"{label_regex}.{{0,130}}?([A-Za-z][A-Za-z0-9+._/-]*)\s+-\s+([A-Za-z0-9][A-Za-z0-9+._/-]*)\s+-\s+([A-Za-z0-9][A-Za-z0-9+._/-]*)",
+        )
+        for pattern in route_patterns:
+            m = re.search(pattern, text, flags=re.I)
+            if m:
+                route_results[label_key] = (display_label, m.group(1), m.group(2), m.group(3))
+                break
+
+    if "manual" in route_results and "automatic" in route_results:
+        mlabel, make_m, model_m, leaf_m = route_results["manual"]
+        alabel, make_a, model_a, leaf_a = route_results["automatic"]
+        if make_m.casefold() == make_a.casefold():
+            add_field("Make", make_m)
+        if model_m.casefold() == model_a.casefold():
+            add_field("Car Model", model_m)
+        add_branch(mlabel, "A/C Type", leaf_m)
+        add_branch(alabel, "A/C Type", leaf_a)
+
+    # Generic SYNC + climate mapping rows. Preserve exact page labels and values.
+    mapping_pattern = re.compile(
+        r"(SYNC\s*[123]\s*\([^)]*\)\s*\|\s*(?:Manual|Automatic|Auto)\s+Climate\s+Control)"
+        r"\s*(?:→|->|=>)\s*(.*?)"
+        r"(?=\s+SYNC\s*[123]\s*\(|\s+BRANCH:|\Z)",
+        flags=re.I,
+    )
+    mappings = []
+    for m in mapping_pattern.finditer(text):
+        label = re.sub(r"\s+", " ", m.group(1)).strip()
+        value = re.sub(r"\s+", " ", m.group(2)).strip(" .,:;|")
+        if label and value:
+            mappings.append((label, value))
+
+    discriminators = _technical_branch_discriminators_v69155(prompt_text)
+    requested_sync = next((v for k, v in discriminators if k == "sync"), "")
+    wants_manual = any(k == "manual" for k, _ in discriminators)
+    wants_auto = any(k == "automatic" for k, _ in discriminators)
+    requested_screen = next((v for k, v in discriminators if k == "screen"), "")
+
+    filtered = []
+    for label, value in mappings:
+        label_cf = label.casefold()
+        if requested_sync and not re.search(rf"\bsync\s*{re.escape(requested_sync)}\b", label_cf):
+            continue
+        if wants_manual and "manual" not in label_cf:
+            continue
+        if wants_auto and not re.search(r"\b(?:automatic|auto)\b", label_cf):
+            continue
+        if requested_screen and not re.search(rf"\b{re.escape(requested_screen)}\s*(?:inch|inches|\")", label_cf):
+            continue
+        filtered.append((label, value))
+
+    if filtered:
+        if requested_sync:
+            add_field("SYNC Type", f"SYNC {requested_sync}")
+        # If all retained mappings use one stock screen size, expose it as a common field.
+        screens = []
+        for label, _ in filtered:
+            m = re.search(r"\bstock\s*-\s*(\d+(?:\.\d+)?)\s*(?:inch|inches|\")", label, flags=re.I)
+            if m:
+                screens.append(m.group(1))
+        if screens and len({x.casefold() for x in screens}) == 1:
+            add_field("Factory Screen", screens[0] + '"')
+        for label, value in filtered:
+            add_branch(label, "Car Model", value)
+
+    return {
+        "status": "verified" if (fields or branches) else "insufficient",
+        "summary": "",
+        "fields": fields,
+        "branches": branches,
+        "required_clarification": "",
+        "authority": "literal_mapping_v69156",
+    }
+
+
+
+def _technical_model_field_relation_v69156(field, value, authority):
+    """Require a local field/value relationship for model-added configuration facts."""
+    field = re.sub(r"\s+", " ", str(field or "")).strip()
+    value = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not field or not value:
+        return False
+    evidence = " ".join((
+        str((authority or {}).get("page_title") or ""),
+        str((authority or {}).get("section_title") or ""),
+        " ".join(str(x) for x in ((authority or {}).get("branch_paths") or [])),
+        str((authority or {}).get("section_text") or ""),
+        json.dumps((authority or {}).get("image_evidence") or [], ensure_ascii=False),
+    ))
+    evidence_cf = re.sub(r"\s+", " ", evidence).casefold()
+    value_cf = value.casefold()
+    field_tokens = {
+        t for t in re.findall(r"[a-z0-9]+", field.casefold())
+        if len(t) > 1 and t not in {"type", "setting", "settings", "option", "value"}
+    }
+    if not field_tokens:
+        return False
+    positions = [m.start() for m in re.finditer(re.escape(value_cf), evidence_cf)]
+    for pos in positions[:20]:
+        window = evidence_cf[max(0, pos - 150):min(len(evidence_cf), pos + len(value_cf) + 150)]
+        if not any(tok in window for tok in field_tokens):
+            continue
+        # Ambiguous compatibility language is not a single factual setting.
+        if re.search(
+            r"\bwith\s+or\s+without\b|\beither\b.{0,50}\bor\b|"
+            r"\bcheck\s+(?:if|whether)\b|\bverify\s+(?:if|whether)\b",
+            window,
+        ):
+            continue
+        return True
+    return False
+
+
+def _technical_literal_is_sufficient_v69156(prompt_text, literal):
+    literal = dict(literal or {})
+    roles = _technical_intent_roles_v69152(prompt_text)
+    if "car_model_protocol" not in roles:
+        return False
+    common = {
+        str(row.get("field") or "").strip().casefold()
+        for row in (literal.get("fields") or []) if isinstance(row, dict)
+    }
+    branch_fields = {
+        str(row.get("field") or "").strip().casefold()
+        for branch in (literal.get("branches") or []) if isinstance(branch, dict)
+        for row in (branch.get("fields") or []) if isinstance(row, dict)
+    }
+    return bool(
+        "protocol" in common
+        and ("car model" in common or "car model" in branch_fields)
+    )
+
+
+def _technical_validate_structured_v69156(structured, authority):
+    """Reject model-extracted values that do not literally exist in exact evidence."""
+    structured = dict(structured or {})
+    fields = []
+    for row in (structured.get("fields") or []):
+        if not isinstance(row, dict):
+            continue
+        field = str(row.get("field") or "").strip()
+        value = str(row.get("value") or "").strip()
+        if (
+            value
+            and _technical_evidence_has_value_v69156(value, authority)
+            and _technical_model_field_relation_v69156(field, value, authority)
+        ):
+            fields.append(dict(row))
+    branches = []
+    for branch in (structured.get("branches") or []):
+        if not isinstance(branch, dict):
+            continue
+        rows = []
+        for row in (branch.get("fields") or []):
+            if not isinstance(row, dict):
+                continue
+            field = str(row.get("field") or "").strip()
+            value = str(row.get("value") or "").strip()
+            if (
+                value
+                and _technical_evidence_has_value_v69156(value, authority)
+                and _technical_model_field_relation_v69156(field, value, authority)
+            ):
+                rows.append(dict(row))
+        if rows:
+            item = dict(branch); item["fields"] = rows; branches.append(item)
+    return {
+        "status": str(structured.get("status") or "verified"),
+        "summary": str(structured.get("summary") or ""),
+        "fields": fields,
+        "branches": branches,
+        "required_clarification": str(structured.get("required_clarification") or ""),
+    }
+
+
+def _technical_merge_structured_v69156(literal, model_structured):
+    """Literal source mappings win; validated model rows may add non-conflicting fields."""
+    literal = dict(literal or {})
+    model_structured = dict(model_structured or {})
+    fields = [dict(x) for x in (literal.get("fields") or []) if isinstance(x, dict)]
+    branches = [dict(x) for x in (literal.get("branches") or []) if isinstance(x, dict)]
+
+    literal_field_names = {
+        str(x.get("field") or "").strip().casefold() for x in fields
+        if str(x.get("field") or "").strip()
+    }
+
+    # A field that varies by literal branch must never be collapsed into a model-
+    # supplied common value.
+    literal_branch_fields = {
+        str(row.get("field") or "").strip().casefold()
+        for branch in branches if isinstance(branch, dict)
+        for row in (branch.get("fields") or []) if isinstance(row, dict)
+    }
+    labels_cf = [
+        str(branch.get("label") or "").strip().casefold()
+        for branch in branches if isinstance(branch, dict)
+        and str(branch.get("label") or "").strip()
+    ]
+    sync_values = {
+        m.group(1) for label in labels_cf
+        for m in re.finditer(r"\bsync\s*([123])\b", label)
+    }
+    screen_values = {
+        m.group(1) for label in labels_cf
+        for m in re.finditer(r"\b(?:stock\s*-\s*)?(\d+(?:\.\d+)?)\s*(?:inch|inches|\")", label)
+    }
+    climate_values = set()
+    if any("manual" in label for label in labels_cf):
+        climate_values.add("manual")
+    if any(re.search(r"\b(?:automatic|auto)\b", label) for label in labels_cf):
+        climate_values.add("automatic")
+
+    for row in (model_structured.get("fields") or []):
+        if not isinstance(row, dict):
+            continue
+        field = str(row.get("field") or "").strip()
+        field_cf = field.casefold()
+        if not field or field_cf in literal_field_names or field_cf in literal_branch_fields:
+            continue
+        # Do not collapse an explicitly multi-valued branch dimension.
+        if len(sync_values) > 1 and "sync" in field_cf:
+            continue
+        if len(screen_values) > 1 and "screen" in field_cf:
+            continue
+        if len(climate_values) > 1 and re.search(r"a/?c|climate", field_cf):
+            continue
+        fields.append(dict(row)); literal_field_names.add(field_cf)
+
+    # Literal branch mappings are authoritative when available.
+    existing = {
+        (
+            str(branch.get("label") or "").strip().casefold(),
+            str(row.get("field") or "").strip().casefold(),
+            str(row.get("value") or "").strip().casefold(),
+        )
+        for branch in branches if isinstance(branch, dict)
+        for row in (branch.get("fields") or []) if isinstance(row, dict)
+    }
+    for branch in (model_structured.get("branches") or []):
+        if not isinstance(branch, dict):
+            continue
+        label = str(branch.get("label") or "").strip()
+        rows = []
+        for row in (branch.get("fields") or []):
+            if not isinstance(row, dict):
+                continue
+            field = str(row.get("field") or "").strip()
+            value = str(row.get("value") or "").strip()
+            if not field or not value:
+                continue
+            if field.casefold() in literal_branch_fields:
+                continue
+            key = (label.casefold(), field.casefold(), value.casefold())
+            if key not in existing:
+                existing.add(key); rows.append(dict(row))
+        if rows:
+            branches.append({"label": label, "fields": rows})
+
+    return {
+        "status": "verified" if (fields or branches) else "insufficient",
+        "summary": str(model_structured.get("summary") or literal.get("summary") or ""),
+        "fields": fields,
+        "branches": branches,
+        "required_clarification": str(model_structured.get("required_clarification") or ""),
+        "literal_authority_v69156": bool(literal.get("fields") or literal.get("branches")),
+    }
+
+
+
+def _technical_table_rows_from_structured_v69156(structured):
+    """Stable professional field ordering while preserving dynamic branch labels."""
+    rows = _technical_table_rows_from_structured_v69155(structured)
+    order = {
+        "protocol": 0, "make": 1, "car model": 2, "sync type": 3,
+        "onstar type": 4, "factory radio": 5, "radio type": 5,
+        "factory screen": 6, "screen size": 6, "climate type": 7,
+        "a/c type": 7, "camera type": 8, "factory camera": 8,
+        "amplifier type": 9, "factory amplifier": 9, "factory amp": 9,
+    }
+    common, branch = [], []
+    for idx, (field, value) in enumerate(rows):
+        field_cf = re.sub(r"\s+", " ", str(field or "")).strip().casefold()
+        is_branch = " - " in str(field or "")
+        base_field = field_cf.split(" - ", 1)[0]
+        rank = order.get(base_field, 50)
+        target = branch if is_branch else common
+        target.append((rank, idx, field, value))
+    common.sort(key=lambda x: (x[0], x[1]))
+    branch.sort(key=lambda x: (x[0], x[1]))
+    return [(field, value) for _, _, field, value in common + branch]
+
+
+def _technical_replace_settings_table_v69156(answer_text, structured):
+    rows = _technical_table_rows_from_structured_v69156(structured)
+    if not rows:
+        return str(answer_text or "")
+    answer = str(answer_text or "")
+    lines = answer.splitlines()
+    start = next((
+        i for i, line in enumerate(lines)
+        if re.match(r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$", line.strip(), flags=re.I)
+    ), -1)
+    table = ["| Setting Field | Select |", "|---|---|"] + [
+        f"| {field.replace('|','/')} | {value.replace('|','/')} |"
+        for field, value in rows
+    ]
+    if start < 0:
+        insert_at = min(len(lines), 2)
+        lines[insert_at:insert_at] = [""] + table + [""]
+        return "\n".join(lines)
+    end = start + 1
+    while end < len(lines) and lines[end].strip().startswith("|"):
+        end += 1
+    lines[start:end] = table
+    return "\n".join(lines)
+
+
+def _technical_full_package_authority_v69156(prompt_text):
+    """v69156 exact page -> real mapping segment -> literal+validated extraction."""
+    if not _technical_configuration_query_v69155(prompt_text):
+        return {"status": "not_applicable"}
+
+    source = _technical_exact_source_recovery_v69150(prompt_text)
+    if str(source.get("status") or "") != "recovered":
+        return {"status": "no_exact_source", "source_status": str(source.get("status") or "")}
+
+    package_text = str(source.get("package_text") or "")
+    structural = _technical_exact_package_structure_v69156(package_text, prompt_text)
+    if str(structural.get("status") or "") != "selected":
+        return {
+            "status": str(structural.get("status") or "no_exact_section"),
+            "file_id": str(source.get("file_id") or ""),
+            "source_url": str(source.get("source_url") or ""),
+        }
+
+    image_evidence = _technical_exact_package_image_evidence_v69155(
+        package_text, structural.get("image_urls") or []
+    )
+    authority = {
+        "status": "selected",
+        "file_id": str(source.get("file_id") or ""),
+        "filename": str(source.get("filename") or ""),
+        "source_url": str(source.get("source_url") or ""),
+        "page_title": str(source.get("page_title") or ""),
+        "package_text": package_text,
+        "section_title": str(structural.get("section_title") or ""),
+        "section_id": str(structural.get("section_id") or ""),
+        "branch_paths": list(structural.get("branch_paths") or []),
+        "section_text": str(structural.get("section_text") or ""),
+        "selected_image_urls_v69143": list(structural.get("image_urls") or []),
+        "selected_section_title_v69143": str(structural.get("section_title") or ""),
+        "selected_branch_paths_v69143": list(structural.get("branch_paths") or []),
+        "image_evidence": image_evidence,
+        "selector_version": 69156,
+    }
+
+    literal = _technical_literal_configuration_v69156(prompt_text, authority)
+    if _technical_literal_is_sufficient_v69156(prompt_text, literal):
+        # Real configuration mappings are already deterministic. Avoid an extra
+        # extraction-provider call and make the literal learned section the answer.
+        model_structured = {"status": "not_needed", "fields": [], "branches": []}
+        validated_model = model_structured
+        structured = _technical_merge_structured_v69156(literal, validated_model)
+        authority["deterministic_literal_authority_v69156"] = True
+    else:
+        model_structured = _technical_structured_configuration_extract_v69155(prompt_text, authority)
+        validated_model = _technical_validate_structured_v69156(model_structured, authority)
+        structured = _technical_merge_structured_v69156(literal, validated_model)
+        authority["deterministic_literal_authority_v69156"] = False
+    authority["literal_structured_v69156"] = literal
+    authority["model_structured_v69156"] = validated_model
+    authority["structured"] = structured
+
+    if not _technical_table_rows_from_structured_v69155(structured):
+        authority["status"] = "insufficient_structured_fields"
+        return authority
+
+    authority["status"] = "recovered"
+    authority["context"] = _technical_authority_context_v69155(authority)
+    authority["rows"] = [{
+        "file_id": authority["file_id"],
+        "filename": authority["filename"],
+        "score": 1.0,
+        "text": authority["section_text"][:50000],
+        "technical_full_package_authority_v69156": True,
+    }]
+    return authority
+
 def _technical_full_package_authority_v69155(prompt_text):
     """End-to-end exact page -> full package -> section -> dynamic fields authority."""
     if not _technical_configuration_query_v69155(prompt_text):
@@ -71774,6 +72547,8 @@ else:
                 # hierarchy, not by semantic chunk ranking. Dynamic setting fields and
                 # exact-section images are extracted from that one structural authority.
                 technical_full_package_authority_v69155 = {"status": "not_applicable"}
+                technical_v69156_fail_closed = False
+                technical_v69156_configuration_required = False
                 if (
                     assistant == "🔧 Technical Support"
                     and bool(execution_plan.get("use_file_search"))
@@ -71783,9 +72558,10 @@ else:
                         technical_request_prompt_v68879
                     )
                 ):
+                    technical_v69156_configuration_required = True
                     try:
                         technical_full_package_authority_v69155 = (
-                            _technical_full_package_authority_v69155(
+                            _technical_full_package_authority_v69156(
                                 technical_request_prompt_v68879
                             )
                         )
@@ -71822,6 +72598,24 @@ else:
                             st.session_state[
                                 "_workspace_file_search_results_v69040"
                             ] = authority_rows_v69155[:12]
+
+                        # Product Library is compatibility context, not configuration
+                        # authority. Remove it after exact structural settings are proven
+                        # so a product-family label cannot leak into Car Model/Protocol rows.
+                        try:
+                            product_context_v69156 = (
+                                _product_library_chat_context(product_library_lookup)
+                                if product_library_lookup else ""
+                            )
+                            if (
+                                product_context_v69156
+                                and product_context_v69156 in ai_request_prompt
+                            ):
+                                ai_request_prompt = ai_request_prompt.replace(
+                                    product_context_v69156, ""
+                                )
+                        except Exception:
+                            pass
 
                         # Remove any earlier v69124 sibling context from this request.
                         # v69155 has now hydrated the full exact package and is the
@@ -71881,6 +72675,45 @@ else:
                                 ) or []
                             ),
                         )
+                    elif not bool(
+                        technical_variant_evidence_v69124.get("contract_complete")
+                    ):
+                        # v69156 fail closed. A protected configuration inquiry must
+                        # never fall back to the broad semantic subsection path that
+                        # produced F150-HI / wrong-screen / unrelated-image regressions.
+                        technical_v69156_fail_closed = True
+                        use_file_search = False
+                        try:
+                            product_context_v69156 = (
+                                _product_library_chat_context(product_library_lookup)
+                                if product_library_lookup else ""
+                            )
+                            if (
+                                product_context_v69156
+                                and product_context_v69156 in ai_request_prompt
+                            ):
+                                ai_request_prompt = ai_request_prompt.replace(
+                                    product_context_v69156, ""
+                                )
+                        except Exception:
+                            pass
+                        ai_request_prompt += (
+                            "\n\nTECHNICAL CONFIGURATION AUTHORITY FAILURE (v69156):\n"
+                            "The exact learned page/full configuration section could not be "
+                            "proven for this turn. Do NOT infer, guess, or substitute Product "
+                            "Library, compatibility, troubleshooting, climate, audio, camera, "
+                            "or nearby vehicle values for Protocol, Make, Car Model, SYNC, "
+                            "OnStar, radio, screen, climate, or other configuration settings. "
+                            "State that the exact learned configuration requires verification. "
+                            "Do not claim that an unrelated website image is the requested "
+                            "configuration image."
+                        )
+                        diagnostic_log(
+                            "technical_configuration_fail_closed_v69156",
+                            status=str(
+                                technical_full_package_authority_v69155.get("status") or ""
+                            )[:120],
+                        )
 
                 # v69154 FINAL: restore the proven v69050/v69125 Technical runtime.
                 #
@@ -71897,6 +72730,7 @@ else:
                     and bool(execution_plan.get("use_file_search"))
                     and not bool(technical_website_learning_requested_v68870)
                     and not bool(explicit_learning_requested)
+                    and not bool(locals().get("technical_v69156_fail_closed"))
                     and str(
                         (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
                     ) != "recovered"
@@ -71964,6 +72798,7 @@ else:
                 if (
                     assistant == "🔧 Technical Support"
                     and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                    and not bool(locals().get("technical_v69156_fail_closed"))
                     and str(
                         (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
                     ) != "recovered"
@@ -72031,6 +72866,7 @@ else:
                 if (
                     assistant == "🔧 Technical Support"
                     and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                    and not bool(locals().get("technical_v69156_fail_closed"))
                     and str(
                         (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
                     ) != "recovered"
@@ -72329,7 +73165,7 @@ else:
                             (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
                         ) == "recovered":
                             try:
-                                answer_body = _technical_replace_settings_table_v69155(
+                                answer_body = _technical_replace_settings_table_v69156(
                                     answer_body,
                                     (technical_full_package_authority_v69155.get("structured") or {}),
                                 )
@@ -72346,6 +73182,7 @@ else:
                             str(
                                 (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
                             ) != "recovered"
+                            and not bool(locals().get("technical_v69156_fail_closed"))
                             and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
                         ):
                             try:
@@ -72940,6 +73777,26 @@ else:
                 )
             )
 
+        # v69156 absolute configuration fail-closed image rule. If the full
+        # exact package/section was not proven and the v69125 contract was also
+        # incomplete, no learned website image may survive from an earlier broad
+        # lookup. Uploaded/user images remain unaffected.
+        if (
+            assistant == "🔧 Technical Support"
+            and bool(locals().get("technical_v69156_fail_closed"))
+        ):
+            generated_images = [
+                image for image in (generated_images or [])
+                if not (
+                    isinstance(image, dict)
+                    and str(image.get("source") or "") == "website_knowledge"
+                )
+            ]
+            diagnostic_log(
+                "technical_configuration_images_fail_closed_v69156",
+                published_website_images=0,
+            )
+
         # v69143: exact learned section/subtitle image authority. This runs after
         # the legacy active-package filter so a stale package cannot erase or replace
         # images that were explicitly learned underneath the selected subtitle. It
@@ -72951,7 +73808,10 @@ else:
                 str(
                     (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
                 ) == "recovered"
-                or not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                or (
+                    not bool(locals().get("technical_v69156_fail_closed"))
+                    and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                )
             )
         ):
             try:
