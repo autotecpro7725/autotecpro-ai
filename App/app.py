@@ -1,3 +1,4 @@
+# AutoTecPro AI v69149 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
 # AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
 V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
 # AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
@@ -38575,15 +38576,11 @@ def _technical_variant_search_query_v69124(prompt_text, branch):
         "AUTOTECPRO TECHNICAL SAME-CONFIGURATION SETTINGS RETRIEVAL ONLY. "
         "Find the CURRENT learned Technical source for the exact vehicle/year/product/"
         "factory-system in the user request. Retrieve the Car Model / Protocol / climate "
-        f"settings evidence for the {branch_name} branch. HIGHEST SOURCE AUTHORITY: when an "
-        "AutoTecPro website knowledge package comes from an exact matching protected "
-        "installation-instruction Technical page (including legacy technical-inforamtion slugs), prefer that Technical installation "
-        "page over a broader product page, product-series record, catalog record, or generic "
-        "same-family record, even when the broader record is newer. Among equally exact Technical "
-        "installation pages, prefer the newest Extracted at timestamp. Do not substitute a nearby "
-        "vehicle family, screen family, SYNC/factory-system variant, or older conflicting learned "
-        "settings record. Return evidence only; never infer a setting that is not present in the "
-        "retrieved source.\n\n"
+        f"settings evidence for the {branch_name} branch. Prefer an Admin website knowledge "
+        "package with the newest Extracted at timestamp when it matches the same configuration. "
+        "Do not substitute a nearby vehicle family, screen family, SYNC/factory-system variant, "
+        "or older conflicting learned settings record. Return evidence only; never infer a "
+        "setting that is not present in the retrieved source.\n\n"
         f"USER REQUEST:\n{str(prompt_text or '').strip()}"
     )
 
@@ -38699,15 +38696,10 @@ def _technical_variant_candidate_v69124(prompt_text, row, branch):
     evidence_systems = set(_website_identity_systems_v69022(evidence))
     evidence_codes = set(_website_image_product_codes_v69020(evidence))
 
-    # v69141: broad page bodies can mention several supported models.  Defer the
-    # family/year rejection for protected installation packages until their exact
-    # source URL + learned Page title scope is available below.
-    preliminary_family_mismatch_v69141 = bool(
-        prompt_families and evidence_families and not (prompt_families & evidence_families)
-    )
-    preliminary_year_mismatch_v69141 = bool(
-        prompt_years and evidence_years and not (prompt_years & evidence_years)
-    )
+    if prompt_families and evidence_families and not (prompt_families & evidence_families):
+        return None
+    if prompt_years and evidence_years and not (prompt_years & evidence_years):
+        return None
     if prompt_systems and evidence_systems and not (prompt_systems & evidence_systems):
         return None
     if prompt_codes and evidence_codes and not (prompt_codes & evidence_codes):
@@ -38742,43 +38734,6 @@ def _technical_variant_candidate_v69124(prompt_text, row, branch):
         or _technical_package_header_value_v69113(evidence, "Requested URL")
         if is_website_package else ""
     )
-    page_title_v69141 = (
-        _technical_package_header_value_v69113(evidence, "Page title")
-        if is_website_package else ""
-    )
-    source_scope_v69141 = _technical_source_url_scope_v69141(
-        source_url, page_title_v69141
-    )
-    installation_priority_pre_v69141 = _technical_installation_source_priority_v69140(
-        source_url, evidence
-    )
-
-    # For an exact protected installation source, use its literal URL/title scope
-    # to disambiguate overlapping model/year pages before broad body-frequency
-    # heuristics.  Example: 2009-2014 F150 vs 2015-2021 F150/F250/F350.
-    source_families_v69141 = set(source_scope_v69141.get("families") or [])
-    source_years_v69141 = set(source_scope_v69141.get("years") or [])
-    if installation_priority_pre_v69141 >= 3:
-        if prompt_families and source_families_v69141 and not (prompt_families & source_families_v69141):
-            return None
-        if prompt_years and source_years_v69141 and not (prompt_years & source_years_v69141):
-            return None
-        source_family_match_v69141 = bool(
-            not prompt_families or not source_families_v69141
-            or (prompt_families & source_families_v69141)
-        )
-        source_year_match_v69141 = bool(
-            not prompt_years or not source_years_v69141
-            or (prompt_years & source_years_v69141)
-        )
-        if preliminary_family_mismatch_v69141 and not source_family_match_v69141:
-            return None
-        if preliminary_year_mismatch_v69141 and not source_year_match_v69141:
-            return None
-    else:
-        if preliminary_family_mismatch_v69141 or preliminary_year_mismatch_v69141:
-            return None
-
     try:
         base_score = float(row.get("score") or 0.0)
     except Exception:
@@ -38792,12 +38747,6 @@ def _technical_variant_candidate_v69124(prompt_text, row, branch):
     if is_website_package:
         identity_score += 35.0
 
-    installation_source_priority_v69140 = installation_priority_pre_v69141
-    if prompt_families and source_families_v69141 and (prompt_families & source_families_v69141):
-        identity_score += 80.0
-    if prompt_years and source_years_v69141 and (prompt_years & source_years_v69141):
-        identity_score += 45.0
-
     return {
         "file_id": file_id,
         "filename": filename,
@@ -38805,12 +38754,8 @@ def _technical_variant_candidate_v69124(prompt_text, row, branch):
         "identity_score": identity_score,
         "text": evidence[:50000],
         "source_url": str(source_url or "").strip(),
-        "page_title_v69141": str(page_title_v69141 or "").strip(),
-        "source_scope_families_v69141": sorted(source_families_v69141),
-        "source_scope_years_v69141": sorted(source_years_v69141),
         "extracted_at": str(extracted_at or "").strip(),
         "website_package": is_website_package,
-        "installation_source_priority_v69140": installation_source_priority_v69140,
         "branch": branch,
     }
 
@@ -40214,6 +40159,97 @@ def _technical_generic_section_evidence_v69142(prompt_text):
     }
 
 
+def _technical_v69050_bounded_settings_recovery_v69149(prompt_text):
+    """One bounded normal-Technical recovery that still requires one exact same-file contract.
+
+    v69050 allowed the ordinary Technical retrieval route to recover when a specialized
+    pre-search missed.  v69149 preserves that usefulness without reopening broad factual
+    substitution: one normal file_search is performed, then the unchanged v69125 candidate
+    validator must prove BOTH Manual and Automatic branches from the SAME file before the
+    result can become turn-local authority.  No vehicle/menu value is encoded here.
+    """
+    if not _technical_generic_ac_variant_request_v69124(prompt_text):
+        return {"context": "", "rows": [], "status": "not_applicable", "contract_complete": False}
+    stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not stores:
+        return {"context": "", "rows": [], "status": "no_store", "contract_complete": False}
+    store = str(stores[0] or "").strip()
+    request = {
+        "input": str(prompt_text or "").strip(),
+        "tools": [{"type": "file_search", "vector_store_ids": [store]}],
+    }
+    try:
+        rows = list(_website_request_vector_search_rows_v69047(request, max_results=30) or [])
+    except Exception as error:
+        diagnostic_log(
+            "technical_v69050_bounded_recovery_search_failed_v69149",
+            error_type=type(error).__name__, error=str(error)[:500],
+        )
+        return {"context": "", "rows": [], "status": "search_failed", "contract_complete": False}
+
+    pairs = []
+    for row in rows:
+        manual = _technical_variant_candidate_v69124(prompt_text, row, "manual")
+        automatic = _technical_variant_candidate_v69124(prompt_text, row, "automatic")
+        if not (manual and automatic):
+            continue
+        # Both candidates originate from this exact row/file; hydrate once through the
+        # v69125 validator result and require literal values for both branches.
+        item = dict(manual)
+        evidence = str(item.get("text") or "")
+        manual_value = _technical_extract_ac_variant_value_v69125(evidence, "manual")
+        automatic_value = _technical_extract_ac_variant_value_v69125(evidence, "automatic")
+        if not (manual_value and automatic_value):
+            continue
+        item["manual_value"] = manual_value
+        item["automatic_value"] = automatic_value
+        item["v69050_bounded_recovery_v69149"] = True
+        pairs.append(item)
+
+    pairs.sort(
+        key=lambda item: (
+            bool(item.get("website_package")),
+            str(item.get("extracted_at") or ""),
+            float(item.get("identity_score") or 0.0),
+            float(item.get("score") or 0.0),
+        ),
+        reverse=True,
+    )
+    if not pairs:
+        return {"context": "", "rows": [], "status": "no_evidence", "contract_complete": False}
+
+    selected = dict(pairs[0])
+    row = {
+        "file_id": str(selected.get("file_id") or ""),
+        "filename": str(selected.get("filename") or ""),
+        "score": float(selected.get("score") or 0.0),
+        "text": str(selected.get("text") or "")[:50000],
+        "technical_variant_evidence_v69124": True,
+        "technical_dual_ac_contract_v69125": True,
+        "technical_v69050_bounded_recovery_v69149": True,
+    }
+    result = {
+        "context": (
+            "TECHNICAL SAME-FILE BOUNDED RECOVERY (v69149):\n"
+            "The normal Technical retrieval found one exact source that independently proves "
+            "both Manual and Automatic branches under the unchanged v69125 validator. Use only "
+            "this file as the turn-local settings authority.\n\n"
+            + str(selected.get("text") or "")[:30000]
+        ),
+        "rows": [row],
+        "status": "recovered",
+        "contract_complete": True,
+        "manual_value": str(selected.get("manual_value") or ""),
+        "automatic_value": str(selected.get("automatic_value") or ""),
+        "contract_file_id": str(selected.get("file_id") or ""),
+        "contract_source_url": str(selected.get("source_url") or ""),
+        "contract_extracted_at": str(selected.get("extracted_at") or ""),
+        "v69050_bounded_recovery_v69149": True,
+    }
+    result["context"] += "\n\n" + _technical_variant_contract_context_v69125(result)
+    return result
+
+
 def _technical_same_family_variant_evidence_v69124(prompt_text):
     """Retrieve and bind one same-family source containing Manual + Automatic branches."""
     if not _technical_generic_ac_variant_request_v69124(prompt_text):
@@ -40250,10 +40286,9 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
                 output.append(candidate)
         output.sort(
             key=lambda item: (
-                int(item.get("installation_source_priority_v69140") or 0),
                 bool(item.get("website_package")),
-                float(item.get("identity_score") or 0.0),
                 str(item.get("extracted_at") or ""),
+                float(item.get("identity_score") or 0.0),
                 float(item.get("score") or 0.0),
             ),
             reverse=True,
@@ -40267,9 +40302,8 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
                 "Find the CURRENT Technical source for the exact vehicle/year/product/"
                 "factory-system in the user request that contains BOTH the Manual A/C "
                 "and Automatic A/C Car Model / Protocol / climate menu selections. "
-                "Prefer the exact matching AutoTecPro protected installation-instruction Technical website package (including legacy technical-inforamtion slugs) over broader product/series/catalog "
-                "records; among equally exact installation pages prefer the newest extraction. "
-                "Do not use a nearby vehicle or factory-system family.\n\nUSER REQUEST:\n"
+                "Prefer the newest Admin website package. Do not use a nearby vehicle "
+                "or factory-system family.\n\nUSER REQUEST:\n"
                 + str(prompt_text or "").strip()
             ),
             "tools": [{"type": "file_search", "vector_store_ids": [store]}],
@@ -40303,10 +40337,9 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
             pair_candidates.append(item)
         pair_candidates.sort(
             key=lambda item: (
-                int(item.get("installation_source_priority_v69140") or 0),
                 bool(item.get("website_package")),
-                float(item.get("identity_score") or 0.0),
                 str(item.get("extracted_at") or ""),
+                float(item.get("identity_score") or 0.0),
                 float(item.get("score") or 0.0),
             ),
             reverse=True,
@@ -40385,10 +40418,9 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
 
     common.sort(
         key=lambda item: (
-            int(item.get("installation_source_priority_v69140") or 0),
             bool(item.get("website_package")),
-            float(item.get("identity_score") or 0.0),
             str(item.get("extracted_at") or ""),
+            float(item.get("identity_score") or 0.0),
             min(
                 float(item.get("manual_branch_score_v69125") or 0.0),
                 float(item.get("automatic_branch_score_v69125") or 0.0),
@@ -70142,6 +70174,47 @@ else:
                                     "contract_file_id"
                                 ) or ""
                             )[:120],
+                        )
+
+                # v69149: bounded v69050-style recovery only when the exact v69125
+                # specialized retrieval did not complete. One normal Technical vector search
+                # is allowed, but it cannot become authority unless the unchanged v69125
+                # validator proves BOTH branches from the SAME exact file.
+                if (
+                    assistant == "🔧 Technical Support"
+                    and bool(use_file_search)
+                    and _technical_generic_ac_variant_request_v69124(
+                        technical_request_prompt_v68879
+                    )
+                    and not bool(technical_variant_evidence_v69124.get("contract_complete"))
+                ):
+                    try:
+                        bounded_recovery_v69149 = _technical_v69050_bounded_settings_recovery_v69149(
+                            technical_request_prompt_v68879
+                        )
+                    except Exception as error_v69149:
+                        bounded_recovery_v69149 = {}
+                        diagnostic_log(
+                            "technical_v69050_bounded_recovery_failed_v69149",
+                            error_type=type(error_v69149).__name__,
+                            error=str(error_v69149)[:500],
+                        )
+                    if bool(bounded_recovery_v69149.get("contract_complete")):
+                        technical_variant_evidence_v69124 = bounded_recovery_v69149
+                        bounded_context_v69149 = str(bounded_recovery_v69149.get("context") or "").strip()
+                        if bounded_context_v69149:
+                            ai_request_prompt += "\n\n" + bounded_context_v69149
+                        bounded_rows_v69149 = [
+                            dict(row) for row in (bounded_recovery_v69149.get("rows") or [])
+                            if isinstance(row, dict)
+                        ]
+                        if bounded_rows_v69149:
+                            st.session_state["_technical_file_search_results_v69012"] = bounded_rows_v69149[:12]
+                            st.session_state["_workspace_file_search_results_v69040"] = bounded_rows_v69149[:12]
+                        use_file_search = False
+                        diagnostic_log(
+                            "technical_v69050_bounded_contract_bound_v69149",
+                            file_id=str(bounded_recovery_v69149.get("contract_file_id") or "")[:120],
                         )
 
                 # v69142: generic learned-section authority for every Technical
