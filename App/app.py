@@ -1,3 +1,4 @@
+# AutoTecPro AI v69159 FINAL RELEASE — Graphic durable-job UUID runtime dependency repair; v69158 Technical fixes preserved.
 # AutoTecPro AI v69150 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
 # AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
 V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
@@ -9,20 +10,6 @@ V69143_QUICK_NAV_SECTION_CONTENT_IMAGE_LEARNING = True
 V69142_GENERIC_SECTION_LEARNING_AUTHORITY = True
 # AutoTecPro AI v69141 — FINAL PRODUCTION: typo-tolerant multi-model protected-installation source authority; v69125 output contract + v69137 image durability preserved.
 # AutoTecPro AI v69140 — FINAL PRODUCTION: Technical installation-page source authority restored over broader product/series records; v69125 output contract + v69137 image durability preserved.
-# AutoTecPro AI v69137 — FINAL PRODUCTION: exact v69128 Technical retrieval/display baseline restored and locked; only v69131 durable image schema compatibility/read-back and failure accounting added. No v69132+ active-package prompt/source overrides imported.
-V69139_EXACT_V69125_TECH_OUTPUT_ON_V69137_DURABILITY = True
-# AutoTecPro AI v69128 — FINAL PRODUCTION: generic dynamic multi-option Technical settings rows across Ford/GM/future sources; v69126 first-turn image publication and all protected pipelines preserved
-# AutoTecPro AI v69127 — FINAL PRODUCTION: dynamic multi-option settings rows + preserved first-turn Technical images; all v69126/v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
-# AutoTecPro AI v69126 — FINAL PRODUCTION: split verified A/C options into separate rows + first-turn Technical image recovery from exact answer evidence; all v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
-# AutoTecPro AI v69125 — FINAL PRODUCTION: verified same-source dual-A/C contract + deterministic two-row table preservation; all v69124/v69123 image, learning, output, Graphic, Reference, After Install behavior preserved
-# AutoTecPro AI v69124 — FINAL PRODUCTION: complete same-family Manual+Automatic Technical settings retrieval; v69123 durability/F250/image fixes and all protected output/Graphic/Reference/After Install behavior preserved\n# AutoTecPro AI v69123 — FINAL PRODUCTION: durable image read-back fix + Admin website supersedes conflicting Technical settings learned vectors + clean explicit-vehicle context + v69050 Technical late-image publication restored; all output/Graphic/Reference/After Install preserved
-# AutoTecPro AI v69122 — FINAL PRODUCTION: v69050 Technical factual authority restored at the live call site; v69121 output/learning/image/Graphic/Reference/After Install preserved
-# AutoTecPro AI v69121 — FINAL PRODUCTION RELEASE: resilient optional Technical prewarm + last-known-good snapshot + immediate new-package promotion + v69120 same-turn explicit photos; all protected output/Graphic/Reference/After Install preserved
-# AutoTecPro AI v69120 — immediate explicit photo publication across Technical/Sales/Marketing; all v69119 output/result, Graphic, Reference, After Install, and QA behavior preserved
-# AutoTecPro AI v69119 — prewarmed proven Technical catalog for fast/stable responses; v69118 output/result and v69115 image behavior preserved
-# AutoTecPro AI v69118 — FINAL STABLE: v69115 proven result/image path + main-thread typo-safe routing; v69117 registry regression removed
-# AutoTecPro AI v69117 — stable main-thread Technical routing; v69115 automatic image + v69114 result/display preserved
-# AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -74,6 +61,7 @@ import base64
 import html
 import hashlib
 import hmac
+import uuid
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import tempfile
