@@ -58292,6 +58292,507 @@ def _technical_hierarchy_excerpt_v69152(package_text, prompt_text):
         "selector_v69152": "deterministic_hierarchy",
     }
 
+
+def _technical_configuration_query_v69155(prompt_text):
+    q = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not q:
+        return False
+    return bool(re.search(
+        r"\bcar\s*model\b|\bcanbus\b|\bcan\s*bus\b|\bprotocol\b|"
+        r"\bsync\s*[123]?\b|\bonstar\b|\bfactory\s+radio\b|\bradio\s+type\b|"
+        r"\bscreen\s+size\b|\bfactory\s+screen\b|\bclimate\b|\ba\s*/?\s*c\b|"
+        r"\bcamera\s+(?:type|setting)\b|\bfactory\s+camera\b|"
+        r"\bamplifier\b|\bfactory\s+amp\b|\bsetting(?:s)?\b",
+        q,
+    ))
+
+
+def _technical_branch_discriminators_v69155(prompt_text):
+    """Return explicit branch discriminators from the user's question."""
+    q = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    output = []
+    patterns = (
+        ("sync", r"\bsync\s*[-:#]?\s*([123])\b"),
+        ("onstar", r"\bonstar\s*(?:type|version)?\s*[-:#]?\s*([a-z0-9]+)\b"),
+        ("screen", r"\b(\d+(?:\.\d+)?)\s*(?:inch|inches|\")\b"),
+        ("type", r"\btype\s*[-:#]?\s*([a-z0-9]+)\b"),
+        ("option", r"\boption\s*[-:#]?\s*([a-z0-9]+)\b"),
+        ("manual", r"\bmanual\s+(?:a/?c|climate)\b"),
+        ("automatic", r"\b(?:automatic|auto)\s+(?:a/?c|climate)\b"),
+        ("no_sync", r"\bno[\s-]*sync\b"),
+    )
+    for kind, pattern in patterns:
+        m = re.search(pattern, q, flags=re.I)
+        if not m:
+            continue
+        value = m.group(1) if m.groups() else kind
+        output.append((kind, str(value).strip().casefold()))
+    return output
+
+
+def _technical_structural_label_score_v69155(label, prompt_text):
+    """Score only structural titles/paths, not arbitrary body-text similarity."""
+    label_cf = re.sub(r"\s+", " ", str(label or "")).strip().casefold()
+    if not label_cf:
+        return -10**6
+    roles = _technical_intent_roles_v69152(prompt_text)
+    score = _technical_hierarchy_role_score_v69152(label_cf, roles) * 10.0
+
+    qtokens = _technical_hierarchy_tokens_v69143(prompt_text)
+    ltokens = _technical_hierarchy_tokens_v69143(label_cf)
+    score += len(qtokens & ltokens) * 45.0
+
+    # Explicit branch discriminators outrank generic parent headings.
+    for kind, value in _technical_branch_discriminators_v69155(prompt_text):
+        if kind == "sync":
+            if re.search(rf"\bsync\s*[-:#]?\s*{re.escape(value)}\b", label_cf):
+                score += 420.0
+            elif "sync" in label_cf:
+                score -= 80.0
+        elif kind == "no_sync":
+            if re.search(r"\bno[\s-]*sync\b", label_cf):
+                score += 420.0
+            elif "sync" in label_cf:
+                score -= 120.0
+        elif kind == "onstar":
+            if "onstar" in label_cf and value in label_cf:
+                score += 360.0
+        elif kind == "screen":
+            if re.search(rf"\b{re.escape(value)}\s*(?:inch|inches|\")", label_cf):
+                score += 320.0
+        elif kind in {"type", "option"}:
+            if re.search(rf"\b{kind}\s*[-:#]?\s*{re.escape(value)}\b", label_cf):
+                score += 280.0
+        elif kind == "manual":
+            if re.search(r"\bmanual\b", label_cf):
+                score += 260.0
+        elif kind == "automatic":
+            if re.search(r"\b(?:auto|automatic)\b", label_cf):
+                score += 260.0
+
+    # Generic troubleshooting/compatibility sections may mention every setting,
+    # but must not become factual setting authority.
+    if re.search(
+        r"\bcompatib(?:le|ility)\b|\bimportant note\b|\btroubleshoot|"
+        r"\bcommon mistake\b|\bfaq\b|\btest(?:ing)?\b|\bverify\b|\bcheck\b",
+        label_cf,
+    ):
+        score -= 260.0
+    return score
+
+
+def _technical_exact_package_structure_v69155(package_text, prompt_text):
+    """Select exact section/branches from one full learned package.
+
+    Semantic vector ranking is finished before this function runs. This function
+    never searches another file and never uses Product Library records.
+    """
+    hierarchy = _technical_package_hierarchy_v69143(package_text)
+    sections = [dict(x) for x in (hierarchy.get("sections") or []) if isinstance(x, dict)]
+    if not sections:
+        return {
+            "status": "no_hierarchy",
+            "section_title": "",
+            "branch_paths": [],
+            "section_text": "",
+            "image_urls": [],
+            "segments": [],
+        }
+
+    ranked_sections = []
+    for index, section in enumerate(sections):
+        title = str(section.get("title") or "").strip()
+        title_score = _technical_structural_label_score_v69155(title, prompt_text)
+        segment_scores = []
+        for seg in (section.get("segments") or []):
+            if not isinstance(seg, dict):
+                continue
+            path = " > ".join(str(x).strip() for x in (seg.get("path") or []) if str(x).strip())
+            heading = str(seg.get("heading") or "").strip()
+            segment_scores.append(
+                _technical_structural_label_score_v69155(
+                    " > ".join(x for x in (path, heading) if x),
+                    prompt_text,
+                )
+            )
+        best_segment_score = max(segment_scores) if segment_scores else -10**6
+        ranked_sections.append((
+            max(title_score, best_segment_score),
+            title_score,
+            best_segment_score,
+            -index,
+            section,
+        ))
+
+    ranked_sections.sort(key=lambda row: row[:4], reverse=True)
+    _, _, _, _, selected_section = ranked_sections[0]
+
+    segments = [dict(x) for x in (selected_section.get("segments") or []) if isinstance(x, dict)]
+    discriminators = _technical_branch_discriminators_v69155(prompt_text)
+
+    ranked_segments = []
+    for index, seg in enumerate(segments):
+        path_parts = [str(x).strip() for x in (seg.get("path") or []) if str(x).strip()]
+        heading = str(seg.get("heading") or "").strip()
+        path = " > ".join(path_parts) or heading or str(selected_section.get("title") or "")
+        score = _technical_structural_label_score_v69155(path, prompt_text)
+        ranked_segments.append((score, -index, seg, path))
+
+    # Specific user discriminator -> exact matching branch(es).
+    if discriminators:
+        ranked_segments.sort(key=lambda row: row[:2], reverse=True)
+        best = ranked_segments[0][0] if ranked_segments else -10**6
+        chosen = [row for row in ranked_segments if row[0] >= best - 55.0 and row[0] > 0][:24]
+    else:
+        # Broad configuration question -> preserve all structural branches in the
+        # selected configuration section rather than arbitrarily picking one.
+        chosen = [
+            row for row in ranked_segments
+            if row[0] > 0
+        ]
+        if not chosen:
+            chosen = ranked_segments
+        chosen = sorted(chosen, key=lambda row: -row[1])[:60]
+
+    branch_paths, image_urls, packed_segments = [], [], []
+    text_parts = []
+    for score, _, seg, path in chosen:
+        branch_paths.append(path)
+        seg_text = re.sub(r"\s+", " ", str(seg.get("text") or "")).strip()
+        urls = [
+            str(u).strip() for u in (seg.get("images") or [])
+            if str(u).strip().startswith("https://")
+        ]
+        for u in urls:
+            if u not in image_urls:
+                image_urls.append(u)
+        packed_segments.append({
+            "path": path,
+            "heading": str(seg.get("heading") or ""),
+            "text": seg_text[:14000],
+            "images": urls,
+            "structural_score": float(score),
+        })
+        text_parts.append(f"BRANCH: {path}")
+        if seg_text:
+            text_parts.append(seg_text[:14000])
+
+    section_text = "\n\n".join(text_parts)[:42000]
+    return {
+        "status": "selected",
+        "section_title": str(selected_section.get("title") or "").strip(),
+        "section_id": str(selected_section.get("section_id") or "").strip(),
+        "branch_paths": branch_paths,
+        "section_text": section_text,
+        "image_urls": image_urls,
+        "segments": packed_segments,
+    }
+
+
+def _technical_exact_package_image_evidence_v69155(package_text, selected_image_urls):
+    """Return only image metadata belonging to URLs selected by the hierarchy."""
+    wanted = {
+        str(x).strip() for x in (selected_image_urls or [])
+        if str(x).strip().startswith("https://")
+    }
+    if not wanted:
+        return []
+    payloads = []
+    try:
+        payloads.extend(
+            _website_structured_image_payloads_from_file_v69012(
+                package_text, "", ""
+            )
+        )
+    except Exception:
+        pass
+    try:
+        payloads.extend(
+            _website_legacy_html_payloads_from_file_v69012(
+                package_text, "", ""
+            )
+        )
+    except Exception:
+        pass
+
+    out, seen = [], set()
+    for item in payloads:
+        if not isinstance(item, dict):
+            continue
+        url = str(item.get("image_url") or "").strip()
+        if url not in wanted or url in seen:
+            continue
+        seen.add(url)
+        out.append({
+            "url": url,
+            "section_heading": str(item.get("section_heading") or "").strip(),
+            "nearby_instruction_text": str(item.get("nearby_instruction_text") or "").strip(),
+            "caption": str(item.get("caption") or "").strip(),
+            "visual_analysis": str(item.get("visual_analysis") or "").strip(),
+            "structured_metadata": dict(item.get("image_structured_metadata_v69017") or {}),
+        })
+    return out
+
+
+def _technical_structured_configuration_extract_v69155(prompt_text, authority):
+    """Extract dynamic setting rows from one selected full-package section.
+
+    Values are not hard-coded. The model receives only exact source structure and
+    exact-section image evidence and returns a bounded JSON contract.
+    """
+    authority = dict(authority or {})
+    section_text = str(authority.get("section_text") or "")
+    image_evidence = list(authority.get("image_evidence") or [])
+    if not section_text and not image_evidence:
+        return {"status": "no_evidence", "fields": [], "branches": []}
+
+    instructions = (
+        "You are AutoTecPro's deterministic Technical configuration extractor. "
+        "Use ONLY the supplied exact learned page section and exact-section image metadata. "
+        "Do not use general automotive knowledge. Do not guess. Do not combine values from "
+        "different branches. Return ONLY one JSON object."
+    )
+    prompt = f"""User question:
+{str(prompt_text or "")}
+
+Exact learned page:
+{authority.get("page_title") or ""}
+{authority.get("source_url") or ""}
+
+Selected configuration section:
+{authority.get("section_title") or ""}
+
+Selected branch paths:
+{json.dumps(authority.get("branch_paths") or [], ensure_ascii=False)}
+
+SECTION CONTENT:
+{section_text[:42000]}
+
+EXACT-SECTION IMAGE EVIDENCE:
+{json.dumps(image_evidence, ensure_ascii=False)[:26000]}
+
+Return exactly this JSON shape:
+{{
+  "status": "verified" | "ambiguous" | "insufficient",
+  "summary": "short source-grounded summary",
+  "fields": [
+    {{"field":"exact display label","value":"exact verified value","branch":""}}
+  ],
+  "branches": [
+    {{
+      "label":"exact branch/subtitle label",
+      "fields":[{{"field":"exact display label","value":"exact verified value"}}]
+    }}
+  ],
+  "required_clarification": ""
+}}
+
+Rules:
+- Extract ALL configuration fields supported by the selected section, not only A/C.
+- Typical fields may include Protocol, Make, Car Model, SYNC Type, OnStar Type,
+  factory radio, screen size, climate/A-C type, camera, amplifier, or other page-specific fields.
+- Keep page-specific labels when useful.
+- If one field differs across branches, DO NOT collapse it into one common value.
+  Put branch-specific values in branches.
+- Common values shared by all relevant branches belong in fields.
+- If the question names a specific branch (for example SYNC 2 or No-SYNC),
+  return only that branch's configuration.
+- Never turn troubleshooting instructions like "confirm/check whether..." into setting values.
+- Never use Product/Series compatibility text as Car Model/Protocol authority.
+- Image-visible menu labels may be used when the supplied image evidence explicitly reports them.
+- If evidence conflicts, status must be ambiguous and preserve alternatives in branches.
+"""
+    try:
+        response = client.responses.create(
+            model="gpt-5.5",
+            instructions=instructions,
+            input=[{"role": "user", "content": [{"type": "input_text", "text": prompt}]}],
+        )
+        parsed = _ingestion_json_object_v69017(getattr(response, "output_text", ""))
+    except Exception as error:
+        diagnostic_log(
+            "technical_structural_extract_failed_v69155",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return {"status": "failed", "fields": [], "branches": []}
+
+    if not isinstance(parsed, dict):
+        return {"status": "failed", "fields": [], "branches": []}
+    fields = []
+    for row in (parsed.get("fields") or []):
+        if not isinstance(row, dict):
+            continue
+        field = re.sub(r"\s+", " ", str(row.get("field") or "")).strip()
+        value = re.sub(r"\s+", " ", str(row.get("value") or "")).strip()
+        branch = re.sub(r"\s+", " ", str(row.get("branch") or "")).strip()
+        if field and value:
+            fields.append({"field": field[:120], "value": value[:240], "branch": branch[:160]})
+    branches = []
+    for branch in (parsed.get("branches") or []):
+        if not isinstance(branch, dict):
+            continue
+        label = re.sub(r"\s+", " ", str(branch.get("label") or "")).strip()
+        rows = []
+        for row in (branch.get("fields") or []):
+            if not isinstance(row, dict):
+                continue
+            field = re.sub(r"\s+", " ", str(row.get("field") or "")).strip()
+            value = re.sub(r"\s+", " ", str(row.get("value") or "")).strip()
+            if field and value:
+                rows.append({"field": field[:120], "value": value[:240]})
+        if label and rows:
+            branches.append({"label": label[:160], "fields": rows})
+    return {
+        "status": str(parsed.get("status") or "verified"),
+        "summary": re.sub(r"\s+", " ", str(parsed.get("summary") or "")).strip()[:800],
+        "fields": fields,
+        "branches": branches,
+        "required_clarification": re.sub(
+            r"\s+", " ", str(parsed.get("required_clarification") or "")
+        ).strip()[:500],
+    }
+
+
+def _technical_authority_context_v69155(authority):
+    authority = dict(authority or {})
+    extracted = dict(authority.get("structured") or {})
+    return (
+        "FULL EXACT-PACKAGE TECHNICAL CONFIGURATION AUTHORITY (v69155):\n"
+        "The application already identified the exact learned page, hydrated its full package, "
+        "selected the exact configuration section/branch structurally, and extracted verified "
+        "setting fields. This authority replaces semantic subsection ranking for this turn.\n"
+        f"File ID: {authority.get('file_id') or ''}\n"
+        f"Source URL: {authority.get('source_url') or ''}\n"
+        f"Page title: {authority.get('page_title') or ''}\n"
+        f"Section: {authority.get('section_title') or ''}\n"
+        f"Branches: {json.dumps(authority.get('branch_paths') or [], ensure_ascii=False)}\n"
+        f"STRUCTURED_CONFIGURATION_JSON_V69155: {json.dumps(extracted, ensure_ascii=False)}\n\n"
+        "Answer from this structured configuration only. Preserve the existing professional "
+        "Setting Field | Select table style. Show all verified common fields. When fields differ "
+        "by branch, display the alternatives separately with the branch/subtitle in the field label. "
+        "Do not add Product/Series as a setting unless the user specifically asks for the product. "
+        "Do not use unrelated compatibility/troubleshooting values."
+    )
+
+
+def _technical_table_rows_from_structured_v69155(structured):
+    structured = dict(structured or {})
+    rows = []
+    seen = set()
+    for row in (structured.get("fields") or []):
+        if not isinstance(row, dict):
+            continue
+        field = re.sub(r"\s+", " ", str(row.get("field") or "")).strip()
+        value = re.sub(r"\s+", " ", str(row.get("value") or "")).strip()
+        branch = re.sub(r"\s+", " ", str(row.get("branch") or "")).strip()
+        if branch:
+            field = f"{field} - {branch}"
+        key = (field.casefold(), value.casefold())
+        if field and value and key not in seen:
+            seen.add(key); rows.append((field, value))
+    for branch in (structured.get("branches") or []):
+        if not isinstance(branch, dict):
+            continue
+        label = re.sub(r"\s+", " ", str(branch.get("label") or "")).strip()
+        for row in (branch.get("fields") or []):
+            if not isinstance(row, dict):
+                continue
+            field = re.sub(r"\s+", " ", str(row.get("field") or "")).strip()
+            value = re.sub(r"\s+", " ", str(row.get("value") or "")).strip()
+            display = f"{field} - {label}" if label else field
+            key = (display.casefold(), value.casefold())
+            if display and value and key not in seen:
+                seen.add(key); rows.append((display, value))
+    return rows
+
+
+def _technical_replace_settings_table_v69155(answer_text, structured):
+    """Replace only the first Setting Field|Select table with verified dynamic rows."""
+    rows = _technical_table_rows_from_structured_v69155(structured)
+    if not rows:
+        return str(answer_text or "")
+    answer = str(answer_text or "")
+    lines = answer.splitlines()
+    start = next((
+        i for i, line in enumerate(lines)
+        if re.match(r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$", line.strip(), flags=re.I)
+    ), -1)
+    table = ["| Setting Field | Select |", "|---|---|"] + [
+        f"| {field.replace('|','/')} | {value.replace('|','/')} |"
+        for field, value in rows
+    ]
+    if start < 0:
+        # Insert after the first explanatory paragraph/title block.
+        insert_at = min(len(lines), 2)
+        lines[insert_at:insert_at] = [""] + table + [""]
+        return "\n".join(lines)
+    end = start + 1
+    while end < len(lines) and lines[end].strip().startswith("|"):
+        end += 1
+    lines[start:end] = table
+    return "\n".join(lines)
+
+
+def _technical_full_package_authority_v69155(prompt_text):
+    """End-to-end exact page -> full package -> section -> dynamic fields authority."""
+    if not _technical_configuration_query_v69155(prompt_text):
+        return {"status": "not_applicable"}
+
+    source = _technical_exact_source_recovery_v69150(prompt_text)
+    if str(source.get("status") or "") != "recovered":
+        return {
+            "status": "no_exact_source",
+            "source_status": str(source.get("status") or ""),
+        }
+
+    package_text = str(source.get("package_text") or "")
+    structural = _technical_exact_package_structure_v69155(package_text, prompt_text)
+    if str(structural.get("status") or "") != "selected":
+        return {
+            "status": "no_exact_section",
+            "file_id": str(source.get("file_id") or ""),
+            "source_url": str(source.get("source_url") or ""),
+        }
+
+    image_evidence = _technical_exact_package_image_evidence_v69155(
+        package_text, structural.get("image_urls") or []
+    )
+    authority = {
+        "status": "selected",
+        "file_id": str(source.get("file_id") or ""),
+        "filename": str(source.get("filename") or ""),
+        "source_url": str(source.get("source_url") or ""),
+        "page_title": str(source.get("page_title") or ""),
+        "package_text": package_text,
+        "section_title": str(structural.get("section_title") or ""),
+        "section_id": str(structural.get("section_id") or ""),
+        "branch_paths": list(structural.get("branch_paths") or []),
+        "section_text": str(structural.get("section_text") or ""),
+        "selected_image_urls_v69143": list(structural.get("image_urls") or []),
+        "selected_section_title_v69143": str(structural.get("section_title") or ""),
+        "selected_branch_paths_v69143": list(structural.get("branch_paths") or []),
+        "image_evidence": image_evidence,
+    }
+    structured = _technical_structured_configuration_extract_v69155(
+        prompt_text, authority
+    )
+    authority["structured"] = structured
+    if not _technical_table_rows_from_structured_v69155(structured):
+        authority["status"] = "insufficient_structured_fields"
+        return authority
+
+    authority["status"] = "recovered"
+    authority["context"] = _technical_authority_context_v69155(authority)
+    authority["rows"] = [{
+        "file_id": authority["file_id"],
+        "filename": authority["filename"],
+        "score": 1.0,
+        "text": authority["section_text"][:50000],
+        "technical_full_package_authority_v69155": True,
+    }]
+    return authority
+
 def _technical_hierarchy_excerpt_v69143(package_text, prompt_text):
     """Select a learned section/branch by literal semantic overlap, never by coded values."""
     hierarchy=_technical_package_hierarchy_v69143(package_text)
@@ -71266,6 +71767,121 @@ else:
                             )[:120],
                         )
 
+                # v69155: full exact-package structural authority.
+                #
+                # Vector/file_search is used only to identify the exact learned page.
+                # The factual subsection is then selected from the FULL learned package
+                # hierarchy, not by semantic chunk ranking. Dynamic setting fields and
+                # exact-section images are extracted from that one structural authority.
+                technical_full_package_authority_v69155 = {"status": "not_applicable"}
+                if (
+                    assistant == "🔧 Technical Support"
+                    and bool(execution_plan.get("use_file_search"))
+                    and not bool(technical_website_learning_requested_v68870)
+                    and not bool(explicit_learning_requested)
+                    and _technical_configuration_query_v69155(
+                        technical_request_prompt_v68879
+                    )
+                ):
+                    try:
+                        technical_full_package_authority_v69155 = (
+                            _technical_full_package_authority_v69155(
+                                technical_request_prompt_v68879
+                            )
+                        )
+                    except Exception as error_v69155:
+                        technical_full_package_authority_v69155 = {
+                            "status": "failed"
+                        }
+                        diagnostic_log(
+                            "technical_full_package_authority_failed_v69155",
+                            error_type=type(error_v69155).__name__,
+                            error=str(error_v69155)[:700],
+                        )
+
+                    if str(
+                        technical_full_package_authority_v69155.get("status") or ""
+                    ) == "recovered":
+                        authority_context_v69155 = str(
+                            technical_full_package_authority_v69155.get("context") or ""
+                        ).strip()
+                        if authority_context_v69155:
+                            ai_request_prompt += "\n\n" + authority_context_v69155
+
+                        authority_rows_v69155 = [
+                            dict(row)
+                            for row in (
+                                technical_full_package_authority_v69155.get("rows") or []
+                            )
+                            if isinstance(row, dict)
+                        ]
+                        if authority_rows_v69155:
+                            st.session_state[
+                                "_technical_file_search_results_v69012"
+                            ] = authority_rows_v69155[:12]
+                            st.session_state[
+                                "_workspace_file_search_results_v69040"
+                            ] = authority_rows_v69155[:12]
+
+                        # Remove any earlier v69124 sibling context from this request.
+                        # v69155 has now hydrated the full exact package and is the
+                        # stronger structural authority for both common and branch fields.
+                        try:
+                            prior_variant_context_v69124 = str(
+                                locals().get("variant_context_v69124") or ""
+                            ).strip()
+                            if (
+                                prior_variant_context_v69124
+                                and prior_variant_context_v69124 in ai_request_prompt
+                            ):
+                                ai_request_prompt = ai_request_prompt.replace(
+                                    "\n\n" + prior_variant_context_v69124, ""
+                                ).replace(prior_variant_context_v69124, "")
+                        except Exception:
+                            pass
+
+                        # Persist exact structural provenance for rerun/history.
+                        st.session_state["_technical_last_section_authority_v69142"] = {
+                            "status": "recovered",
+                            "file_id": str(technical_full_package_authority_v69155.get("file_id") or ""),
+                            "filename": str(technical_full_package_authority_v69155.get("filename") or ""),
+                            "source_url": str(technical_full_package_authority_v69155.get("source_url") or ""),
+                            "page_title": str(technical_full_package_authority_v69155.get("page_title") or ""),
+                            "package_text": str(technical_full_package_authority_v69155.get("package_text") or ""),
+                            "selected_section_title_v69143": str(technical_full_package_authority_v69155.get("section_title") or ""),
+                            "selected_branch_paths_v69143": list(technical_full_package_authority_v69155.get("branch_paths") or []),
+                            "selected_image_urls_v69143": list(technical_full_package_authority_v69155.get("selected_image_urls_v69143") or []),
+                        }
+
+                        # Exact full-package structural evidence is already bound.
+                        # Do not run a second broad semantic provider file_search.
+                        use_file_search = False
+                        diagnostic_log(
+                            "technical_full_package_authority_bound_v69155",
+                            file_id=str(
+                                technical_full_package_authority_v69155.get("file_id") or ""
+                            )[:160],
+                            source_url=str(
+                                technical_full_package_authority_v69155.get("source_url") or ""
+                            )[:700],
+                            section=str(
+                                technical_full_package_authority_v69155.get("section_title") or ""
+                            )[:300],
+                            branches=len(
+                                technical_full_package_authority_v69155.get("branch_paths") or []
+                            ),
+                            fields=len(
+                                _technical_table_rows_from_structured_v69155(
+                                    technical_full_package_authority_v69155.get("structured") or {}
+                                )
+                            ),
+                            images=len(
+                                technical_full_package_authority_v69155.get(
+                                    "selected_image_urls_v69143"
+                                ) or []
+                            ),
+                        )
+
                 # v69154 FINAL: restore the proven v69050/v69125 Technical runtime.
                 #
                 # Both working references share this authority:
@@ -71281,6 +71897,9 @@ else:
                     and bool(execution_plan.get("use_file_search"))
                     and not bool(technical_website_learning_requested_v68870)
                     and not bool(explicit_learning_requested)
+                    and str(
+                        (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                    ) != "recovered"
                 )
                 if technical_v69050_v69125_baseline_v69154:
                     # Prevent stale post-v69125 authority from a previous saved turn
@@ -71345,6 +71964,9 @@ else:
                 if (
                     assistant == "🔧 Technical Support"
                     and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                    and str(
+                        (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                    ) != "recovered"
                     and bool(execution_plan.get("use_file_search"))
                     and _technical_protected_settings_inquiry_v69145(
                         technical_request_prompt_v68879
@@ -71409,6 +72031,9 @@ else:
                 if (
                     assistant == "🔧 Technical Support"
                     and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                    and str(
+                        (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                    ) != "recovered"
                     and bool(execution_plan.get("use_file_search"))
                     and str(technical_request_prompt_v68879 or "").strip()
                 ):
@@ -71697,10 +72322,32 @@ else:
                         answer_body = format_learning_record_for_display(answer_body)
                     if assistant == "🔧 Technical Support":
                         answer_body = remove_technical_pricing(answer_body)
+
+                        # v69155: exact full-package dynamic setting table is final
+                        # factual presentation authority for recovered configuration turns.
+                        if str(
+                            (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                        ) == "recovered":
+                            try:
+                                answer_body = _technical_replace_settings_table_v69155(
+                                    answer_body,
+                                    (technical_full_package_authority_v69155.get("structured") or {}),
+                                )
+                            except Exception as error_v69155_table:
+                                diagnostic_log(
+                                    "technical_full_package_table_failed_v69155",
+                                    error_type=type(error_v69155_table).__name__,
+                                    error=str(error_v69155_table)[:600],
+                                )
                         # v69154: the v69125 output contract is the final Technical
                         # presentation authority for restored baseline turns. Later
                         # hierarchy normalization is explicitly non-authoritative here.
-                        if not bool(locals().get("technical_v69050_v69125_baseline_v69154")):
+                        if (
+                            str(
+                                (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                            ) != "recovered"
+                            and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                        ):
                             try:
                                 answer_body, technical_settings_manifest_v69151 = (
                                     _technical_normalize_interpreted_settings_v69151(
@@ -71717,7 +72364,10 @@ else:
                                     error=str(error_v69151)[:500],
                                 )
                         if (
-                            _technical_generic_ac_variant_request_v69124(
+                            str(
+                                (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                            ) != "recovered"
+                            and _technical_generic_ac_variant_request_v69124(
                                 technical_request_prompt_v68879
                             )
                             and bool(
@@ -72297,10 +72947,25 @@ else:
         # with the QA-approved images bound to the resolved learned section/branch.
         if (
             assistant == "🔧 Technical Support"
-            and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+            and (
+                str(
+                    (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                ) == "recovered"
+                or not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+            )
         ):
             try:
-                section_state_v69143 = dict(locals().get("technical_section_evidence_v69142") or {})
+                if str(
+                    (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                ) == "recovered":
+                    section_state_v69143 = dict(
+                        technical_full_package_authority_v69155
+                    )
+                    section_state_v69143["status"] = "recovered"
+                else:
+                    section_state_v69143 = dict(
+                        locals().get("technical_section_evidence_v69142") or {}
+                    )
                 section_state_v69143["technical_prompt_v69153"] = technical_request_prompt_v68879
                 section_status_v69145=str(section_state_v69143.get("status") or "")
                 section_images_v69143 = _technical_section_bound_chat_images_v69143(section_state_v69143)
