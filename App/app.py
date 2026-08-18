@@ -1,8 +1,5 @@
-# AutoTecPro AI v69130 — FINAL PRODUCTION: current reviewed Technical website authority prevents stale cross-URL settings regression; v69129 image durability and v69128 output/table/Graphic/Reference/After Install behavior preserved
-# AutoTecPro AI v69129 — FINAL PRODUCTION: schema-compatible durable website-image index + truthful write-failure accounting; all v69128 output/table/retrieval/Graphic/Reference/After Install behavior preserved
-# AutoTecPro AI v69128 — FINAL PRODUCTION: generic dynamic multi-option Technical settings rows across Ford/GM/future sources; v69126 first-turn image publication and all protected pipelines preserved
-# AutoTecPro AI v69127 — FINAL PRODUCTION: dynamic multi-option settings rows + preserved first-turn Technical images; all v69126/v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
-# AutoTecPro AI v69126 — FINAL PRODUCTION: split verified A/C options into separate rows + first-turn Technical image recovery from exact answer evidence; all v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
+# AutoTecPro AI v69131 — FINAL PRODUCTION: v69125 factual/output baseline LOCKED; only durable website-image schema compatibility/read-back/failure accounting repaired. No later Technical source-authority, dynamic table, Graphic, Reference, or After Install changes imported.
+# AutoTecPro AI v69125 — FINAL PRODUCTION: verified same-source dual-A/C contract + deterministic two-row table preservation; all v69124/v69123 image, learning, output, Graphic, Reference, After Install behavior preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -37006,28 +37003,22 @@ TECHNICAL CAR MODEL / PROTOCOL / A-C SETTINGS PRESENTATION:
   factual block MUST be a compact Markdown table with exactly these columns:
   | Setting Field | Select |
 - Include every value supported by the active newest Technical evidence. Use
-  these base rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
-  Series, Screen Size, factory-system type, SYNC type, camera type, or another
-  verified selector only when the source shows it is needed for the configuration.
-- Put ONE DISTINCT VERIFIED OPTION in each row. If one base setting has multiple
-  labeled choices in the same authoritative source, expand them as separate rows
-  using `Base Setting Field - Exact Option Label` in the first column and the exact
-  corresponding Select value in the second column. The number of option rows is
-  dynamic; never assume only Manual/Automatic or any fixed option count.
-- Keep each Select value concise and preserve the exact capitalization,
-  punctuation, spelling, and menu wording found in the evidence.
+  these rows when available: Protocol, Make, Car Model, A/C Type. Add Product /
+  Series or Screen Size only when those values are necessary to distinguish
+  the correct configuration.
+- Put one setting in each row. Keep the Select value concise and preserve the
+  exact capitalization, punctuation, spelling, and menu wording found in the
+  evidence.
 - Never invent a value, fill an unknown cell with a guess, or copy a conflicting
   value from superseded evidence. Omit an unsupported optional row. If a
   required setting is not confirmed, put **Requires Verification** in that row
   and explain what must be checked after the table.
-- When any original vehicle feature changes a menu selection (for example
-  climate panel, factory system/SYNC generation, screen size, camera package, or
-  another source-labeled variant), list ALL verified choices from the SAME
-  configuration family as separate rows in the first table. Explain how to choose
-  among them immediately after the table when the source provides the distinction.
-  Keep the base Car Model separate from secondary selectors; do not turn an option
-  label into a different Car Model unless the same Technical source explicitly
-  identifies it as the Car Model.
+- When the original climate panel changes the correct A/C selection, list ALL
+  verified Manual and Automatic choices from the SAME configuration family in
+  the first table and explain how to choose between them immediately after it.
+  Keep the base Car Model separate from the climate selector; do not turn a
+  climate label into a different Car Model unless the same Technical source
+  explicitly identifies it as the Car Model.
 - Follow the table with a short ## Menu Path numbered list when verified setup
   steps are available. Add ## Important Note only for a material warning,
   ambiguity, or fitment distinction.
@@ -38729,388 +38720,6 @@ def _technical_answer_has_dual_ac_rows_v69125(answer_text):
     return manual and automatic
 
 
-
-def _technical_split_combined_ac_row_v69126(answer_text):
-    """Split a combined Manual/Automatic A/C Select cell into two rows.
-
-    This parser changes presentation only. It extracts the two values exactly from
-    the already-generated answer and never supplies a product-specific setting.
-    """
-    answer = str(answer_text or "")
-    if not answer:
-        return answer
-
-    lines = answer.splitlines()
-    table_start = -1
-    table_end = -1
-    for idx, line in enumerate(lines):
-        if re.match(
-            r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$",
-            line.strip(),
-            flags=re.I,
-        ):
-            table_start = idx
-            break
-    if table_start < 0:
-        return answer
-
-    table_end = table_start + 1
-    while table_end < len(lines) and lines[table_end].strip().startswith("|"):
-        table_end += 1
-
-    for idx in range(table_start, table_end):
-        row = lines[idx].strip()
-        match = re.match(
-            r"^\|\s*A/C\s*Type\s*\|\s*(.*?)\s*\|\s*$",
-            row,
-            flags=re.I,
-        )
-        if not match:
-            continue
-        cell = re.sub(r"\s+", " ", str(match.group(1) or "")).strip()
-        if not (
-            re.search(r"(?i)\bmanual\s+a/?c\b", cell)
-            and re.search(r"(?i)\bautomatic\s+a/?c\b", cell)
-        ):
-            continue
-
-        manual_match = re.search(
-            r"(?i)([^/|;]{1,100}?)\s+for\s+(?:the\s+)?Manual\s+A/?C\b",
-            cell,
-        )
-        auto_match = re.search(
-            r"(?i)([^/|;]{1,100}?)\s+for\s+(?:the\s+)?Automatic\s+A/?C\b",
-            cell,
-        )
-        if not (manual_match and auto_match):
-            continue
-
-        manual_value = re.sub(
-            r"\s+", " ", str(manual_match.group(1) or "")
-        ).strip(" -*`:/")
-        automatic_value = re.sub(
-            r"\s+", " ", str(auto_match.group(1) or "")
-        ).strip(" -*`:/")
-
-        # If the match captured the other branch before a slash, keep only the
-        # nearest branch-specific segment.
-        if "/" in manual_value:
-            manual_value = manual_value.split("/")[-1].strip()
-        if "/" in automatic_value:
-            automatic_value = automatic_value.split("/")[-1].strip()
-
-        if not (manual_value and automatic_value):
-            continue
-
-        lines[idx:idx+1] = [
-            f"| A/C Type - Manual A/C | {manual_value} |",
-            f"| A/C Type - Automatic A/C | {automatic_value} |",
-        ]
-        return "\n".join(lines)
-
-    return answer
-
-
-def _technical_rows_auto_images_v69126(
-    prompt_text,
-    answer_text,
-    result_rows,
-    max_images=3,
-):
-    """Recover first-turn Technical images from the exact settings evidence rows.
-
-    This is the v69122-compatible replacement for the inactive active-package bridge:
-    it does not alter factual retrieval or bind a package. Every image candidate must
-    come from already-retrieved Technical evidence and pass the existing strict
-    Technical final-payload gate before publication.
-    """
-    if str(assistant or "") != "🔧 Technical Support":
-        return []
-
-    rows = [
-        dict(row) for row in (result_rows or [])
-        if isinstance(row, dict)
-    ]
-    if not rows:
-        return []
-
-    effective_prompt = _website_image_effective_query_v68890(prompt_text)
-    durable_payloads = [
-        dict(item) for item in (_website_image_index_rows_v68883() or [])
-        if isinstance(item, dict)
-        and str(item.get("database_choice") or "") == "Technical Support Database"
-    ]
-
-    candidates = []
-    seen_payloads = set()
-    for row in rows[:16]:
-        file_id = str(row.get("file_id") or "").strip()
-        filename = str(row.get("filename") or "").strip()
-        package_text = str(row.get("text") or "")
-        if not package_text and file_id:
-            try:
-                package_text = str(_website_file_full_text_v69012(file_id) or "")
-            except Exception:
-                package_text = ""
-        if not package_text:
-            continue
-
-        payloads = _website_structured_image_payloads_from_file_v69012(
-            package_text, filename, file_id
-        )
-        payloads.extend(
-            _website_legacy_html_payloads_from_file_v69012(
-                package_text, filename, file_id
-            )
-        )
-
-        for raw in payloads:
-            if not isinstance(raw, dict):
-                continue
-            payload = dict(raw)
-            image_url = str(payload.get("image_url") or "").strip()
-            if not image_url or image_url in seen_payloads:
-                continue
-            seen_payloads.add(image_url)
-
-            if not _website_image_final_payload_gate_v68885(
-                effective_prompt, payload
-            ):
-                continue
-
-            try:
-                score = float(
-                    _website_image_rank_v68883(effective_prompt, payload) or 0.0
-                )
-            except Exception:
-                score = 0.0
-            candidates.append((score, payload, file_id))
-
-    candidates.sort(
-        key=lambda item: (
-            float(item[0]),
-            str(item[1].get("indexed_at") or ""),
-        ),
-        reverse=True,
-    )
-
-    output = []
-    seen_images = set()
-    limit = max(1, min(int(max_images or 3), WEBSITE_AUTO_DISPLAY_MAX_IMAGES))
-
-    for score, payload, file_id in candidates:
-        image_url = str(payload.get("image_url") or "").strip()
-        durable_match = None
-        for durable in durable_payloads:
-            if str(durable.get("image_url") or "").strip() != image_url:
-                continue
-            durable_match = durable
-            break
-
-        record = None
-        if durable_match is not None:
-            try:
-                record = _website_image_record_for_chat_v68883(durable_match)
-            except Exception:
-                record = None
-
-        # Exact retrieved-source fallback remains safe because the candidate already
-        # passed the same strict Technical payload gate above.
-        if not record and image_url.startswith("https://"):
-            record = {
-                "name": str(
-                    payload.get("caption")
-                    or payload.get("section_heading")
-                    or "Relevant Technical image"
-                ).strip()[:180],
-                "data_url": image_url,
-                "archive_web_url": image_url,
-                "source": "website_knowledge",
-                "asset_type": "website_instruction_image",
-                "generated": False,
-                "website_source_page_v69010": str(
-                    payload.get("source_page") or ""
-                ).strip(),
-                "website_page_title_v69010": str(
-                    payload.get("page_title") or ""
-                ).strip(),
-                "website_section_heading_v69010": str(
-                    payload.get("section_heading") or ""
-                ).strip(),
-                "website_nearby_instruction_text_v69010": str(
-                    payload.get("nearby_instruction_text") or ""
-                ).strip(),
-                "website_visual_analysis_v69010": str(
-                    payload.get("visual_analysis") or ""
-                ).strip(),
-            }
-
-        if not isinstance(record, dict):
-            continue
-
-        record["website_file_id_v69012"] = file_id
-        record["website_file_search_deterministic_v69012"] = True
-        record["website_turn_evidence_auto_v69126"] = True
-        record["website_image_match_score_v68883"] = round(float(score), 3)
-
-        key = str(
-            record.get("archive_web_url")
-            or record.get("data_url")
-            or ""
-        ).strip()
-        if not key or key in seen_images:
-            continue
-        seen_images.add(key)
-        output.append(record)
-        if len(output) >= limit:
-            break
-
-    diagnostic_log(
-        "technical_turn_evidence_auto_image_v69126",
-        rows=len(rows),
-        candidates=len(candidates),
-        recovered=len(output),
-    )
-    return output
-
-
-
-
-def _technical_generic_settings_request_v69127(prompt_text):
-    """Detect generic Technical settings/configuration questions.
-
-    Broader than the v69124 A/C-only detector so one verified source can expose
-    multiple distinct options (SYNC, screen, climate, etc.) as separate rows.
-    """
-    if str(assistant or "") != "🔧 Technical Support":
-        return False
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    if not prompt:
-        return False
-    return bool(re.search(
-        r"\bcar\s*model\b|\bcare\s*model\b|\bprotocol\b|\bcanbus\b|\bsetting\b|\bsettings\b|\bconfiguration\b|\bsync\b|\bscreen\b|\bclimate\b|\ba\s*/?\s*c\b|\bcamera\b",
-        prompt,
-    ))
-
-
-def _technical_parse_multi_option_select_cell_v69127(cell_text):
-    """Parse multiple exact option/value pairs from one Select cell.
-
-    Supported evidence-preserving forms include:
-      VALUE for LABEL / VALUE for LABEL
-      LABEL: VALUE / LABEL: VALUE
-      LABEL = VALUE ; LABEL = VALUE
-    Delimiters require surrounding spacing where needed so labels such as `A/C`
-    are preserved intact. The parser never supplies product-specific facts.
-    """
-    cell = re.sub(r"\s+", " ", str(cell_text or "")).strip()
-    if not cell:
-        return []
-
-    output = []
-    seen = set()
-
-    def add_pair(label_raw, value_raw):
-        label = re.sub(r"\s+", " ", str(label_raw or "")).strip(" -*`:/=")
-        value = re.sub(r"\s+", " ", str(value_raw or "")).strip(" -*`:/=")
-        if not (label and value):
-            return
-        if len(label) > 180 or len(value) > 180:
-            return
-        key = (label.casefold(), value.casefold())
-        if key in seen:
-            return
-        seen.add(key)
-        output.append((label, value))
-
-    # Split only on visual separators, never the slash inside labels like A/C.
-    segments = [
-        re.sub(r"\s+", " ", part).strip()
-        for part in re.split(r"(?:\s+/\s+|\s*;\s*|\s*•\s*)", cell)
-        if str(part or "").strip()
-    ]
-    if len(segments) < 2:
-        return []
-
-    # Form 1: VALUE for LABEL
-    form1 = True
-    for segment in segments:
-        match = re.match(r"(?i)^(.{1,160}?)\s+for\s+(.{1,180})$", segment)
-        if not match:
-            form1 = False
-            break
-        add_pair(match.group(2), match.group(1))
-    if form1 and len(output) >= 2:
-        manual = [x for x in output if re.search(r"(?i)\bmanual\b", x[0])]
-        automatic = [x for x in output if re.search(r"(?i)\bautomatic\b|\bauto\b", x[0])]
-        if manual and automatic and len(manual) + len(automatic) == len(output):
-            output = manual + automatic
-        return output
-
-    # Form 2: LABEL: VALUE or LABEL = VALUE
-    output = []
-    seen = set()
-    for segment in segments:
-        match = re.match(r"^(.{1,180}?)\s*(?::|=|→|->)\s*(.{1,180})$", segment)
-        if not match:
-            return []
-        add_pair(match.group(1), match.group(2))
-    return output if len(output) >= 2 else []
-
-
-def _technical_expand_combined_setting_rows_v69127(answer_text):
-    """Expand one combined Select cell into one row per verified option.
-
-    Presentation-only: it uses the exact values already present in the generated
-    answer. It does not invent values or labels. Existing rows that are already in
-    the desired `Setting Field - Option | Select` format are preserved.
-    """
-    answer = str(answer_text or "")
-    if not answer:
-        return answer
-    lines = answer.splitlines()
-    table_start = -1
-    table_end = -1
-    for idx, line in enumerate(lines):
-        if re.match(r"^\|\s*Setting\s+Field\s*\|\s*Select\s*\|\s*$", line.strip(), flags=re.I):
-            table_start = idx
-            break
-    if table_start < 0:
-        return answer
-    table_end = table_start + 1
-    while table_end < len(lines) and lines[table_end].strip().startswith("|"):
-        table_end += 1
-
-    rebuilt = []
-    changed = False
-    for idx in range(table_start, table_end):
-        row = lines[idx].strip()
-        match = re.match(r"^\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*$", row)
-        if not match:
-            rebuilt.append(lines[idx])
-            continue
-        field = re.sub(r"\s+", " ", str(match.group(1) or "")).strip()
-        value = str(match.group(2) or "")
-        if not field or field.casefold() == 'setting field' or set(field) <= {'-'}:
-            rebuilt.append(lines[idx])
-            continue
-        # Preserve already-expanded rows.
-        if ' - ' in field:
-            rebuilt.append(lines[idx])
-            continue
-        options = _technical_parse_multi_option_select_cell_v69127(value)
-        if len(options) < 2:
-            rebuilt.append(lines[idx])
-            continue
-        changed = True
-        for label, option_value in options:
-            rebuilt.append(f"| {field} - {label} | {option_value} |")
-    if not changed:
-        return answer
-    lines[table_start:table_end] = rebuilt
-    return "\n".join(lines)
-
-
 def _technical_enforce_dual_ac_table_v69125(answer_text, evidence_result):
     """Guarantee the existing professional table preserves both verified branches.
 
@@ -39200,225 +38809,6 @@ def _technical_enforce_dual_ac_table_v69125(answer_text, evidence_result):
         lines[insert_at:insert_at] = guidance
 
     return "\n".join(lines)
-
-
-
-def _technical_current_website_authority_v69130(prompt_text):
-    """Resolve the newest exact Technical website package for a settings turn.
-
-    This is intentionally narrow:
-    - Technical Support only;
-    - settings/configuration questions only;
-    - uses already-indexed reviewed website packages;
-    - fails open to the proven v69050 file_search path if no confident package is found.
-
-    It does not hard-code vehicle menu values and does not alter the response formatter.
-    """
-    if str(assistant or "") != "🔧 Technical Support":
-        return {"status": "not_applicable"}
-    if not _technical_settings_authority_intent_v69113(prompt_text):
-        return {"status": "not_applicable"}
-
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    prompt_families = set(_website_identity_vehicle_families_v69022(prompt))
-    prompt_years = set(_website_identity_years_v69022(prompt))
-    prompt_systems = set(_website_identity_systems_v69022(prompt))
-    prompt_codes = set(_website_image_product_codes_v69020(prompt))
-    prompt_brands = set(_website_identity_brand_set_v69022(prompt))
-
-    if not (prompt_families or prompt_codes):
-        return {"status": "empty", "reason_code": "NO_EXACT_PRODUCT_IDENTITY"}
-
-    store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
-    if not store_ids:
-        return {"status": "empty", "reason_code": "NO_TECHNICAL_STORE"}
-    store = str(store_ids[0] or "").strip()
-
-    query = (
-        "AUTOTECPRO CURRENT TECHNICAL WEBSITE PACKAGE AUTHORITY. "
-        "Find reviewed `AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE` files in the Technical "
-        "Support Database for the exact vehicle/year/product/factory-system below. "
-        "Prefer the newest `Extracted at (UTC)` package and the most specific matching "
-        "vehicle family. Return current website-package evidence, not staff notes or "
-        "nearby vehicle families.\n\nUSER SETTINGS REQUEST:\n"
-        + prompt
-    )
-
-    try:
-        rows = _website_request_vector_search_rows_v69047(
-            {
-                "input": query,
-                "tools": [{"type": "file_search", "vector_store_ids": [store]}],
-            },
-            max_results=30,
-        )
-    except Exception as error:
-        diagnostic_log(
-            "technical_current_website_authority_search_failed_v69130",
-            error_type=type(error).__name__,
-            error=str(error)[:500],
-        )
-        return {"status": "failed", "reason_code": "DIRECT_SEARCH_FAILED"}
-
-    packages = []
-    seen_file_ids = set()
-    for raw in rows or []:
-        if not isinstance(raw, dict):
-            continue
-        file_id = str(raw.get("file_id") or "").strip()
-        if not file_id or file_id in seen_file_ids:
-            continue
-        seen_file_ids.add(file_id)
-        filename = str(raw.get("filename") or "").strip()
-
-        try:
-            package_text = str(
-                raw.get("text")
-                or _website_file_full_text_v69012(file_id)
-                or ""
-            )
-            # Search snippets are often incomplete. Hydrate the full package whenever
-            # the package marker/header is absent or the text is suspiciously short.
-            if (
-                "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text
-                or len(package_text) < 2500
-            ):
-                hydrated = str(_website_file_full_text_v69012(file_id) or "")
-                if hydrated:
-                    package_text = hydrated
-        except Exception:
-            package_text = str(raw.get("text") or "")
-
-        package = _technical_package_from_text_v69121(
-            file_id,
-            filename,
-            package_text,
-        )
-        if not isinstance(package, dict):
-            continue
-
-        families = set(package.get("vehicle_families") or [])
-        years = set(package.get("years") or [])
-        systems = set(package.get("systems") or [])
-        codes = set(package.get("product_codes") or [])
-        identity_text = " ".join((
-            str(package.get("title") or ""),
-            str(package.get("source_url") or ""),
-            str(package.get("webpage_text") or "")[:24000],
-        ))
-        brands = set(_website_identity_brand_set_v69022(identity_text))
-
-        family_overlap = prompt_families & families
-        code_overlap = prompt_codes & codes
-
-        if prompt_families:
-            if not families or not family_overlap:
-                continue
-        elif prompt_codes:
-            if not codes or not code_overlap:
-                continue
-
-        if prompt_years and years and not (prompt_years & years):
-            continue
-        if prompt_systems and systems and not (prompt_systems & systems):
-            continue
-        if prompt_codes and codes and not code_overlap:
-            continue
-        if prompt_brands and brands and not (prompt_brands & brands):
-            continue
-
-        exact_family_set = bool(
-            prompt_families
-            and families
-            and prompt_families == families
-        )
-        extra_family_count = max(0, len(families - prompt_families))
-        identity_score = (
-            (400 if exact_family_set else 0)
-            + 120 * len(family_overlap)
-            + 100 * len(code_overlap)
-            + 25 * len(prompt_years & years)
-            + 60 * len(prompt_systems & systems)
-            + 30 * len(prompt_brands & brands)
-            - 35 * extra_family_count
-        )
-        packages.append({
-            "package": package,
-            "identity_score": identity_score,
-            "exact_family_set": exact_family_set,
-            "extra_family_count": extra_family_count,
-            "search_score": float(raw.get("score") or 0.0),
-        })
-
-    if not packages:
-        diagnostic_log(
-            "technical_current_website_authority_empty_v69130",
-            prompt_families=sorted(prompt_families),
-            prompt_years=sorted(prompt_years),
-            prompt_systems=sorted(prompt_systems),
-        )
-        return {"status": "empty", "reason_code": "NO_MATCHING_WEBSITE_PACKAGE"}
-
-    # Most specific exact family first, then newest reviewed extraction. Search score
-    # is deliberately last: semantic similarity must not outrank newer source authority.
-    packages.sort(
-        key=lambda item: (
-            bool(item.get("exact_family_set")),
-            -int(item.get("extra_family_count") or 0),
-            str((item.get("package") or {}).get("extracted_at") or ""),
-            int(item.get("identity_score") or 0),
-            float(item.get("search_score") or 0.0),
-        ),
-        reverse=True,
-    )
-
-    selected = dict(packages[0].get("package") or {})
-    if not selected:
-        return {"status": "empty", "reason_code": "EMPTY_SELECTED_PACKAGE"}
-
-    source_url = str(selected.get("source_url") or "").strip()
-    context = (
-        "CURRENT REVIEWED TECHNICAL WEBSITE AUTHORITY (v69130) — TURN-LOCAL FACTUAL "
-        "SOURCE FOR THIS SETTINGS REQUEST\n"
-        "This package is the newest confidently matched reviewed Technical website "
-        "package for the explicit vehicle/year/product identity in the user's request. "
-        "For Protocol, Make, Car Model, A/C/climate and other settings values, this "
-        "package overrides older website packages, staff notes, and nearby-family "
-        "search results when they conflict. Preserve the normal professional output "
-        "format and never invent a missing value.\n"
-        f"Source URL: {source_url}\n"
-        f"Extracted at (UTC): {selected.get('extracted_at') or ''}\n"
-        f"File ID: {selected.get('file_id') or ''}\n\n"
-        "REVIEWED WEBPAGE TEXT\n=====================\n"
-        + str(selected.get("webpage_text") or "")[:50000]
-    )
-    row = {
-        "file_id": str(selected.get("file_id") or ""),
-        "filename": str(selected.get("filename") or ""),
-        "score": 1.0,
-        "text": str(selected.get("package_text") or ""),
-        "technical_current_website_authority_v69130": True,
-    }
-
-    diagnostic_log(
-        "technical_current_website_authority_bound_v69130",
-        file_id=str(selected.get("file_id") or "")[:120],
-        source_url=source_url[:300],
-        extracted_at=str(selected.get("extracted_at") or "")[:80],
-        exact_family=bool(packages[0].get("exact_family_set")),
-        candidate_count=len(packages),
-    )
-    return {
-        "status": "recovered",
-        "exclusive": True,
-        "reason_code": "CURRENT_REVIEWED_WEBSITE_PACKAGE",
-        "file_id": str(selected.get("file_id") or ""),
-        "filename": str(selected.get("filename") or ""),
-        "source_url": source_url,
-        "extracted_at": str(selected.get("extracted_at") or ""),
-        "context": context,
-        "rows": [row],
-    }
 
 
 def _technical_same_family_variant_evidence_v69124(prompt_text):
@@ -39712,13 +39102,11 @@ def _technical_variant_retrieval_instruction_v69106(prompt_text):
     else:
         lines += [
             "- Climate type is not uniquely specified. Before answering, retrieve/reconcile BOTH verified Manual and Automatic climate branches for this exact configuration family when both exist in Technical knowledge.",
-            "- If one verified settings field contains multiple distinct options in the same Technical source (for example Manual/Automatic climate, SYNC variants, screen variants, or other labeled choices), display ONE TABLE ROW PER VERIFIED OPTION using the pattern `Base Setting Field - Option Label | Select Value`. Do not collapse several verified options into one long Select cell.",
-            "- In the first settings table, keep one base Car Model row unless the same authoritative source explicitly provides distinct Car Model selections for different option labels. Do not answer with only whichever climate-specific or option-specific chunk ranked first if the same source contains multiple verified branches.",
+            "- In the first settings table, keep one base Car Model row. Show both verified climate choices together in A/C Type (or separate Manual A/C and Automatic A/C rows when clearer). Do not answer with only whichever climate-specific chunk ranked first if the same source contains both branches.",
         ]
     lines += [
-        "- For any other multi-option setting found in the same source, return every verified option as a separate first-table row using its exact source label and exact Select value. Do not cap the number of rows and do not invent missing options.",
-        "- If the same authoritative source does not support a requested variant, say which option is confirmed and which requires verification; never manufacture a missing counterpart.",
-        "- These rules change retrieval/continuity and table presentation only. Existing v69050/v69126 image publication, vehicle/year/product/topic gates, Sales/Marketing routing, Graphic pipeline, security, and persistence remain unchanged.",
+        "- If the same authoritative source does not support both variants, say which variant is confirmed and which requires verification; never manufacture the missing counterpart.",
+        "- These rules change retrieval/continuity only. Existing v69050 image publication, vehicle/year/product/topic gates, Sales/Marketing routing, Graphic pipeline, security, and persistence remain unchanged.",
     ]
     return "\n".join(lines)
 
@@ -50788,6 +50176,7 @@ def _website_image_scoped_issue_v69003(payload):
 
 
 
+@st.cache_data(ttl=300, max_entries=2, show_spinner=False)
 @st.cache_data(ttl=30, max_entries=2, show_spinner=False)
 def _website_image_index_schema_profile_v69129():
     """Detect the live durable-image storage shape without requiring a migration.
@@ -50830,11 +50219,10 @@ def _website_image_index_schema_profile_v69129():
     return {"ready": False, "mode": "unavailable", "columns": []}
 
 
-@st.cache_data(ttl=300, max_entries=2, show_spinner=False)
-@st.cache_data(ttl=30, max_entries=2, show_spinner=False)
 def _website_image_index_schema_ready_v69123():
     """Return True when either supported durable image-index schema is available."""
     return bool(_website_image_index_schema_profile_v69129().get("ready"))
+
 
 
 def _website_image_index_readback_v69123(issue):
@@ -50885,6 +50273,7 @@ def _website_image_index_readback_v69123(issue):
             normalized.setdefault("updated_at", str(row.get("created_at") or ""))
             return normalized
     return None
+
 
 
 def _website_image_index_upsert_v68883(payload):
@@ -51004,6 +50393,7 @@ def _website_image_index_upsert_v68883(payload):
     return True
 
 
+
 def _website_image_index_db_rows_v69005(columns, *, order_recent=False, max_rows=20000):
     """Load durable image rows across modern and legacy learned_knowledge schemas."""
     profile = dict(_website_image_index_schema_profile_v69129() or {})
@@ -51075,6 +50465,7 @@ def _website_image_index_db_rows_v69005(columns, *, order_recent=False, max_rows
     if len(rows) >= int(max_rows):
         complete = False
     return rows, complete
+
 
 
 def _website_image_index_rows_for_page_v69003(extraction, database_choice):
@@ -51322,6 +50713,7 @@ def _website_archive_and_index_images_v68883(
         "archived": archived,
         "failures": failures,
     }
+
 
 
 @st.cache_data(ttl=300, max_entries=4, show_spinner=False)
@@ -68751,71 +68143,9 @@ else:
                         active_workspace_rows_v69113[:12]
                     )
 
-                # v69130: bind the newest confidently matched reviewed Technical
-                # website package for settings turns. This closes the cross-URL stale
-                # package gap without changing the normal formatter or non-settings
-                # Technical retrieval. If resolution fails, v69050/v69124 continue.
-                technical_current_website_v69130 = {
-                    "status": "not_applicable", "context": "", "rows": []
-                }
-                if (
-                    assistant == "🔧 Technical Support"
-                    and bool(use_file_search)
-                    and _technical_settings_authority_intent_v69113(
-                        technical_request_prompt_v68879
-                    )
-                ):
-                    try:
-                        technical_current_website_v69130 = (
-                            _technical_current_website_authority_v69130(
-                                technical_request_prompt_v68879
-                            )
-                        )
-                    except Exception as error_v69130:
-                        diagnostic_log(
-                            "technical_current_website_authority_failed_v69130",
-                            error_type=type(error_v69130).__name__,
-                            error=str(error_v69130)[:500],
-                        )
-                        technical_current_website_v69130 = {
-                            "status": "failed", "context": "", "rows": []
-                        }
-
-                    if (
-                        str(
-                            technical_current_website_v69130.get("status") or ""
-                        ) == "recovered"
-                    ):
-                        current_context_v69130 = str(
-                            technical_current_website_v69130.get("context") or ""
-                        ).strip()
-                        if current_context_v69130:
-                            ai_request_prompt += (
-                                "\n\n" + current_context_v69130
-                            )
-                        current_rows_v69130 = [
-                            dict(row)
-                            for row in (
-                                technical_current_website_v69130.get("rows") or []
-                            )
-                            if isinstance(row, dict)
-                        ]
-                        if current_rows_v69130:
-                            st.session_state[
-                                "_technical_file_search_results_v69012"
-                            ] = current_rows_v69130[:12]
-                            st.session_state[
-                                "_workspace_file_search_results_v69040"
-                            ] = current_rows_v69130[:12]
-
-                        # The current reviewed package is already fully injected.
-                        # Do not allow a second broad/sibling search to re-introduce
-                        # a stale package from a different URL in this same turn.
-                        use_file_search = False
-
                 # v69124: for a generic Technical Car Model/A-C request, retrieve
                 # both Manual and Automatic siblings before the main answer. This
-                # runs only when v69130 did not confidently resolve a current package.
+                # supplements the proven v69050 factual search rather than replacing it.
                 technical_variant_evidence_v69124 = {
                     "context": "", "rows": [], "status": "not_applicable"
                 }
@@ -68987,18 +68317,6 @@ else:
                                 answer_body,
                                 technical_variant_evidence_v69124,
                             )
-                        # v69126: if normal Technical retrieval already produced both
-                        # verified branches in one combined A/C cell, preserve those
-                        # exact values but display them in separate rows.
-                        if _technical_generic_settings_request_v69127(
-                            technical_request_prompt_v68879
-                        ):
-                            answer_body = _technical_split_combined_ac_row_v69126(
-                                answer_body
-                            )
-                            answer_body = _technical_expand_combined_setting_rows_v69127(
-                                answer_body
-                            )
 
                     answer = answer_body
                     if order_display_text:
@@ -69164,40 +68482,6 @@ else:
                     "The response was generated, but the downloadable "
                     f"document could not be created: {document_error}"
                 )
-
-        # v69126: first-turn Technical image recovery from the exact evidence rows
-        # that supported this answer. This is independent of the later active-package
-        # state, which v69122 intentionally stopped binding for factual retrieval.
-        if assistant == "🔧 Technical Support" and str(answer or "").strip():
-            existing_turn_web_images_v69126 = [
-                image for image in (generated_images or [])
-                if isinstance(image, dict)
-                and str(image.get("source") or "") == "website_knowledge"
-            ]
-            if not existing_turn_web_images_v69126:
-                try:
-                    turn_rows_v69126 = list(
-                        st.session_state.get(
-                            "_technical_file_search_results_v69012"
-                        ) or []
-                    )
-                    turn_images_v69126 = _technical_rows_auto_images_v69126(
-                        technical_request_prompt_v68879,
-                        answer,
-                        turn_rows_v69126,
-                        max_images=3,
-                    )
-                    if turn_images_v69126:
-                        generated_images.extend(turn_images_v69126)
-                        generated_images = _dedupe_website_chat_images_v68883(
-                            generated_images
-                        )
-                except Exception as error_v69126:
-                    diagnostic_log(
-                        "technical_turn_evidence_auto_image_failed_v69126",
-                        error_type=type(error_v69126).__name__,
-                        error=str(error_v69126)[:500],
-                    )
 
         # v69115: newest-package automatic image bridge. Run AFTER the answer is
         # complete so provider prompts and the already-correct v69114 message/table
