@@ -39743,6 +39743,144 @@ def _technical_protected_settings_inquiry_v69145(prompt_text):
     return any(topic in padded for topic in topics)
 
 
+
+def _technical_catalog_exact_section_v69147(prompt_text, store):
+    """Resolve an exact learned Technical installation package without semantic rediscovery.
+
+    v69147 source discovery is deterministic: enumerate the current reviewed website
+    packages already attached to the Technical vector store, filter by learned page
+    identity/source scope, choose the newest exact installation page, then resolve the
+    related section/branch inside that exact package. No vehicle setting values are coded.
+    """
+    prompt_families = set(_website_identity_vehicle_families_v69022(prompt_text))
+    prompt_years = set(_website_identity_years_v69022(prompt_text))
+    prompt_systems = set(_website_identity_systems_v69022(prompt_text))
+    prompt_codes = set(_website_image_product_codes_v69020(prompt_text))
+    if not (prompt_families or prompt_years or prompt_systems or prompt_codes):
+        return {"status": "no_identity", "context": "", "rows": []}
+
+    try:
+        revision = _website_destination_revision_v69109("Technical Support Database")
+    except Exception:
+        revision = 0
+    try:
+        packages = list(_technical_admin_website_package_catalog_v69113(store, int(revision or 0)) or [])
+    except Exception as error:
+        diagnostic_log("technical_catalog_exact_load_failed_v69147", error_type=type(error).__name__, error=str(error)[:500])
+        return {"status": "catalog_unavailable", "context": "", "rows": []}
+    if not packages:
+        return {"status": "catalog_empty", "context": "", "rows": []}
+
+    # Keep only the newest reviewed version of each canonical source URL/file identity.
+    newest_by_source = {}
+    for package in packages:
+        if not isinstance(package, dict):
+            continue
+        source_url = str(package.get("source_url") or "").strip()
+        try:
+            canonical = canonical_website_url_identity(source_url) if source_url else ""
+        except Exception:
+            canonical = ""
+        identity = "url:" + canonical if canonical else "file:" + str(package.get("file_id") or package.get("filename") or "")
+        previous = newest_by_source.get(identity)
+        current_key = (str(package.get("extracted_at") or ""), str(package.get("filename") or ""))
+        previous_key = (str((previous or {}).get("extracted_at") or ""), str((previous or {}).get("filename") or ""))
+        if previous is None or current_key > previous_key:
+            newest_by_source[identity] = dict(package)
+
+    candidates = []
+    for package in newest_by_source.values():
+        source_url = str(package.get("source_url") or "").strip()
+        page_title = str(package.get("title") or package.get("page_title") or "").strip()
+        package_text = str(package.get("package_text") or "")
+        webpage_text = str(package.get("webpage_text") or "")
+        priority = _technical_installation_source_priority_v69140(source_url, package_text or webpage_text)
+        if int(priority or 0) < 3:
+            continue
+        scope = _technical_source_url_scope_v69141(source_url, page_title)
+        families = set(scope.get("families") or package.get("vehicle_families") or [])
+        years = set(scope.get("years") or package.get("years") or [])
+        systems = set(package.get("systems") or [])
+        codes = set(package.get("product_codes") or [])
+        if prompt_families and families and not (prompt_families & families):
+            continue
+        if prompt_years and years and not (prompt_years & years):
+            continue
+        if prompt_systems and systems and not (prompt_systems & systems):
+            continue
+        if prompt_codes and codes and not (prompt_codes & codes):
+            continue
+
+        family_overlap = len(prompt_families & families)
+        year_overlap = len(prompt_years & years)
+        system_overlap = len(prompt_systems & systems)
+        code_overlap = len(prompt_codes & codes)
+        score = (
+            int(priority or 0) * 1000
+            + family_overlap * 150
+            + year_overlap * 80
+            + system_overlap * 120
+            + code_overlap * 180
+        )
+        hierarchy = _technical_hierarchy_excerpt_v69143(package_text, prompt_text)
+        excerpt = str(hierarchy.get("excerpt") or "").strip()
+        if not excerpt:
+            excerpt = _technical_package_section_excerpt_v69142(package_text, prompt_text)
+        if not str(excerpt or "").strip():
+            excerpt = webpage_text[:26000]
+        candidates.append({
+            "score": float(score),
+            "priority": int(priority or 0),
+            "file_id": str(package.get("file_id") or ""),
+            "filename": str(package.get("filename") or ""),
+            "source_url": source_url,
+            "page_title": page_title,
+            "extracted_at": str(package.get("extracted_at") or ""),
+            "package_text": package_text,
+            "section_excerpt": str(excerpt or "")[:26000],
+            "source_systems": sorted(systems),
+            "selected_image_urls_v69143": list(hierarchy.get("image_urls") or []),
+            "selected_section_title_v69143": str(hierarchy.get("section_title") or ""),
+            "selected_branch_paths_v69143": list(hierarchy.get("branch_paths") or []),
+        })
+
+    if not candidates:
+        return {"status": "no_exact_package", "context": "", "rows": []}
+    candidates.sort(key=lambda item: (float(item.get("score") or 0.0), str(item.get("extracted_at") or ""), str(item.get("filename") or "")), reverse=True)
+
+    if not prompt_systems and len(candidates) > 1:
+        top = candidates[0]
+        near = [item for item in candidates[:8] if float(top.get("score") or 0.0) - float(item.get("score") or 0.0) <= 60.0]
+        system_sets = {tuple(item.get("source_systems") or []) for item in near if item.get("source_systems")}
+        source_ids = {str(item.get("source_url") or item.get("file_id") or "") for item in near}
+        if len(source_ids) > 1 and len(system_sets) > 1:
+            return {
+                "status": "ambiguous_branch",
+                "context": "LEARNED TECHNICAL BRANCH AMBIGUITY (v69147)\nMultiple exact learned installation pages match the vehicle/year but represent different learned factory-system branches. Ask the user to identify the applicable factory system; do not guess a setting.",
+                "rows": [],
+            }
+
+    winner = dict(candidates[0])
+    row = {
+        "file_id": winner.get("file_id") or "",
+        "filename": winner.get("filename") or "",
+        "score": 1.0,
+        "text": str(winner.get("package_text") or "")[:90000],
+        "technical_section_authority_v69147_catalog": True,
+    }
+    context = (
+        "DETERMINISTIC LEARNED TECHNICAL PACKAGE AUTHORITY (v69147)\n"
+        "The application found the exact current learned installation page by deterministic package inventory, not semantic similarity. Use only the related literal learned section below for factual settings. Do not substitute a product/catalog record or another page. Preserve every verified branch shown by this source.\n"
+        f"Source URL: {winner.get('source_url') or ''}\n"
+        f"Page title: {winner.get('page_title') or ''}\n"
+        f"File ID: {winner.get('file_id') or ''}\n\n"
+        "RELATED LEARNED SECTION EVIDENCE\n================================\n"
+        + str(winner.get("section_excerpt") or "")[:26000]
+    )
+    winner.update({"status": "recovered", "context": context, "rows": [row]})
+    return winner
+
+
 def _technical_generic_section_evidence_v69142(prompt_text):
     """Bind one exact learned Technical installation package and its related section.
 
@@ -39884,6 +40022,19 @@ def _technical_generic_section_evidence_v69142(prompt_text):
         }
     if not has_identity_v69142:
         return {"status": "no_identity", "context": "", "rows": []}
+
+    # v69147: discover the already-learned exact installation package deterministically
+    # before any semantic vector search. This restores the working v69125 source
+    # availability while retaining the newer section/branch safety gates.
+    catalog_exact_v69147 = _technical_catalog_exact_section_v69147(prompt_text, store)
+    if str(catalog_exact_v69147.get("status") or "") in {"recovered", "ambiguous_branch"}:
+        diagnostic_log(
+            "technical_catalog_exact_authority_v69147",
+            status=str(catalog_exact_v69147.get("status") or ""),
+            file_id=str(catalog_exact_v69147.get("file_id") or "")[:120],
+            source_url=str(catalog_exact_v69147.get("source_url") or "")[:500],
+        )
+        return catalog_exact_v69147
 
     request = {
         "input": (
@@ -70036,21 +70187,81 @@ else:
                             ai_request_prompt += "\n\n" + ambiguity_context_v69142
                         use_file_search = False
                     elif (
-                        section_status_v69142 in {"search_failed", "no_exact_package", "no_installation_authority"}
+                        section_status_v69142 in {"search_failed", "no_exact_package", "no_installation_authority", "catalog_unavailable", "catalog_empty"}
                         and _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
                     ):
-                        # v69145: exact installation/configuration authority is mandatory.
-                        # Never substitute a broader vector-store record after exact source
-                        # resolution failed. The provider may format a safe verification
-                        # response, but it receives no authority to invent a factual value.
-                        use_file_search = False
-                        ai_request_prompt += (
-                            "\n\nEXACT TECHNICAL SOURCE AUTHORITY FAILURE (v69145)\n"
-                            "The exact learned installation/configuration source could not be safely resolved. "
-                            "Do NOT provide, infer, or guess any Car Model, A/C, protocol, SYNC, OnStar, camera, radio, or related setting value. "
-                            "Say that the exact learned source/branch must be verified or relearned before giving the setting."
-                        )
-                        diagnostic_log("technical_exact_source_fail_closed_v69145", status=section_status_v69142)
+                        # v69147 compatibility authority: if deterministic package discovery
+                        # is unavailable, give the proven v69125 same-source Manual/Automatic
+                        # retrieval one final chance. Accept only a complete same-file contract.
+                        fallback_bound_v69147 = False
+                        if _technical_generic_ac_variant_request_v69124(technical_request_prompt_v68879):
+                            try:
+                                fallback_v69147 = _technical_same_family_variant_evidence_v69124(technical_request_prompt_v68879)
+                            except Exception as error_v69147:
+                                fallback_v69147 = {}
+                                diagnostic_log("technical_v69125_compat_fallback_failed_v69147", error_type=type(error_v69147).__name__, error=str(error_v69147)[:500])
+                            if bool(fallback_v69147.get("contract_complete")) and str(fallback_v69147.get("contract_file_id") or "").strip():
+                                technical_variant_evidence_v69124 = fallback_v69147
+                                fallback_rows_v69147 = [dict(row) for row in (fallback_v69147.get("rows") or []) if isinstance(row, dict)]
+                                if fallback_rows_v69147:
+                                    st.session_state["_technical_file_search_results_v69012"] = fallback_rows_v69147[:12]
+                                    st.session_state["_workspace_file_search_results_v69040"] = fallback_rows_v69147[:12]
+                                fallback_context_v69147 = str(fallback_v69147.get("context") or "").strip()
+                                if fallback_context_v69147:
+                                    ai_request_prompt += "\n\n" + fallback_context_v69147
+                                use_file_search = False
+                                fallback_bound_v69147 = True
+
+                                # Reconstruct exact section/image authority from the SAME v69125
+                                # contract file so text and images stay bound to one learned source.
+                                fallback_package_text_v69147 = str((fallback_rows_v69147[0] if fallback_rows_v69147 else {}).get("text") or "")
+                                fallback_source_v69147 = str(fallback_v69147.get("contract_source_url") or "").strip()
+                                fallback_page_title_v69147 = _technical_package_header_value_v69113(fallback_package_text_v69147, "Page title") if fallback_package_text_v69147 else ""
+                                fallback_hierarchy_v69147 = _technical_hierarchy_excerpt_v69143(fallback_package_text_v69147, technical_request_prompt_v68879) if fallback_package_text_v69147 else {}
+                                fallback_excerpt_v69147 = str(fallback_hierarchy_v69147.get("excerpt") or "").strip()
+                                if not fallback_excerpt_v69147 and fallback_package_text_v69147:
+                                    fallback_excerpt_v69147 = _technical_package_section_excerpt_v69142(fallback_package_text_v69147, technical_request_prompt_v68879)
+                                technical_section_evidence_v69142 = {
+                                    "status": "recovered",
+                                    "context": fallback_context_v69147,
+                                    "rows": fallback_rows_v69147[:12],
+                                    "file_id": str(fallback_v69147.get("contract_file_id") or ""),
+                                    "filename": str((fallback_rows_v69147[0] if fallback_rows_v69147 else {}).get("filename") or ""),
+                                    "source_url": fallback_source_v69147,
+                                    "page_title": str(fallback_page_title_v69147 or ""),
+                                    "section_excerpt": str(fallback_excerpt_v69147 or "")[:26000],
+                                    "package_text": fallback_package_text_v69147,
+                                    "selected_image_urls_v69143": list(fallback_hierarchy_v69147.get("image_urls") or []),
+                                    "selected_section_title_v69143": str(fallback_hierarchy_v69147.get("section_title") or ""),
+                                    "selected_branch_paths_v69143": list(fallback_hierarchy_v69147.get("branch_paths") or []),
+                                }
+                                st.session_state["_technical_last_section_authority_v69142"] = {
+                                    "file_id": technical_section_evidence_v69142["file_id"],
+                                    "filename": technical_section_evidence_v69142["filename"],
+                                    "source_url": technical_section_evidence_v69142["source_url"],
+                                    "page_title": technical_section_evidence_v69142["page_title"],
+                                    "package_text": fallback_package_text_v69147,
+                                    "rows": fallback_rows_v69147[:12],
+                                    "selected_image_urls_v69143": list(technical_section_evidence_v69142.get("selected_image_urls_v69143") or []),
+                                    "selected_section_title_v69143": str(technical_section_evidence_v69142.get("selected_section_title_v69143") or ""),
+                                    "selected_branch_paths_v69143": list(technical_section_evidence_v69142.get("selected_branch_paths_v69143") or []),
+                                    "section_excerpt": str(fallback_excerpt_v69147 or "")[:26000],
+                                }
+                                diagnostic_log("technical_v69125_compat_bound_v69147", file_id=str(fallback_v69147.get("contract_file_id") or "")[:120])
+
+                        if not fallback_bound_v69147:
+                            # v69145/v69147: exact installation/configuration authority is mandatory.
+                            # Never substitute a broader vector-store record after exact source
+                            # resolution failed. The provider may format a safe verification
+                            # response, but it receives no authority to invent a factual value.
+                            use_file_search = False
+                            ai_request_prompt += (
+                                "\n\nEXACT TECHNICAL SOURCE AUTHORITY FAILURE (v69145)\n"
+                                "The exact learned installation/configuration source could not be safely resolved. "
+                                "Do NOT provide, infer, or guess any Car Model, A/C, protocol, SYNC, OnStar, camera, radio, or related setting value. "
+                                "Say that the exact learned source/branch must be verified or relearned before giving the setting."
+                            )
+                            diagnostic_log("technical_exact_source_fail_closed_v69145", status=section_status_v69142)
 
                 try:
                     diagnostic_log(
@@ -70738,6 +70949,16 @@ else:
                         generated_images += section_images_v69143
                     generated_images = _dedupe_website_chat_images_v68883(generated_images)
                     diagnostic_log("technical_section_bound_images_final_v69145", published=len(section_images_v69143), section=str(section_state_v69143.get("selected_section_title_v69143") or "")[:300])
+                elif _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879):
+                    # v69147 absolute fail-closed image rule: no exact Technical source/section
+                    # means no automatic learned website image. Product Library/uploaded images
+                    # remain unaffected. This prevents Audio/Temperature/etc. images from leaking
+                    # into a Car Model/Protocol/A-C answer when source authority failed.
+                    generated_images = [
+                        image for image in (generated_images or [])
+                        if not (isinstance(image, dict) and str(image.get("source") or "") == "website_knowledge")
+                    ]
+                    diagnostic_log("technical_images_removed_without_exact_authority_v69147", status=section_status_v69145)
             except Exception as error_v69143:
                 diagnostic_log("technical_section_bound_images_failed_v69143", error_type=type(error_v69143).__name__, error=str(error_v69143)[:500])
 
