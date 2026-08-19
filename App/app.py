@@ -1,3 +1,4 @@
+# AutoTecPro AI v69173 FINAL PRODUCTION — exact v69125 Technical runtime rebase; v69172 non-Technical preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -6,6 +7,32 @@
 # AutoTecPro AI v69166 FINAL RELEASE — force active Technical pointer after reviewed migration/save.
 # AutoTecPro AI v69165 FINAL RELEASE — Technical exact-duplicate structural migration + locked-package direct authority.
 # AutoTecPro AI v69164 FINAL RELEASE — current-source family/year lock; stale semantic authority blocked; v69050/v69125 fallback preserved.
+# AutoTecPro AI v69163 FINAL RELEASE — v69050/v69125 baseline first; all newer Technical authority additive only.\n# AutoTecPro AI v69159 FINAL RELEASE — Graphic durable-job UUID runtime dependency repair; v69158 Technical fixes preserved.
+# AutoTecPro AI v69150 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
+# AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
+V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
+# AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
+V69144_RUNTIME_AUTHORITY_LOCK = True
+# AutoTecPro AI v69143 — FINAL PRODUCTION: Quick-Navigation + full-section/subtitle/image learning; v69142 output format and v69125 behavior preserved.
+V69143_QUICK_NAV_SECTION_CONTENT_IMAGE_LEARNING = True
+# AutoTecPro AI v69142 — FINAL PRODUCTION: generic learned-section authority; v69125 behavioral reference + v69141 durability/source compatibility preserved.
+V69142_GENERIC_SECTION_LEARNING_AUTHORITY = True
+# AutoTecPro AI v69141 — FINAL PRODUCTION: typo-tolerant multi-model protected-installation source authority; v69125 output contract + v69137 image durability preserved.
+# AutoTecPro AI v69140 — FINAL PRODUCTION: Technical installation-page source authority restored over broader product/series records; v69125 output contract + v69137 image durability preserved.
+# AutoTecPro AI v69137 — FINAL PRODUCTION: exact v69128 Technical retrieval/display baseline restored and locked; only v69131 durable image schema compatibility/read-back and failure accounting added. No v69132+ active-package prompt/source overrides imported.
+V69139_EXACT_V69125_TECH_OUTPUT_ON_V69137_DURABILITY = True
+# AutoTecPro AI v69128 — FINAL PRODUCTION: generic dynamic multi-option Technical settings rows across Ford/GM/future sources; v69126 first-turn image publication and all protected pipelines preserved
+# AutoTecPro AI v69127 — FINAL PRODUCTION: dynamic multi-option settings rows + preserved first-turn Technical images; all v69126/v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
+# AutoTecPro AI v69126 — FINAL PRODUCTION: split verified A/C options into separate rows + first-turn Technical image recovery from exact answer evidence; all v69125/v69123 factual, durability, Graphic, Reference, After Install, Sales/Marketing behavior preserved
+# AutoTecPro AI v69125 — FINAL PRODUCTION: verified same-source dual-A/C contract + deterministic two-row table preservation; all v69124/v69123 image, learning, output, Graphic, Reference, After Install behavior preserved
+# AutoTecPro AI v69124 — FINAL PRODUCTION: complete same-family Manual+Automatic Technical settings retrieval; v69123 durability/F250/image fixes and all protected output/Graphic/Reference/After Install behavior preserved\n# AutoTecPro AI v69123 — FINAL PRODUCTION: durable image read-back fix + Admin website supersedes conflicting Technical settings learned vectors + clean explicit-vehicle context + v69050 Technical late-image publication restored; all output/Graphic/Reference/After Install preserved
+# AutoTecPro AI v69122 — FINAL PRODUCTION: v69050 Technical factual authority restored at the live call site; v69121 output/learning/image/Graphic/Reference/After Install preserved
+# AutoTecPro AI v69121 — FINAL PRODUCTION RELEASE: resilient optional Technical prewarm + last-known-good snapshot + immediate new-package promotion + v69120 same-turn explicit photos; all protected output/Graphic/Reference/After Install preserved
+# AutoTecPro AI v69120 — immediate explicit photo publication across Technical/Sales/Marketing; all v69119 output/result, Graphic, Reference, After Install, and QA behavior preserved
+# AutoTecPro AI v69119 — prewarmed proven Technical catalog for fast/stable responses; v69118 output/result and v69115 image behavior preserved
+# AutoTecPro AI v69118 — FINAL STABLE: v69115 proven result/image path + main-thread typo-safe routing; v69117 registry regression removed
+# AutoTecPro AI v69117 — stable main-thread Technical routing; v69115 automatic image + v69114 result/display preserved
+# AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -90,7 +117,75 @@ try:
 except Exception:
     create_supabase_client = None
 
+# AutoTecPro AI v68972 — Reference Mode Geometry + Screen/UI Pixel Authority; v68971 Exact Product Route Preserved
+# AutoTecPro AI v68950 — Security & Maintainability Hardening; v68892 Features/Pipelines Preserved
+# AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
+GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
+# v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
+
+# v66000 LTS clean architectural merge:
+# - v40100 exact-source composition and intact-source fallback.
+# - v47000 conservative border-connected masking and untouched source RGB.
+# - v64000 rendering, advanced glass/HDR lighting, five-layer shadows, provider routing, QA, timing,
+#   Supabase/history/product-library/WooCommerce integrations, mobile interface and downloads.
+# - v66000 multi-candidate extraction, source-to-cutout geometry verification, confidence selection,
+#   immutable local product compositing and fail-closed untouched-card authority.
+# v63000 Final Bezel Authority Engine built directly from v62000 LTS.
+# Adds geometric-cliff physical-baseline detection and selective mechanical-tail retention so studio-floor shadows are removed without cutting real mounting tabs.
+# First-priority correction: prevents provider-generated brackets, tabs and false lower-housing geometry from surviving around
+# the immutable product; replaces aggressive GrabCut/component growth with border-connected studio-background isolation,
+# adds a wide product guard band, and keeps the exact uploaded product as the final authoritative layer.
+# v22000 consolidated production update built directly from the current v21010 working base.
+# v51000 OEM Component Transfer Engine built directly from the working v50000 Installed Photographic Integration Engine.
+# v52000 Product Authority & Pixel Provenance Engine built directly from v51000.
+# v54000 Exact Silhouette & Lower-Housing Integrity Engine built directly from v53000.
+# v59000 Connected-Component Bottom-Housing Authority Engine built directly from v58000.
+# v61000 LTS Unified Fidelity & Photoreal Engine built directly from v59000.
+# v61000 LTS Unified Product Fidelity, Photorealism, Deterministic QA & Performance Engine built directly from v60000.
+# Consolidates immutable geometry, source-to-final QA, material-aware lighting, advanced glass optics, clipped shadows,
+# deterministic run manifests, stage timing, targeted recovery metadata and production regression contracts.
+# Adds environment-aware glass reflections, Fresnel edge response, dynamic sun highlights, local HDR scene estimation,
+# geometry-safe body relighting, ambient colour/exposure matching, black-level preservation and refined contact shadows.
+# Replaces broad structural-edge/row-span rescue with dominant-component silhouette recovery, physical-baseline shadow rejection,
+# binary engineering geometry, single-pass premultiplied product resize, and fresh source-mask validation.
+# Fixes the root bottom-bezel defect by preventing bright neutral silver/white housing pixels from being classified as studio background.
+# Adds structural-edge rescue, lower-housing span protection, source-mask integrity rejection, and a fresh cache epoch.
+# v57000 Bottom-Bezel Absolute Authority & Provider Exclusion Engine built directly from v56000.
+# Reserves and reconstructs the entire product bounding region plus an asymmetric lower-housing safety apron
+# before local composition, preventing provider-generated rails, tabs, brackets or false lower bezels from surviving.
+# Adds fail-closed protected-zone coverage verification and a dedicated bottom-apron authority report.
+# v56000 Fresh Mask, Bottom-Bezel Authority & Deterministic Product Composition Engine built directly from v55000.
+# Forces fresh authoritative mask extraction, versions all geometry caches, fails closed on provider-zone clearing,
+# strengthens lower-housing verification, and uses deterministic supersampled product resizing for small controls/UI.
+# v55000 Product Pixel Authority & Deterministic Composition Engine built directly from v54000.
+# v55000 adds immutable source-pixel authority, protected-product-zone inpainting, strict lower-bezel/
+# lower-housing contour validation, fresh source-hash cache epochs, and fail-closed product-region QA.
+# Removes soft connected studio-floor shadows and nearby false components from exact-product cutouts,
+# locks the lower housing and mounting silhouette, and rejects any product mask whose lower profile drifts.
+# Adds authoritative source fingerprinting, new-upload cache invalidation, reference-mode exact-route enforcement,
+# deterministic product provenance manifests, and fail-closed source/geometry validation before publication.
+# Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
+# product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
+# scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
+# v51000 adds a staged OEM component inventory, donor-to-aperture assembly map, per-mapping fail-closed validation, and no-poster Installed View output while retaining v50000 photographic integration, v49000 dashboard pixel authority and v48000 detail fidelity:
+# three-layer shadows, background harmony, commercial detail QA, and final fail-closed AutoTecPro QA.
+# Adaptive modes: (1) Commercial Lock, (2) Product Recreation, (3) UI Replacement, (4) Product Variant,
+# and (5) Installed View with live OEM-interior research. Commercial/UI modes keep exact product authority;
+# recreation/variant/installed modes allow bounded AI reconstruction under Product DNA and engineering validation.
+# v66850 replaces the incomplete source-photo canvas with a complete deterministic commercial fallback, mandatory geometry/fitment/completeness gates, and retains v66840 resilient Product Library archiving:
+# v66860 restores the proven v66600 recovery principle: missing optional metadata is diagnostic, not proof of failure.
+# Product geometry and full-fitment wording remain release blockers only when direct evidence proves a violation.
+# The complete local commercial fallback remains mandatory and the obsolete opaque source-photo canvas is forbidden.
+# v66840 adds resilient Product Library archiving: Google Drive remains primary, while revoked/expired OAuth tokens automatically fall back to private Supabase Storage without blocking uploads.
+# v66200 restores the proven v40100 full-fitment copy authority, supports flexible year-range wording,
+# and prevents the single representative scene vehicle from replacing broader user-stated compatibility.
+# The v66000 exact-geometry/bezel authority and v66100 performance/integration systems remain unchanged.
+# v66100 LTS is built directly from verified v66000. It preserves the v66000
+# multi-candidate fail-closed bezel geometry authority unchanged while adding:
+# remembered provider routes, persistent fingerprint caches with session fallback,
+# verified-background validation reuse, actual attempt timing, complete-alpha-envelope
+# cropping, confidence-gated environmental integration metadata, and QA reuse.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -76565,803 +76660,95 @@ else:
                         active_workspace_rows_v69113[:12]
                     )
 
-                # v69163 FINAL: v69050 + v69125 are the non-negotiable live
-                # Technical baseline. New structural/package authority is additive only.
-                technical_full_package_authority_v69155 = {
-                    "status": "not_applicable"
-                }
-                technical_v69156_fail_closed = False
-                technical_v69156_configuration_required = bool(
-                    assistant == "🔧 Technical Support"
-                    and bool(execution_plan.get("use_file_search"))
-                    and not bool(technical_website_learning_requested_v68870)
-                    and not bool(explicit_learning_requested)
-                    and _technical_configuration_query_v69155(
-                        technical_request_prompt_v68879
-                    )
-                )
-
-                # v69164: current-source lock is allowed to PRE-EMPT the broad
-                # baseline only when it proves one explicit current family/year
-                # file and the unchanged structural parser recovers verified fields.
-                # Failure with NO known current source falls through to v69125/v69050.
-                # Failure after a current source is known fails safe rather than
-                # silently searching an older competing package.
-                technical_current_source_safe_answer_v69164 = ""
-                # v69168: a newer current-source structural miss must never suppress
-                # the proven v69125/v69050 Technical runtime.  This flag records that
-                # the current source was identified but direct structural recovery
-                # could not complete; the ordinary baseline remains authoritative.
-                technical_current_source_baseline_recovery_v69168 = False
-                technical_current_source_lock_v69164 = {
-                    "status": "not_applicable"
-                }
-                if technical_v69156_configuration_required:
-                    try:
-                        store_ids_v69164 = _configured_vector_store_ids(
-                            TECHNICAL_VECTOR_STORE_ID
-                        )
-                        if store_ids_v69164:
-                            technical_current_source_lock_v69164 = (
-                                _technical_active_structural_authority_v69164(
-                                    technical_request_prompt_v68879,
-                                    str(store_ids_v69164[0] or "").strip(),
-                                )
-                            )
-                            lock_status_v69164 = str(
-                                technical_current_source_lock_v69164.get("status")
-                                or ""
-                            )
-                            if lock_status_v69164 == "recovered":
-                                technical_full_package_authority_v69155 = dict(
-                                    technical_current_source_lock_v69164
-                                )
-                                use_file_search = False
-                                diagnostic_log(
-                                    "technical_active_source_locked_v69164",
-                                    file_id=str(
-                                        technical_current_source_lock_v69164.get(
-                                            "file_id"
-                                        )
-                                        or ""
-                                    )[:160],
-                                    source_url=str(
-                                        technical_current_source_lock_v69164.get(
-                                            "source_url"
-                                        )
-                                        or ""
-                                    )[:700],
-                                )
-                            elif lock_status_v69164.startswith(
-                                "known_current"
-                            ):
-                                # v69169 FINAL: never broaden a known-current source miss
-                                # into an unrestricted semantic Technical search. First
-                                # recover literal settings from the SAME already-locked file.
-                                # This restores the working F450/LO/HI authority while
-                                # preventing stale F150-HI/09-12 records from winning.
-                                try:
-                                    bound_current_v69169 = (
-                                        _technical_current_source_bound_recovery_v69169(
-                                            technical_request_prompt_v68879,
-                                            technical_current_source_lock_v69164,
-                                        )
-                                    )
-                                except Exception as error_v69169:
-                                    bound_current_v69169 = {
-                                        "status": "bound_source_unavailable",
-                                        "reason_code": "BOUND_RECOVERY_EXCEPTION",
-                                    }
-                                    diagnostic_log(
-                                        "technical_current_source_bound_recovery_failed_v69169",
-                                        error_type=type(error_v69169).__name__,
-                                        error=str(error_v69169)[:600],
-                                    )
-                                if str(bound_current_v69169.get("status") or "") == "recovered":
-                                    technical_full_package_authority_v69155 = dict(bound_current_v69169)
-                                    technical_current_source_baseline_recovery_v69168 = False
-                                    technical_current_source_safe_answer_v69164 = ""
-                                    use_file_search = False
-                                    diagnostic_log(
-                                        "technical_current_source_bound_v69169",
-                                        file_id=str(bound_current_v69169.get("file_id") or "")[:160],
-                                        source_url=str(bound_current_v69169.get("source_url") or "")[:700],
-                                        images=len(bound_current_v69169.get("selected_image_urls_v69143") or []),
-                                    )
-                                else:
-                                    # A known current source that cannot be verified must fail
-                                    # closed. Broad v69050/v69125 semantic fallback is safe only
-                                    # when no current source is known; otherwise it can resurrect
-                                    # an older conflicting package, as v69168 did in production.
-                                    technical_current_source_baseline_recovery_v69168 = False
-                                    use_file_search = False
-                                    technical_current_source_safe_answer_v69164 = (
-                                        "## Current Technical Source Temporarily Unavailable\n\n"
-                                        "The current reviewed AutoTecPro Technical source was identified, "
-                                        "but its exact requested configuration could not be verified from "
-                                        "that same source. No older or conflicting Technical record was used. "
-                                        "Please re-submit or refresh the current source before relying on a setting."
-                                    )
-                                    diagnostic_log(
-                                        "technical_known_current_fail_closed_v69169",
-                                        status=lock_status_v69164[:120],
-                                        reason=str(bound_current_v69169.get("reason_code") or "")[:160],
-                                        file_id=str(technical_current_source_lock_v69164.get("file_id") or "")[:160],
-                                        source_url=str(technical_current_source_lock_v69164.get("source_url") or "")[:700],
-                                    )
-                    except Exception as error_v69164:
-                        diagnostic_log(
-                            "technical_active_source_lock_failed_v69164",
-                            error_type=type(error_v69164).__name__,
-                            error=str(error_v69164)[:600],
-                        )
-
-                # v69124: for a generic Technical Car Model/A-C request, retrieve
-                # both Manual and Automatic siblings before the main answer. This
-                # supplements the proven v69050 factual search rather than replacing it.
-                technical_variant_evidence_v69124 = {
-                    "context": "", "rows": [], "status": "not_applicable"
-                }
-                if (
-                    assistant == "🔧 Technical Support"
-                    and bool(use_file_search)
-                    and str(
-                        (technical_full_package_authority_v69155 or {}).get("status")
-                        or ""
-                    ) != "recovered"
-                    and not bool(technical_current_source_safe_answer_v69164)
-                    and _technical_generic_ac_variant_request_v69124(
-                        technical_request_prompt_v68879
-                    )
-                ):
-                    try:
-                        technical_variant_evidence_v69124 = (
-                            _technical_same_family_variant_evidence_v69124(
-                                technical_request_prompt_v68879
-                            )
-                        )
-                    except Exception as error_v69124:
-                        diagnostic_log(
-                            "technical_variant_evidence_failed_v69124",
-                            error_type=type(error_v69124).__name__,
-                            error=str(error_v69124)[:500],
-                        )
-                        technical_variant_evidence_v69124 = {
-                            "context": "", "rows": [], "status": "failed"
-                        }
-
-                    variant_context_v69124 = str(
-                        technical_variant_evidence_v69124.get("context") or ""
-                    ).strip()
-                    if variant_context_v69124:
-                        ai_request_prompt += (
-                            "\n\n" + variant_context_v69124
-                        )
-
-                    variant_rows_v69124 = [
-                        dict(row)
-                        for row in (
-                            technical_variant_evidence_v69124.get("rows") or []
-                        )
-                        if isinstance(row, dict)
-                    ]
-                    if variant_rows_v69124:
-                        st.session_state[
-                            "_technical_file_search_results_v69012"
-                        ] = variant_rows_v69124[:12]
-                        st.session_state[
-                            "_workspace_file_search_results_v69040"
-                        ] = variant_rows_v69124[:12]
-
-                    if bool(
-                        technical_variant_evidence_v69124.get(
-                            "contract_complete"
-                        )
-                    ):
-                        # v69125: the same current source proved both A/C branches.
-                        # Do not let a broad second file_search replace that complete
-                        # evidence with a higher-scoring single-branch chunk.
-                        use_file_search = False
-                        diagnostic_log(
-                            "technical_dual_ac_contract_bound_v69125",
-                            file_id=str(
-                                technical_variant_evidence_v69124.get(
-                                    "contract_file_id"
-                                ) or ""
-                            )[:120],
-                        )
-
-                # v69163 additive enhancement: only after the working v69125
-                # same-file contract succeeds may that exact file provide stronger
-                # structural fields/images. Failure changes nothing.
-                if (
-                    technical_v69156_configuration_required
-                    and bool(
-                        technical_variant_evidence_v69124.get(
-                            "contract_complete"
-                        )
-                    )
-                    and str(
-                        technical_variant_evidence_v69124.get(
-                            "contract_file_id"
-                        )
-                        or ""
-                    ).strip()
-                ):
-                    try:
-                        contract_rows_v69163 = [
-                            dict(row)
-                            for row in (
-                                technical_variant_evidence_v69124.get("rows")
-                                or []
-                            )
-                            if isinstance(row, dict)
-                        ]
-                        contract_filename_v69163 = str(
-                            (
-                                contract_rows_v69163[0]
-                                if contract_rows_v69163
-                                else {}
-                            ).get("filename")
-                            or ""
-                        )
-                        additive_authority_v69163 = (
-                            _technical_full_package_authority_from_file_v69163(
-                                technical_request_prompt_v68879,
-                                technical_variant_evidence_v69124.get(
-                                    "contract_file_id"
-                                ),
-                                contract_filename_v69163,
-                            )
-                        )
-                        if str(
-                            additive_authority_v69163.get("status")
-                            or ""
-                        ) == "recovered":
-                            technical_full_package_authority_v69155 = (
-                                additive_authority_v69163
-                            )
-                            diagnostic_log(
-                                "technical_v69125_additive_structure_bound_v69163",
-                                file_id=str(
-                                    additive_authority_v69163.get("file_id")
-                                    or ""
-                                )[:160],
-                                section=str(
-                                    additive_authority_v69163.get(
-                                        "section_title"
-                                    )
-                                    or ""
-                                )[:300],
-                            )
-                    except Exception as error_v69163:
-                        diagnostic_log(
-                            "technical_v69125_additive_structure_failed_v69163",
-                            error_type=type(error_v69163).__name__,
-                            error=str(error_v69163)[:600],
-                        )
-
-                # v69155: full exact-package structural authority.
-                #
-                # Vector/file_search is used only to identify the exact learned page.
-                # The factual subsection is then selected from the FULL learned package
-                # hierarchy, not by semantic chunk ranking. Dynamic setting fields and
-                # exact-section images are extracted from that one structural authority.
-                # v69158: source/structure resolution already ran before v69124.
-                # This block only binds the recovered authority or applies fallback safety.
-                if technical_v69156_configuration_required:
-                    if str(
-                        technical_full_package_authority_v69155.get("status") or ""
-                    ) == "recovered":
-                        authority_context_v69155 = str(
-                            technical_full_package_authority_v69155.get("context") or ""
-                        ).strip()
-                        if authority_context_v69155:
-                            ai_request_prompt += "\n\n" + authority_context_v69155
-
-                        authority_rows_v69155 = [
-                            dict(row)
-                            for row in (
-                                technical_full_package_authority_v69155.get("rows") or []
-                            )
-                            if isinstance(row, dict)
-                        ]
-                        if authority_rows_v69155:
-                            st.session_state[
-                                "_technical_file_search_results_v69012"
-                            ] = authority_rows_v69155[:12]
-                            st.session_state[
-                                "_workspace_file_search_results_v69040"
-                            ] = authority_rows_v69155[:12]
-
-                        # Product Library is compatibility context, not configuration
-                        # authority. Remove it after exact structural settings are proven
-                        # so a product-family label cannot leak into Car Model/Protocol rows.
-                        try:
-                            product_context_v69156 = (
-                                _product_library_chat_context(product_library_lookup)
-                                if product_library_lookup else ""
-                            )
-                            if (
-                                product_context_v69156
-                                and product_context_v69156 in ai_request_prompt
-                            ):
-                                ai_request_prompt = ai_request_prompt.replace(
-                                    product_context_v69156, ""
-                                )
-                        except Exception:
-                            pass
-
-                        # Remove any earlier v69124 sibling context from this request.
-                        # v69155 has now hydrated the full exact package and is the
-                        # stronger structural authority for both common and branch fields.
-                        try:
-                            prior_variant_context_v69124 = str(
-                                locals().get("variant_context_v69124") or ""
-                            ).strip()
-                            if (
-                                prior_variant_context_v69124
-                                and prior_variant_context_v69124 in ai_request_prompt
-                            ):
-                                ai_request_prompt = ai_request_prompt.replace(
-                                    "\n\n" + prior_variant_context_v69124, ""
-                                ).replace(prior_variant_context_v69124, "")
-                        except Exception:
-                            pass
-
-                        # Persist exact structural provenance for rerun/history.
-                        st.session_state["_technical_last_section_authority_v69142"] = {
-                            "status": "recovered",
-                            "file_id": str(technical_full_package_authority_v69155.get("file_id") or ""),
-                            "filename": str(technical_full_package_authority_v69155.get("filename") or ""),
-                            "source_url": str(technical_full_package_authority_v69155.get("source_url") or ""),
-                            "page_title": str(technical_full_package_authority_v69155.get("page_title") or ""),
-                            "package_text": str(technical_full_package_authority_v69155.get("package_text") or ""),
-                            "selected_section_title_v69143": str(technical_full_package_authority_v69155.get("section_title") or ""),
-                            "selected_branch_paths_v69143": list(technical_full_package_authority_v69155.get("branch_paths") or []),
-                            "selected_image_urls_v69143": list(technical_full_package_authority_v69155.get("selected_image_urls_v69143") or []),
-                        }
-
-                        # Exact full-package structural evidence is already bound.
-                        # Do not run a second broad semantic provider file_search.
-                        use_file_search = False
-                        diagnostic_log(
-                            "technical_full_package_authority_bound_v69155",
-                            file_id=str(
-                                technical_full_package_authority_v69155.get("file_id") or ""
-                            )[:160],
-                            source_url=str(
-                                technical_full_package_authority_v69155.get("source_url") or ""
-                            )[:700],
-                            section=str(
-                                technical_full_package_authority_v69155.get("section_title") or ""
-                            )[:300],
-                            branches=len(
-                                technical_full_package_authority_v69155.get("branch_paths") or []
-                            ),
-                            fields=len(
-                                _technical_table_rows_from_structured_v69155(
-                                    technical_full_package_authority_v69155.get("structured") or {}
-                                )
-                            ),
-                            images=len(
-                                technical_full_package_authority_v69155.get(
-                                    "selected_image_urls_v69143"
-                                ) or []
-                            ),
-                        )
-                    elif not bool(
-                        technical_variant_evidence_v69124.get(
-                            "contract_complete"
-                        )
-                    ):
-                        # v69163: additive authority unavailable. Keep the exact
-                        # v69050/v69125 fallback contract: normal Technical file_search
-                        # remains enabled and no Requires Verification poison prompt is added.
-                        technical_v69156_fail_closed = False
-                        use_file_search = bool(
-                            execution_plan.get("use_file_search")
-                        )
-                        diagnostic_log(
-                            "technical_additive_authority_unavailable_baseline_continues_v69163",
-                            structural_status=str(
-                                technical_full_package_authority_v69155.get(
-                                    "status"
-                                )
-                                or ""
-                            )[:120],
-                            use_file_search=bool(use_file_search),
-                        )
-
-                # v69154 FINAL: restore the proven v69050/v69125 Technical runtime.
-                #
-                # Both working references share this authority:
-                #   - if the v69125 same-source contract is complete, use its evidence
-                #     and do not run a broader second provider file_search;
-                #   - otherwise keep the original v69050 provider file_search enabled.
-                #
-                # Later source/section/hierarchy gates may still exist for learning,
-                # diagnostics, and non-baseline compatibility, but they MUST NOT
-                # replace, disable, or pre-empt this proven live Technical path.
-                technical_v69050_v69125_baseline_v69154 = bool(
-                    assistant == "🔧 Technical Support"
-                    and bool(execution_plan.get("use_file_search"))
-                    and not bool(technical_website_learning_requested_v68870)
-                    and not bool(explicit_learning_requested)
-                    and not bool(technical_current_source_safe_answer_v69164)
-                    and str(
-                        (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
-                    ) != "recovered"
-                )
-                if technical_v69050_v69125_baseline_v69154:
-                    # Prevent stale post-v69125 authority from a previous saved turn
-                    # from affecting publication/history in the restored baseline.
-                    st.session_state.pop("_technical_last_section_authority_v69142", None)
-                    diagnostic_log(
-                        "technical_v69050_v69125_runtime_restored_v69154",
-                        contract_complete=bool(
-                            technical_variant_evidence_v69124.get("contract_complete")
-                        ),
-                        current_source_structural_miss_recovered_v69168=bool(
-                            technical_current_source_baseline_recovery_v69168
-                        ),
-                        use_file_search=bool(use_file_search),
-                    )
-
-                # v69149: bounded v69050-style recovery only when the exact v69125
-                # specialized retrieval did not complete. One normal Technical vector search
-                # is allowed, but it cannot become authority unless the unchanged v69125
-                # validator proves BOTH branches from the SAME exact file.
-                if (
-                    assistant == "🔧 Technical Support"
-                    and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
-                    and bool(use_file_search)
-                    and _technical_generic_ac_variant_request_v69124(
-                        technical_request_prompt_v68879
-                    )
-                    and not bool(technical_variant_evidence_v69124.get("contract_complete"))
-                ):
-                    try:
-                        bounded_recovery_v69149 = _technical_v69050_bounded_settings_recovery_v69149(
-                            technical_request_prompt_v68879
-                        )
-                    except Exception as error_v69149:
-                        bounded_recovery_v69149 = {}
-                        diagnostic_log(
-                            "technical_v69050_bounded_recovery_failed_v69149",
-                            error_type=type(error_v69149).__name__,
-                            error=str(error_v69149)[:500],
-                        )
-                    if bool(bounded_recovery_v69149.get("contract_complete")):
-                        technical_variant_evidence_v69124 = bounded_recovery_v69149
-                        bounded_context_v69149 = str(bounded_recovery_v69149.get("context") or "").strip()
-                        if bounded_context_v69149:
-                            ai_request_prompt += "\n\n" + bounded_context_v69149
-                        bounded_rows_v69149 = [
-                            dict(row) for row in (bounded_recovery_v69149.get("rows") or [])
-                            if isinstance(row, dict)
-                        ]
-                        if bounded_rows_v69149:
-                            st.session_state["_technical_file_search_results_v69012"] = bounded_rows_v69149[:12]
-                            st.session_state["_workspace_file_search_results_v69040"] = bounded_rows_v69149[:12]
-                        use_file_search = False
-                        diagnostic_log(
-                            "technical_v69050_bounded_contract_bound_v69149",
-                            file_id=str(bounded_recovery_v69149.get("contract_file_id") or "")[:120],
-                        )
-
-                # v69150: if both the exact v69125 contract and bounded v69050 recovery
-                # are incomplete, locate one exact learned Technical SOURCE by identity.  This
-                # is intentionally independent of Product Library and accepts legacy/current
-                # website-package formats.  Only after one exact file is located do we parse
-                # Quick Navigation/section/image evidence from that file.
-                technical_exact_source_v69150 = {}
-                if (
-                    assistant == "🔧 Technical Support"
-                    and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
-                    and not bool(locals().get("technical_v69156_fail_closed"))
-                    and str(
-                        (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
-                    ) != "recovered"
-                    and bool(execution_plan.get("use_file_search"))
-                    and _technical_protected_settings_inquiry_v69145(
-                        technical_request_prompt_v68879
-                    )
-                    and not bool(technical_variant_evidence_v69124.get("contract_complete"))
-                ):
-                    try:
-                        technical_exact_source_v69150 = _technical_exact_source_recovery_v69150(
-                            technical_request_prompt_v68879
-                        )
-                    except Exception as error_v69150:
-                        technical_exact_source_v69150 = {"status": "failed", "context": "", "rows": []}
-                        diagnostic_log(
-                            "technical_exact_source_recovery_failed_v69150",
-                            error_type=type(error_v69150).__name__,
-                            error=str(error_v69150)[:500],
-                        )
-                    if str(technical_exact_source_v69150.get("status") or "") == "recovered":
-                        exact_context_v69150 = str(technical_exact_source_v69150.get("context") or "").strip()
-                        if exact_context_v69150:
-                            ai_request_prompt += "\n\n" + exact_context_v69150
-                        exact_rows_v69150 = [
-                            dict(row) for row in (technical_exact_source_v69150.get("rows") or [])
-                            if isinstance(row, dict)
-                        ]
-                        if exact_rows_v69150:
-                            st.session_state["_technical_file_search_results_v69012"] = exact_rows_v69150[:12]
-                            st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69150[:12]
-                        if bool(technical_exact_source_v69150.get("contract_complete")):
-                            technical_variant_evidence_v69124 = {
-                                "context": exact_context_v69150,
-                                "rows": exact_rows_v69150[:12],
-                                "status": "recovered",
-                                "contract_complete": True,
-                                "manual_value": str(technical_exact_source_v69150.get("manual_value") or ""),
-                                "automatic_value": str(technical_exact_source_v69150.get("automatic_value") or ""),
-                                "contract_file_id": str(technical_exact_source_v69150.get("file_id") or ""),
-                                "contract_source_url": str(technical_exact_source_v69150.get("source_url") or ""),
-                                "v69150_exact_source_recovery": True,
-                            }
-                            ai_request_prompt += "\n\n" + _technical_variant_contract_context_v69125(
-                                technical_variant_evidence_v69124
-                            )
-                        # Exact source evidence is now already in the prompt; prevent a broad
-                        # second provider file_search from replacing it.
-                        use_file_search = False
-                        diagnostic_log(
-                            "technical_exact_source_bound_v69150",
-                            file_id=str(technical_exact_source_v69150.get("file_id") or "")[:120],
-                            source_url=str(technical_exact_source_v69150.get("source_url") or "")[:500],
-                            route=str(technical_exact_source_v69150.get("recovery_route_v69150") or ""),
-                            contract_complete=bool(technical_exact_source_v69150.get("contract_complete")),
-                        )
-
-                # v69142: generic learned-section authority for every Technical
-                # knowledge inquiry.  This runs after the v69125 A/C sibling search so
-                # the reference contract can still complete, then prevents a broad main
-                # file_search from replacing the exact page/section evidence.
-                technical_section_evidence_v69142 = {
-                    "status": "not_applicable", "context": "", "rows": []
-                }
-                if (
-                    assistant == "🔧 Technical Support"
-                    and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
-                    and not bool(locals().get("technical_v69156_fail_closed"))
-                    and str(
-                        (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
-                    ) != "recovered"
-                    and bool(execution_plan.get("use_file_search"))
-                    and str(technical_request_prompt_v68879 or "").strip()
-                ):
-                    try:
-                        if str((locals().get("technical_exact_source_v69150") or {}).get("status") or "") == "recovered":
-                            technical_section_evidence_v69142 = dict(technical_exact_source_v69150)
-                            diagnostic_log(
-                                "technical_v69150_exact_source_promoted",
-                                file_id=str(technical_section_evidence_v69142.get("file_id") or "")[:120],
-                                source_url=str(technical_section_evidence_v69142.get("source_url") or "")[:500],
-                            )
-                        elif bool(technical_variant_evidence_v69124.get("contract_complete")):
-                            technical_section_evidence_v69142 = _technical_section_from_v69125_contract_v69148(
-                                technical_request_prompt_v68879, technical_variant_evidence_v69124
-                            )
-                            diagnostic_log(
-                                "technical_v69125_primary_contract_promoted_v69148",
-                                file_id=str(technical_section_evidence_v69142.get("file_id") or "")[:120],
-                                source_url=str(technical_section_evidence_v69142.get("source_url") or "")[:500],
-                            )
-                        else:
-                            technical_section_evidence_v69142 = _technical_generic_section_evidence_v69142(
-                                technical_request_prompt_v68879
-                            )
-                    except Exception as error_v69142:
-                        diagnostic_log(
-                            "technical_section_authority_failed_v69142",
-                            error_type=type(error_v69142).__name__,
-                            error=str(error_v69142)[:500],
-                        )
-                        technical_section_evidence_v69142 = {
-                            "status": "failed", "context": "", "rows": []
-                        }
-
-                    section_status_v69142 = str(technical_section_evidence_v69142.get("status") or "")
-                    if section_status_v69142 in {"recovered", "recovered_followup"}:
-                        section_context_v69142 = str(
-                            technical_section_evidence_v69142.get("context") or ""
-                        ).strip()
-                        if section_context_v69142:
-                            ai_request_prompt += "\n\n" + section_context_v69142
-                        section_rows_v69142 = [
-                            dict(row) for row in (
-                                technical_section_evidence_v69142.get("rows") or []
-                            ) if isinstance(row, dict)
-                        ]
-                        if section_rows_v69142:
-                            st.session_state["_technical_file_search_results_v69012"] = section_rows_v69142[:12]
-                            st.session_state["_workspace_file_search_results_v69040"] = section_rows_v69142[:12]
-
-                        # If the exact learned package itself proves the v69125 Manual
-                        # + Automatic contract, repair an incomplete branch search from
-                        # the same literal evidence. Values are extracted, never coded.
-                        if _technical_generic_ac_variant_request_v69124(
-                            technical_request_prompt_v68879
-                        ) and not bool(technical_variant_evidence_v69124.get("contract_complete")):
-                            package_text_v69142 = str(
-                                technical_section_evidence_v69142.get("package_text") or ""
-                            )
-                            manual_v69142 = _technical_extract_ac_variant_value_v69125(
-                                package_text_v69142, "manual"
-                            )
-                            automatic_v69142 = _technical_extract_ac_variant_value_v69125(
-                                package_text_v69142, "automatic"
-                            )
-                            if manual_v69142 and automatic_v69142:
-                                technical_variant_evidence_v69124 = {
-                                    "context": section_context_v69142,
-                                    "rows": section_rows_v69142,
-                                    "status": "recovered",
-                                    "contract_complete": True,
-                                    "manual_value": manual_v69142,
-                                    "automatic_value": automatic_v69142,
-                                    "contract_file_id": str(technical_section_evidence_v69142.get("file_id") or ""),
-                                    "contract_source_url": str(technical_section_evidence_v69142.get("source_url") or ""),
-                                }
-                            else:
-                                # v69145 performance-safe fallback: only after exact page/section
-                                # resolution, and accept sibling evidence only when it proves the
-                                # SAME exact learned file/source.
-                                try:
-                                    fallback_v69145=_technical_same_family_variant_evidence_v69124(
-                                        technical_request_prompt_v68879
-                                    )
-                                except Exception as error_v69145:
-                                    diagnostic_log("technical_variant_fallback_failed_v69145", error_type=type(error_v69145).__name__, error=str(error_v69145)[:500])
-                                    fallback_v69145={}
-                                exact_file_v69145=str(technical_section_evidence_v69142.get("file_id") or "").strip()
-                                exact_source_v69145=str(technical_section_evidence_v69142.get("source_url") or "").strip()
-                                fallback_file_v69145=str(fallback_v69145.get("contract_file_id") or "").strip()
-                                fallback_source_v69145=str(fallback_v69145.get("contract_source_url") or "").strip()
-                                same_file_v69145=bool(exact_file_v69145 and fallback_file_v69145 and exact_file_v69145==fallback_file_v69145)
-                                same_source_v69145=bool(exact_source_v69145 and fallback_source_v69145 and canonical_website_url_identity(exact_source_v69145)==canonical_website_url_identity(fallback_source_v69145))
-                                if bool(fallback_v69145.get("contract_complete")) and (same_file_v69145 or same_source_v69145):
-                                    technical_variant_evidence_v69124=fallback_v69145
-
-                        st.session_state["_technical_last_section_authority_v69142"] = {
-                            "file_id": str(technical_section_evidence_v69142.get("file_id") or ""),
-                            "filename": str(technical_section_evidence_v69142.get("filename") or ""),
-                            "source_url": str(technical_section_evidence_v69142.get("source_url") or ""),
-                            "page_title": str(technical_section_evidence_v69142.get("page_title") or ""),
-                            "package_text": str(technical_section_evidence_v69142.get("package_text") or ""),
-                            "rows": section_rows_v69142[:12],
-                            "selected_image_urls_v69143": list(technical_section_evidence_v69142.get("selected_image_urls_v69143") or []),
-                            "selected_section_title_v69143": str(technical_section_evidence_v69142.get("selected_section_title_v69143") or ""),
-                            "selected_branch_paths_v69143": list(technical_section_evidence_v69142.get("selected_branch_paths_v69143") or []),
-                            "section_excerpt": str(technical_section_evidence_v69142.get("section_excerpt") or "")[:26000],
-                        }
-                        use_file_search = False
-                        diagnostic_log(
-                            "technical_section_authority_bound_v69142",
-                            file_id=str(technical_section_evidence_v69142.get("file_id") or "")[:120],
-                            source_url=str(technical_section_evidence_v69142.get("source_url") or "")[:500],
-                        )
-                    elif section_status_v69142 in {"ambiguous_branch", "authority_unavailable_v69144"}:
-                        ambiguity_context_v69142 = str(
-                            technical_section_evidence_v69142.get("context") or ""
-                        ).strip()
-                        if ambiguity_context_v69142:
-                            ai_request_prompt += "\n\n" + ambiguity_context_v69142
-                        use_file_search = False
-                    elif (
-                        section_status_v69142 in {"search_failed", "no_exact_package", "no_installation_authority", "catalog_unavailable", "catalog_empty"}
-                        and _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
-                    ):
-                        # v69147 compatibility authority: if deterministic package discovery
-                        # is unavailable, give the proven v69125 same-source Manual/Automatic
-                        # retrieval one final chance. Accept only a complete same-file contract.
-                        fallback_bound_v69147 = False
-                        if _technical_generic_ac_variant_request_v69124(technical_request_prompt_v68879):
-                            try:
-                                fallback_v69147 = _technical_same_family_variant_evidence_v69124(technical_request_prompt_v68879)
-                            except Exception as error_v69147:
-                                fallback_v69147 = {}
-                                diagnostic_log("technical_v69125_compat_fallback_failed_v69147", error_type=type(error_v69147).__name__, error=str(error_v69147)[:500])
-                            if bool(fallback_v69147.get("contract_complete")) and str(fallback_v69147.get("contract_file_id") or "").strip():
-                                technical_variant_evidence_v69124 = fallback_v69147
-                                fallback_rows_v69147 = [dict(row) for row in (fallback_v69147.get("rows") or []) if isinstance(row, dict)]
-                                if fallback_rows_v69147:
-                                    st.session_state["_technical_file_search_results_v69012"] = fallback_rows_v69147[:12]
-                                    st.session_state["_workspace_file_search_results_v69040"] = fallback_rows_v69147[:12]
-                                fallback_context_v69147 = str(fallback_v69147.get("context") or "").strip()
-                                if fallback_context_v69147:
-                                    ai_request_prompt += "\n\n" + fallback_context_v69147
-                                use_file_search = False
-                                fallback_bound_v69147 = True
-
-                                # Reconstruct exact section/image authority from the SAME v69125
-                                # contract file so text and images stay bound to one learned source.
-                                fallback_package_text_v69147 = str((fallback_rows_v69147[0] if fallback_rows_v69147 else {}).get("text") or "")
-                                fallback_source_v69147 = str(fallback_v69147.get("contract_source_url") or "").strip()
-                                fallback_page_title_v69147 = _technical_package_header_value_v69113(fallback_package_text_v69147, "Page title") if fallback_package_text_v69147 else ""
-                                fallback_hierarchy_v69147 = _technical_hierarchy_excerpt_v69143(fallback_package_text_v69147, technical_request_prompt_v68879) if fallback_package_text_v69147 else {}
-                                fallback_excerpt_v69147 = str(fallback_hierarchy_v69147.get("excerpt") or "").strip()
-                                if not fallback_excerpt_v69147 and fallback_package_text_v69147:
-                                    fallback_excerpt_v69147 = _technical_package_section_excerpt_v69142(fallback_package_text_v69147, technical_request_prompt_v68879)
-                                technical_section_evidence_v69142 = {
-                                    "status": "recovered",
-                                    "context": fallback_context_v69147,
-                                    "rows": fallback_rows_v69147[:12],
-                                    "file_id": str(fallback_v69147.get("contract_file_id") or ""),
-                                    "filename": str((fallback_rows_v69147[0] if fallback_rows_v69147 else {}).get("filename") or ""),
-                                    "source_url": fallback_source_v69147,
-                                    "page_title": str(fallback_page_title_v69147 or ""),
-                                    "section_excerpt": str(fallback_excerpt_v69147 or "")[:26000],
-                                    "package_text": fallback_package_text_v69147,
-                                    "selected_image_urls_v69143": list(fallback_hierarchy_v69147.get("image_urls") or []),
-                                    "selected_section_title_v69143": str(fallback_hierarchy_v69147.get("section_title") or ""),
-                                    "selected_branch_paths_v69143": list(fallback_hierarchy_v69147.get("branch_paths") or []),
-                                }
-                                st.session_state["_technical_last_section_authority_v69142"] = {
-                                    "file_id": technical_section_evidence_v69142["file_id"],
-                                    "filename": technical_section_evidence_v69142["filename"],
-                                    "source_url": technical_section_evidence_v69142["source_url"],
-                                    "page_title": technical_section_evidence_v69142["page_title"],
-                                    "package_text": fallback_package_text_v69147,
-                                    "rows": fallback_rows_v69147[:12],
-                                    "selected_image_urls_v69143": list(technical_section_evidence_v69142.get("selected_image_urls_v69143") or []),
-                                    "selected_section_title_v69143": str(technical_section_evidence_v69142.get("selected_section_title_v69143") or ""),
-                                    "selected_branch_paths_v69143": list(technical_section_evidence_v69142.get("selected_branch_paths_v69143") or []),
-                                    "section_excerpt": str(fallback_excerpt_v69147 or "")[:26000],
-                                }
-                                diagnostic_log("technical_v69125_compat_bound_v69147", file_id=str(fallback_v69147.get("contract_file_id") or "")[:120])
-
-                        if not fallback_bound_v69147:
-                            # v69145/v69147: exact installation/configuration authority is mandatory.
-                            # Never substitute a broader vector-store record after exact source
-                            # resolution failed. The provider may format a safe verification
-                            # response, but it receives no authority to invent a factual value.
-                            use_file_search = False
-                            ai_request_prompt += (
-                                "\n\nEXACT TECHNICAL SOURCE AUTHORITY FAILURE (v69145)\n"
-                                "The exact learned installation/configuration source could not be safely resolved. "
-                                "Do NOT provide, infer, or guess any Car Model, A/C, protocol, SYNC, OnStar, camera, radio, or related setting value. "
-                                "Say that the exact learned source/branch must be verified or relearned before giving the setting."
-                            )
-                            diagnostic_log("technical_exact_source_fail_closed_v69145", status=section_status_v69142)
-
-                try:
-                    diagnostic_log(
-                        "ai_stream_start_ready_v68872",
-                        workspace=str(assistant),
-                        elapsed_seconds=round(
-                            time.perf_counter() - command_preflight_started_v68864,
-                            3,
-                        ),
-                        conversation_id=st.session_state.get("conversation_id"),
-                        use_file_search=bool(use_file_search),
-                        upload_count=len(graphic_generation_files or []),
-                    )
-                    technical_direct_answer_v69158 = ""
+                # v69173 FINAL PRODUCTION — Technical runtime authority REBASED to exact v69125.
+                # Technical Support executes the proven v69125/v69050 path below, before any
+                # post-v69125 current-source/pointer/structural/fail-closed layers can obtain
+                # runtime authority. All non-Technical workspaces retain the v69172 path.
+                V69173_TECHNICAL_V69125_RUNTIME_REBASE = True
+                if assistant == "🔧 Technical Support":
+                    # v69124: for a generic Technical Car Model/A-C request, retrieve
+                    # both Manual and Automatic siblings before the main answer. This
+                    # supplements the proven v69050 factual search rather than replacing it.
+                    technical_variant_evidence_v69124 = {
+                        "context": "", "rows": [], "status": "not_applicable"
+                    }
                     if (
                         assistant == "🔧 Technical Support"
-                        and str(
-                            (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
-                        ) == "recovered"
-                    ):
-                        technical_direct_answer_v69158 = (
-                            _technical_verified_configuration_answer_v69158(
-                                technical_request_prompt_v68879,
-                                technical_full_package_authority_v69155,
-                            )
+                        and bool(use_file_search)
+                        and _technical_generic_ac_variant_request_v69124(
+                            technical_request_prompt_v68879
                         )
+                    ):
+                        try:
+                            technical_variant_evidence_v69124 = (
+                                _technical_same_family_variant_evidence_v69124(
+                                    technical_request_prompt_v68879
+                                )
+                            )
+                        except Exception as error_v69124:
+                            diagnostic_log(
+                                "technical_variant_evidence_failed_v69124",
+                                error_type=type(error_v69124).__name__,
+                                error=str(error_v69124)[:500],
+                            )
+                            technical_variant_evidence_v69124 = {
+                                "context": "", "rows": [], "status": "failed"
+                            }
 
-                    stream_source_v69158 = (
-                        [technical_current_source_safe_answer_v69164]
-                        if technical_current_source_safe_answer_v69164
-                        else (
-                            [technical_direct_answer_v69158]
-                            if technical_direct_answer_v69158
-                            else ask_ai_stream(
+                        variant_context_v69124 = str(
+                            technical_variant_evidence_v69124.get("context") or ""
+                        ).strip()
+                        if variant_context_v69124:
+                            ai_request_prompt += (
+                                "\n\n" + variant_context_v69124
+                            )
+
+                        variant_rows_v69124 = [
+                            dict(row)
+                            for row in (
+                                technical_variant_evidence_v69124.get("rows") or []
+                            )
+                            if isinstance(row, dict)
+                        ]
+                        if variant_rows_v69124:
+                            st.session_state[
+                                "_technical_file_search_results_v69012"
+                            ] = variant_rows_v69124[:12]
+                            st.session_state[
+                                "_workspace_file_search_results_v69040"
+                            ] = variant_rows_v69124[:12]
+
+                        if bool(
+                            technical_variant_evidence_v69124.get(
+                                "contract_complete"
+                            )
+                        ):
+                            # v69125: the same current source proved both A/C branches.
+                            # Do not let a broad second file_search replace that complete
+                            # evidence with a higher-scoring single-branch chunk.
+                            use_file_search = False
+                            diagnostic_log(
+                                "technical_dual_ac_contract_bound_v69125",
+                                file_id=str(
+                                    technical_variant_evidence_v69124.get(
+                                        "contract_file_id"
+                                    ) or ""
+                                )[:120],
+                            )
+
+                    try:
+                        diagnostic_log(
+                            "ai_stream_start_ready_v68872",
+                            workspace=str(assistant),
+                            elapsed_seconds=round(
+                                time.perf_counter() - command_preflight_started_v68864,
+                                3,
+                            ),
+                            conversation_id=st.session_state.get("conversation_id"),
+                            use_file_search=bool(use_file_search),
+                            upload_count=len(graphic_generation_files or []),
+                        )
+                        for delta in ask_ai_stream(
                             ai_request_prompt,
                             graphic_generation_files,
                             detected_live_request=detected_request,
@@ -77371,397 +76758,1408 @@ else:
                             use_file_search=use_file_search,
                             live_data_override=preloaded_live_data,
                             order_displayed_by_app=bool(order_display_text),
-                            )
-                        )
-                    )
-                    for delta in stream_source_v69158:
-                        delta_text = str(delta or "")
-                        if delta_text and not first_stream_delta_received:
-                            first_stream_delta_received = True
-                            loading_status_placeholder.empty()
+                        ):
+                            delta_text = str(delta or "")
+                            if delta_text and not first_stream_delta_received:
+                                first_stream_delta_received = True
+                                loading_status_placeholder.empty()
 
-                        streamed_answer += delta_text
-                        visible_stream = strip_website_image_control_tail_v68870(
-                            streamed_answer
+                            streamed_answer += delta_text
+                            visible_stream = strip_website_image_control_tail_v68870(
+                                streamed_answer
+                            )
+                            if explicit_learning_requested:
+                                visible_stream = format_learning_record_for_display(
+                                    visible_stream
+                                )
+                            if assistant == "🔧 Technical Support":
+                                visible_stream = remove_technical_pricing(
+                                    visible_stream
+                                )
+
+                            combined_stream = visible_stream
+                            if order_display_text:
+                                combined_stream = (
+                                    order_display_text
+                                    + "\n\n---\n\n## "
+                                    + analysis_heading
+                                    + "\n\n"
+                                    + visible_stream
+                                )
+
+                            now_value = time.monotonic()
+                            new_stream_chars_v69026 = max(
+                                0, len(combined_stream) - int(last_stream_render_chars_v69026 or 0)
+                            )
+                            if (
+                                now_value - last_stream_update
+                                >= AI_STREAM_RENDER_INTERVAL_SECONDS
+                                and (
+                                    new_stream_chars_v69026 >= AI_STREAM_RENDER_MIN_NEW_CHARS_V69026
+                                    or last_stream_render_chars_v69026 == 0
+                                )
+                            ):
+                                stream_placeholder.markdown(
+                                    _assistant_stream_html(combined_stream),
+                                    unsafe_allow_html=True,
+                                )
+                                last_stream_update = now_value
+                                last_stream_render_chars_v69026 = len(combined_stream)
+
+                        streamed_answer_clean_v68870, auto_website_images_v68870 = (
+                            extract_website_image_controls_v68870(streamed_answer)
+                        )
+                        if auto_website_images_v68870:
+                            generated_images.extend(auto_website_images_v68870)
+                        generated_images = _website_image_final_authority_v68885(
+                            technical_request_prompt_v68879
+                            if assistant == "🔧 Technical Support"
+                            else interaction_prompt,
+                            _dedupe_website_chat_images_v68883(generated_images),
+                            deterministic_images=website_index_images_v68883,
+                            answer_text=streamed_answer_clean_v68870,
+                        )
+                        answer_body = clean_visible_chat_text(
+                            streamed_answer_clean_v68870
                         )
                         if explicit_learning_requested:
-                            visible_stream = format_learning_record_for_display(
-                                visible_stream
-                            )
+                            answer_body = format_learning_record_for_display(answer_body)
                         if assistant == "🔧 Technical Support":
-                            visible_stream = remove_technical_pricing(
-                                visible_stream
-                            )
+                            answer_body = remove_technical_pricing(answer_body)
+                            if (
+                                _technical_generic_ac_variant_request_v69124(
+                                    technical_request_prompt_v68879
+                                )
+                                and bool(
+                                    technical_variant_evidence_v69124.get(
+                                        "contract_complete"
+                                    )
+                                )
+                            ):
+                                answer_body = _technical_enforce_dual_ac_table_v69125(
+                                    answer_body,
+                                    technical_variant_evidence_v69124,
+                                )
 
-                        combined_stream = visible_stream
+                        answer = answer_body
                         if order_display_text:
-                            combined_stream = (
-                                order_display_text
-                                + "\n\n---\n\n## "
+                            analysis_section = (
+                                "\n\n---\n\n## "
                                 + analysis_heading
                                 + "\n\n"
-                                + visible_stream
+                                if answer_body
+                                else ""
+                            )
+                            answer = (
+                                order_display_text
+                                + analysis_section
+                                + answer_body
                             )
 
-                        now_value = time.monotonic()
-                        new_stream_chars_v69026 = max(
-                            0, len(combined_stream) - int(last_stream_render_chars_v69026 or 0)
+                        stream_placeholder.markdown(
+                            _assistant_stream_html(answer),
+                            unsafe_allow_html=True,
                         )
-                        if (
-                            now_value - last_stream_update
-                            >= AI_STREAM_RENDER_INTERVAL_SECONDS
-                            and (
-                                new_stream_chars_v69026 >= AI_STREAM_RENDER_MIN_NEW_CHARS_V69026
-                                or last_stream_render_chars_v69026 == 0
+                    except Exception as stream_error:
+                        loading_status_placeholder.empty()
+
+                        # Preserve any text that was already generated. Previously,
+                        # every streaming/rendering interruption cleared the visible
+                        # response and re-raised before the partial answer could be
+                        # saved to session state or conversation history.
+                        partial_stream_clean_v68870, partial_web_images_v68870 = (
+                            extract_website_image_controls_v68870(streamed_answer)
+                        )
+                        if partial_web_images_v68870:
+                            generated_images.extend(partial_web_images_v68870)
+                        generated_images = _website_image_final_authority_v68885(
+                            technical_request_prompt_v68879
+                            if assistant == "🔧 Technical Support"
+                            else interaction_prompt,
+                            _dedupe_website_chat_images_v68883(generated_images),
+                            deterministic_images=website_index_images_v68883,
+                            answer_text=partial_stream_clean_v68870,
+                        )
+                        partial_answer_body = clean_visible_chat_text(
+                            partial_stream_clean_v68870
+                        )
+                        if explicit_learning_requested:
+                            partial_answer_body = format_learning_record_for_display(
+                                partial_answer_body
                             )
-                        ):
+                        if assistant == "🔧 Technical Support":
+                            partial_answer_body = remove_technical_pricing(
+                                partial_answer_body
+                            )
+
+                        if not partial_answer_body:
+                            safe_error_message = (
+                                "I couldn't complete that request because the AI service rejected "
+                                "one part of the request. Please try again. If it continues, check "
+                                "the Streamlit Cloud logs for the recorded diagnostic."
+                            )
                             stream_placeholder.markdown(
-                                _assistant_stream_html(combined_stream),
+                                _assistant_stream_html(safe_error_message),
                                 unsafe_allow_html=True,
                             )
-                            last_stream_update = now_value
-                            last_stream_render_chars_v69026 = len(combined_stream)
-
-                    streamed_answer_clean_v68870, auto_website_images_v68870 = (
-                        extract_website_image_controls_v68870(streamed_answer)
-                    )
-                    if auto_website_images_v68870:
-                        generated_images.extend(auto_website_images_v68870)
-                    generated_images = _website_image_final_authority_v68885(
-                        technical_request_prompt_v68879
-                        if assistant == "🔧 Technical Support"
-                        else interaction_prompt,
-                        _dedupe_website_chat_images_v68883(generated_images),
-                        deterministic_images=website_index_images_v68883,
-                        answer_text=streamed_answer_clean_v68870,
-                    )
-                    answer_body = clean_visible_chat_text(
-                        streamed_answer_clean_v68870
-                    )
-                    if explicit_learning_requested:
-                        answer_body = format_learning_record_for_display(answer_body)
-                    if assistant == "🔧 Technical Support":
-                        answer_body = remove_technical_pricing(answer_body)
-
-                        # v69163: after the proven v69050 provider file_search has
-                        # completed, optionally derive stronger structural authority
-                        # from the exact answer-supporting file IDs already captured.
-                        # No new search is issued; failure leaves the baseline untouched.
-                        if (
-                            str(
-                                (
-                                    locals().get(
-                                        "technical_full_package_authority_v69155"
-                                    )
-                                    or {}
-                                ).get("status")
-                                or ""
+                            answer = safe_error_message
+                            diagnostic_log(
+                                "ai_stream_request_failed",
+                                workspace=str(assistant),
+                                error_type=type(stream_error).__name__,
+                                status_code=getattr(stream_error, "status_code", None),
                             )
-                            != "recovered"
-                            and bool(
-                                technical_v69156_configuration_required
+                        else:
+                            interruption_note = (
+                                "\n\n---\n\n"
+                                "**Response interrupted:** The AI generated the content "
+                                "above, but the live stream ended before the complete "
+                                "response finished. The partial result has been preserved. "
+                                "Send **continue from where you stopped** to request the "
+                                "remaining content."
                             )
-                            and bool(
-                                locals().get(
-                                    "technical_v69050_v69125_baseline_v69154"
+                            partial_answer_body += interruption_note
+
+                            answer = partial_answer_body
+                            if order_display_text:
+                                answer = (
+                                    order_display_text
+                                    + "\n\n---\n\n## "
+                                    + analysis_heading
+                                    + "\n\n"
+                                    + partial_answer_body
                                 )
-                            )
-                        ):
+
+                            # Keep the last successful streamed content visible. Try one
+                            # final render, but do not discard the answer if the browser
+                            # renderer itself is what raised the interruption.
                             try:
-                                retrieved_rows_v69163 = list(
-                                    st.session_state.get(
-                                        "_technical_file_search_results_v69012"
-                                    )
-                                    or []
+                                stream_placeholder.markdown(
+                                    _assistant_stream_html(answer),
+                                    unsafe_allow_html=True,
                                 )
-                                post_authority_v69163 = (
-                                    _technical_additive_authority_from_retrieved_rows_v69163(
+                            except Exception:
+                                pass
+
+                            # Record a safe diagnostic in Streamlit Cloud logs without
+                            # exposing request contents, uploaded-file data, or secrets.
+                            print(
+                                "[AI STREAM INTERRUPTED] "
+                                f"{type(stream_error).__name__}: "
+                                f"{str(stream_error)[:300]}",
+                                flush=True,
+                            )
+                    finally:
+                        loading_status_placeholder.empty()
+
+                    response_time = round(
+                        time.time() - response_start_time,
+                        2,
+                    )
+                    tokens_used = None
+                    # v69173 runtime marker: later post-v69125 Technical authority/image layers
+                    # are compatibility-only and MUST NOT acquire authority on this rebased turn.
+                    technical_v69050_v69125_baseline_v69154 = True
+                    technical_v69156_fail_closed = False
+                    technical_full_package_authority_v69155 = {"status": "not_applicable"}
+                else:
+                    # v69163 FINAL: v69050 + v69125 are the non-negotiable live
+                    # Technical baseline. New structural/package authority is additive only.
+                    technical_full_package_authority_v69155 = {
+                        "status": "not_applicable"
+                    }
+                    technical_v69156_fail_closed = False
+                    technical_v69156_configuration_required = bool(
+                        assistant == "🔧 Technical Support"
+                        and bool(execution_plan.get("use_file_search"))
+                        and not bool(technical_website_learning_requested_v68870)
+                        and not bool(explicit_learning_requested)
+                        and _technical_configuration_query_v69155(
+                            technical_request_prompt_v68879
+                        )
+                    )
+
+                    # v69164: current-source lock is allowed to PRE-EMPT the broad
+                    # baseline only when it proves one explicit current family/year
+                    # file and the unchanged structural parser recovers verified fields.
+                    # Failure with NO known current source falls through to v69125/v69050.
+                    # Failure after a current source is known fails safe rather than
+                    # silently searching an older competing package.
+                    technical_current_source_safe_answer_v69164 = ""
+                    # v69168: a newer current-source structural miss must never suppress
+                    # the proven v69125/v69050 Technical runtime.  This flag records that
+                    # the current source was identified but direct structural recovery
+                    # could not complete; the ordinary baseline remains authoritative.
+                    technical_current_source_baseline_recovery_v69168 = False
+                    technical_current_source_lock_v69164 = {
+                        "status": "not_applicable"
+                    }
+                    if technical_v69156_configuration_required:
+                        try:
+                            store_ids_v69164 = _configured_vector_store_ids(
+                                TECHNICAL_VECTOR_STORE_ID
+                            )
+                            if store_ids_v69164:
+                                technical_current_source_lock_v69164 = (
+                                    _technical_active_structural_authority_v69164(
                                         technical_request_prompt_v68879,
-                                        retrieved_rows_v69163,
+                                        str(store_ids_v69164[0] or "").strip(),
                                     )
                                 )
-                                if str(
-                                    post_authority_v69163.get("status")
+                                lock_status_v69164 = str(
+                                    technical_current_source_lock_v69164.get("status")
                                     or ""
-                                ) == "recovered":
-                                    technical_full_package_authority_v69155 = (
-                                        post_authority_v69163
+                                )
+                                if lock_status_v69164 == "recovered":
+                                    technical_full_package_authority_v69155 = dict(
+                                        technical_current_source_lock_v69164
                                     )
+                                    use_file_search = False
                                     diagnostic_log(
-                                        "technical_post_provider_additive_structure_bound_v69163",
+                                        "technical_active_source_locked_v69164",
                                         file_id=str(
-                                            post_authority_v69163.get(
+                                            technical_current_source_lock_v69164.get(
                                                 "file_id"
                                             )
                                             or ""
                                         )[:160],
-                                        section=str(
-                                            post_authority_v69163.get(
-                                                "section_title"
+                                        source_url=str(
+                                            technical_current_source_lock_v69164.get(
+                                                "source_url"
                                             )
                                             or ""
-                                        )[:300],
+                                        )[:700],
                                     )
-                            except Exception as error_v69163_post:
-                                diagnostic_log(
-                                    "technical_post_provider_additive_structure_failed_v69163",
-                                    error_type=type(
-                                        error_v69163_post
-                                    ).__name__,
-                                    error=str(
-                                        error_v69163_post
-                                    )[:600],
-                                )
-
-                        # v69155: exact full-package dynamic setting table is final
-                        # factual presentation authority for recovered configuration turns.
-                        if str(
-                            (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
-                        ) == "recovered":
-                            try:
-                                answer_body = _technical_replace_settings_table_v69156(
-                                    answer_body,
-                                    (technical_full_package_authority_v69155.get("structured") or {}),
-                                )
-                            except Exception as error_v69155_table:
-                                diagnostic_log(
-                                    "technical_full_package_table_failed_v69155",
-                                    error_type=type(error_v69155_table).__name__,
-                                    error=str(error_v69155_table)[:600],
-                                )
-                        # v69154: the v69125 output contract is the final Technical
-                        # presentation authority for restored baseline turns. Later
-                        # hierarchy normalization is explicitly non-authoritative here.
-                        if (
-                            str(
-                                (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
-                            ) != "recovered"
-                            and not bool(locals().get("technical_v69156_fail_closed"))
-                            and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
-                        ):
-                            try:
-                                answer_body, technical_settings_manifest_v69151 = (
-                                    _technical_normalize_interpreted_settings_v69151(
-                                        answer_body,
-                                        locals().get("technical_section_evidence_v69142") or {},
-                                        technical_variant_evidence_v69124,
-                                    )
-                                )
-                            except Exception as error_v69151:
-                                technical_settings_manifest_v69151 = {}
-                                diagnostic_log(
-                                    "technical_settings_normalization_failed_v69151",
-                                    error_type=type(error_v69151).__name__,
-                                    error=str(error_v69151)[:500],
-                                )
-                        if (
-                            str(
-                                (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
-                            ) != "recovered"
-                            and _technical_generic_ac_variant_request_v69124(
-                                technical_request_prompt_v68879
+                                elif lock_status_v69164.startswith(
+                                    "known_current"
+                                ):
+                                    # v69169 FINAL: never broaden a known-current source miss
+                                    # into an unrestricted semantic Technical search. First
+                                    # recover literal settings from the SAME already-locked file.
+                                    # This restores the working F450/LO/HI authority while
+                                    # preventing stale F150-HI/09-12 records from winning.
+                                    try:
+                                        bound_current_v69169 = (
+                                            _technical_current_source_bound_recovery_v69169(
+                                                technical_request_prompt_v68879,
+                                                technical_current_source_lock_v69164,
+                                            )
+                                        )
+                                    except Exception as error_v69169:
+                                        bound_current_v69169 = {
+                                            "status": "bound_source_unavailable",
+                                            "reason_code": "BOUND_RECOVERY_EXCEPTION",
+                                        }
+                                        diagnostic_log(
+                                            "technical_current_source_bound_recovery_failed_v69169",
+                                            error_type=type(error_v69169).__name__,
+                                            error=str(error_v69169)[:600],
+                                        )
+                                    if str(bound_current_v69169.get("status") or "") == "recovered":
+                                        technical_full_package_authority_v69155 = dict(bound_current_v69169)
+                                        technical_current_source_baseline_recovery_v69168 = False
+                                        technical_current_source_safe_answer_v69164 = ""
+                                        use_file_search = False
+                                        diagnostic_log(
+                                            "technical_current_source_bound_v69169",
+                                            file_id=str(bound_current_v69169.get("file_id") or "")[:160],
+                                            source_url=str(bound_current_v69169.get("source_url") or "")[:700],
+                                            images=len(bound_current_v69169.get("selected_image_urls_v69143") or []),
+                                        )
+                                    else:
+                                        # A known current source that cannot be verified must fail
+                                        # closed. Broad v69050/v69125 semantic fallback is safe only
+                                        # when no current source is known; otherwise it can resurrect
+                                        # an older conflicting package, as v69168 did in production.
+                                        technical_current_source_baseline_recovery_v69168 = False
+                                        use_file_search = False
+                                        technical_current_source_safe_answer_v69164 = (
+                                            "## Current Technical Source Temporarily Unavailable\n\n"
+                                            "The current reviewed AutoTecPro Technical source was identified, "
+                                            "but its exact requested configuration could not be verified from "
+                                            "that same source. No older or conflicting Technical record was used. "
+                                            "Please re-submit or refresh the current source before relying on a setting."
+                                        )
+                                        diagnostic_log(
+                                            "technical_known_current_fail_closed_v69169",
+                                            status=lock_status_v69164[:120],
+                                            reason=str(bound_current_v69169.get("reason_code") or "")[:160],
+                                            file_id=str(technical_current_source_lock_v69164.get("file_id") or "")[:160],
+                                            source_url=str(technical_current_source_lock_v69164.get("source_url") or "")[:700],
+                                        )
+                        except Exception as error_v69164:
+                            diagnostic_log(
+                                "technical_active_source_lock_failed_v69164",
+                                error_type=type(error_v69164).__name__,
+                                error=str(error_v69164)[:600],
                             )
-                            and bool(
-                                technical_variant_evidence_v69124.get(
-                                    "contract_complete"
+
+                    # v69124: for a generic Technical Car Model/A-C request, retrieve
+                    # both Manual and Automatic siblings before the main answer. This
+                    # supplements the proven v69050 factual search rather than replacing it.
+                    technical_variant_evidence_v69124 = {
+                        "context": "", "rows": [], "status": "not_applicable"
+                    }
+                    if (
+                        assistant == "🔧 Technical Support"
+                        and bool(use_file_search)
+                        and str(
+                            (technical_full_package_authority_v69155 or {}).get("status")
+                            or ""
+                        ) != "recovered"
+                        and not bool(technical_current_source_safe_answer_v69164)
+                        and _technical_generic_ac_variant_request_v69124(
+                            technical_request_prompt_v68879
+                        )
+                    ):
+                        try:
+                            technical_variant_evidence_v69124 = (
+                                _technical_same_family_variant_evidence_v69124(
+                                    technical_request_prompt_v68879
                                 )
                             )
-                        ):
-                            answer_body = _technical_enforce_dual_ac_table_v69125(
-                                answer_body,
-                                technical_variant_evidence_v69124,
+                        except Exception as error_v69124:
+                            diagnostic_log(
+                                "technical_variant_evidence_failed_v69124",
+                                error_type=type(error_v69124).__name__,
+                                error=str(error_v69124)[:500],
                             )
-                        answer_body = _technical_final_factual_qa_v69158(
-                            technical_request_prompt_v68879,
-                            answer_body,
-                            locals().get("technical_full_package_authority_v69155") or {},
-                            technical_variant_evidence_v69124,
-                        )
-                        # v69139: exact v69125 Technical-output authority restored.
-                        # Do not run the later v69126/v69127 generic row split/expansion
-                        # after the v69125 contract.  v69137 durability/persistence and
-                        # image publication remain intact; only presentation authority
-                        # returns to the verified v69125 behavior.
+                            technical_variant_evidence_v69124 = {
+                                "context": "", "rows": [], "status": "failed"
+                            }
 
-                    answer = answer_body
-                    if order_display_text:
-                        analysis_section = (
-                            "\n\n---\n\n## "
-                            + analysis_heading
-                            + "\n\n"
-                            if answer_body
-                            else ""
-                        )
-                        answer = (
-                            order_display_text
-                            + analysis_section
-                            + answer_body
-                        )
-
-                    stream_placeholder.markdown(
-                        _assistant_stream_html(answer),
-                        unsafe_allow_html=True,
-                    )
-                except Exception as stream_error:
-                    loading_status_placeholder.empty()
-
-                    # Preserve any text that was already generated. Previously,
-                    # every streaming/rendering interruption cleared the visible
-                    # response and re-raised before the partial answer could be
-                    # saved to session state or conversation history.
-                    partial_stream_clean_v68870, partial_web_images_v68870 = (
-                        extract_website_image_controls_v68870(streamed_answer)
-                    )
-                    if partial_web_images_v68870:
-                        generated_images.extend(partial_web_images_v68870)
-                    generated_images = _website_image_final_authority_v68885(
-                        technical_request_prompt_v68879
-                        if assistant == "🔧 Technical Support"
-                        else interaction_prompt,
-                        _dedupe_website_chat_images_v68883(generated_images),
-                        deterministic_images=website_index_images_v68883,
-                        answer_text=partial_stream_clean_v68870,
-                    )
-                    partial_answer_body = clean_visible_chat_text(
-                        partial_stream_clean_v68870
-                    )
-                    if explicit_learning_requested:
-                        partial_answer_body = format_learning_record_for_display(
-                            partial_answer_body
-                        )
-                    if assistant == "🔧 Technical Support":
-                        partial_answer_body = remove_technical_pricing(
-                            partial_answer_body
-                        )
-
-                        # v69163 interruption parity: if the baseline provider already
-                        # returned file_search evidence before the stream ended, the same
-                        # additive exact-file structural enhancement may be applied.
-                        if (
-                            str(
-                                (
-                                    locals().get(
-                                        "technical_full_package_authority_v69155"
-                                    )
-                                    or {}
-                                ).get("status")
-                                or ""
+                        variant_context_v69124 = str(
+                            technical_variant_evidence_v69124.get("context") or ""
+                        ).strip()
+                        if variant_context_v69124:
+                            ai_request_prompt += (
+                                "\n\n" + variant_context_v69124
                             )
-                            != "recovered"
-                            and bool(
-                                technical_v69156_configuration_required
+
+                        variant_rows_v69124 = [
+                            dict(row)
+                            for row in (
+                                technical_variant_evidence_v69124.get("rows") or []
                             )
-                            and bool(
-                                locals().get(
-                                    "technical_v69050_v69125_baseline_v69154"
-                                )
+                            if isinstance(row, dict)
+                        ]
+                        if variant_rows_v69124:
+                            st.session_state[
+                                "_technical_file_search_results_v69012"
+                            ] = variant_rows_v69124[:12]
+                            st.session_state[
+                                "_workspace_file_search_results_v69040"
+                            ] = variant_rows_v69124[:12]
+
+                        if bool(
+                            technical_variant_evidence_v69124.get(
+                                "contract_complete"
                             )
                         ):
-                            try:
-                                partial_rows_v69163 = list(
-                                    st.session_state.get(
-                                        "_technical_file_search_results_v69012"
-                                    )
+                            # v69125: the same current source proved both A/C branches.
+                            # Do not let a broad second file_search replace that complete
+                            # evidence with a higher-scoring single-branch chunk.
+                            use_file_search = False
+                            diagnostic_log(
+                                "technical_dual_ac_contract_bound_v69125",
+                                file_id=str(
+                                    technical_variant_evidence_v69124.get(
+                                        "contract_file_id"
+                                    ) or ""
+                                )[:120],
+                            )
+
+                    # v69163 additive enhancement: only after the working v69125
+                    # same-file contract succeeds may that exact file provide stronger
+                    # structural fields/images. Failure changes nothing.
+                    if (
+                        technical_v69156_configuration_required
+                        and bool(
+                            technical_variant_evidence_v69124.get(
+                                "contract_complete"
+                            )
+                        )
+                        and str(
+                            technical_variant_evidence_v69124.get(
+                                "contract_file_id"
+                            )
+                            or ""
+                        ).strip()
+                    ):
+                        try:
+                            contract_rows_v69163 = [
+                                dict(row)
+                                for row in (
+                                    technical_variant_evidence_v69124.get("rows")
                                     or []
                                 )
-                                partial_authority_v69163 = (
-                                    _technical_additive_authority_from_retrieved_rows_v69163(
-                                        technical_request_prompt_v68879,
-                                        partial_rows_v69163,
-                                    )
+                                if isinstance(row, dict)
+                            ]
+                            contract_filename_v69163 = str(
+                                (
+                                    contract_rows_v69163[0]
+                                    if contract_rows_v69163
+                                    else {}
+                                ).get("filename")
+                                or ""
+                            )
+                            additive_authority_v69163 = (
+                                _technical_full_package_authority_from_file_v69163(
+                                    technical_request_prompt_v68879,
+                                    technical_variant_evidence_v69124.get(
+                                        "contract_file_id"
+                                    ),
+                                    contract_filename_v69163,
                                 )
-                                if str(
-                                    partial_authority_v69163.get("status")
-                                    or ""
-                                ) == "recovered":
-                                    technical_full_package_authority_v69155 = (
-                                        partial_authority_v69163
-                                    )
-                            except Exception as error_v69163_partial:
+                            )
+                            if str(
+                                additive_authority_v69163.get("status")
+                                or ""
+                            ) == "recovered":
+                                technical_full_package_authority_v69155 = (
+                                    additive_authority_v69163
+                                )
                                 diagnostic_log(
-                                    "technical_partial_additive_structure_failed_v69163",
-                                    error_type=type(
-                                        error_v69163_partial
-                                    ).__name__,
-                                    error=str(
-                                        error_v69163_partial
-                                    )[:600],
+                                    "technical_v69125_additive_structure_bound_v69163",
+                                    file_id=str(
+                                        additive_authority_v69163.get("file_id")
+                                        or ""
+                                    )[:160],
+                                    section=str(
+                                        additive_authority_v69163.get(
+                                            "section_title"
+                                        )
+                                        or ""
+                                    )[:300],
+                                )
+                        except Exception as error_v69163:
+                            diagnostic_log(
+                                "technical_v69125_additive_structure_failed_v69163",
+                                error_type=type(error_v69163).__name__,
+                                error=str(error_v69163)[:600],
+                            )
+
+                    # v69155: full exact-package structural authority.
+                    #
+                    # Vector/file_search is used only to identify the exact learned page.
+                    # The factual subsection is then selected from the FULL learned package
+                    # hierarchy, not by semantic chunk ranking. Dynamic setting fields and
+                    # exact-section images are extracted from that one structural authority.
+                    # v69158: source/structure resolution already ran before v69124.
+                    # This block only binds the recovered authority or applies fallback safety.
+                    if technical_v69156_configuration_required:
+                        if str(
+                            technical_full_package_authority_v69155.get("status") or ""
+                        ) == "recovered":
+                            authority_context_v69155 = str(
+                                technical_full_package_authority_v69155.get("context") or ""
+                            ).strip()
+                            if authority_context_v69155:
+                                ai_request_prompt += "\n\n" + authority_context_v69155
+
+                            authority_rows_v69155 = [
+                                dict(row)
+                                for row in (
+                                    technical_full_package_authority_v69155.get("rows") or []
+                                )
+                                if isinstance(row, dict)
+                            ]
+                            if authority_rows_v69155:
+                                st.session_state[
+                                    "_technical_file_search_results_v69012"
+                                ] = authority_rows_v69155[:12]
+                                st.session_state[
+                                    "_workspace_file_search_results_v69040"
+                                ] = authority_rows_v69155[:12]
+
+                            # Product Library is compatibility context, not configuration
+                            # authority. Remove it after exact structural settings are proven
+                            # so a product-family label cannot leak into Car Model/Protocol rows.
+                            try:
+                                product_context_v69156 = (
+                                    _product_library_chat_context(product_library_lookup)
+                                    if product_library_lookup else ""
+                                )
+                                if (
+                                    product_context_v69156
+                                    and product_context_v69156 in ai_request_prompt
+                                ):
+                                    ai_request_prompt = ai_request_prompt.replace(
+                                        product_context_v69156, ""
+                                    )
+                            except Exception:
+                                pass
+
+                            # Remove any earlier v69124 sibling context from this request.
+                            # v69155 has now hydrated the full exact package and is the
+                            # stronger structural authority for both common and branch fields.
+                            try:
+                                prior_variant_context_v69124 = str(
+                                    locals().get("variant_context_v69124") or ""
+                                ).strip()
+                                if (
+                                    prior_variant_context_v69124
+                                    and prior_variant_context_v69124 in ai_request_prompt
+                                ):
+                                    ai_request_prompt = ai_request_prompt.replace(
+                                        "\n\n" + prior_variant_context_v69124, ""
+                                    ).replace(prior_variant_context_v69124, "")
+                            except Exception:
+                                pass
+
+                            # Persist exact structural provenance for rerun/history.
+                            st.session_state["_technical_last_section_authority_v69142"] = {
+                                "status": "recovered",
+                                "file_id": str(technical_full_package_authority_v69155.get("file_id") or ""),
+                                "filename": str(technical_full_package_authority_v69155.get("filename") or ""),
+                                "source_url": str(technical_full_package_authority_v69155.get("source_url") or ""),
+                                "page_title": str(technical_full_package_authority_v69155.get("page_title") or ""),
+                                "package_text": str(technical_full_package_authority_v69155.get("package_text") or ""),
+                                "selected_section_title_v69143": str(technical_full_package_authority_v69155.get("section_title") or ""),
+                                "selected_branch_paths_v69143": list(technical_full_package_authority_v69155.get("branch_paths") or []),
+                                "selected_image_urls_v69143": list(technical_full_package_authority_v69155.get("selected_image_urls_v69143") or []),
+                            }
+
+                            # Exact full-package structural evidence is already bound.
+                            # Do not run a second broad semantic provider file_search.
+                            use_file_search = False
+                            diagnostic_log(
+                                "technical_full_package_authority_bound_v69155",
+                                file_id=str(
+                                    technical_full_package_authority_v69155.get("file_id") or ""
+                                )[:160],
+                                source_url=str(
+                                    technical_full_package_authority_v69155.get("source_url") or ""
+                                )[:700],
+                                section=str(
+                                    technical_full_package_authority_v69155.get("section_title") or ""
+                                )[:300],
+                                branches=len(
+                                    technical_full_package_authority_v69155.get("branch_paths") or []
+                                ),
+                                fields=len(
+                                    _technical_table_rows_from_structured_v69155(
+                                        technical_full_package_authority_v69155.get("structured") or {}
+                                    )
+                                ),
+                                images=len(
+                                    technical_full_package_authority_v69155.get(
+                                        "selected_image_urls_v69143"
+                                    ) or []
+                                ),
+                            )
+                        elif not bool(
+                            technical_variant_evidence_v69124.get(
+                                "contract_complete"
+                            )
+                        ):
+                            # v69163: additive authority unavailable. Keep the exact
+                            # v69050/v69125 fallback contract: normal Technical file_search
+                            # remains enabled and no Requires Verification poison prompt is added.
+                            technical_v69156_fail_closed = False
+                            use_file_search = bool(
+                                execution_plan.get("use_file_search")
+                            )
+                            diagnostic_log(
+                                "technical_additive_authority_unavailable_baseline_continues_v69163",
+                                structural_status=str(
+                                    technical_full_package_authority_v69155.get(
+                                        "status"
+                                    )
+                                    or ""
+                                )[:120],
+                                use_file_search=bool(use_file_search),
+                            )
+
+                    # v69154 FINAL: restore the proven v69050/v69125 Technical runtime.
+                    #
+                    # Both working references share this authority:
+                    #   - if the v69125 same-source contract is complete, use its evidence
+                    #     and do not run a broader second provider file_search;
+                    #   - otherwise keep the original v69050 provider file_search enabled.
+                    #
+                    # Later source/section/hierarchy gates may still exist for learning,
+                    # diagnostics, and non-baseline compatibility, but they MUST NOT
+                    # replace, disable, or pre-empt this proven live Technical path.
+                    technical_v69050_v69125_baseline_v69154 = bool(
+                        assistant == "🔧 Technical Support"
+                        and bool(execution_plan.get("use_file_search"))
+                        and not bool(technical_website_learning_requested_v68870)
+                        and not bool(explicit_learning_requested)
+                        and not bool(technical_current_source_safe_answer_v69164)
+                        and str(
+                            (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                        ) != "recovered"
+                    )
+                    if technical_v69050_v69125_baseline_v69154:
+                        # Prevent stale post-v69125 authority from a previous saved turn
+                        # from affecting publication/history in the restored baseline.
+                        st.session_state.pop("_technical_last_section_authority_v69142", None)
+                        diagnostic_log(
+                            "technical_v69050_v69125_runtime_restored_v69154",
+                            contract_complete=bool(
+                                technical_variant_evidence_v69124.get("contract_complete")
+                            ),
+                            current_source_structural_miss_recovered_v69168=bool(
+                                technical_current_source_baseline_recovery_v69168
+                            ),
+                            use_file_search=bool(use_file_search),
+                        )
+
+                    # v69149: bounded v69050-style recovery only when the exact v69125
+                    # specialized retrieval did not complete. One normal Technical vector search
+                    # is allowed, but it cannot become authority unless the unchanged v69125
+                    # validator proves BOTH branches from the SAME exact file.
+                    if (
+                        assistant == "🔧 Technical Support"
+                        and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                        and bool(use_file_search)
+                        and _technical_generic_ac_variant_request_v69124(
+                            technical_request_prompt_v68879
+                        )
+                        and not bool(technical_variant_evidence_v69124.get("contract_complete"))
+                    ):
+                        try:
+                            bounded_recovery_v69149 = _technical_v69050_bounded_settings_recovery_v69149(
+                                technical_request_prompt_v68879
+                            )
+                        except Exception as error_v69149:
+                            bounded_recovery_v69149 = {}
+                            diagnostic_log(
+                                "technical_v69050_bounded_recovery_failed_v69149",
+                                error_type=type(error_v69149).__name__,
+                                error=str(error_v69149)[:500],
+                            )
+                        if bool(bounded_recovery_v69149.get("contract_complete")):
+                            technical_variant_evidence_v69124 = bounded_recovery_v69149
+                            bounded_context_v69149 = str(bounded_recovery_v69149.get("context") or "").strip()
+                            if bounded_context_v69149:
+                                ai_request_prompt += "\n\n" + bounded_context_v69149
+                            bounded_rows_v69149 = [
+                                dict(row) for row in (bounded_recovery_v69149.get("rows") or [])
+                                if isinstance(row, dict)
+                            ]
+                            if bounded_rows_v69149:
+                                st.session_state["_technical_file_search_results_v69012"] = bounded_rows_v69149[:12]
+                                st.session_state["_workspace_file_search_results_v69040"] = bounded_rows_v69149[:12]
+                            use_file_search = False
+                            diagnostic_log(
+                                "technical_v69050_bounded_contract_bound_v69149",
+                                file_id=str(bounded_recovery_v69149.get("contract_file_id") or "")[:120],
+                            )
+
+                    # v69150: if both the exact v69125 contract and bounded v69050 recovery
+                    # are incomplete, locate one exact learned Technical SOURCE by identity.  This
+                    # is intentionally independent of Product Library and accepts legacy/current
+                    # website-package formats.  Only after one exact file is located do we parse
+                    # Quick Navigation/section/image evidence from that file.
+                    technical_exact_source_v69150 = {}
+                    if (
+                        assistant == "🔧 Technical Support"
+                        and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                        and not bool(locals().get("technical_v69156_fail_closed"))
+                        and str(
+                            (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                        ) != "recovered"
+                        and bool(execution_plan.get("use_file_search"))
+                        and _technical_protected_settings_inquiry_v69145(
+                            technical_request_prompt_v68879
+                        )
+                        and not bool(technical_variant_evidence_v69124.get("contract_complete"))
+                    ):
+                        try:
+                            technical_exact_source_v69150 = _technical_exact_source_recovery_v69150(
+                                technical_request_prompt_v68879
+                            )
+                        except Exception as error_v69150:
+                            technical_exact_source_v69150 = {"status": "failed", "context": "", "rows": []}
+                            diagnostic_log(
+                                "technical_exact_source_recovery_failed_v69150",
+                                error_type=type(error_v69150).__name__,
+                                error=str(error_v69150)[:500],
+                            )
+                        if str(technical_exact_source_v69150.get("status") or "") == "recovered":
+                            exact_context_v69150 = str(technical_exact_source_v69150.get("context") or "").strip()
+                            if exact_context_v69150:
+                                ai_request_prompt += "\n\n" + exact_context_v69150
+                            exact_rows_v69150 = [
+                                dict(row) for row in (technical_exact_source_v69150.get("rows") or [])
+                                if isinstance(row, dict)
+                            ]
+                            if exact_rows_v69150:
+                                st.session_state["_technical_file_search_results_v69012"] = exact_rows_v69150[:12]
+                                st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69150[:12]
+                            if bool(technical_exact_source_v69150.get("contract_complete")):
+                                technical_variant_evidence_v69124 = {
+                                    "context": exact_context_v69150,
+                                    "rows": exact_rows_v69150[:12],
+                                    "status": "recovered",
+                                    "contract_complete": True,
+                                    "manual_value": str(technical_exact_source_v69150.get("manual_value") or ""),
+                                    "automatic_value": str(technical_exact_source_v69150.get("automatic_value") or ""),
+                                    "contract_file_id": str(technical_exact_source_v69150.get("file_id") or ""),
+                                    "contract_source_url": str(technical_exact_source_v69150.get("source_url") or ""),
+                                    "v69150_exact_source_recovery": True,
+                                }
+                                ai_request_prompt += "\n\n" + _technical_variant_contract_context_v69125(
+                                    technical_variant_evidence_v69124
+                                )
+                            # Exact source evidence is now already in the prompt; prevent a broad
+                            # second provider file_search from replacing it.
+                            use_file_search = False
+                            diagnostic_log(
+                                "technical_exact_source_bound_v69150",
+                                file_id=str(technical_exact_source_v69150.get("file_id") or "")[:120],
+                                source_url=str(technical_exact_source_v69150.get("source_url") or "")[:500],
+                                route=str(technical_exact_source_v69150.get("recovery_route_v69150") or ""),
+                                contract_complete=bool(technical_exact_source_v69150.get("contract_complete")),
+                            )
+
+                    # v69142: generic learned-section authority for every Technical
+                    # knowledge inquiry.  This runs after the v69125 A/C sibling search so
+                    # the reference contract can still complete, then prevents a broad main
+                    # file_search from replacing the exact page/section evidence.
+                    technical_section_evidence_v69142 = {
+                        "status": "not_applicable", "context": "", "rows": []
+                    }
+                    if (
+                        assistant == "🔧 Technical Support"
+                        and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                        and not bool(locals().get("technical_v69156_fail_closed"))
+                        and str(
+                            (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                        ) != "recovered"
+                        and bool(execution_plan.get("use_file_search"))
+                        and str(technical_request_prompt_v68879 or "").strip()
+                    ):
+                        try:
+                            if str((locals().get("technical_exact_source_v69150") or {}).get("status") or "") == "recovered":
+                                technical_section_evidence_v69142 = dict(technical_exact_source_v69150)
+                                diagnostic_log(
+                                    "technical_v69150_exact_source_promoted",
+                                    file_id=str(technical_section_evidence_v69142.get("file_id") or "")[:120],
+                                    source_url=str(technical_section_evidence_v69142.get("source_url") or "")[:500],
+                                )
+                            elif bool(technical_variant_evidence_v69124.get("contract_complete")):
+                                technical_section_evidence_v69142 = _technical_section_from_v69125_contract_v69148(
+                                    technical_request_prompt_v68879, technical_variant_evidence_v69124
+                                )
+                                diagnostic_log(
+                                    "technical_v69125_primary_contract_promoted_v69148",
+                                    file_id=str(technical_section_evidence_v69142.get("file_id") or "")[:120],
+                                    source_url=str(technical_section_evidence_v69142.get("source_url") or "")[:500],
+                                )
+                            else:
+                                technical_section_evidence_v69142 = _technical_generic_section_evidence_v69142(
+                                    technical_request_prompt_v68879
+                                )
+                        except Exception as error_v69142:
+                            diagnostic_log(
+                                "technical_section_authority_failed_v69142",
+                                error_type=type(error_v69142).__name__,
+                                error=str(error_v69142)[:500],
+                            )
+                            technical_section_evidence_v69142 = {
+                                "status": "failed", "context": "", "rows": []
+                            }
+
+                        section_status_v69142 = str(technical_section_evidence_v69142.get("status") or "")
+                        if section_status_v69142 in {"recovered", "recovered_followup"}:
+                            section_context_v69142 = str(
+                                technical_section_evidence_v69142.get("context") or ""
+                            ).strip()
+                            if section_context_v69142:
+                                ai_request_prompt += "\n\n" + section_context_v69142
+                            section_rows_v69142 = [
+                                dict(row) for row in (
+                                    technical_section_evidence_v69142.get("rows") or []
+                                ) if isinstance(row, dict)
+                            ]
+                            if section_rows_v69142:
+                                st.session_state["_technical_file_search_results_v69012"] = section_rows_v69142[:12]
+                                st.session_state["_workspace_file_search_results_v69040"] = section_rows_v69142[:12]
+
+                            # If the exact learned package itself proves the v69125 Manual
+                            # + Automatic contract, repair an incomplete branch search from
+                            # the same literal evidence. Values are extracted, never coded.
+                            if _technical_generic_ac_variant_request_v69124(
+                                technical_request_prompt_v68879
+                            ) and not bool(technical_variant_evidence_v69124.get("contract_complete")):
+                                package_text_v69142 = str(
+                                    technical_section_evidence_v69142.get("package_text") or ""
+                                )
+                                manual_v69142 = _technical_extract_ac_variant_value_v69125(
+                                    package_text_v69142, "manual"
+                                )
+                                automatic_v69142 = _technical_extract_ac_variant_value_v69125(
+                                    package_text_v69142, "automatic"
+                                )
+                                if manual_v69142 and automatic_v69142:
+                                    technical_variant_evidence_v69124 = {
+                                        "context": section_context_v69142,
+                                        "rows": section_rows_v69142,
+                                        "status": "recovered",
+                                        "contract_complete": True,
+                                        "manual_value": manual_v69142,
+                                        "automatic_value": automatic_v69142,
+                                        "contract_file_id": str(technical_section_evidence_v69142.get("file_id") or ""),
+                                        "contract_source_url": str(technical_section_evidence_v69142.get("source_url") or ""),
+                                    }
+                                else:
+                                    # v69145 performance-safe fallback: only after exact page/section
+                                    # resolution, and accept sibling evidence only when it proves the
+                                    # SAME exact learned file/source.
+                                    try:
+                                        fallback_v69145=_technical_same_family_variant_evidence_v69124(
+                                            technical_request_prompt_v68879
+                                        )
+                                    except Exception as error_v69145:
+                                        diagnostic_log("technical_variant_fallback_failed_v69145", error_type=type(error_v69145).__name__, error=str(error_v69145)[:500])
+                                        fallback_v69145={}
+                                    exact_file_v69145=str(technical_section_evidence_v69142.get("file_id") or "").strip()
+                                    exact_source_v69145=str(technical_section_evidence_v69142.get("source_url") or "").strip()
+                                    fallback_file_v69145=str(fallback_v69145.get("contract_file_id") or "").strip()
+                                    fallback_source_v69145=str(fallback_v69145.get("contract_source_url") or "").strip()
+                                    same_file_v69145=bool(exact_file_v69145 and fallback_file_v69145 and exact_file_v69145==fallback_file_v69145)
+                                    same_source_v69145=bool(exact_source_v69145 and fallback_source_v69145 and canonical_website_url_identity(exact_source_v69145)==canonical_website_url_identity(fallback_source_v69145))
+                                    if bool(fallback_v69145.get("contract_complete")) and (same_file_v69145 or same_source_v69145):
+                                        technical_variant_evidence_v69124=fallback_v69145
+
+                            st.session_state["_technical_last_section_authority_v69142"] = {
+                                "file_id": str(technical_section_evidence_v69142.get("file_id") or ""),
+                                "filename": str(technical_section_evidence_v69142.get("filename") or ""),
+                                "source_url": str(technical_section_evidence_v69142.get("source_url") or ""),
+                                "page_title": str(technical_section_evidence_v69142.get("page_title") or ""),
+                                "package_text": str(technical_section_evidence_v69142.get("package_text") or ""),
+                                "rows": section_rows_v69142[:12],
+                                "selected_image_urls_v69143": list(technical_section_evidence_v69142.get("selected_image_urls_v69143") or []),
+                                "selected_section_title_v69143": str(technical_section_evidence_v69142.get("selected_section_title_v69143") or ""),
+                                "selected_branch_paths_v69143": list(technical_section_evidence_v69142.get("selected_branch_paths_v69143") or []),
+                                "section_excerpt": str(technical_section_evidence_v69142.get("section_excerpt") or "")[:26000],
+                            }
+                            use_file_search = False
+                            diagnostic_log(
+                                "technical_section_authority_bound_v69142",
+                                file_id=str(technical_section_evidence_v69142.get("file_id") or "")[:120],
+                                source_url=str(technical_section_evidence_v69142.get("source_url") or "")[:500],
+                            )
+                        elif section_status_v69142 in {"ambiguous_branch", "authority_unavailable_v69144"}:
+                            ambiguity_context_v69142 = str(
+                                technical_section_evidence_v69142.get("context") or ""
+                            ).strip()
+                            if ambiguity_context_v69142:
+                                ai_request_prompt += "\n\n" + ambiguity_context_v69142
+                            use_file_search = False
+                        elif (
+                            section_status_v69142 in {"search_failed", "no_exact_package", "no_installation_authority", "catalog_unavailable", "catalog_empty"}
+                            and _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
+                        ):
+                            # v69147 compatibility authority: if deterministic package discovery
+                            # is unavailable, give the proven v69125 same-source Manual/Automatic
+                            # retrieval one final chance. Accept only a complete same-file contract.
+                            fallback_bound_v69147 = False
+                            if _technical_generic_ac_variant_request_v69124(technical_request_prompt_v68879):
+                                try:
+                                    fallback_v69147 = _technical_same_family_variant_evidence_v69124(technical_request_prompt_v68879)
+                                except Exception as error_v69147:
+                                    fallback_v69147 = {}
+                                    diagnostic_log("technical_v69125_compat_fallback_failed_v69147", error_type=type(error_v69147).__name__, error=str(error_v69147)[:500])
+                                if bool(fallback_v69147.get("contract_complete")) and str(fallback_v69147.get("contract_file_id") or "").strip():
+                                    technical_variant_evidence_v69124 = fallback_v69147
+                                    fallback_rows_v69147 = [dict(row) for row in (fallback_v69147.get("rows") or []) if isinstance(row, dict)]
+                                    if fallback_rows_v69147:
+                                        st.session_state["_technical_file_search_results_v69012"] = fallback_rows_v69147[:12]
+                                        st.session_state["_workspace_file_search_results_v69040"] = fallback_rows_v69147[:12]
+                                    fallback_context_v69147 = str(fallback_v69147.get("context") or "").strip()
+                                    if fallback_context_v69147:
+                                        ai_request_prompt += "\n\n" + fallback_context_v69147
+                                    use_file_search = False
+                                    fallback_bound_v69147 = True
+
+                                    # Reconstruct exact section/image authority from the SAME v69125
+                                    # contract file so text and images stay bound to one learned source.
+                                    fallback_package_text_v69147 = str((fallback_rows_v69147[0] if fallback_rows_v69147 else {}).get("text") or "")
+                                    fallback_source_v69147 = str(fallback_v69147.get("contract_source_url") or "").strip()
+                                    fallback_page_title_v69147 = _technical_package_header_value_v69113(fallback_package_text_v69147, "Page title") if fallback_package_text_v69147 else ""
+                                    fallback_hierarchy_v69147 = _technical_hierarchy_excerpt_v69143(fallback_package_text_v69147, technical_request_prompt_v68879) if fallback_package_text_v69147 else {}
+                                    fallback_excerpt_v69147 = str(fallback_hierarchy_v69147.get("excerpt") or "").strip()
+                                    if not fallback_excerpt_v69147 and fallback_package_text_v69147:
+                                        fallback_excerpt_v69147 = _technical_package_section_excerpt_v69142(fallback_package_text_v69147, technical_request_prompt_v68879)
+                                    technical_section_evidence_v69142 = {
+                                        "status": "recovered",
+                                        "context": fallback_context_v69147,
+                                        "rows": fallback_rows_v69147[:12],
+                                        "file_id": str(fallback_v69147.get("contract_file_id") or ""),
+                                        "filename": str((fallback_rows_v69147[0] if fallback_rows_v69147 else {}).get("filename") or ""),
+                                        "source_url": fallback_source_v69147,
+                                        "page_title": str(fallback_page_title_v69147 or ""),
+                                        "section_excerpt": str(fallback_excerpt_v69147 or "")[:26000],
+                                        "package_text": fallback_package_text_v69147,
+                                        "selected_image_urls_v69143": list(fallback_hierarchy_v69147.get("image_urls") or []),
+                                        "selected_section_title_v69143": str(fallback_hierarchy_v69147.get("section_title") or ""),
+                                        "selected_branch_paths_v69143": list(fallback_hierarchy_v69147.get("branch_paths") or []),
+                                    }
+                                    st.session_state["_technical_last_section_authority_v69142"] = {
+                                        "file_id": technical_section_evidence_v69142["file_id"],
+                                        "filename": technical_section_evidence_v69142["filename"],
+                                        "source_url": technical_section_evidence_v69142["source_url"],
+                                        "page_title": technical_section_evidence_v69142["page_title"],
+                                        "package_text": fallback_package_text_v69147,
+                                        "rows": fallback_rows_v69147[:12],
+                                        "selected_image_urls_v69143": list(technical_section_evidence_v69142.get("selected_image_urls_v69143") or []),
+                                        "selected_section_title_v69143": str(technical_section_evidence_v69142.get("selected_section_title_v69143") or ""),
+                                        "selected_branch_paths_v69143": list(technical_section_evidence_v69142.get("selected_branch_paths_v69143") or []),
+                                        "section_excerpt": str(fallback_excerpt_v69147 or "")[:26000],
+                                    }
+                                    diagnostic_log("technical_v69125_compat_bound_v69147", file_id=str(fallback_v69147.get("contract_file_id") or "")[:120])
+
+                            if not fallback_bound_v69147:
+                                # v69145/v69147: exact installation/configuration authority is mandatory.
+                                # Never substitute a broader vector-store record after exact source
+                                # resolution failed. The provider may format a safe verification
+                                # response, but it receives no authority to invent a factual value.
+                                use_file_search = False
+                                ai_request_prompt += (
+                                    "\n\nEXACT TECHNICAL SOURCE AUTHORITY FAILURE (v69145)\n"
+                                    "The exact learned installation/configuration source could not be safely resolved. "
+                                    "Do NOT provide, infer, or guess any Car Model, A/C, protocol, SYNC, OnStar, camera, radio, or related setting value. "
+                                    "Say that the exact learned source/branch must be verified or relearned before giving the setting."
+                                )
+                                diagnostic_log("technical_exact_source_fail_closed_v69145", status=section_status_v69142)
+
+                    try:
+                        diagnostic_log(
+                            "ai_stream_start_ready_v68872",
+                            workspace=str(assistant),
+                            elapsed_seconds=round(
+                                time.perf_counter() - command_preflight_started_v68864,
+                                3,
+                            ),
+                            conversation_id=st.session_state.get("conversation_id"),
+                            use_file_search=bool(use_file_search),
+                            upload_count=len(graphic_generation_files or []),
+                        )
+                        technical_direct_answer_v69158 = ""
+                        if (
+                            assistant == "🔧 Technical Support"
+                            and str(
+                                (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                            ) == "recovered"
+                        ):
+                            technical_direct_answer_v69158 = (
+                                _technical_verified_configuration_answer_v69158(
+                                    technical_request_prompt_v68879,
+                                    technical_full_package_authority_v69155,
+                                )
+                            )
+
+                        stream_source_v69158 = (
+                            [technical_current_source_safe_answer_v69164]
+                            if technical_current_source_safe_answer_v69164
+                            else (
+                                [technical_direct_answer_v69158]
+                                if technical_direct_answer_v69158
+                                else ask_ai_stream(
+                                ai_request_prompt,
+                                graphic_generation_files,
+                                detected_live_request=detected_request,
+                                detected_technical_tool=detected_technical_tool,
+                                detected_workspace_tool=detected_workspace_tool,
+                                response_mode=response_mode,
+                                use_file_search=use_file_search,
+                                live_data_override=preloaded_live_data,
+                                order_displayed_by_app=bool(order_display_text),
+                                )
+                            )
+                        )
+                        for delta in stream_source_v69158:
+                            delta_text = str(delta or "")
+                            if delta_text and not first_stream_delta_received:
+                                first_stream_delta_received = True
+                                loading_status_placeholder.empty()
+
+                            streamed_answer += delta_text
+                            visible_stream = strip_website_image_control_tail_v68870(
+                                streamed_answer
+                            )
+                            if explicit_learning_requested:
+                                visible_stream = format_learning_record_for_display(
+                                    visible_stream
+                                )
+                            if assistant == "🔧 Technical Support":
+                                visible_stream = remove_technical_pricing(
+                                    visible_stream
                                 )
 
-                        # v69158: interruption path receives the exact same final
-                        # deterministic factual enforcement as a successful stream.
-                        partial_answer_body = _technical_final_factual_qa_v69158(
-                            technical_request_prompt_v68879,
-                            partial_answer_body,
-                            locals().get("technical_full_package_authority_v69155") or {},
-                            technical_variant_evidence_v69124,
-                        )
+                            combined_stream = visible_stream
+                            if order_display_text:
+                                combined_stream = (
+                                    order_display_text
+                                    + "\n\n---\n\n## "
+                                    + analysis_heading
+                                    + "\n\n"
+                                    + visible_stream
+                                )
 
-                    if not partial_answer_body:
-                        safe_error_message = (
-                            "I couldn't complete that request because the AI service rejected "
-                            "one part of the request. Please try again. If it continues, check "
-                            "the Streamlit Cloud logs for the recorded diagnostic."
-                        )
-                        stream_placeholder.markdown(
-                            _assistant_stream_html(safe_error_message),
-                            unsafe_allow_html=True,
-                        )
-                        answer = safe_error_message
-                        diagnostic_log(
-                            "ai_stream_request_failed",
-                            workspace=str(assistant),
-                            error_type=type(stream_error).__name__,
-                            status_code=getattr(stream_error, "status_code", None),
-                        )
-                    else:
-                        interruption_note = (
-                            "\n\n---\n\n"
-                            "**Response interrupted:** The AI generated the content "
-                            "above, but the live stream ended before the complete "
-                            "response finished. The partial result has been preserved. "
-                            "Send **continue from where you stopped** to request the "
-                            "remaining content."
-                        )
-                        partial_answer_body += interruption_note
+                            now_value = time.monotonic()
+                            new_stream_chars_v69026 = max(
+                                0, len(combined_stream) - int(last_stream_render_chars_v69026 or 0)
+                            )
+                            if (
+                                now_value - last_stream_update
+                                >= AI_STREAM_RENDER_INTERVAL_SECONDS
+                                and (
+                                    new_stream_chars_v69026 >= AI_STREAM_RENDER_MIN_NEW_CHARS_V69026
+                                    or last_stream_render_chars_v69026 == 0
+                                )
+                            ):
+                                stream_placeholder.markdown(
+                                    _assistant_stream_html(combined_stream),
+                                    unsafe_allow_html=True,
+                                )
+                                last_stream_update = now_value
+                                last_stream_render_chars_v69026 = len(combined_stream)
 
-                        answer = partial_answer_body
+                        streamed_answer_clean_v68870, auto_website_images_v68870 = (
+                            extract_website_image_controls_v68870(streamed_answer)
+                        )
+                        if auto_website_images_v68870:
+                            generated_images.extend(auto_website_images_v68870)
+                        generated_images = _website_image_final_authority_v68885(
+                            technical_request_prompt_v68879
+                            if assistant == "🔧 Technical Support"
+                            else interaction_prompt,
+                            _dedupe_website_chat_images_v68883(generated_images),
+                            deterministic_images=website_index_images_v68883,
+                            answer_text=streamed_answer_clean_v68870,
+                        )
+                        answer_body = clean_visible_chat_text(
+                            streamed_answer_clean_v68870
+                        )
+                        if explicit_learning_requested:
+                            answer_body = format_learning_record_for_display(answer_body)
+                        if assistant == "🔧 Technical Support":
+                            answer_body = remove_technical_pricing(answer_body)
+
+                            # v69163: after the proven v69050 provider file_search has
+                            # completed, optionally derive stronger structural authority
+                            # from the exact answer-supporting file IDs already captured.
+                            # No new search is issued; failure leaves the baseline untouched.
+                            if (
+                                str(
+                                    (
+                                        locals().get(
+                                            "technical_full_package_authority_v69155"
+                                        )
+                                        or {}
+                                    ).get("status")
+                                    or ""
+                                )
+                                != "recovered"
+                                and bool(
+                                    technical_v69156_configuration_required
+                                )
+                                and bool(
+                                    locals().get(
+                                        "technical_v69050_v69125_baseline_v69154"
+                                    )
+                                )
+                            ):
+                                try:
+                                    retrieved_rows_v69163 = list(
+                                        st.session_state.get(
+                                            "_technical_file_search_results_v69012"
+                                        )
+                                        or []
+                                    )
+                                    post_authority_v69163 = (
+                                        _technical_additive_authority_from_retrieved_rows_v69163(
+                                            technical_request_prompt_v68879,
+                                            retrieved_rows_v69163,
+                                        )
+                                    )
+                                    if str(
+                                        post_authority_v69163.get("status")
+                                        or ""
+                                    ) == "recovered":
+                                        technical_full_package_authority_v69155 = (
+                                            post_authority_v69163
+                                        )
+                                        diagnostic_log(
+                                            "technical_post_provider_additive_structure_bound_v69163",
+                                            file_id=str(
+                                                post_authority_v69163.get(
+                                                    "file_id"
+                                                )
+                                                or ""
+                                            )[:160],
+                                            section=str(
+                                                post_authority_v69163.get(
+                                                    "section_title"
+                                                )
+                                                or ""
+                                            )[:300],
+                                        )
+                                except Exception as error_v69163_post:
+                                    diagnostic_log(
+                                        "technical_post_provider_additive_structure_failed_v69163",
+                                        error_type=type(
+                                            error_v69163_post
+                                        ).__name__,
+                                        error=str(
+                                            error_v69163_post
+                                        )[:600],
+                                    )
+
+                            # v69155: exact full-package dynamic setting table is final
+                            # factual presentation authority for recovered configuration turns.
+                            if str(
+                                (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                            ) == "recovered":
+                                try:
+                                    answer_body = _technical_replace_settings_table_v69156(
+                                        answer_body,
+                                        (technical_full_package_authority_v69155.get("structured") or {}),
+                                    )
+                                except Exception as error_v69155_table:
+                                    diagnostic_log(
+                                        "technical_full_package_table_failed_v69155",
+                                        error_type=type(error_v69155_table).__name__,
+                                        error=str(error_v69155_table)[:600],
+                                    )
+                            # v69154: the v69125 output contract is the final Technical
+                            # presentation authority for restored baseline turns. Later
+                            # hierarchy normalization is explicitly non-authoritative here.
+                            if (
+                                str(
+                                    (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                                ) != "recovered"
+                                and not bool(locals().get("technical_v69156_fail_closed"))
+                                and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+                            ):
+                                try:
+                                    answer_body, technical_settings_manifest_v69151 = (
+                                        _technical_normalize_interpreted_settings_v69151(
+                                            answer_body,
+                                            locals().get("technical_section_evidence_v69142") or {},
+                                            technical_variant_evidence_v69124,
+                                        )
+                                    )
+                                except Exception as error_v69151:
+                                    technical_settings_manifest_v69151 = {}
+                                    diagnostic_log(
+                                        "technical_settings_normalization_failed_v69151",
+                                        error_type=type(error_v69151).__name__,
+                                        error=str(error_v69151)[:500],
+                                    )
+                            if (
+                                str(
+                                    (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
+                                ) != "recovered"
+                                and _technical_generic_ac_variant_request_v69124(
+                                    technical_request_prompt_v68879
+                                )
+                                and bool(
+                                    technical_variant_evidence_v69124.get(
+                                        "contract_complete"
+                                    )
+                                )
+                            ):
+                                answer_body = _technical_enforce_dual_ac_table_v69125(
+                                    answer_body,
+                                    technical_variant_evidence_v69124,
+                                )
+                            answer_body = _technical_final_factual_qa_v69158(
+                                technical_request_prompt_v68879,
+                                answer_body,
+                                locals().get("technical_full_package_authority_v69155") or {},
+                                technical_variant_evidence_v69124,
+                            )
+                            # v69139: exact v69125 Technical-output authority restored.
+                            # Do not run the later v69126/v69127 generic row split/expansion
+                            # after the v69125 contract.  v69137 durability/persistence and
+                            # image publication remain intact; only presentation authority
+                            # returns to the verified v69125 behavior.
+
+                        answer = answer_body
                         if order_display_text:
-                            answer = (
-                                order_display_text
-                                + "\n\n---\n\n## "
+                            analysis_section = (
+                                "\n\n---\n\n## "
                                 + analysis_heading
                                 + "\n\n"
-                                + partial_answer_body
+                                if answer_body
+                                else ""
+                            )
+                            answer = (
+                                order_display_text
+                                + analysis_section
+                                + answer_body
                             )
 
-                        # Keep the last successful streamed content visible. Try one
-                        # final render, but do not discard the answer if the browser
-                        # renderer itself is what raised the interruption.
-                        try:
+                        stream_placeholder.markdown(
+                            _assistant_stream_html(answer),
+                            unsafe_allow_html=True,
+                        )
+                    except Exception as stream_error:
+                        loading_status_placeholder.empty()
+
+                        # Preserve any text that was already generated. Previously,
+                        # every streaming/rendering interruption cleared the visible
+                        # response and re-raised before the partial answer could be
+                        # saved to session state or conversation history.
+                        partial_stream_clean_v68870, partial_web_images_v68870 = (
+                            extract_website_image_controls_v68870(streamed_answer)
+                        )
+                        if partial_web_images_v68870:
+                            generated_images.extend(partial_web_images_v68870)
+                        generated_images = _website_image_final_authority_v68885(
+                            technical_request_prompt_v68879
+                            if assistant == "🔧 Technical Support"
+                            else interaction_prompt,
+                            _dedupe_website_chat_images_v68883(generated_images),
+                            deterministic_images=website_index_images_v68883,
+                            answer_text=partial_stream_clean_v68870,
+                        )
+                        partial_answer_body = clean_visible_chat_text(
+                            partial_stream_clean_v68870
+                        )
+                        if explicit_learning_requested:
+                            partial_answer_body = format_learning_record_for_display(
+                                partial_answer_body
+                            )
+                        if assistant == "🔧 Technical Support":
+                            partial_answer_body = remove_technical_pricing(
+                                partial_answer_body
+                            )
+
+                            # v69163 interruption parity: if the baseline provider already
+                            # returned file_search evidence before the stream ended, the same
+                            # additive exact-file structural enhancement may be applied.
+                            if (
+                                str(
+                                    (
+                                        locals().get(
+                                            "technical_full_package_authority_v69155"
+                                        )
+                                        or {}
+                                    ).get("status")
+                                    or ""
+                                )
+                                != "recovered"
+                                and bool(
+                                    technical_v69156_configuration_required
+                                )
+                                and bool(
+                                    locals().get(
+                                        "technical_v69050_v69125_baseline_v69154"
+                                    )
+                                )
+                            ):
+                                try:
+                                    partial_rows_v69163 = list(
+                                        st.session_state.get(
+                                            "_technical_file_search_results_v69012"
+                                        )
+                                        or []
+                                    )
+                                    partial_authority_v69163 = (
+                                        _technical_additive_authority_from_retrieved_rows_v69163(
+                                            technical_request_prompt_v68879,
+                                            partial_rows_v69163,
+                                        )
+                                    )
+                                    if str(
+                                        partial_authority_v69163.get("status")
+                                        or ""
+                                    ) == "recovered":
+                                        technical_full_package_authority_v69155 = (
+                                            partial_authority_v69163
+                                        )
+                                except Exception as error_v69163_partial:
+                                    diagnostic_log(
+                                        "technical_partial_additive_structure_failed_v69163",
+                                        error_type=type(
+                                            error_v69163_partial
+                                        ).__name__,
+                                        error=str(
+                                            error_v69163_partial
+                                        )[:600],
+                                    )
+
+                            # v69158: interruption path receives the exact same final
+                            # deterministic factual enforcement as a successful stream.
+                            partial_answer_body = _technical_final_factual_qa_v69158(
+                                technical_request_prompt_v68879,
+                                partial_answer_body,
+                                locals().get("technical_full_package_authority_v69155") or {},
+                                technical_variant_evidence_v69124,
+                            )
+
+                        if not partial_answer_body:
+                            safe_error_message = (
+                                "I couldn't complete that request because the AI service rejected "
+                                "one part of the request. Please try again. If it continues, check "
+                                "the Streamlit Cloud logs for the recorded diagnostic."
+                            )
                             stream_placeholder.markdown(
-                                _assistant_stream_html(answer),
+                                _assistant_stream_html(safe_error_message),
                                 unsafe_allow_html=True,
                             )
-                        except Exception:
-                            pass
+                            answer = safe_error_message
+                            diagnostic_log(
+                                "ai_stream_request_failed",
+                                workspace=str(assistant),
+                                error_type=type(stream_error).__name__,
+                                status_code=getattr(stream_error, "status_code", None),
+                            )
+                        else:
+                            interruption_note = (
+                                "\n\n---\n\n"
+                                "**Response interrupted:** The AI generated the content "
+                                "above, but the live stream ended before the complete "
+                                "response finished. The partial result has been preserved. "
+                                "Send **continue from where you stopped** to request the "
+                                "remaining content."
+                            )
+                            partial_answer_body += interruption_note
 
-                        # Record a safe diagnostic in Streamlit Cloud logs without
-                        # exposing request contents, uploaded-file data, or secrets.
-                        print(
-                            "[AI STREAM INTERRUPTED] "
-                            f"{type(stream_error).__name__}: "
-                            f"{str(stream_error)[:300]}",
-                            flush=True,
-                        )
-                finally:
-                    loading_status_placeholder.empty()
+                            answer = partial_answer_body
+                            if order_display_text:
+                                answer = (
+                                    order_display_text
+                                    + "\n\n---\n\n## "
+                                    + analysis_heading
+                                    + "\n\n"
+                                    + partial_answer_body
+                                )
 
-                response_time = round(
-                    time.time() - response_start_time,
-                    2,
-                )
-                tokens_used = None
+                            # Keep the last successful streamed content visible. Try one
+                            # final render, but do not discard the answer if the browser
+                            # renderer itself is what raised the interruption.
+                            try:
+                                stream_placeholder.markdown(
+                                    _assistant_stream_html(answer),
+                                    unsafe_allow_html=True,
+                                )
+                            except Exception:
+                                pass
+
+                            # Record a safe diagnostic in Streamlit Cloud logs without
+                            # exposing request contents, uploaded-file data, or secrets.
+                            print(
+                                "[AI STREAM INTERRUPTED] "
+                                f"{type(stream_error).__name__}: "
+                                f"{str(stream_error)[:300]}",
+                                flush=True,
+                            )
+                    finally:
+                        loading_status_placeholder.empty()
+
+                    response_time = round(
+                        time.time() - response_start_time,
+                        2,
+                    )
+                    tokens_used = None
 
         if document_generation_requested and not is_graphic_generation:
             try:
@@ -77814,7 +78212,11 @@ else:
         # v69126: first-turn Technical image recovery from the exact evidence rows
         # that supported this answer. This is independent of the later active-package
         # state, which v69122 intentionally stopped binding for factual retrieval.
-        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+        if (
+            assistant == "🔧 Technical Support"
+            and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
+            and str(answer or "").strip()
+        ):
             existing_turn_web_images_v69126 = [
                 image for image in (generated_images or [])
                 if isinstance(image, dict)
