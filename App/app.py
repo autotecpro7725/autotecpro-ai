@@ -1,3 +1,7 @@
+# AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
+# AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
+# AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
+# AutoTecPro AI v69167 FINAL STABLE PRODUCTION — transactional Technical source authority + stale-pointer self-heal.
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -48,6 +52,7 @@ except Exception:
 import base64
 import html
 import hashlib
+import zlib
 import hmac
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -61477,6 +61482,238 @@ def _technical_locked_package_authority_v69165(prompt_text, lock):
     }]
     return authority
 
+
+TECHNICAL_DURABLE_SNAPSHOT_PREFIX_V69171 = "__ATP_TECH_DURABLE_SNAPSHOT_V69171__:"
+
+
+def _technical_durable_snapshot_key_v69171(source_url):
+    """Stable same-source snapshot key; never vehicle-semantic and never cross-source."""
+    source_url = str(source_url or "").strip()
+    if not source_url:
+        return ""
+    try:
+        identity = canonical_website_url_identity(source_url)
+    except Exception:
+        identity = source_url.casefold()
+    identity = str(identity or "").strip()
+    if not identity:
+        return ""
+    digest = hashlib.sha256(identity.encode("utf-8", errors="ignore")).hexdigest()
+    return f"{TECHNICAL_DURABLE_SNAPSHOT_PREFIX_V69171}{digest}"
+
+
+def _technical_durable_snapshot_payload_v69171(package, vector_store_id=""):
+    """Encode the exact reviewed package independently from the OpenAI file lifecycle."""
+    package = dict(package or {})
+    source_url = str(package.get("source_url") or "").strip()
+    package_text = str(package.get("package_text") or "")
+    file_id = str(package.get("file_id") or "").strip()
+    key = _technical_durable_snapshot_key_v69171(source_url)
+    if not key or not package_text or not file_id:
+        return {}
+    raw = package_text.encode("utf-8")
+    content_sha256 = hashlib.sha256(raw).hexdigest()
+    compressed = zlib.compress(raw, 9)
+    encoded = base64.b64encode(compressed).decode("ascii")
+    return {
+        "schema_version": 69171,
+        "snapshot_key": key,
+        "source_url": source_url[:2000],
+        "file_id": file_id[:300],
+        "filename": str(package.get("filename") or "")[:500],
+        "title": str(package.get("title") or "")[:1000],
+        "extracted_at": str(package.get("extracted_at") or "")[:120],
+        "vehicle_families": [str(x) for x in (package.get("vehicle_families") or []) if str(x).strip()][:32],
+        "years": [int(x) for x in (package.get("years") or []) if str(x).strip().isdigit()][:128],
+        "systems": [str(x) for x in (package.get("systems") or []) if str(x).strip()][:32],
+        "product_codes": [str(x) for x in (package.get("product_codes") or []) if str(x).strip()][:32],
+        "vector_store_id": str(vector_store_id or "")[:300],
+        "content_sha256": content_sha256,
+        "raw_bytes": len(raw),
+        "compressed_bytes": len(compressed),
+        "encoding": "zlib+base64+utf8",
+        "package_b64": encoded,
+    }
+
+
+def _technical_durable_snapshot_decode_v69171(payload, expected_source_url="", expected_sha256=""):
+    payload = dict(payload or {})
+    if int(payload.get("schema_version") or 0) != 69171:
+        return {}
+    source_url = str(payload.get("source_url") or "").strip()
+    if expected_source_url:
+        try:
+            same = canonical_website_url_identity(source_url) == canonical_website_url_identity(expected_source_url)
+        except Exception:
+            same = bool(source_url and source_url == str(expected_source_url or "").strip())
+        if not same:
+            return {}
+    encoded = str(payload.get("package_b64") or "")
+    if not encoded:
+        return {}
+    try:
+        raw = zlib.decompress(base64.b64decode(encoded.encode("ascii"), validate=True))
+        package_text = raw.decode("utf-8")
+    except Exception:
+        return {}
+    actual_sha = hashlib.sha256(raw).hexdigest()
+    stored_sha = str(payload.get("content_sha256") or "").strip()
+    if not stored_sha or actual_sha != stored_sha:
+        return {}
+    if expected_sha256 and actual_sha != str(expected_sha256 or "").strip():
+        return {}
+    return {
+        "complete": True,
+        "snapshot_key": str(payload.get("snapshot_key") or ""),
+        "source_url": source_url,
+        "file_id": str(payload.get("file_id") or ""),
+        "filename": str(payload.get("filename") or ""),
+        "title": str(payload.get("title") or ""),
+        "extracted_at": str(payload.get("extracted_at") or ""),
+        "vehicle_families": list(payload.get("vehicle_families") or []),
+        "years": list(payload.get("years") or []),
+        "systems": list(payload.get("systems") or []),
+        "product_codes": list(payload.get("product_codes") or []),
+        "vector_store_id": str(payload.get("vector_store_id") or ""),
+        "content_sha256": actual_sha,
+        "package_text": package_text,
+        "durable_snapshot_v69171": True,
+    }
+
+
+def _technical_durable_snapshot_row_v69171(source_url, vector_store_id=""):
+    key = _technical_durable_snapshot_key_v69171(source_url)
+    if not key:
+        return {}
+    try:
+        mode, columns, key_col, value_col, time_col = _technical_active_authority_schema_v69164()
+        wanted = [x for x in ("id", key_col, value_col, "solution", "approved_answer",
+                              "source_type", "updated_at", "created_at")
+                  if x and (not columns or x in columns)]
+        rows = list(
+            supabase.table("learned_knowledge")
+            .select(",".join(dict.fromkeys(wanted)))
+            .eq(key_col, key)
+            .order(time_col, desc=True)
+            .limit(1)
+            .execute().data or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "technical_durable_snapshot_read_failed_v69171",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return {}
+    if not rows or not isinstance(rows[0], dict):
+        return {}
+    row = dict(rows[0])
+    raw = str(row.get(value_col) or row.get("solution") or row.get("approved_answer") or "")
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return {}
+    decoded = _technical_durable_snapshot_decode_v69171(payload, expected_source_url=source_url)
+    if not decoded:
+        return {}
+    store = str(vector_store_id or "").strip()
+    payload_store = str(decoded.get("vector_store_id") or "").strip()
+    if store and payload_store and payload_store != store:
+        return {}
+    decoded["row_id_v69171"] = row.get("id")
+    return decoded
+
+
+def _technical_durable_snapshot_commit_verified_v69171(package, vector_store_id=""):
+    """Persist and read back the full exact package before any old file can be retired."""
+    package = dict(package or {})
+    payload = _technical_durable_snapshot_payload_v69171(package, vector_store_id)
+    if not payload:
+        raise RuntimeError("Technical durable snapshot payload is incomplete.")
+    mode, columns, key_col, value_col, time_col = _technical_active_authority_schema_v69164()
+    key = str(payload.get("snapshot_key") or "")
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    existing_id = None
+    try:
+        rows = list(
+            supabase.table("learned_knowledge")
+            .select(f"id,{key_col}")
+            .eq(key_col, key)
+            .order(time_col, desc=True)
+            .limit(1)
+            .execute().data or []
+        )
+        if rows and isinstance(rows[0], dict):
+            existing_id = rows[0].get("id")
+    except Exception:
+        existing_id = None
+    if mode == "modern":
+        row_payload = {
+            "issue": key,
+            "solution": encoded,
+            "approved_answer": encoded,
+            "source_type": "technical_durable_snapshot_v69171",
+            "updated_at": now_iso(),
+            "staff_confirmed": True,
+            "record_type": "technical_durable_snapshot",
+            "assistant": "Technical Support",
+            "department": "technical",
+        }
+    else:
+        row_payload = {
+            "question": key,
+            "approved_answer": encoded,
+            "keywords": "technical_durable_snapshot_v69171",
+            "source_type": "technical_durable_snapshot_v69171",
+            "created_at": now_iso(),
+            "staff_confirmed": True,
+            "record_type": "technical_durable_snapshot",
+            "assistant": "Technical Support",
+            "department": "technical",
+        }
+    row_payload = filter_payload_for_table("learned_knowledge", row_payload)
+    if key_col not in row_payload or value_col not in row_payload:
+        raise RuntimeError("Technical durable snapshot schema cannot persist key/value.")
+    if existing_id is not None:
+        update_payload = dict(row_payload)
+        update_payload.pop("created_at", None)
+        safe_update_row("learned_knowledge", update_payload, existing_id)
+    else:
+        safe_insert_row("learned_knowledge", row_payload)
+    verified = _technical_durable_snapshot_row_v69171(
+        str(package.get("source_url") or ""),
+        vector_store_id,
+    )
+    if (
+        not verified
+        or str(verified.get("content_sha256") or "") != str(payload.get("content_sha256") or "")
+        or str(verified.get("package_text") or "") != str(package.get("package_text") or "")
+    ):
+        raise RuntimeError("Technical durable snapshot read-back verification failed.")
+    diagnostic_log(
+        "technical_durable_snapshot_commit_verified_v69171",
+        file_id=str(package.get("file_id") or "")[:160],
+        source_url=str(package.get("source_url") or "")[:700],
+        sha256=str(payload.get("content_sha256") or "")[:64],
+        raw_bytes=int(payload.get("raw_bytes") or 0),
+        compressed_bytes=int(payload.get("compressed_bytes") or 0),
+    )
+    return verified
+
+
+def _technical_durable_snapshot_recover_v69171(source_url, vector_store_id="", expected_sha256=""):
+    snapshot = _technical_durable_snapshot_row_v69171(source_url, vector_store_id)
+    if not snapshot:
+        return {}
+    if expected_sha256 and str(snapshot.get("content_sha256") or "") != str(expected_sha256 or ""):
+        return {}
+    package_text = str(snapshot.get("package_text") or "")
+    if not package_text:
+        return {}
+    return snapshot
+
+
+
 TECHNICAL_ACTIVE_AUTHORITY_PREFIX_V69164 = "__ATP_TECH_ACTIVE_AUTHORITY_V69164__:"
 
 
@@ -61638,7 +61875,16 @@ def _technical_active_authority_upsert_package_v69164(
                 "systems": [str(x) for x in (package.get("systems") or []) if str(x).strip()][:32],
                 "product_codes": [str(x) for x in (package.get("product_codes") or []) if str(x).strip()][:32],
                 "vector_store_id": str(vector_store_id or "")[:300],
+                "snapshot_key_v69171": str(package.get("snapshot_key_v69171") or "")[:200],
+                "snapshot_sha256_v69171": str(package.get("snapshot_sha256_v69171") or "")[:64],
             }
+            # v69171: metadata refreshes after a verified transactional commit may
+            # pass the original package object without the locally enriched snapshot
+            # fields. Never erase a previously verified snapshot reference.
+            if not payload.get("snapshot_key_v69171") and existing.get("snapshot_key_v69171"):
+                payload["snapshot_key_v69171"] = str(existing.get("snapshot_key_v69171") or "")[:200]
+            if not payload.get("snapshot_sha256_v69171") and existing.get("snapshot_sha256_v69171"):
+                payload["snapshot_sha256_v69171"] = str(existing.get("snapshot_sha256_v69171") or "")[:64]
             if not payload["file_id"] or not payload["source_url"]:
                 stats["failed"] += 1
                 continue
@@ -61732,6 +61978,17 @@ def _technical_active_authority_commit_verified_v69167(
             "The indexed Technical package has no verified vehicle family/year identity."
         )
 
+    # v69171: persist the full exact package independently from the OpenAI file
+    # lifecycle, and verify byte-for-byte readback BEFORE updating current pointers
+    # or allowing any superseded file retirement.
+    durable_snapshot_v69171 = _technical_durable_snapshot_commit_verified_v69171(
+        package,
+        vector_store_id,
+    )
+    package = dict(package)
+    package["snapshot_key_v69171"] = str(durable_snapshot_v69171.get("snapshot_key") or "")
+    package["snapshot_sha256_v69171"] = str(durable_snapshot_v69171.get("content_sha256") or "")
+
     stats = _technical_active_authority_upsert_package_v69164(
         package,
         vector_store_id,
@@ -61763,6 +62020,12 @@ def _technical_active_authority_commit_verified_v69167(
             if str(row.get("file_id") or "").strip() != file_id:
                 raise RuntimeError(
                     f"Active Technical pointer read-back mismatch for {family}/{year}."
+                )
+            if str(row.get("snapshot_sha256_v69171") or "").strip() != str(
+                durable_snapshot_v69171.get("content_sha256") or ""
+            ).strip():
+                raise RuntimeError(
+                    f"Active Technical durable snapshot read-back mismatch for {family}/{year}."
                 )
             row_source = str(row.get("source_url") or "").strip()
             try:
@@ -61967,6 +62230,27 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
     except Exception:
         full = ""
 
+    # v69171 primary dead-file recovery: the current pointer carries source identity
+    # and a verified content hash. If the OpenAI file was retired/deleted/unavailable,
+    # recover the exact same reviewed package from the independent durable snapshot.
+    if not full:
+        durable_current_v69171 = _technical_durable_snapshot_recover_v69171(
+            str(payload.get("source_url") or ""),
+            vector_store_id,
+            expected_sha256=str(payload.get("snapshot_sha256_v69171") or ""),
+        )
+        durable_full_v69171 = str(durable_current_v69171.get("package_text") or "")
+        if durable_full_v69171:
+            full = durable_full_v69171
+            diagnostic_log(
+                "technical_dead_file_recovered_from_snapshot_v69171",
+                family=family[:80],
+                year=year,
+                file_id=file_id[:160],
+                source_url=str(payload.get("source_url") or "")[:700],
+                sha256=str(durable_current_v69171.get("content_sha256") or "")[:64],
+            )
+
     # v69167 self-heal: v69165 could migrate/index a new package while leaving a
     # stale active pointer on the retired legacy file. The durable per-URL registry
     # already records the new file. Repair from that deterministic registry before
@@ -62014,9 +62298,27 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
                 )
 
     if not full:
+        # Legacy pointers created before v69171 may not carry a snapshot hash. A
+        # same-source snapshot is still safe because its key is derived from the
+        # canonical reviewed URL and its own content hash is verified on read.
+        durable_legacy_v69171 = _technical_durable_snapshot_recover_v69171(
+            str(payload.get("source_url") or ""),
+            vector_store_id,
+        )
+        if durable_legacy_v69171:
+            full = str(durable_legacy_v69171.get("package_text") or "")
+            diagnostic_log(
+                "technical_legacy_pointer_recovered_from_snapshot_v69171",
+                family=family[:80],
+                year=year,
+                file_id=file_id[:160],
+                source_url=str(payload.get("source_url") or "")[:700],
+            )
+
+    if not full:
         return {
             "status": "known_current_unavailable",
-            "reason_code": "ACTIVE_FILE_UNAVAILABLE",
+            "reason_code": "ACTIVE_FILE_AND_SNAPSHOT_UNAVAILABLE",
             "family": family, "year": year, "file_id": file_id,
             "source_url": str(payload.get("source_url") or ""),
         }
@@ -62024,6 +62326,82 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
     package = _technical_package_from_text_v69121(
         file_id, str(payload.get("filename") or ""), full
     )
+
+    # v69171 in-place migration for pre-v69171 healthy pointers. When the current
+    # OpenAI package still exists but no durable snapshot reference was ever written,
+    # seed and verify the snapshot once during a successful read, then refresh the
+    # pointer. This avoids requiring re-learning for healthy legacy sources.
+    if (
+        isinstance(package, dict)
+        and _technical_package_candidate_score_v69157(prompt_text, package)
+        and not str(payload.get("snapshot_sha256_v69171") or "").strip()
+    ):
+        try:
+            migrated_snapshot_v69171 = _technical_durable_snapshot_commit_verified_v69171(
+                package,
+                vector_store_id,
+            )
+            migrated_package_v69171 = dict(package)
+            migrated_package_v69171["snapshot_key_v69171"] = str(
+                migrated_snapshot_v69171.get("snapshot_key") or ""
+            )
+            migrated_package_v69171["snapshot_sha256_v69171"] = str(
+                migrated_snapshot_v69171.get("content_sha256") or ""
+            )
+            _technical_active_authority_upsert_package_v69164(
+                migrated_package_v69171,
+                vector_store_id,
+                force=True,
+            )
+            payload = _technical_active_authority_row_v69164(
+                family, year, vector_store_id
+            ) or payload
+            diagnostic_log(
+                "technical_legacy_pointer_snapshot_migrated_v69171",
+                family=family[:80],
+                year=year,
+                file_id=file_id[:160],
+                source_url=str(package.get("source_url") or "")[:700],
+            )
+        except Exception as migration_error_v69171:
+            diagnostic_log(
+                "technical_legacy_pointer_snapshot_migration_failed_v69171",
+                family=family[:80],
+                year=year,
+                file_id=file_id[:160],
+                error_type=type(migration_error_v69171).__name__,
+                error=str(migration_error_v69171)[:500],
+            )
+
+    if not isinstance(package, dict) or not _technical_package_candidate_score_v69157(
+        prompt_text, package
+    ):
+        # v69171: if a stale/corrupt OpenAI file resolved but the pointer's exact
+        # durable source snapshot is healthy, prefer that same-source snapshot
+        # before consulting any registry file IDs.
+        durable_identity_v69171 = _technical_durable_snapshot_recover_v69171(
+            str(payload.get("source_url") or ""),
+            vector_store_id,
+            expected_sha256=str(payload.get("snapshot_sha256_v69171") or ""),
+        )
+        durable_identity_full_v69171 = str(durable_identity_v69171.get("package_text") or "")
+        durable_identity_package_v69171 = (
+            _technical_package_from_text_v69121(
+                file_id,
+                str(payload.get("filename") or ""),
+                durable_identity_full_v69171,
+            )
+            if durable_identity_full_v69171 else None
+        )
+        if (
+            isinstance(durable_identity_package_v69171, dict)
+            and _technical_package_candidate_score_v69157(
+                prompt_text, durable_identity_package_v69171
+            )
+        ):
+            package = durable_identity_package_v69171
+            full = durable_identity_full_v69171
+
     if not isinstance(package, dict) or not _technical_package_candidate_score_v69157(
         prompt_text, package
     ):
