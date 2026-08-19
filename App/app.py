@@ -75414,6 +75414,11 @@ else:
                 # Failure after a current source is known fails safe rather than
                 # silently searching an older competing package.
                 technical_current_source_safe_answer_v69164 = ""
+                # v69168: a newer current-source structural miss must never suppress
+                # the proven v69125/v69050 Technical runtime.  This flag records that
+                # the current source was identified but direct structural recovery
+                # could not complete; the ordinary baseline remains authoritative.
+                technical_current_source_baseline_recovery_v69168 = False
                 technical_current_source_lock_v69164 = {
                     "status": "not_applicable"
                 }
@@ -75456,17 +75461,19 @@ else:
                             elif lock_status_v69164.startswith(
                                 "known_current"
                             ):
-                                use_file_search = False
-                                technical_current_source_safe_answer_v69164 = (
-                                    "## Current Technical Source Temporarily Unavailable\n\n"
-                                    "The app identified the current reviewed AutoTecPro "
-                                    "Technical source for this vehicle/year, but could not "
-                                    "verify its exact configuration section on this request. "
-                                    "No older or conflicting source was used. Please retry "
-                                    "after the current source is available."
-                                )
+                                # v69168 PRODUCTION FIX:
+                                # v69167 failed here by setting use_file_search=False and
+                                # publishing a synthetic unavailable answer before the
+                                # proven v69125/v69050 baseline could run.  A structural
+                                # parser miss is not authority to disable the working
+                                # provider path.  Keep the current-source diagnosis for
+                                # telemetry, but leave use_file_search unchanged and leave
+                                # the synthetic safe-answer empty so v69124/v69125 and,
+                                # when incomplete, normal v69050 provider file_search execute.
+                                technical_current_source_baseline_recovery_v69168 = True
+                                technical_current_source_safe_answer_v69164 = ""
                                 diagnostic_log(
-                                    "technical_known_current_fail_safe_v69164",
+                                    "technical_known_current_baseline_recovery_v69168",
                                     status=lock_status_v69164[:120],
                                     file_id=str(
                                         technical_current_source_lock_v69164.get(
@@ -75474,6 +75481,13 @@ else:
                                         )
                                         or ""
                                     )[:160],
+                                    source_url=str(
+                                        technical_current_source_lock_v69164.get(
+                                            "source_url"
+                                        )
+                                        or ""
+                                    )[:700],
+                                    use_file_search=bool(use_file_search),
                                 )
                     except Exception as error_v69164:
                         diagnostic_log(
@@ -75787,6 +75801,9 @@ else:
                         "technical_v69050_v69125_runtime_restored_v69154",
                         contract_complete=bool(
                             technical_variant_evidence_v69124.get("contract_complete")
+                        ),
+                        current_source_structural_miss_recovered_v69168=bool(
+                            technical_current_source_baseline_recovery_v69168
                         ),
                         use_file_search=bool(use_file_search),
                     )
