@@ -62097,6 +62097,473 @@ def _technical_active_structural_authority_v69164(prompt_text, vector_store_id):
         return authority
     return dict(authority)
 
+
+# ============================================================
+# v69169 — exact current-source-bound recovery
+# ============================================================
+def _technical_bound_image_urls_v69169(prompt_text, authority, max_images=8):
+    """Select images only from the already locked factual package.
+
+    For protected settings turns, an image must support at least one strong factual
+    value (Protocol or Car Model) or belong to the exact selected hierarchy segment.
+    This prevents Audio / Temperature / generic Climate images from becoming a
+    fallback simply because they share the same vehicle page.
+    """
+    authority = dict(authority or {})
+    package_text = str(authority.get("package_text") or "")
+    if not package_text:
+        return []
+    exact_urls = [
+        str(u).strip() for u in (authority.get("selected_image_urls_v69143") or [])
+        if str(u).strip().startswith("https://")
+    ]
+    if exact_urls:
+        return list(dict.fromkeys(exact_urls))[:max(1, int(max_images or 8))]
+
+    payloads = []
+    try:
+        payloads.extend(_website_structured_image_payloads_from_file_v69012(
+            package_text,
+            str(authority.get("filename") or ""),
+            str(authority.get("file_id") or ""),
+        ))
+    except Exception:
+        pass
+    try:
+        payloads.extend(_website_legacy_html_payloads_from_file_v69012(
+            package_text,
+            str(authority.get("filename") or ""),
+            str(authority.get("file_id") or ""),
+        ))
+    except Exception:
+        pass
+    if not payloads:
+        return []
+
+    source_url = str(authority.get("source_url") or "").strip()
+    try:
+        source_id = canonical_website_url_identity(source_url) if source_url else ""
+    except Exception:
+        source_id = ""
+    roles = set(_technical_intent_roles_v69152(prompt_text))
+    selected_section = " ".join([
+        str(authority.get("section_title") or ""),
+        " ".join(str(x) for x in (authority.get("branch_paths") or []) if str(x).strip()),
+        str(authority.get("section_text") or "")[:14000],
+    ])
+    selected_tokens = set(_technical_hierarchy_tokens_v69143(selected_section))
+
+    structured = dict(authority.get("structured") or {})
+    strong_values = []
+    for row in (structured.get("fields") or []):
+        if not isinstance(row, dict):
+            continue
+        field = str(row.get("field") or "").strip().casefold()
+        value = str(row.get("value") or "").strip()
+        if field in {"protocol", "car model"} and len(value) >= 3:
+            strong_values.append(value.casefold())
+
+    scored = []
+    for raw in payloads:
+        if not isinstance(raw, dict):
+            continue
+        item = dict(raw)
+        url = str(item.get("image_url") or "").strip()
+        if not url.startswith("https://"):
+            continue
+        psource = str(item.get("source_page") or "").strip()
+        try:
+            pid = canonical_website_url_identity(psource) if psource else ""
+        except Exception:
+            pid = ""
+        if source_id and pid and pid != source_id:
+            continue
+        meta = " ".join((
+            str(item.get("section_heading") or ""),
+            str(item.get("nearby_instruction_text") or ""),
+            str(item.get("caption") or ""),
+            str(item.get("visual_analysis") or ""),
+        ))
+        meta_cf = meta.casefold()
+        meta_tokens = set(_technical_hierarchy_tokens_v69143(meta))
+        overlap = len(selected_tokens & meta_tokens)
+        strong_hits = sum(1 for value in strong_values if value and value in meta_cf)
+        role_score = _technical_hierarchy_role_score_v69152(meta, roles, title_weight=True)
+
+        # Protected Car Model/Protocol imagery must carry a strong factual anchor,
+        # unless the exact hierarchy had already selected it above.
+        if "car_model_protocol" in roles and strong_values and strong_hits <= 0:
+            continue
+        score = (strong_hits * 500.0) + (overlap * 12.0) + float(role_score or 0.0)
+        if score <= 0:
+            continue
+        scored.append((score, url))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    out, seen = [], set()
+    for _, url in scored:
+        if url in seen:
+            continue
+        seen.add(url)
+        out.append(url)
+        if len(out) >= max(1, int(max_images or 8)):
+            break
+    return out
+
+
+
+
+def _technical_exact_authority_chat_images_v69170(prompt_text, authority, max_images=8):
+    """Materialize exact-current-source image authority into chat image records.
+
+    v69169 can recover the correct factual package while intentionally disabling broad
+    provider file_search.  That means the old v69126 row-image bridge may have zero
+    provider rows.  This bridge resolves images ONLY from the already-proven current
+    source/package (selected hierarchy URLs, exact package payloads, or durable image
+    index rows from the same canonical source).  It never searches another Technical
+    file/page and therefore cannot resurrect stale semantic records.
+    """
+    authority = dict(authority or {})
+    if str(authority.get("status") or "") != "recovered":
+        return []
+
+    source_url = str(authority.get("source_url") or "").strip()
+    file_id = str(authority.get("file_id") or "").strip()
+    filename = str(authority.get("filename") or "").strip()
+    package_text = str(authority.get("package_text") or "")
+    section_title = str(
+        authority.get("selected_section_title_v69143")
+        or authority.get("section_title")
+        or ""
+    ).strip()
+    branch_paths = [
+        str(x).strip()
+        for x in (
+            authority.get("selected_branch_paths_v69143")
+            or authority.get("branch_paths")
+            or []
+        )
+        if str(x).strip()
+    ]
+
+    try:
+        source_id = canonical_website_url_identity(source_url) if source_url else ""
+    except Exception:
+        source_id = ""
+
+    roles = set(_technical_intent_roles_v69152(prompt_text))
+    selected_context = " ".join([section_title] + branch_paths)
+    selected_tokens = set(_technical_hierarchy_tokens_v69143(selected_context))
+
+    structured = dict(authority.get("structured") or {})
+    strong_values = []
+    for row in (structured.get("fields") or []):
+        if not isinstance(row, dict):
+            continue
+        field = str(row.get("field") or "").strip().casefold()
+        value = str(row.get("value") or "").strip()
+        if field in {"protocol", "car model"} and len(value) >= 3:
+            strong_values.append(value.casefold())
+
+    preferred_urls = []
+    seen_urls = set()
+    for url in (authority.get("selected_image_urls_v69143") or []):
+        url = str(url or "").strip()
+        if url.startswith("https://") and url not in seen_urls:
+            seen_urls.add(url)
+            preferred_urls.append(url)
+
+    candidates = []
+
+    def add_payload(raw, origin):
+        if not isinstance(raw, dict):
+            return
+        item = dict(raw)
+        url = str(item.get("image_url") or "").strip()
+        if not url.startswith("https://"):
+            return
+        psource = str(item.get("source_page") or "").strip()
+        try:
+            pid = canonical_website_url_identity(psource) if psource else ""
+        except Exception:
+            pid = ""
+        if source_id and pid and pid != source_id:
+            return
+
+        pfile = str(item.get("file_id_v69012") or item.get("file_id") or "").strip()
+        # File-id mismatch is disqualifying only when both sides provide one.
+        if file_id and pfile and pfile != file_id:
+            return
+
+        heading = str(item.get("section_heading") or "")
+        nearby = str(item.get("nearby_instruction_text") or "")
+        caption = str(item.get("caption") or "")
+        analysis = str(item.get("visual_analysis") or "")
+        meta = " ".join((heading, nearby, caption, analysis))
+        meta_cf = meta.casefold()
+        meta_tokens = set(_technical_hierarchy_tokens_v69143(meta))
+        ancestry_overlap = len(selected_tokens & meta_tokens)
+        strong_hits = sum(1 for value in strong_values if value and value in meta_cf)
+        role_score = _technical_hierarchy_role_score_v69152(meta, roles, title_weight=True)
+
+        query_role = ""
+        try:
+            query_role = _website_image_query_role_v68884(prompt_text)
+        except Exception:
+            query_role = ""
+        conflict_terms = {
+            "car_model_ac": (
+                "audio", "amplifier", "factory amp", "temperature unit",
+                "weather", "navigation", "camera", "wiring", "harness",
+            ),
+            "protocol": (
+                "audio", "amplifier", "temperature unit", "weather",
+                "navigation", "camera", "wiring", "harness",
+            ),
+        }
+        if query_role and any(term in meta_cf for term in conflict_terms.get(query_role, ())):
+            return
+
+        is_preferred = url in seen_urls
+        clean_heading = re.sub(r"[^a-z0-9]+", " ", heading.casefold()).strip()
+        clean_section = re.sub(r"[^a-z0-9]+", " ", section_title.casefold()).strip()
+        exact_ancestry = bool(
+            clean_heading
+            and clean_section
+            and (
+                clean_heading == clean_section
+                or (len(clean_section.split()) >= 2 and clean_section in clean_heading)
+                or (len(clean_heading.split()) >= 2 and clean_heading in clean_section)
+            )
+        )
+
+        # For protected Car Model/Protocol turns, a same-page image is not enough.
+        # Require exact selected URL, exact section ancestry, or a strong verified
+        # factual anchor. This rejects Audio/Temperature/Climate troubleshooting.
+        if "car_model_protocol" in roles:
+            if not (is_preferred or exact_ancestry or strong_hits > 0):
+                return
+            if strong_values and not is_preferred and not exact_ancestry and strong_hits <= 0:
+                return
+
+        score = (
+            (10000.0 if is_preferred else 0.0)
+            + strong_hits * 800.0
+            + ancestry_overlap * 35.0
+            + float(role_score or 0.0)
+            + (30.0 if origin == "exact_package" else 10.0)
+        )
+        if score <= 0 and not is_preferred:
+            return
+        candidates.append((score, url, item, origin))
+
+    if package_text:
+        try:
+            for raw in _website_structured_image_payloads_from_file_v69012(
+                package_text, filename, file_id
+            ) or []:
+                add_payload(raw, "exact_package")
+        except Exception:
+            pass
+        try:
+            for raw in _website_legacy_html_payloads_from_file_v69012(
+                package_text, filename, file_id
+            ) or []:
+                add_payload(raw, "exact_package")
+        except Exception:
+            pass
+
+    # Durable-index fallback is still exact-source-bound: no semantic search, no
+    # another page, and no different file when the durable row carries file identity.
+    try:
+        durable_rows = list(_website_image_index_rows_v68883() or [])
+    except Exception:
+        durable_rows = []
+    for raw in durable_rows:
+        if not isinstance(raw, dict):
+            continue
+        if str(raw.get("database_choice") or "") != "Technical Support Database":
+            continue
+        add_payload(raw, "durable_index")
+
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    out = []
+    used = set()
+    limit = max(1, int(max_images or 8))
+    for score, url, payload, origin in candidates:
+        if url in used:
+            continue
+        used.add(url)
+        rec = None
+        try:
+            rec = _website_image_record_for_chat_v68883(payload)
+        except Exception:
+            rec = None
+        if not rec:
+            rec = {
+                "name": str(
+                    payload.get("caption")
+                    or payload.get("section_heading")
+                    or section_title
+                    or "Relevant instruction image"
+                ).strip()[:180],
+                "data_url": url,
+                "source": "website_knowledge",
+                "asset_type": "website_instruction_image",
+                "archive_web_url": url,
+                "generated": False,
+                "website_source_page_v69010": str(payload.get("source_page") or source_url).strip(),
+                "website_page_title_v69010": str(payload.get("page_title") or authority.get("page_title") or "").strip(),
+                "website_section_heading_v69010": str(payload.get("section_heading") or section_title).strip(),
+                "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
+                "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
+                "website_file_id_v69012": file_id,
+            }
+        rec["website_section_bound_v69143"] = True
+        rec["website_section_bound_v69170"] = True
+        rec["website_section_image_authority_v69170"] = origin
+        rec["technical_authority_file_id_v69144"] = file_id
+        rec["technical_authority_source_url_v69144"] = source_url
+        rec["technical_authority_page_title_v69144"] = str(authority.get("page_title") or "")
+        rec["technical_authority_section_title_v69144"] = section_title
+        rec["technical_authority_branch_paths_v69144"] = branch_paths
+        rec["technical_authority_version_v69144"] = 69170
+        rec["technical_image_publication_score_v69170"] = float(score)
+        out.append(rec)
+        if len(out) >= limit:
+            break
+
+    diagnostic_log(
+        "technical_exact_authority_image_publication_v69170",
+        source_url=source_url[:700],
+        file_id=file_id[:200],
+        section=section_title[:300],
+        preferred_urls=len(preferred_urls),
+        candidates=len(candidates),
+        published=len(out),
+    )
+    return out
+
+def _technical_current_source_bound_recovery_v69169(prompt_text, current_authority):
+    """Recover only from the exact current file already identified by v69164.
+
+    This is the missing handoff between v69167 fail-closed locking and the proven
+    v69050/v69125 behavior. It never performs a semantic vector search and can never
+    switch to a different file. Values are parsed only from the locked package.
+    """
+    current = dict(current_authority or {})
+    status = str(current.get("status") or "")
+    if not status.startswith("known_current"):
+        return {"status": "not_applicable"}
+    package_text = str(current.get("package_text") or "")
+    file_id = str(current.get("file_id") or "").strip()
+    if not package_text or not file_id:
+        return {
+            "status": "bound_source_unavailable",
+            "reason_code": "CURRENT_PACKAGE_TEXT_OR_FILE_MISSING",
+            "file_id": file_id,
+            "source_url": str(current.get("source_url") or ""),
+        }
+
+    # First reuse the hierarchy-aware selector when any usable hierarchy survives.
+    hierarchy_pick = {}
+    try:
+        hierarchy_pick = dict(_technical_hierarchy_excerpt_v69152(package_text, prompt_text) or {})
+    except Exception:
+        hierarchy_pick = {}
+    section_text = str(hierarchy_pick.get("excerpt") or "").strip()
+    section_title = str(hierarchy_pick.get("section_title") or "").strip()
+    branch_paths = list(hierarchy_pick.get("branch_paths") or [])
+    selected_urls = list(hierarchy_pick.get("image_urls") or [])
+
+    # Legacy exact packages may have no current hierarchy marker. Use the existing
+    # literal same-file section-window selector; it never searches another file.
+    if not section_text:
+        try:
+            section_text = str(
+                _technical_package_section_excerpt_v69142(package_text, prompt_text)
+                or ""
+            ).strip()
+        except Exception:
+            section_text = ""
+    if not section_text:
+        return {
+            "status": "bound_source_unavailable",
+            "reason_code": "NO_CURRENT_SOURCE_SECTION_TEXT",
+            "file_id": file_id,
+            "source_url": str(current.get("source_url") or ""),
+        }
+
+    authority = {
+        "status": "selected",
+        "file_id": file_id,
+        "filename": str(current.get("filename") or ""),
+        "source_url": str(current.get("source_url") or ""),
+        "page_title": str(current.get("page_title") or ""),
+        "package_text": package_text,
+        "section_title": section_title,
+        "section_id": "",
+        "branch_paths": branch_paths,
+        "section_text": section_text[:42000],
+        "selected_image_urls_v69143": selected_urls,
+        "selected_section_title_v69143": section_title,
+        "selected_branch_paths_v69143": branch_paths,
+        "image_evidence": _technical_exact_package_image_evidence_v69155(
+            package_text, selected_urls
+        ),
+        "selector_version": 69169,
+        "current_source_bound_recovery_v69169": True,
+    }
+    literal = _technical_literal_configuration_v69156(prompt_text, authority)
+    if not _technical_literal_is_sufficient_v69156(prompt_text, literal):
+        return {
+            "status": "bound_source_unavailable",
+            "reason_code": "CURRENT_SOURCE_LITERAL_INSUFFICIENT",
+            "file_id": file_id,
+            "filename": authority["filename"],
+            "source_url": authority["source_url"],
+            "page_title": authority["page_title"],
+            "package_text": package_text,
+            "section_text": section_text[:42000],
+        }
+
+    structured = _technical_merge_structured_v69156(
+        literal, {"status": "not_needed", "fields": [], "branches": []}
+    )
+    if not _technical_table_rows_from_structured_v69155(structured):
+        return {
+            "status": "bound_source_unavailable",
+            "reason_code": "CURRENT_SOURCE_NO_STRUCTURED_ROWS",
+            "file_id": file_id,
+            "source_url": authority["source_url"],
+        }
+
+    authority["literal_structured_v69156"] = literal
+    authority["model_structured_v69156"] = {
+        "status": "not_needed", "fields": [], "branches": []
+    }
+    authority["structured"] = structured
+    authority["deterministic_literal_authority_v69156"] = True
+    authority["locked_exact_file_literal_recovery_v69169"] = True
+    authority["selected_image_urls_v69143"] = _technical_bound_image_urls_v69169(
+        prompt_text, authority, max_images=8
+    )
+    authority["selected_section_title_v69143"] = section_title
+    authority["selected_branch_paths_v69143"] = branch_paths
+    authority["image_evidence"] = _technical_exact_package_image_evidence_v69155(
+        package_text, authority["selected_image_urls_v69143"]
+    )
+    authority["status"] = "recovered"
+    authority["context"] = _technical_authority_context_v69155(authority)
+    authority["rows"] = [{
+        "file_id": file_id,
+        "filename": authority["filename"],
+        "score": 1.0,
+        "text": authority["section_text"][:50000],
+        "technical_current_source_bound_recovery_v69169": True,
+    }]
+    return authority
+
 def _technical_full_package_authority_from_file_v69163(
     prompt_text,
     file_id,
@@ -75461,34 +75928,60 @@ else:
                             elif lock_status_v69164.startswith(
                                 "known_current"
                             ):
-                                # v69168 PRODUCTION FIX:
-                                # v69167 failed here by setting use_file_search=False and
-                                # publishing a synthetic unavailable answer before the
-                                # proven v69125/v69050 baseline could run.  A structural
-                                # parser miss is not authority to disable the working
-                                # provider path.  Keep the current-source diagnosis for
-                                # telemetry, but leave use_file_search unchanged and leave
-                                # the synthetic safe-answer empty so v69124/v69125 and,
-                                # when incomplete, normal v69050 provider file_search execute.
-                                technical_current_source_baseline_recovery_v69168 = True
-                                technical_current_source_safe_answer_v69164 = ""
-                                diagnostic_log(
-                                    "technical_known_current_baseline_recovery_v69168",
-                                    status=lock_status_v69164[:120],
-                                    file_id=str(
-                                        technical_current_source_lock_v69164.get(
-                                            "file_id"
+                                # v69169 FINAL: never broaden a known-current source miss
+                                # into an unrestricted semantic Technical search. First
+                                # recover literal settings from the SAME already-locked file.
+                                # This restores the working F450/LO/HI authority while
+                                # preventing stale F150-HI/09-12 records from winning.
+                                try:
+                                    bound_current_v69169 = (
+                                        _technical_current_source_bound_recovery_v69169(
+                                            technical_request_prompt_v68879,
+                                            technical_current_source_lock_v69164,
                                         )
-                                        or ""
-                                    )[:160],
-                                    source_url=str(
-                                        technical_current_source_lock_v69164.get(
-                                            "source_url"
-                                        )
-                                        or ""
-                                    )[:700],
-                                    use_file_search=bool(use_file_search),
-                                )
+                                    )
+                                except Exception as error_v69169:
+                                    bound_current_v69169 = {
+                                        "status": "bound_source_unavailable",
+                                        "reason_code": "BOUND_RECOVERY_EXCEPTION",
+                                    }
+                                    diagnostic_log(
+                                        "technical_current_source_bound_recovery_failed_v69169",
+                                        error_type=type(error_v69169).__name__,
+                                        error=str(error_v69169)[:600],
+                                    )
+                                if str(bound_current_v69169.get("status") or "") == "recovered":
+                                    technical_full_package_authority_v69155 = dict(bound_current_v69169)
+                                    technical_current_source_baseline_recovery_v69168 = False
+                                    technical_current_source_safe_answer_v69164 = ""
+                                    use_file_search = False
+                                    diagnostic_log(
+                                        "technical_current_source_bound_v69169",
+                                        file_id=str(bound_current_v69169.get("file_id") or "")[:160],
+                                        source_url=str(bound_current_v69169.get("source_url") or "")[:700],
+                                        images=len(bound_current_v69169.get("selected_image_urls_v69143") or []),
+                                    )
+                                else:
+                                    # A known current source that cannot be verified must fail
+                                    # closed. Broad v69050/v69125 semantic fallback is safe only
+                                    # when no current source is known; otherwise it can resurrect
+                                    # an older conflicting package, as v69168 did in production.
+                                    technical_current_source_baseline_recovery_v69168 = False
+                                    use_file_search = False
+                                    technical_current_source_safe_answer_v69164 = (
+                                        "## Current Technical Source Temporarily Unavailable\n\n"
+                                        "The current reviewed AutoTecPro Technical source was identified, "
+                                        "but its exact requested configuration could not be verified from "
+                                        "that same source. No older or conflicting Technical record was used. "
+                                        "Please re-submit or refresh the current source before relying on a setting."
+                                    )
+                                    diagnostic_log(
+                                        "technical_known_current_fail_closed_v69169",
+                                        status=lock_status_v69164[:120],
+                                        reason=str(bound_current_v69169.get("reason_code") or "")[:160],
+                                        file_id=str(technical_current_source_lock_v69164.get("file_id") or "")[:160],
+                                        source_url=str(technical_current_source_lock_v69164.get("source_url") or "")[:700],
+                                    )
                     except Exception as error_v69164:
                         diagnostic_log(
                             "technical_active_source_lock_failed_v69164",
@@ -77060,6 +77553,39 @@ else:
                     )
                 section_status_v69145=str(section_state_v69143.get("status") or "")
                 section_images_v69143 = _technical_section_bound_chat_images_v69143(section_state_v69143)
+                # v69170: v69169 may intentionally bypass provider file_search, leaving
+                # the legacy row-image bridge empty. Materialize image records directly
+                # from the exact factual current source before the final section lock.
+                if section_status_v69145 in {"recovered", "recovered_followup"}:
+                    exact_authority_images_v69170 = _technical_exact_authority_chat_images_v69170(
+                        technical_request_prompt_v68879,
+                        section_state_v69143,
+                        max_images=8,
+                    )
+                    if exact_authority_images_v69170:
+                        section_images_v69143 = _dedupe_website_chat_images_v68883(
+                            list(section_images_v69143 or []) + list(exact_authority_images_v69170)
+                        )
+                        recovered_urls_v69170 = [
+                            str(img.get("archive_web_url") or img.get("data_url") or "").strip()
+                            for img in exact_authority_images_v69170
+                            if isinstance(img, dict)
+                            and str(img.get("archive_web_url") or img.get("data_url") or "").strip().startswith("https://")
+                        ]
+                        if recovered_urls_v69170:
+                            section_state_v69143["selected_image_urls_v69143"] = list(dict.fromkeys(
+                                list(section_state_v69143.get("selected_image_urls_v69143") or [])
+                                + recovered_urls_v69170
+                            ))
+                            if str((locals().get("technical_full_package_authority_v69155") or {}).get("status") or "") == "recovered":
+                                technical_full_package_authority_v69155["selected_image_urls_v69143"] = list(
+                                    section_state_v69143["selected_image_urls_v69143"]
+                                )
+                    diagnostic_log(
+                        "technical_exact_authority_image_bridge_live_v69170",
+                        legacy_section_images=len(section_images_v69143 or []),
+                        exact_authority_images=len(exact_authority_images_v69170 or []),
+                    )
                 if section_status_v69145 in {"recovered", "recovered_followup"}:
                     # v69145 final image provenance lock: once exact section authority
                     # exists, every earlier generic/legacy website image is removed.
