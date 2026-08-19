@@ -56484,7 +56484,7 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
                 rows=[dict(r) for r in (_website_vector_store_file_rows_v68892(store) or []) if isinstance(r,dict) and str(r.get("file_id") or "").strip() and str(r.get("filename") or "").startswith("website_")]
                 # Concurrent file reads keep cold-start bounded without serial N-file latency.
                 from concurrent.futures import ThreadPoolExecutor as Pool, as_completed
-                workers=max(2,min(12,len(rows) or 2))
+                workers=max(2,min(4,len(rows) or 2))
                 with Pool(max_workers=workers,thread_name_prefix="atp-workspace-files-v69180") as pool:
                     futures={pool.submit(_website_openai_file_text_v68892,str(r.get("file_id") or "")):r for r in rows}
                     for future in as_completed(futures):
@@ -56539,6 +56539,151 @@ def _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.25):
     return packages,status
 
 
+
+def _workspace_atp_compact_context_v69181(package, prompt_text):
+    """Compact exact Sales/Marketing ATP authority without removing any safety/retrieval gate.
+
+    v69180 injected up to ~60k characters (full semantic payload + broad webpage text)
+    and still kept the established multi-store file_search enabled. v69181 keeps the
+    exact same selected package and file_search contract, but sends only the highest-
+    value machine metadata plus inquiry-related literal webpage windows. This reduces
+    provider prefill/token latency without broadening or changing authority.
+    """
+    package = dict(package or {})
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    scripts = dict(semantics.get("scripts") or {}) if isinstance(semantics.get("scripts"), dict) else {}
+
+    # Highest-value exact ATP scripts. Keep structured facts and page identity first.
+    compact_scripts = {}
+    for sid in (
+        "autotecpro-ai-metadata",
+        "autotecpro-ai-facts",
+        "autotecpro-ai-aliases",
+    ):
+        value = scripts.get(sid)
+        if isinstance(value, (dict, list)):
+            compact_scripts[sid] = value
+
+    # Section-level scripts are retained only when they lexically overlap the prompt.
+    prompt_tokens = {
+        x for x in re.findall(r"[a-z0-9]+", str(prompt_text or "").casefold())
+        if len(x) > 2
+    }
+    section_candidates = []
+    for sid, value in scripts.items():
+        if not str(sid).startswith("section:") or not isinstance(value, (dict, list)):
+            continue
+        raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        tokens = set(re.findall(r"[a-z0-9]+", raw.casefold()))
+        overlap = len(prompt_tokens & tokens)
+        if overlap:
+            section_candidates.append((overlap, str(sid), value))
+    section_candidates.sort(key=lambda row: (row[0], row[1]), reverse=True)
+    for _, sid, value in section_candidates[:4]:
+        compact_scripts[sid] = value
+
+    # Only exact auto-display images need to be sent to the model; full image inventory
+    # remains preserved in the package/cache and in the existing durable image pipeline.
+    compact_images = []
+    for row in (semantics.get("images") or []):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("data-atp-auto-display") or "").strip().casefold() != "true":
+            continue
+        compact_images.append({
+            key: row.get(key)
+            for key in (
+                "src", "alt", "title",
+                "data-atp-image-role", "data-atp-section", "data-atp-topic",
+                "data-atp-authority", "data-atp-auto-display",
+                "data-atp-priority", "data-atp-related-heading",
+            )
+            if row.get(key) not in (None, "")
+        })
+        if len(compact_images) >= 8:
+            break
+
+    # Relevant headings only. These are routing aids, not a replacement for source text.
+    compact_headings = []
+    ranked_headings = []
+    for row in (semantics.get("headings") or []):
+        if not isinstance(row, dict):
+            continue
+        raw = " ".join(str(row.get(k) or "") for k in (
+            "id", "data-atp-title", "data-atp-title-normalized",
+            "data-atp-section", "data-atp-topic",
+        ))
+        tokens = set(re.findall(r"[a-z0-9]+", raw.casefold()))
+        overlap = len(prompt_tokens & tokens)
+        if overlap:
+            ranked_headings.append((overlap, row))
+    ranked_headings.sort(key=lambda item: item[0], reverse=True)
+    for _, row in ranked_headings[:12]:
+        compact_headings.append({
+            key: row.get(key)
+            for key in (
+                "tag", "id", "data-atp-title", "data-atp-section",
+                "data-atp-topic", "data-atp-authority",
+                "data-atp-parent-node",
+            )
+            if row.get(key) not in (None, "")
+        })
+
+    compact_semantics = {
+        "schema": semantics.get("schema"),
+        "page_url": semantics.get("page_url"),
+        "root": dict(semantics.get("root") or {}),
+        "scripts": compact_scripts,
+        "headings": compact_headings,
+        "images": compact_images,
+    }
+
+    package_text = str(package.get("package_text") or "")
+    excerpt = ""
+    try:
+        excerpt = str(
+            _technical_package_section_excerpt_v69142(
+                package_text, prompt_text, max_windows=2
+            ) or ""
+        ).strip()
+    except Exception:
+        excerpt = ""
+    if not excerpt:
+        excerpt = str(package.get("webpage_text") or "")[:16000]
+
+    semantic_json = json.dumps(
+        compact_semantics,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return semantic_json[:14000], excerpt[:18000]
+
+
+def _technical_exact_atp_image_ready_v69181(prompt_text):
+    """Cheap local-only probe used only to skip redundant Technical image prefetch.
+
+    No network/vector/provider call is made here. If a warm ATP contract and an exact
+    auto-display image already exist, the later v69178/v69179 authority path will bind
+    the same source, so the legacy early image prefetch is redundant.
+    """
+    try:
+        stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+        if not stores:
+            return False
+        contract = _technical_metadata_fast_contract_v69178(
+            prompt_text, str(stores[0] or "").strip()
+        )
+        authority = dict((contract or {}).get("authority") or {})
+        if not authority:
+            return False
+        urls = _technical_atp_semantic_image_urls_v69179(
+            prompt_text, authority, max_images=1
+        )
+        return bool(urls)
+    except Exception:
+        return False
+
 def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
     """Select one exact ATP Sales/Marketing package by deterministic vehicle/year/system/product identity."""
     workspace=str(workspace_label or "")
@@ -56577,16 +56722,19 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
             return {}
     package=dict(top[3]); semantics=dict(package.get("atp_semantics_v69178") or {})
     if not semantics: return {}
-    # Keep the prompt compact: exact structured metadata + reviewed page text from the same package.
-    semantic_json=json.dumps(semantics,ensure_ascii=False,sort_keys=True,separators=(",",":"))
+    # v69181: same exact package authority, much smaller provider prefill.
+    semantic_json, relevant_webpage_excerpt = _workspace_atp_compact_context_v69181(
+        package, prompt
+    )
     context=(
-        "\n\nAUTOTECPRO ATP METADATA-FIRST AUTHORITY (v69180)\n"
+        "\n\nAUTOTECPRO ATP METADATA-FIRST AUTHORITY (v69181)\n"
         f"Destination: {destination}\nSource URL: {package.get('source_url') or ''}\n"
         "This exact learned AutoTecPro page was selected by deterministic vehicle/year/system/product identity. "
-        "Use its ATP structured metadata as the first authority, then its reviewed WEBPAGE TEXT. Do not broaden to another page or workspace. "
+        "Use its ATP structured metadata as the first authority, then its reviewed inquiry-related WEBPAGE TEXT. "
+        "Do not broaden to another page or workspace. The established workspace file_search remains enabled for supporting knowledge. "
         "If a requested fact is absent, say it is not stated instead of guessing.\n"
-        f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json[:28000]}\n\n"
-        f"REVIEWED WEBPAGE TEXT:\n{str(package.get('webpage_text') or '')[:32000]}\n"
+        f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json}\n\n"
+        f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n{relevant_webpage_excerpt}\n"
     )
     row={"file_id":str(package.get("file_id") or ""),"filename":str(package.get("filename") or ""),"score":1.0,"text":str(package.get("package_text") or ""),"workspace_atp_metadata_first_v69180":True}
     return {"status":"recovered","destination":destination,"context":context,"row":row,"package":package,"score":top[0],"source_url":str(package.get("source_url") or "")}
@@ -77015,10 +77163,27 @@ else:
         technical_image_prefetch_executor_v69015 = None
         technical_image_prefetch_future_v69015 = None
         technical_image_prefetch_cached_rows_v69016 = []
+        technical_exact_atp_image_ready_v69181 = False
         if (
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
             and str(technical_request_prompt_v68879 or "").strip()
+        ):
+            technical_exact_atp_image_ready_v69181 = (
+                _technical_exact_atp_image_ready_v69181(
+                    technical_request_prompt_v68879
+                )
+            )
+            if technical_exact_atp_image_ready_v69181:
+                diagnostic_log(
+                    "technical_redundant_image_prefetch_skipped_v69181",
+                    reason="exact_atp_auto_display_image_already_warm",
+                )
+        if (
+            assistant == "🔧 Technical Support"
+            and bool(use_file_search)
+            and str(technical_request_prompt_v68879 or "").strip()
+            and not technical_exact_atp_image_ready_v69181
         ):
             try:
                 technical_early_index_images_v69016 = _website_image_lookup_v68883(
@@ -79896,9 +80061,9 @@ else:
                         error_type=type(error).__name__, error=str(error)[:500],
                     )
 
-        # v69180: when Sales/Marketing used an exact ATP metadata-first package, try its
-        # explicitly authored auto-display images first. The existing durable fitment and
-        # final publication gates remain unchanged; generic v69050 recovery is the fallback.
+        # v69180/v69181: exact ATP images first. v69181 skips the legacy v69050
+        # dedicated image search when these exact, already-gated images survive.
+        workspace_atp_images_v69180 = []
         if (is_sales_workspace(assistant) or is_marketing_workspace(assistant)) and str(
             (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
         ) == "recovered":
@@ -79926,7 +80091,10 @@ else:
         # then (only if no eligible image survived) run a dedicated search in
         # the active workspace's own store and reconstruct a structured image
         # record for the unchanged final publisher.
-        if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
+        if (
+            (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+            and not workspace_atp_images_v69180
+        ):
             try:
                 workspace_images_v69050 = _workspace_automatic_image_recovery_v69050(
                     assistant,
