@@ -1,4 +1,4 @@
-# AutoTecPro AI v69177 FINAL PRODUCTION — v69125 Technical core + exact same-file/same-section authority + intelligent transactional link learning + protected Graphic authority preserved.
+# AutoTecPro AI v69178 FINAL PRODUCTION — ATP semantic metadata authority + Technical fast exact-source path; v69177 transactions/history and protected Graphic authority preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -40859,6 +40859,15 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
         return {"context":"","rows":[],"status":"no_store","contract_complete":False}
     store = str(stores[0] or "").strip()
 
+    # v69178: ATP-tagged pages injected by website learning are already parsed into
+    # the process-persistent package snapshot. Resolve them locally before any OpenAI
+    # file_search, branch fan-out, candidate hydration, or legacy inventory probe.
+    try:
+        metadata_contract_v69178 = _technical_metadata_fast_contract_v69178(prompt_text, store)
+    except Exception as metadata_fast_error_v69178:
+        metadata_contract_v69178 = {}
+        diagnostic_log("technical_metadata_fast_path_failed_v69178", error_type=type(metadata_fast_error_v69178).__name__, error=str(metadata_fast_error_v69178)[:400])
+
     def result_from_contract(contract, route):
         if not contract:
             return None
@@ -40888,6 +40897,16 @@ def _technical_same_family_variant_evidence_v69124(prompt_text):
         }
         result["context"] += "\\n\\n" + _technical_variant_contract_context_v69125(result)
         return result
+
+    if metadata_contract_v69178:
+        bound_v69178 = result_from_contract(metadata_contract_v69178, "atp_metadata_local_v69178")
+        if bound_v69178:
+            diagnostic_log(
+                "technical_metadata_fast_contract_bound_v69178",
+                file_id=str(metadata_contract_v69178.get("file_id") or "")[:120],
+                source_url=str(metadata_contract_v69178.get("source_url") or "")[:500],
+            )
+            return bound_v69178
 
     try:
         exact_source = _technical_exact_source_recovery_v69150(prompt_text)
@@ -50191,6 +50210,142 @@ WEBSITE_LEARNING_RELEASE_V69000 = "v69000-final-website-precision"
 WEBSITE_INGESTION_AUTHORITY_VERSION_V69024 = "v69025-source-zone-provenance-2"
 
 
+def _website_extract_atp_semantics_v69178(page_html, page_url=""):
+    """Extract AutoTecPro-owned semantic metadata without changing visible HTML parsing.
+
+    The ordinary readable-text parser intentionally skips <script> content. ATP semantic
+    JSON is therefore parsed on a separate trusted-by-structure path and is stored as
+    machine-readable provenance, never rendered as customer-facing webpage text.
+    """
+    value = str(page_html or "")
+    if not value:
+        return {}
+
+    scripts = {}
+    for match in re.finditer(
+        r'<script\b(?P<attrs>[^>]*)>(?P<body>[\s\S]*?)</script\s*>',
+        value,
+        flags=re.I,
+    ):
+        attrs = str(match.group("attrs") or "")
+        body = html.unescape(str(match.group("body") or "").strip())
+        id_match = re.search(r"\bid\s*=\s*['\"]([^'\"]+)['\"]", attrs, flags=re.I)
+        sid = str(id_match.group(1) or "").strip() if id_match else ""
+        section_match = re.search(
+            r"\bdata-atp-section-data\s*=\s*['\"]([^'\"]+)['\"]",
+            attrs,
+            flags=re.I,
+        )
+        section_id = str(section_match.group(1) or "").strip() if section_match else ""
+        if not sid.startswith("autotecpro-ai-") and not section_id:
+            continue
+        try:
+            parsed = json.loads(body)
+        except Exception:
+            continue
+        if not isinstance(parsed, (dict, list)):
+            continue
+        key = sid or ("section:" + section_id)
+        scripts[key] = parsed
+
+    class _ATPAttrParser(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.root = {}
+            self.headings = []
+            self.images = []
+        def handle_starttag(self, tag, attrs):
+            tag = str(tag or "").casefold()
+            a = {str(k or "").casefold(): str(v or "") for k, v in (attrs or []) if k}
+            atp = {k: v for k, v in a.items() if k.startswith("data-atp-")}
+            if a.get("id") == "atp-manual-top" and atp:
+                self.root.update(atp)
+            if tag in {"h1","h2","h3","h4","h5","h6"} and atp:
+                self.headings.append({"tag": tag, "id": a.get("id", ""), **atp})
+            if tag == "img" and atp:
+                src = ""
+                for key in ("data-orig-file","data-large-file","data-full","data-full-src","src"):
+                    if a.get(key):
+                        src = a.get(key); break
+                self.images.append({
+                    "src": urljoin(str(page_url or ""), html.unescape(src)) if src else "",
+                    "alt": a.get("alt", ""),
+                    "title": a.get("title", ""),
+                    **atp,
+                })
+    attr_parser = _ATPAttrParser()
+    try:
+        attr_parser.feed(value)
+        attr_parser.close()
+    except Exception:
+        pass
+
+    if not scripts and not attr_parser.root and not attr_parser.headings and not attr_parser.images:
+        return {}
+    return {
+        "schema": "autotecpro-ai-semantic-ingest-v69178",
+        "page_url": str(page_url or ""),
+        "root": dict(attr_parser.root),
+        "scripts": scripts,
+        "headings": list(attr_parser.headings),
+        "images": list(attr_parser.images),
+    }
+
+
+def _website_atp_semantic_package_json_v69178(extraction):
+    payload = dict((extraction or {}).get("atp_semantic_metadata_v69178") or {})
+    if not payload:
+        return ""
+    try:
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    except Exception:
+        return ""
+
+
+def _website_apply_atp_image_metadata_v69178(image_candidates, semantics):
+    """Bind exact data-atp image attributes to normalized candidates by logical asset."""
+    rows = [dict(x) for x in (image_candidates or []) if isinstance(x, dict)]
+    semantic_images = [dict(x) for x in ((semantics or {}).get("images") or []) if isinstance(x, dict)]
+    if not rows or not semantic_images:
+        return rows
+    by_asset = {}
+    for meta in semantic_images:
+        src = str(meta.get("src") or "").strip()
+        if not src:
+            continue
+        try:
+            key = _website_asset_identity_v68999(normalize_website_url(src))
+        except Exception:
+            key = src.casefold()
+        by_asset[key] = meta
+    for row in rows:
+        url = str(row.get("url") or "").strip()
+        try:
+            key = _website_asset_identity_v68999(url)
+        except Exception:
+            key = url.casefold()
+        meta = by_asset.get(key)
+        if not meta:
+            continue
+        row["atp_semantic_image_v69178"] = True
+        row["atp_image_role_v69178"] = str(meta.get("data-atp-image-role") or "")
+        row["atp_section_v69178"] = str(meta.get("data-atp-section") or "")
+        row["atp_topic_v69178"] = str(meta.get("data-atp-topic") or "")
+        row["atp_authority_v69178"] = str(meta.get("data-atp-authority") or "")
+        row["atp_auto_display_v69178"] = str(meta.get("data-atp-auto-display") or "")
+        try:
+            row["atp_priority_v69178"] = int(float(meta.get("data-atp-priority") or 0))
+        except Exception:
+            row["atp_priority_v69178"] = 0
+        # Exact author-provided section/topic metadata outranks proximity inference.
+        if row.get("atp_section_v69178"):
+            row["nearest_heading"] = row.get("nearest_heading") or row["atp_section_v69178"]
+        if str(row.get("atp_auto_display_v69178") or "").casefold() == "true":
+            row["context_score"] = int(row.get("context_score") or 0) + 100
+            row["technical_context"] = True
+    return rows
+
+
 class KnowledgePageHTMLParser(HTMLParser):
     """Extract readable page text plus high-recall website image candidates.
 
@@ -52188,6 +52343,13 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                 "ingestion_authority_version_v69024": WEBSITE_INGESTION_AUTHORITY_VERSION_V69024,
                 "context_score": int(candidate.get("context_score") or 0),
                 "technical_context": bool(candidate.get("technical_context")),
+                "atp_semantic_image_v69178": bool(candidate.get("atp_semantic_image_v69178")),
+                "atp_image_role_v69178": str(candidate.get("atp_image_role_v69178") or "").strip(),
+                "atp_section_v69178": str(candidate.get("atp_section_v69178") or "").strip(),
+                "atp_topic_v69178": str(candidate.get("atp_topic_v69178") or "").strip(),
+                "atp_authority_v69178": str(candidate.get("atp_authority_v69178") or "").strip(),
+                "atp_auto_display_v69178": str(candidate.get("atp_auto_display_v69178") or "").strip(),
+                "atp_priority_v69178": int(candidate.get("atp_priority_v69178") or 0),
                 "analysis": analysis,
                 "sha256": digest,
                 "width": int(downloaded.get("width") or 0),
@@ -52327,6 +52489,7 @@ def build_website_knowledge_package_document(
         f"Page type v69024: {extraction.get('page_type_v69024')}",
         f"Ingestion authority: {extraction.get('ingestion_authority_version_v69024') or WEBSITE_INGESTION_AUTHORITY_VERSION_V69024}",
         f"PAGE_IDENTITY_JSON_V69024: {json.dumps(extraction.get('page_identity_v69024') or {}, ensure_ascii=False, separators=(',', ':'))}",
+        f"ATP_SEMANTIC_METADATA_JSON_V69178: {_website_atp_semantic_package_json_v69178(extraction)}",
         f"Useful website images analyzed: {len(images)}",
         "APPROVED_IMAGE_ORIGINS_V69040: " + ",".join(approved_image_origins_v69040),
         "",
@@ -52373,6 +52536,12 @@ def build_website_knowledge_package_document(
                 f"PAGE_IDENTITY_JSON_V69024: {json.dumps(item.get('page_identity_v69024') or extraction.get('page_identity_v69024') or {}, ensure_ascii=False, separators=(',', ':'))}",
                 f"INGESTION_QA_VERSION: {str(item.get('ingestion_qa_version_v69017') or '').strip()}",
                 f"IMAGE_STRUCTURED_METADATA_JSON: {json.dumps(item.get('image_structured_metadata_v69017') or {}, ensure_ascii=False, separators=(',', ':'))}",
+                f"ATP_IMAGE_ROLE_V69178: {str(item.get('atp_image_role_v69178') or '').strip()}",
+                f"ATP_IMAGE_SECTION_V69178: {str(item.get('atp_section_v69178') or '').strip()}",
+                f"ATP_IMAGE_TOPIC_V69178: {str(item.get('atp_topic_v69178') or '').strip()}",
+                f"ATP_IMAGE_AUTHORITY_V69178: {str(item.get('atp_authority_v69178') or '').strip()}",
+                f"ATP_IMAGE_AUTO_DISPLAY_V69178: {str(item.get('atp_auto_display_v69178') or '').strip()}",
+                f"ATP_IMAGE_PRIORITY_V69178: {int(item.get('atp_priority_v69178') or 0)}",
                 f"AUTO_DISPLAY_IMAGE: {item.get('url')}",
                 f"IMAGE_CAPTION: {caption}",
                 f"IMAGE_SHA256: {item.get('sha256')}",
@@ -59688,9 +59857,12 @@ def _technical_literal_configuration_v69156(prompt_text, authority):
     It learns values from the selected source. It contains no vehicle-specific values.
     """
     authority = dict(authority or {})
+    semantic_literal_v69178 = _technical_metadata_literal_configuration_v69178(prompt_text, authority)
+    if _technical_literal_is_sufficient_v69156(prompt_text, semantic_literal_v69178):
+        return semantic_literal_v69178
     text = re.sub(r"\s+", " ", str(authority.get("section_text") or "")).strip()
     if not text:
-        return {"status": "insufficient", "fields": [], "branches": []}
+        return semantic_literal_v69178 if semantic_literal_v69178.get("status") == "verified" else {"status": "insufficient", "fields": [], "branches": []}
 
     fields, branches = [], []
     field_seen, branch_seen = set(), set()
@@ -64454,6 +64626,10 @@ def extract_public_webpage(url, page_password=""):
 
         title = ""
         page_type_v69024 = _website_page_type_v69024(final_url, page_text)
+        atp_semantic_metadata_v69178 = (
+            _website_extract_atp_semantics_v69178(page_text, final_url)
+            if "text/plain" not in content_type else {}
+        )
         if "text/plain" in content_type:
             extracted_text = page_text
             parser = None
@@ -64498,6 +64674,9 @@ def extract_public_webpage(url, page_password=""):
         image_candidates = _website_image_candidate_urls(
             parser_images,
             final_url,
+        )
+        image_candidates = _website_apply_atp_image_metadata_v69178(
+            image_candidates, atp_semantic_metadata_v69178
         )
         # v69029: some WooCommerce/theme combinations expose the real current-product
         # gallery in markup forms that the strict zone-aware parser does not surface.
@@ -64548,6 +64727,7 @@ def extract_public_webpage(url, page_password=""):
             "excluded_image_count_v69024": int(getattr(parser, "excluded_image_nodes_v69024", 0) if parser is not None else 0),
             "password_protected_access": bool(clean_page_password),
             "technical_hierarchy_v69143": technical_hierarchy_v69143,
+            "atp_semantic_metadata_v69178": atp_semantic_metadata_v69178,
         }
 
 
@@ -64611,6 +64791,7 @@ def _website_knowledge_version_hash_v68892(
         "page_identity_v69024": dict(extraction.get("page_identity_v69024") or {}),
         "ingestion_authority_version_v69024": WEBSITE_INGESTION_AUTHORITY_VERSION_V69024,
         "technical_hierarchy_v69143": dict(extraction.get("technical_hierarchy_v69143") or {}),
+        "atp_semantic_metadata_v69178": dict(extraction.get("atp_semantic_metadata_v69178") or {}),
         "images": stable_images,
     }
     packed = json.dumps(
@@ -65326,6 +65507,145 @@ def _technical_resolve_active_admin_package_v69113(prompt_text):
 
 
 
+def _technical_package_atp_semantics_v69178(package_text):
+    match = re.search(
+        r"(?im)^ATP_SEMANTIC_METADATA_JSON_V69178:\s*(\{.*\})\s*$",
+        str(package_text or ""),
+    )
+    if not match:
+        return {}
+    try:
+        payload = json.loads(str(match.group(1) or ""))
+        return dict(payload) if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
+    """Build exact configuration rows from AutoTecPro-authored semantic JSON only."""
+    authority = dict(authority or {})
+    semantics = dict(authority.get("atp_semantics_v69178") or {})
+    if not semantics:
+        semantics = _technical_package_atp_semantics_v69178(authority.get("package_text") or "")
+    if not semantics:
+        return {"status":"insufficient","fields":[],"branches":[],"authority":"atp_metadata_v69178"}
+
+    scripts = dict(semantics.get("scripts") or {})
+    page = scripts.get("autotecpro-ai-metadata") if isinstance(scripts.get("autotecpro-ai-metadata"), dict) else {}
+    facts = scripts.get("autotecpro-ai-facts") if isinstance(scripts.get("autotecpro-ai-facts"), dict) else {}
+    section_payloads = [v for k,v in scripts.items() if str(k).startswith("section:") and isinstance(v,dict)]
+
+    fields=[]; branches=[]; seen_fields=set(); seen_branches=set()
+    def add_field(name, value):
+        name=re.sub(r"\s+"," ",str(name or "")).strip(); value=re.sub(r"\s+"," ",str(value or "")).strip(" .,:;|")
+        if not name or not value or name.casefold() in seen_fields: return
+        seen_fields.add(name.casefold()); fields.append({"field":name[:120],"value":value[:240],"branch":""})
+    def add_branch(label, name, value):
+        label=re.sub(r"\s+"," ",str(label or "")).strip(); name=re.sub(r"\s+"," ",str(name or "")).strip(); value=re.sub(r"\s+"," ",str(value or "")).strip(" .,:;|")
+        key=(label.casefold(),name.casefold(),value.casefold())
+        if not label or not name or not value or key in seen_branches: return
+        seen_branches.add(key)
+        target=next((b for b in branches if str(b.get("label") or "").casefold()==label.casefold()),None)
+        if target is None:
+            target={"label":label[:160],"fields":[]}; branches.append(target)
+        target["fields"].append({"field":name[:120],"value":value[:240]})
+
+    config = page.get("configuration") if isinstance(page.get("configuration"), dict) else {}
+    if config:
+        add_field("Protocol", config.get("protocol"))
+        add_field("Make", config.get("make_menu"))
+        variants=[dict(x) for x in (config.get("variants") or []) if isinstance(x,dict)]
+        car_models={str(x.get("car_model") or "").strip() for x in variants if str(x.get("car_model") or "").strip()}
+        if len(car_models)==1: add_field("Car Model", next(iter(car_models)))
+        for item in variants:
+            climate=str(item.get("climate") or "").strip()
+            label=("Manual A/C" if climate.casefold()=="manual" else "Automatic A/C" if climate.casefold() in {"automatic","auto"} else climate)
+            add_branch(label or "Configuration", "A/C Type", item.get("ac_type"))
+            if len(car_models)!=1: add_branch(label or "Configuration", "Car Model", item.get("car_model"))
+
+    for sec in section_payloads:
+        if str(sec.get("topic") or "").casefold() not in {"car-model-ac","car_model_ac","car-model-ac-protocol"} and str(sec.get("section") or "").casefold()!="protocol-settings":
+            continue
+        add_field("Protocol", sec.get("protocol")); add_field("Make", sec.get("make_menu"))
+        variants=[dict(x) for x in (sec.get("variants") or []) if isinstance(x,dict)]
+        cms={str(x.get("car_model") or "").strip() for x in variants if str(x.get("car_model") or "").strip()}
+        if len(cms)==1: add_field("Car Model", next(iter(cms)))
+        for item in variants:
+            climate=str(item.get("climate") or "").strip(); label=("Manual A/C" if climate.casefold()=="manual" else "Automatic A/C" if climate.casefold() in {"automatic","auto"} else climate)
+            add_branch(label or "Configuration", "A/C Type", item.get("ac_type"))
+            if len(cms)!=1: add_branch(label or "Configuration", "Car Model", item.get("car_model"))
+
+    protocol = facts.get("protocol") if isinstance(facts.get("protocol"), dict) else {}
+    if protocol:
+        add_field("Protocol", protocol.get("name"))
+        profiles=[dict(x) for x in (protocol.get("profiles") or []) if isinstance(x,dict)]
+        for item in profiles:
+            label=" ".join(str(x or "").strip() for x in (item.get("factory_system"),item.get("climate")) if str(x or "").strip()) or "Configuration"
+            setting=str(item.get("setting") or item.get("setting_label_exact") or "").strip()
+            if setting: add_branch(label,"Car Model / A/C Profile",setting)
+        if protocol.get("standard_sync3_automatic_climate"):
+            add_branch("SYNC 3 Automatic Climate","Car Model / A/C Profile",protocol.get("standard_sync3_automatic_climate"))
+        if protocol.get("rear_climate_correction"):
+            add_branch("Rear Climate Correction","Car Model / A/C Profile",protocol.get("rear_climate_correction"))
+
+    return {
+        "status":"verified" if (fields or branches) else "insufficient",
+        "summary":"",
+        "fields":fields,
+        "branches":branches,
+        "required_clarification":"",
+        "authority":"autotecpro_semantic_metadata_v69178",
+    }
+
+
+def _technical_metadata_fast_contract_v69178(prompt_text, store):
+    """Resolve new ATP-tagged pages from the warm package snapshot before any broad search."""
+    try:
+        state=_technical_package_prewarm_state_v69119()
+        with state["lock"]:
+            packages=[dict(x) for x in (state.get("packages") or []) if isinstance(x,dict)]
+    except Exception:
+        packages=[]
+    ranked=[]
+    for package in packages:
+        semantics=dict(package.get("atp_semantics_v69178") or {})
+        if not semantics:
+            semantics=_technical_package_atp_semantics_v69178(package.get("package_text") or "")
+        if not semantics: continue
+        try: score=_technical_package_candidate_score_v69157(prompt_text,package)
+        except Exception: score=None
+        if score is None: continue
+        ranked.append((score,package,semantics))
+    ranked.sort(key=lambda x: tuple(x[0]) if isinstance(x[0],(list,tuple)) else (x[0],), reverse=True)
+    for _score,package,semantics in ranked[:8]:
+        package_text=str(package.get("package_text") or "")
+        structural=_technical_exact_package_structure_v69156(package_text,prompt_text)
+        if str(structural.get("status") or "")!="selected": continue
+        authority={
+            "status":"selected","file_id":str(package.get("file_id") or ""),"filename":str(package.get("filename") or ""),
+            "source_url":str(package.get("source_url") or ""),"page_title":str(package.get("title") or ""),"package_text":package_text,
+            "section_title":str(structural.get("section_title") or ""),"section_id":str(structural.get("section_id") or ""),
+            "branch_paths":list(structural.get("branch_paths") or []),"section_text":str(structural.get("section_text") or ""),
+            "selected_image_urls_v69143":list(structural.get("image_urls") or []),"selected_section_title_v69143":str(structural.get("section_title") or ""),
+            "selected_branch_paths_v69143":list(structural.get("branch_paths") or []),"selected_segments_v69158":list(structural.get("segments") or []),
+            "atp_semantics_v69178":semantics,"selector_version":69178,
+        }
+        literal=_technical_metadata_literal_configuration_v69178(prompt_text,authority)
+        if not _technical_literal_is_sufficient_v69156(prompt_text,literal): continue
+        structured=_technical_merge_structured_v69156(literal,{"fields":[],"branches":[],"status":"not_needed"})
+        authority["structured"]=structured; authority["literal_structured_v69156"]=literal; authority["deterministic_literal_authority_v69156"]=True; authority["status"]="recovered"
+        authority["context"]=_technical_authority_context_v69155(authority)
+        rows=list(_technical_table_rows_from_structured_v69156(structured) or [])
+        manual=""; automatic=""
+        for field,value in rows:
+            f=re.sub(r"\s+"," ",str(field or "")).casefold(); v=str(value or "").strip()
+            if "manual" in f and re.search(r"a/?c|climate",f): manual=manual or v
+            if re.search(r"\b(?:automatic|auto)\b",f) and re.search(r"a/?c|climate",f): automatic=automatic or v
+        if manual and automatic:
+            return {"authority":authority,"file_id":authority["file_id"],"filename":authority["filename"],"source_url":authority["source_url"],"extracted_at":str(package.get("extracted_at") or ""),"manual_value":manual,"automatic_value":automatic,"rank":_score,"atp_metadata_fast_path_v69178":True}
+    return {}
+
+
 def _technical_package_from_text_v69121(file_id, filename, package_text):
     """Parse one already-reviewed Technical website package without network I/O."""
     text = str(package_text or "")
@@ -65390,6 +65710,7 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
         "years": sorted(years),
         "systems": sorted(systems),
         "product_codes": sorted(product_codes),
+        "atp_semantics_v69178": _technical_package_atp_semantics_v69178(text),
     }
 
 
