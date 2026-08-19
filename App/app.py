@@ -1,4 +1,4 @@
-# AutoTecPro AI v69180 FINAL PRODUCTION — Sales/Marketing ATP metadata-first authority on v69179; Technical and protected Graphic/Reference/Installed authority preserved.
+# AutoTecPro AI v69183 FINAL PRODUCTION — live Technical current-source authority binding + bounded live hydration + Sales/Marketing stale-metadata guard; protected Graphic/Reference/Installed preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -41175,7 +41175,11 @@ def _technical_inventory_probe_v69150(prompt_text, store, *, max_files=120, time
         from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
         executor = ThreadPoolExecutor(max_workers=min(12, max(2, len(website_rows))), thread_name_prefix="atp-tech-source-probe")
         futures = {
-            executor.submit(_website_file_full_text_v69012, str(row.get("file_id") or "")): row
+            executor.submit(
+                _technical_exact_file_text_v69182,
+                str(row.get("file_id") or ""),
+                timeout_seconds=min(3.0, max(1.0, float(timeout_seconds or 12.0) / 4.0)),
+            ): row
             for row in website_rows
         }
         try:
@@ -56443,6 +56447,17 @@ def _workspace_atp_package_inject_v69180(file_id, filename, package_text, destin
         kept.append(dict(package))
         kept.sort(key=lambda x:(str(x.get("extracted_at") or ""),str(x.get("filename") or "")), reverse=True)
         bucket["packages"] = kept
+        mapping_v69183 = {
+            "Sales Database": SALES_VECTOR_STORE_ID,
+            "Marketing Database": MARKETING_VECTOR_STORE_ID,
+        }
+        configured_v69183 = _configured_vector_store_ids(
+            mapping_v69183.get(target, "")
+        )
+        if configured_v69183:
+            current_store_v69183 = str(configured_v69183[0] or "").strip()
+            current_revision_v69183 = _website_destination_revision_v69109(target)
+            bucket["key"] = f"{current_store_v69183}::{int(current_revision_v69183 or 0)}"
         bucket["status"] = "ready"
         bucket["error"] = ""
     return True
@@ -56486,7 +56501,14 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
                 from concurrent.futures import ThreadPoolExecutor as Pool, as_completed
                 workers=max(2,min(4,len(rows) or 2))
                 with Pool(max_workers=workers,thread_name_prefix="atp-workspace-files-v69180") as pool:
-                    futures={pool.submit(_website_openai_file_text_v68892,str(r.get("file_id") or "")):r for r in rows}
+                    futures={
+                        pool.submit(
+                            _technical_exact_file_text_v69182,
+                            str(r.get("file_id") or ""),
+                            timeout_seconds=2.5,
+                        ): r
+                        for r in rows
+                    }
                     for future in as_completed(futures):
                         row=futures[future]
                         try: raw=str(future.result() or "")
@@ -56524,18 +56546,57 @@ def _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.25):
     target=str(destination or "").strip()
     _workspace_atp_package_prewarm_start_v69180(target)
     state=_workspace_atp_package_state_v69180()
+    mapping_v69183 = {
+        "Sales Database": SALES_VECTOR_STORE_ID,
+        "Marketing Database": MARKETING_VECTOR_STORE_ID,
+    }
+    configured_v69183 = _configured_vector_store_ids(
+        mapping_v69183.get(target, "")
+    )
+    current_store_v69183 = (
+        str(configured_v69183[0] or "").strip()
+        if configured_v69183 else ""
+    )
+    current_revision_v69183 = _website_destination_revision_v69109(target)
+    expected_key_v69183 = (
+        f"{current_store_v69183}::{int(current_revision_v69183 or 0)}"
+        if current_store_v69183 else ""
+    )
     with state["lock"]:
         bucket=state["destinations"].get(target) or {}
-        packages=[dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]
         future=bucket.get("future")
         status=str(bucket.get("status") or "idle")
+        key_match_v69183 = bool(
+            expected_key_v69183
+            and str(bucket.get("key") or "") == expected_key_v69183
+        )
+        packages=(
+            [dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]
+            if status == "ready" and key_match_v69183
+            else []
+        )
     if not packages and future is not None and float(wait_seconds or 0)>0:
         try: future.result(timeout=max(0.05,float(wait_seconds)))
         except Exception: pass
         with state["lock"]:
             bucket=state["destinations"].get(target) or {}
-            packages=[dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]
             status=str(bucket.get("status") or "idle")
+            key_match_v69183 = bool(
+                expected_key_v69183
+                and str(bucket.get("key") or "") == expected_key_v69183
+            )
+            packages=(
+                [dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]
+                if status == "ready" and key_match_v69183
+                else []
+            )
+    if not packages and status in {"running", "stale_ready", "refreshing"}:
+        diagnostic_log(
+            "workspace_atp_stale_metadata_blocked_v69183",
+            destination=target,
+            status=status,
+            key_match=bool(key_match_v69183),
+        )
     return packages,status
 
 
@@ -63503,6 +63564,66 @@ def _technical_active_authority_commit_verified_v69167(
     }
 
 
+
+def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
+    """Bounded exact-file read for current Technical authority.
+
+    This is intentionally NOT a semantic search. It reads only the already-proven
+    exact OpenAI file id, with zero SDK retries and a short timeout. On timeout/error,
+    callers continue to the independently verified same-source durable snapshot or
+    the existing fail-closed/fallback path. This prevents one file-content request
+    from holding the Streamlit request for minutes.
+    """
+    clean_id = str(file_id or "").strip()
+    if not clean_id:
+        return ""
+    try:
+        fast_client = client.with_options(
+            timeout=max(0.5, float(timeout_seconds or 3.5)),
+            max_retries=0,
+        )
+        response = fast_client.files.content(clean_id)
+    except Exception as error:
+        diagnostic_log(
+            "technical_exact_file_read_bounded_failed_v69182",
+            file_id=clean_id[:160],
+            timeout_seconds=float(timeout_seconds or 3.5),
+            error_type=type(error).__name__,
+            error=str(error)[:300],
+        )
+        return ""
+
+    if isinstance(response, bytes):
+        value = response.decode("utf-8", errors="replace")
+    elif isinstance(response, bytearray):
+        value = bytes(response).decode("utf-8", errors="replace")
+    elif isinstance(response, str):
+        value = response
+    else:
+        value = getattr(response, "text", None)
+        if not isinstance(value, str) or not value:
+            raw = getattr(response, "content", None)
+            if isinstance(raw, bytes):
+                value = raw.decode("utf-8", errors="replace")
+            elif isinstance(raw, str):
+                value = raw
+            else:
+                reader = getattr(response, "read", None)
+                if callable(reader):
+                    try:
+                        raw = reader()
+                    except Exception:
+                        raw = ""
+                    if isinstance(raw, bytes):
+                        value = raw.decode("utf-8", errors="replace")
+                    elif isinstance(raw, str):
+                        value = raw
+                    else:
+                        value = ""
+                else:
+                    value = ""
+    return str(value or "")[:WEBSITE_MAX_EXTRACTED_CHARS * 3]
+
 def _technical_active_authority_bootstrap_v69164(prompt_text, vector_store_id):
     """Use the durable per-URL registry, never semantic ranking, to seed old knowledge."""
     prompt = _technical_settings_routing_prompt_v69117(prompt_text)
@@ -63612,10 +63733,22 @@ def _technical_active_authority_bootstrap_v69164(prompt_text, vector_store_id):
             else {}
         )
         if not package:
-            try:
-                full = str(_website_file_full_text_v69012(file_id) or "")
-            except Exception:
-                full = ""
+            source_url_v69182 = str(payload.get("source_url") or "").strip()
+            durable_v69182 = {}
+            if source_url_v69182:
+                try:
+                    durable_v69182 = _technical_durable_snapshot_recover_v69171(
+                        source_url_v69182,
+                        vector_store_id,
+                    )
+                except Exception:
+                    durable_v69182 = {}
+            full = str((durable_v69182 or {}).get("package_text") or "")
+            if not full:
+                full = _technical_exact_file_text_v69182(
+                    file_id,
+                    timeout_seconds=3.5,
+                )
             if not full:
                 continue
             package = _technical_package_from_text_v69121(
@@ -63669,19 +63802,41 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
             "reason_code": "ACTIVE_FILE_ID_MISSING",
             "family": family, "year": year,
         }
+    # v69182: current-source durable snapshot is the fastest exact authority and was
+    # transactionally read-back verified when learned. Prefer it BEFORE OpenAI file
+    # content so a slow file endpoint cannot hold the request for minutes.
+    durable_current_v69171 = {}
     try:
-        full = str(_website_file_full_text_v69012(file_id) or "")
-    except Exception:
-        full = ""
-
-    # v69171 primary dead-file recovery: the current pointer carries source identity
-    # and a verified content hash. If the OpenAI file was retired/deleted/unavailable,
-    # recover the exact same reviewed package from the independent durable snapshot.
-    if not full:
         durable_current_v69171 = _technical_durable_snapshot_recover_v69171(
             str(payload.get("source_url") or ""),
             vector_store_id,
             expected_sha256=str(payload.get("snapshot_sha256_v69171") or ""),
+        )
+    except Exception:
+        durable_current_v69171 = {}
+    full = str((durable_current_v69171 or {}).get("package_text") or "")
+    if full:
+        diagnostic_log(
+            "technical_current_source_snapshot_first_v69182",
+            family=family[:80],
+            year=year,
+            file_id=file_id[:160],
+            source_url=str(payload.get("source_url") or "")[:700],
+            sha256=str((durable_current_v69171 or {}).get("content_sha256") or "")[:64],
+        )
+
+    if not full:
+        full = _technical_exact_file_text_v69182(
+            file_id,
+            timeout_seconds=3.5,
+        )
+
+    # v69171 dead-file recovery remains exact-source-bound. This second snapshot read
+    # covers legacy active pointers that do not carry the expected snapshot hash.
+    if not full:
+        durable_current_v69171 = _technical_durable_snapshot_recover_v69171(
+            str(payload.get("source_url") or ""),
+            vector_store_id,
         )
         durable_full_v69171 = str(durable_current_v69171.get("package_text") or "")
         if durable_full_v69171:
@@ -63711,13 +63866,10 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
             (repaired_package_v69167 or {}).get("file_id") or ""
         ).strip()
         if repaired_file_v69167 and repaired_file_v69167 != file_id:
-            try:
-                repaired_full_v69167 = str(
-                    _website_file_full_text_v69012(repaired_file_v69167)
-                    or ""
-                )
-            except Exception:
-                repaired_full_v69167 = ""
+            repaired_full_v69167 = _technical_exact_file_text_v69182(
+                repaired_file_v69167,
+                timeout_seconds=3.5,
+            )
             if repaired_full_v69167:
                 payload = _technical_active_authority_row_v69164(
                     family,
@@ -64418,7 +64570,13 @@ def _technical_full_package_authority_from_file_v69163(
         return {"status": "no_exact_source"}
 
     try:
-        package_text = str(_website_file_full_text_v69012(clean_file_id) or "")
+        package_text = str(
+            _technical_exact_file_text_v69182(
+                clean_file_id,
+                timeout_seconds=3.5,
+            )
+            or ""
+        )
     except Exception as error:
         diagnostic_log(
             "technical_additive_file_hydration_failed_v69163",
@@ -65483,7 +65641,13 @@ def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_re
         if not file_id or not filename.startswith("website_"):
             continue
 
-        package_text = str(_website_openai_file_text_v68892(file_id) or "")
+        package_text = str(
+            _technical_exact_file_text_v69182(
+                file_id,
+                timeout_seconds=2.5,
+            )
+            or ""
+        )
         if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text:
             continue
         if (
@@ -66206,10 +66370,35 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
 
 
 def _technical_metadata_fast_contract_v69178(prompt_text, store):
-    """Resolve new ATP-tagged pages from the warm package snapshot before any broad search."""
+    """Resolve ATP-tagged pages only from a current, fully-ready package snapshot.
+
+    v69182 never allows last-known-good packages from a prior learning revision to
+    become factual authority while a refresh is running. During running/refreshing/
+    stale states this fast path returns empty and the exact current-source lock or
+    existing retrieval path decides the answer.
+    """
     try:
         state=_technical_package_prewarm_state_v69119()
+        current_revision_v69182 = _website_destination_revision_v69109(
+            "Technical Support Database"
+        )
+        expected_key_v69182 = _technical_package_prewarm_key_v69119(
+            str(store or "").strip(),
+            current_revision_v69182,
+        )
         with state["lock"]:
+            state_key_v69182 = str(state.get("key") or "")
+            state_status_v69182 = str(state.get("status") or "")
+            if (
+                state_key_v69182 != expected_key_v69182
+                or state_status_v69182 != "ready"
+            ):
+                diagnostic_log(
+                    "technical_metadata_fast_stale_blocked_v69182",
+                    state_status=state_status_v69182[:80],
+                    key_match=bool(state_key_v69182 == expected_key_v69182),
+                )
+                return {}
             packages=[dict(x) for x in (state.get("packages") or []) if isinstance(x,dict)]
     except Exception:
         packages=[]
@@ -77163,27 +77352,10 @@ else:
         technical_image_prefetch_executor_v69015 = None
         technical_image_prefetch_future_v69015 = None
         technical_image_prefetch_cached_rows_v69016 = []
-        technical_exact_atp_image_ready_v69181 = False
         if (
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
             and str(technical_request_prompt_v68879 or "").strip()
-        ):
-            technical_exact_atp_image_ready_v69181 = (
-                _technical_exact_atp_image_ready_v69181(
-                    technical_request_prompt_v68879
-                )
-            )
-            if technical_exact_atp_image_ready_v69181:
-                diagnostic_log(
-                    "technical_redundant_image_prefetch_skipped_v69181",
-                    reason="exact_atp_auto_display_image_already_warm",
-                )
-        if (
-            assistant == "🔧 Technical Support"
-            and bool(use_file_search)
-            and str(technical_request_prompt_v68879 or "").strip()
-            and not technical_exact_atp_image_ready_v69181
         ):
             try:
                 technical_early_index_images_v69016 = _website_image_lookup_v68883(
@@ -78050,12 +78222,21 @@ else:
                         active_workspace_rows_v69113[:12]
                     )
 
-                # v69175 FINAL PRODUCTION — v69125 runtime retained; exact same-file/same-section validation is additive.
-                # Technical Support executes the proven v69125/v69050 path below, before any
-                # post-v69125 current-source/pointer/structural/fail-closed layers can obtain
-                # runtime authority. All non-Technical workspaces retain the v69172 path.
+                # v69183 FINAL PRODUCTION:
+                # - non-configuration Technical requests retain the v69125/v69050 baseline;
+                # - Technical configuration/settings requests execute the current-source/pointer/
+                #   structural/fail-closed authority in the else branch BEFORE broad retrieval;
+                # - Sales/Marketing/Graphic routing remains unchanged.
                 V69173_TECHNICAL_V69125_RUNTIME_REBASE = True
-                if assistant == "🔧 Technical Support":
+                if (
+                    assistant == "🔧 Technical Support"
+                    and not _technical_configuration_query_v69155(
+                        technical_request_prompt_v68879
+                    )
+                ):
+                    # v69183: non-configuration Technical requests retain the proven v69125/v69050
+                    # baseline. Configuration/settings requests intentionally enter the else branch
+                    # below, where current-source authority executes BEFORE broad retrieval.
                     # v69124: for a generic Technical Car Model/A-C request, retrieve
                     # both Manual and Automatic siblings before the main answer. This
                     # supplements the proven v69050 factual search rather than replacing it.
