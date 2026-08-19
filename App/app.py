@@ -1,4 +1,4 @@
-# AutoTecPro AI v69178 FINAL PRODUCTION — ATP semantic metadata authority + Technical fast exact-source path; v69177 transactions/history and protected Graphic authority preserved.
+# AutoTecPro AI v69180 FINAL PRODUCTION — Sales/Marketing ATP metadata-first authority on v69179; Technical and protected Graphic/Reference/Installed authority preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -40792,10 +40792,22 @@ def _technical_v69125_exact_section_contract_v69175(prompt_text, candidate):
 
 
 def _technical_v69125_exact_images_v69175(prompt_text, authority, max_images=3):
-    """Publish only images belonging to the exact v69125 section authority."""
+    """Publish only images belonging to the exact v69125/ATP section authority."""
     authority = dict(authority or {})
     if str(authority.get("status") or "") != "recovered":
         return []
+    try:
+        semantic_urls_v69179 = _technical_atp_semantic_image_urls_v69179(
+            prompt_text, authority, max_images=max(3, int(max_images or 3))
+        )
+    except Exception:
+        semantic_urls_v69179 = []
+    if semantic_urls_v69179:
+        authority["selected_image_urls_v69143"] = list(dict.fromkeys(
+            list(authority.get("selected_image_urls_v69143") or [])
+            + list(semantic_urls_v69179)
+        ))
+        authority["atp_semantic_exact_images_v69179"] = list(semantic_urls_v69179)
     try:
         images = list(_technical_exact_authority_chat_images_v69170(
             prompt_text, authority, max_images=max_images
@@ -56345,6 +56357,297 @@ def _website_bind_exact_supporting_page_payloads_v69047(payloads, result_rows):
     return output
 
 
+
+@st.cache_resource(show_spinner=False)
+def _workspace_atp_package_state_v69180():
+    """Process-persistent ATP website-package cache for Sales and Marketing only."""
+    return {
+        "lock": threading.RLock(),
+        "destinations": {
+            "Sales Database": {"key":"","status":"idle","packages":[],"future":None,"executor":None,"error":"","attempted_at":0.0},
+            "Marketing Database": {"key":"","status":"idle","packages":[],"future":None,"executor":None,"error":"","attempted_at":0.0},
+        },
+    }
+
+
+def _workspace_atp_package_from_text_v69180(file_id, filename, package_text, destination):
+    """Parse one learned Sales/Marketing ATP website package without granting cross-destination authority."""
+    text = str(package_text or "")
+    target = str(destination or "").strip()
+    if target not in {"Sales Database", "Marketing Database"}:
+        return None
+    if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in text:
+        return None
+    if _technical_package_header_value_v69113(text, "Destination") != target:
+        return None
+    semantics = _technical_package_atp_semantics_v69178(text)
+    if not semantics:
+        return None
+    webpage_text = _technical_package_webpage_text_v69113(text)
+    if not webpage_text:
+        return None
+    page_identity = _technical_package_page_identity_v69113(text)
+    source_url = (
+        _technical_package_header_value_v69113(text, "Final source URL")
+        or _technical_package_header_value_v69113(text, "Requested URL")
+    )
+    title = _technical_package_header_value_v69113(text, "Page title")
+    extracted_at = _technical_package_header_value_v69113(text, "Extracted at (UTC)")
+    identity_text = " ".join((
+        title, source_url, webpage_text[:24000],
+        json.dumps(page_identity, ensure_ascii=False, sort_keys=True),
+        json.dumps(semantics, ensure_ascii=False, sort_keys=True)[:18000],
+    ))
+    families = set(page_identity.get("vehicle_families") or []) or set(_website_identity_vehicle_families_v69022(identity_text))
+    years = set()
+    for raw in page_identity.get("years") or []:
+        try: years.add(int(raw))
+        except Exception: pass
+    if not years:
+        years = set(_website_identity_years_v69022(identity_text))
+    systems = {str(x) for x in (page_identity.get("systems") or []) if str(x)} or set(_website_identity_systems_v69022(identity_text))
+    product_codes = set(_website_image_product_codes_v69020(identity_text))
+    return {
+        "file_id": str(file_id or ""), "filename": str(filename or ""),
+        "destination": target, "source_url": str(source_url or ""),
+        "title": str(title or ""), "extracted_at": str(extracted_at or ""),
+        "webpage_text": webpage_text, "package_text": text,
+        "page_identity": page_identity, "atp_semantics_v69178": semantics,
+        "vehicle_families": sorted(families), "years": sorted(years),
+        "systems": sorted(systems), "product_codes": sorted(product_codes),
+    }
+
+
+def _workspace_atp_package_inject_v69180(file_id, filename, package_text, destination):
+    """Immediately make a newly learned ATP Sales/Marketing package available to the metadata-first path."""
+    package = _workspace_atp_package_from_text_v69180(file_id, filename, package_text, destination)
+    if not isinstance(package, dict):
+        return False
+    state = _workspace_atp_package_state_v69180()
+    target = str(destination or "").strip()
+    source = str(package.get("source_url") or "").strip()
+    try: canonical = canonical_website_url_identity(source) if source else ""
+    except Exception: canonical = ""
+    with state["lock"]:
+        bucket = state["destinations"][target]
+        kept = []
+        for item in bucket.get("packages") or []:
+            if not isinstance(item, dict): continue
+            same_file = bool(str(item.get("file_id") or "") == str(package.get("file_id") or "") and str(package.get("file_id") or ""))
+            same_source = False
+            old_source = str(item.get("source_url") or "").strip()
+            if canonical and old_source:
+                try: same_source = canonical_website_url_identity(old_source) == canonical
+                except Exception: same_source = False
+            if not (same_file or same_source): kept.append(dict(item))
+        kept.append(dict(package))
+        kept.sort(key=lambda x:(str(x.get("extracted_at") or ""),str(x.get("filename") or "")), reverse=True)
+        bucket["packages"] = kept
+        bucket["status"] = "ready"
+        bucket["error"] = ""
+    return True
+
+
+def _workspace_atp_package_prewarm_start_v69180(destination):
+    """Background-load ATP packages for one Sales/Marketing destination; never blocks ordinary fallback."""
+    target = str(destination or "").strip()
+    mapping = {"Sales Database": SALES_VECTOR_STORE_ID, "Marketing Database": MARKETING_VECTOR_STORE_ID}
+    if target not in mapping: return False
+    store_ids = _configured_vector_store_ids(mapping[target])
+    if not store_ids: return False
+    store = str(store_ids[0] or "").strip()
+    revision = _website_destination_revision_v69109(target)
+    key = f"{store}::{int(revision or 0)}"
+    state = _workspace_atp_package_state_v69180()
+    with state["lock"]:
+        bucket = state["destinations"][target]
+        if bucket.get("key") == key and bucket.get("status") in {"running","ready","stale_ready"}:
+            return True
+        if (
+            bucket.get("key") == key
+            and bucket.get("status") == "failed"
+            and (time.monotonic() - float(bucket.get("attempted_at") or 0.0)) < 60.0
+        ):
+            return True
+        old_executor = bucket.get("executor")
+        if old_executor is not None:
+            try: old_executor.shutdown(wait=False, cancel_futures=True)
+            except Exception: pass
+        last_good = [dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]
+        from concurrent.futures import ThreadPoolExecutor
+        executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="atp-workspace-metadata-v69180")
+        bucket.update({"key":key,"status":"stale_ready" if last_good else "running","packages":last_good,"future":None,"executor":executor,"error":"","attempted_at":time.monotonic()})
+
+        def _build():
+            packages=[]
+            try:
+                rows=[dict(r) for r in (_website_vector_store_file_rows_v68892(store) or []) if isinstance(r,dict) and str(r.get("file_id") or "").strip() and str(r.get("filename") or "").startswith("website_")]
+                # Concurrent file reads keep cold-start bounded without serial N-file latency.
+                from concurrent.futures import ThreadPoolExecutor as Pool, as_completed
+                workers=max(2,min(12,len(rows) or 2))
+                with Pool(max_workers=workers,thread_name_prefix="atp-workspace-files-v69180") as pool:
+                    futures={pool.submit(_website_openai_file_text_v68892,str(r.get("file_id") or "")):r for r in rows}
+                    for future in as_completed(futures):
+                        row=futures[future]
+                        try: raw=str(future.result() or "")
+                        except Exception: continue
+                        package=_workspace_atp_package_from_text_v69180(str(row.get("file_id") or ""),str(row.get("filename") or ""),raw,target)
+                        if isinstance(package,dict): packages.append(package)
+            except Exception as error:
+                with state["lock"]:
+                    if bucket.get("key") == key:
+                        bucket["status"] = "stale_ready" if bucket.get("packages") else "failed"
+                        bucket["error"] = type(error).__name__
+                diagnostic_log("workspace_atp_prewarm_failed_v69180",destination=target,error_type=type(error).__name__,error=str(error)[:500])
+                return []
+            with state["lock"]:
+                if bucket.get("key") == key:
+                    merged=[dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]+packages
+                    best={}
+                    for item in merged:
+                        source=str(item.get("source_url") or "").strip()
+                        try: canon=canonical_website_url_identity(source) if source else ""
+                        except Exception: canon=""
+                        identity="url:"+canon if canon else "file:"+str(item.get("file_id") or item.get("filename") or "")
+                        prior=best.get(identity)
+                        if prior is None or (str(item.get("extracted_at") or ""),str(item.get("filename") or "")) > (str(prior.get("extracted_at") or ""),str(prior.get("filename") or "")):
+                            best[identity]=item
+                    bucket["packages"]=sorted(best.values(),key=lambda x:(str(x.get("extracted_at") or ""),str(x.get("filename") or "")),reverse=True)
+                    bucket["status"]="ready" if bucket["packages"] else "failed"
+                    bucket["error"]="" if bucket["packages"] else "EMPTY"
+            return packages
+        bucket["future"] = executor.submit(_build)
+    return True
+
+
+def _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.25):
+    target=str(destination or "").strip()
+    _workspace_atp_package_prewarm_start_v69180(target)
+    state=_workspace_atp_package_state_v69180()
+    with state["lock"]:
+        bucket=state["destinations"].get(target) or {}
+        packages=[dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]
+        future=bucket.get("future")
+        status=str(bucket.get("status") or "idle")
+    if not packages and future is not None and float(wait_seconds or 0)>0:
+        try: future.result(timeout=max(0.05,float(wait_seconds)))
+        except Exception: pass
+        with state["lock"]:
+            bucket=state["destinations"].get(target) or {}
+            packages=[dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]
+            status=str(bucket.get("status") or "idle")
+    return packages,status
+
+
+def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
+    """Select one exact ATP Sales/Marketing package by deterministic vehicle/year/system/product identity."""
+    workspace=str(workspace_label or "")
+    destination=("Sales Database" if is_sales_workspace(workspace) else "Marketing Database" if is_marketing_workspace(workspace) else "")
+    if not destination or is_graphic_workspace(workspace): return {}
+    prompt=re.sub(r"\s+"," ",str(prompt_text or "")).strip()
+    if not prompt: return {}
+    pf=set(_website_identity_vehicle_families_v69022(prompt)); py=set(_website_identity_years_v69022(prompt)); ps=set(_website_identity_systems_v69022(prompt)); pc={str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
+    # No deterministic identity -> preserve the existing semantic vector path unchanged.
+    if not (pf or pc): return {}
+    packages,status=_workspace_atp_package_snapshot_v69180(destination,wait_seconds=0.0)
+    ranked=[]
+    for package in packages:
+        if str(package.get("destination") or "").strip() != destination:
+            continue
+        fam=set(package.get("vehicle_families") or []); yrs={int(x) for x in (package.get("years") or []) if str(x).isdigit()}; sys=set(package.get("systems") or []); codes={str(x).casefold() for x in (package.get("product_codes") or [])}
+        if pf and fam and not pf.issubset(fam): continue
+        if py and yrs and not py.issubset(yrs): continue
+        if ps and sys and not ps.issubset(sys): continue
+        if pc and codes and not (pc & codes): continue
+        family_overlap=len(pf & fam); code_overlap=len(pc & codes); year_overlap=len(py & yrs); system_overlap=len(ps & sys)
+        score=family_overlap*10000+code_overlap*8000+system_overlap*2500+year_overlap*800
+        ranked.append((score,str(package.get("extracted_at") or ""),str(package.get("filename") or ""),package))
+    if not ranked:
+        diagnostic_log("workspace_atp_metadata_fast_miss_v69180",workspace=workspace,destination=destination,status=status)
+        return {}
+    ranked.sort(key=lambda x:(x[0],x[1],x[2]),reverse=True)
+    top=ranked[0]
+    # Ambiguous equal-strength different pages fail back to the existing vector path.
+    if len(ranked)>1 and ranked[1][0] == top[0]:
+        s1=str(top[3].get("source_url") or ""); s2=str(ranked[1][3].get("source_url") or "")
+        try: same=canonical_website_url_identity(s1)==canonical_website_url_identity(s2)
+        except Exception: same=s1==s2
+        if not same:
+            diagnostic_log("workspace_atp_metadata_fast_ambiguous_v69180",workspace=workspace,destination=destination,score=top[0])
+            return {}
+    package=dict(top[3]); semantics=dict(package.get("atp_semantics_v69178") or {})
+    if not semantics: return {}
+    # Keep the prompt compact: exact structured metadata + reviewed page text from the same package.
+    semantic_json=json.dumps(semantics,ensure_ascii=False,sort_keys=True,separators=(",",":"))
+    context=(
+        "\n\nAUTOTECPRO ATP METADATA-FIRST AUTHORITY (v69180)\n"
+        f"Destination: {destination}\nSource URL: {package.get('source_url') or ''}\n"
+        "This exact learned AutoTecPro page was selected by deterministic vehicle/year/system/product identity. "
+        "Use its ATP structured metadata as the first authority, then its reviewed WEBPAGE TEXT. Do not broaden to another page or workspace. "
+        "If a requested fact is absent, say it is not stated instead of guessing.\n"
+        f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json[:28000]}\n\n"
+        f"REVIEWED WEBPAGE TEXT:\n{str(package.get('webpage_text') or '')[:32000]}\n"
+    )
+    row={"file_id":str(package.get("file_id") or ""),"filename":str(package.get("filename") or ""),"score":1.0,"text":str(package.get("package_text") or ""),"workspace_atp_metadata_first_v69180":True}
+    return {"status":"recovered","destination":destination,"context":context,"row":row,"package":package,"score":top[0],"source_url":str(package.get("source_url") or "")}
+
+
+def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, max_images=3):
+    """Publish only destination-owned durable images explicitly marked ATP auto-display=true for the exact selected page/topic."""
+    workspace=str(workspace_label or "")
+    destination=("Sales Database" if is_sales_workspace(workspace) else "Marketing Database" if is_marketing_workspace(workspace) else "")
+    if not destination or is_graphic_workspace(workspace): return []
+    authority=dict(authority or {}); package=dict(authority.get("package") or {})
+    if str(authority.get("status") or "")!="recovered" or str(authority.get("destination") or "")!=destination: return []
+    if str(package.get("destination") or "").strip() != destination: return []
+    source=str(package.get("source_url") or "").strip()
+    try: source_identity=canonical_website_url_identity(source) if source else ""
+    except Exception: source_identity=""
+    semantics=dict(package.get("atp_semantics_v69178") or {}); semantic_images=[dict(x) for x in (semantics.get("images") or []) if isinstance(x,dict)]
+    wanted=[]
+    prompt_tokens=set(_website_image_tokens_v68883(str(prompt_text or "")))
+    for meta in semantic_images:
+        url=str(meta.get("src") or "").strip()
+        if not url.startswith("https://") or "video-icon" in url.casefold(): continue
+        if str(meta.get("data-atp-auto-display") or "").strip().casefold()!="true": continue
+        auth=str(meta.get("data-atp-authority") or "").strip().casefold()
+        if auth and auth not in {"primary","authoritative","exact"}: continue
+        evidence=" ".join(str(meta.get(k) or "") for k in ("data-atp-section","data-atp-topic","data-atp-image-role","alt"))
+        overlap=len(prompt_tokens & set(_website_image_tokens_v68883(evidence)))
+        try: priority=int(float(meta.get("data-atp-priority") or 0))
+        except Exception: priority=0
+        wanted.append((overlap,priority,url))
+    if not wanted: return []
+    wanted.sort(key=lambda x:(x[0],x[1]),reverse=True)
+    # Multiple equally broad auto-display images with no prompt/topic overlap are ambiguous;
+    # preserve the existing answer-aware image recovery instead of guessing.
+    if len(wanted) > 1 and int(wanted[0][0] or 0) <= 0:
+        return []
+    durable=[]
+    by_url={}
+    for payload in _workspace_durable_image_payloads_v69041(destination):
+        url=str(payload.get("image_url") or "").strip()
+        page=str(payload.get("source_page") or "").strip()
+        try: same_page=bool(source_identity and page and canonical_website_url_identity(page)==source_identity)
+        except Exception: same_page=False
+        if same_page and url: by_url[url]=dict(payload)
+    seen=set()
+    for overlap,priority,url in wanted:
+        payload=by_url.get(url)
+        if not payload: continue
+        if not _website_image_vehicle_fitment_gate_v68997(prompt_text,payload): continue
+        record=_website_image_record_for_chat_v68883(payload)
+        if not record: continue
+        ident=str(record.get("website_image_sha256") or record.get("data_url") or "")
+        if ident in seen: continue
+        seen.add(ident)
+        record["website_workspace_destination_v69180"]=destination
+        record["website_atp_metadata_exact_v69180"]=True
+        record["website_workspace_match_score_v69040"]=float(1000+priority+overlap*10)
+        durable.append(record)
+        if len(durable)>=max(1,int(max_images or 1)): break
+    return durable
+
 @st.cache_data(ttl=120, max_entries=4, show_spinner=False)
 def _workspace_durable_image_payloads_v69041(destination):
     """Return QA-approved durable payloads for exactly one non-Graphic database."""
@@ -58290,6 +58593,18 @@ def save_website_knowledge_package(
         except Exception as error:
             diagnostic_log(
                 "technical_package_injection_failed_v69177",
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+    elif database_choice in {"Sales Database", "Marketing Database"} and file_id:
+        try:
+            _workspace_atp_package_inject_v69180(
+                file_id, filename, package_text, database_choice
+            )
+        except Exception as error:
+            diagnostic_log(
+                "workspace_atp_package_injection_failed_v69180",
+                destination=str(database_choice),
                 error_type=type(error).__name__,
                 error=str(error)[:500],
             )
@@ -65521,6 +65836,150 @@ def _technical_package_atp_semantics_v69178(package_text):
         return {}
 
 
+
+def _technical_atp_semantic_image_urls_v69179(prompt_text, authority, max_images=8):
+    """Return only exact ATP-authored semantic images relevant to the recovered Technical topic.
+
+    v69179 closes the v69178 gap where ATP JSON/attribute metadata could establish exact
+    factual authority but the final image path still depended only on the legacy hierarchy
+    image list.  This helper never broadens to unrelated images: it requires AutoTecPro
+    semantic image metadata and an exact/compatible section or topic match.
+    """
+    authority = dict(authority or {})
+    semantics = dict(authority.get("atp_semantics_v69178") or {})
+    if not semantics:
+        semantics = _technical_package_atp_semantics_v69178(authority.get("package_text") or "")
+    rows = [dict(x) for x in (semantics.get("images") or []) if isinstance(x, dict)]
+    if not rows:
+        return []
+
+    def norm(value):
+        value = re.sub(r"<[^>]+>", " ", str(value or ""))
+        value = re.sub(r"[^a-z0-9]+", " ", value.casefold())
+        return re.sub(r"\s+", " ", value).strip()
+
+    selected_section = norm(
+        authority.get("section_id")
+        or authority.get("selected_section_title_v69143")
+        or authority.get("section_title")
+        or ""
+    )
+    selected_title = norm(
+        authority.get("selected_section_title_v69143")
+        or authority.get("section_title")
+        or ""
+    )
+    branch_text = " ".join(
+        norm(x)
+        for x in (
+            list(authority.get("selected_branch_paths_v69143") or [])
+            + list(authority.get("branch_paths") or [])
+        )
+        if norm(x)
+    )
+
+    try:
+        query_role = str(_website_image_query_role_v68884(prompt_text) or "").strip().casefold()
+    except Exception:
+        query_role = ""
+
+    # Canonical ATP topic aliases. These are metadata vocabulary aliases, not product facts.
+    role_topics = {
+        "car_model_ac": {
+            "car model ac", "car model ac protocol", "protocol settings",
+            "car model ac settings", "vehicle setting", "vehicle settings",
+        },
+        "protocol": {
+            "car model ac", "car model ac protocol", "protocol settings",
+            "car model ac settings",
+        },
+        "factory_camera": {"factory camera", "original camera", "camera"},
+        "audio": {"audio", "audio troubleshooting", "factory amp"},
+    }
+    expected_topics = {norm(x) for x in role_topics.get(query_role, set()) if norm(x)}
+
+    ranked = []
+    seen = set()
+    for row in rows:
+        url = str(row.get("src") or "").strip()
+        if not url.startswith("https://"):
+            continue
+        if "video-icon" in url.casefold():
+            continue
+
+        auto = str(row.get("data-atp-auto-display") or "").strip().casefold()
+        authority_label = str(row.get("data-atp-authority") or "").strip().casefold()
+        section = norm(row.get("data-atp-section"))
+        topic = norm(row.get("data-atp-topic"))
+        role = norm(row.get("data-atp-image-role"))
+        related = norm(row.get("data-atp-related-heading"))
+        alt = norm(row.get("alt"))
+
+        # ATP-authored primary/auto-display images only for automatic Technical publication.
+        if auto != "true":
+            continue
+        if authority_label and authority_label not in {"primary", "authoritative", "exact"}:
+            continue
+
+        exact_section = bool(
+            selected_section
+            and section
+            and (
+                section == selected_section
+                or section in selected_section
+                or selected_section in section
+            )
+        )
+        exact_title = bool(
+            selected_title
+            and any(
+                token and (
+                    token == selected_title
+                    or token in selected_title
+                    or selected_title in token
+                )
+                for token in (section, related)
+            )
+        )
+        topic_match = bool(
+            expected_topics
+            and any(
+                t and (
+                    t == topic
+                    or t in topic
+                    or topic in t
+                    or t in role
+                )
+                for t in expected_topics
+            )
+        )
+
+        # Structural authority can use broad display labels such as "Protocol Settings".
+        # Exact query role + ATP topic is sufficient only for the same recovered source.
+        if not (exact_section or exact_title or topic_match):
+            continue
+
+        try:
+            priority = int(float(row.get("data-atp-priority") or 0))
+        except Exception:
+            priority = 0
+
+        score = (
+            1 if exact_section else 0,
+            1 if exact_title else 0,
+            1 if topic_match else 0,
+            1 if auto == "true" else 0,
+            priority,
+            1 if "protocol" in (topic + " " + role + " " + alt) and query_role in {"car_model_ac", "protocol"} else 0,
+        )
+        if url in seen:
+            continue
+        seen.add(url)
+        ranked.append((score, url))
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return [url for _, url in ranked[:max(1, int(max_images or 8))]]
+
 def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
     """Build exact configuration rows from AutoTecPro-authored semantic JSON only."""
     authority = dict(authority or {})
@@ -65628,8 +66087,23 @@ def _technical_metadata_fast_contract_v69178(prompt_text, store):
             "branch_paths":list(structural.get("branch_paths") or []),"section_text":str(structural.get("section_text") or ""),
             "selected_image_urls_v69143":list(structural.get("image_urls") or []),"selected_section_title_v69143":str(structural.get("section_title") or ""),
             "selected_branch_paths_v69143":list(structural.get("branch_paths") or []),"selected_segments_v69158":list(structural.get("segments") or []),
-            "atp_semantics_v69178":semantics,"selector_version":69178,
+            "atp_semantics_v69178":semantics,"selector_version":69179,
         }
+        semantic_images_v69179 = _technical_atp_semantic_image_urls_v69179(
+            prompt_text, authority, max_images=8
+        )
+        if semantic_images_v69179:
+            authority["selected_image_urls_v69143"] = list(dict.fromkeys(
+                list(authority.get("selected_image_urls_v69143") or [])
+                + list(semantic_images_v69179)
+            ))
+            authority["atp_semantic_exact_images_v69179"] = list(semantic_images_v69179)
+            diagnostic_log(
+                "technical_atp_semantic_exact_images_bound_v69179",
+                count=len(semantic_images_v69179),
+                section=str(authority.get("section_title") or "")[:300],
+                source_url=str(authority.get("source_url") or "")[:500],
+            )
         literal=_technical_metadata_literal_configuration_v69178(prompt_text,authority)
         if not _technical_literal_is_sufficient_v69156(prompt_text,literal): continue
         structured=_technical_merge_structured_v69156(literal,{"fields":[],"branches":[],"status":"not_needed"})
@@ -78599,6 +79073,36 @@ else:
                                 )
                                 diagnostic_log("technical_exact_source_fail_closed_v69145", status=section_status_v69142)
 
+                    workspace_atp_authority_v69180 = {}
+                    if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
+                        try:
+                            workspace_atp_authority_v69180 = _workspace_atp_metadata_fast_authority_v69180(
+                                assistant, interaction_prompt
+                            )
+                            if str(workspace_atp_authority_v69180.get("status") or "") == "recovered":
+                                ai_request_prompt += str(workspace_atp_authority_v69180.get("context") or "")
+                                exact_row_v69180 = dict(workspace_atp_authority_v69180.get("row") or {})
+                                if exact_row_v69180:
+                                    st.session_state["_workspace_file_search_results_v69040"] = [exact_row_v69180]
+                                # Keep the existing Sales/Marketing multi-store file_search enabled.
+                                # ATP metadata is priority context, not a replacement for the established
+                                # Sales→Technical and Marketing→Sales→Technical retrieval contracts.
+                                diagnostic_log(
+                                    "workspace_atp_metadata_first_bound_v69180",
+                                    workspace=str(assistant),
+                                    destination=str(workspace_atp_authority_v69180.get("destination") or ""),
+                                    source_url=str(workspace_atp_authority_v69180.get("source_url") or "")[:600],
+                                    score=int(workspace_atp_authority_v69180.get("score") or 0),
+                                )
+                        except Exception as error_v69180:
+                            workspace_atp_authority_v69180 = {}
+                            diagnostic_log(
+                                "workspace_atp_metadata_first_failed_v69180",
+                                workspace=str(assistant),
+                                error_type=type(error_v69180).__name__,
+                                error=str(error_v69180)[:500],
+                            )
+
                     try:
                         diagnostic_log(
                             "ai_stream_start_ready_v68872",
@@ -79391,6 +79895,32 @@ else:
                         "website_related_evidence_auto_publication_failed_v69025r2",
                         error_type=type(error).__name__, error=str(error)[:500],
                     )
+
+        # v69180: when Sales/Marketing used an exact ATP metadata-first package, try its
+        # explicitly authored auto-display images first. The existing durable fitment and
+        # final publication gates remain unchanged; generic v69050 recovery is the fallback.
+        if (is_sales_workspace(assistant) or is_marketing_workspace(assistant)) and str(
+            (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
+        ) == "recovered":
+            try:
+                workspace_atp_images_v69180 = _workspace_atp_exact_images_v69180(
+                    assistant, interaction_prompt, workspace_atp_authority_v69180, max_images=3
+                )
+                if workspace_atp_images_v69180:
+                    generated_images.extend(workspace_atp_images_v69180)
+                    generated_images = _dedupe_website_chat_images_v68883(generated_images)
+                    diagnostic_log(
+                        "workspace_atp_exact_images_bound_v69180",
+                        workspace=str(assistant),
+                        recovered=len(workspace_atp_images_v69180),
+                    )
+            except Exception as error_v69180:
+                diagnostic_log(
+                    "workspace_atp_exact_images_failed_v69180",
+                    workspace=str(assistant),
+                    error_type=type(error_v69180).__name__,
+                    error=str(error_v69180)[:500],
+                )
 
         # v69050: Sales and Marketing first consume the exact answer evidence,
         # then (only if no eligible image survived) run a dedicated search in
