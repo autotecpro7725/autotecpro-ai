@@ -1,4 +1,4 @@
-# AutoTecPro AI v69183 FINAL PRODUCTION — live Technical current-source authority binding + bounded live hydration + Sales/Marketing stale-metadata guard; protected Graphic/Reference/Installed preserved.
+# AutoTecPro AI v69184 FINAL PRODUCTION — surgical Technical current-authority auto-image publication fix on v69183; no other pipeline changed.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -80537,6 +80537,9 @@ else:
             exact_final_authority_v69176 = dict(
                 technical_variant_evidence_v69124.get("exact_authority_v69175") or {}
             )
+            current_final_authority_v69184 = dict(
+                locals().get("technical_full_package_authority_v69155") or {}
+            )
             if exact_final_authority_v69176:
                 exact_final_images_v69176 = _technical_v69125_exact_images_v69175(
                     technical_request_prompt_v68879,
@@ -80549,6 +80552,62 @@ else:
                 ]
                 assistant_images_to_save.extend(exact_final_images_v69176)
                 assistant_images_to_save = _dedupe_website_chat_images_v68883(assistant_images_to_save)
+            elif str(current_final_authority_v69184.get("status") or "") == "recovered":
+                # v69184: the v69183 current-source configuration path deliberately bypasses
+                # v69125 broad variant retrieval, so `exact_authority_v69175` is normally
+                # empty even though `technical_full_package_authority_v69155` is the stronger,
+                # exact current source. Do not erase its already section-bound image here.
+                #
+                # Re-materialize exact-current-source images, combine them only with already
+                # recovered current-turn images, then run the existing final provenance
+                # verifier against the SAME current authority. No new search/fallback is added.
+                current_exact_images_v69184 = _technical_exact_authority_chat_images_v69170(
+                    technical_request_prompt_v68879,
+                    current_final_authority_v69184,
+                    max_images=3,
+                )
+                non_website_images_v69184 = [
+                    x for x in assistant_images_to_save
+                    if not (
+                        isinstance(x, dict)
+                        and str(x.get("source") or "") == "website_knowledge"
+                    )
+                ]
+                current_website_candidates_v69184 = [
+                    x for x in assistant_images_to_save
+                    if (
+                        isinstance(x, dict)
+                        and str(x.get("source") or "") == "website_knowledge"
+                    )
+                ]
+                current_website_candidates_v69184.extend(
+                    list(current_exact_images_v69184 or [])
+                )
+                current_website_candidates_v69184 = (
+                    _technical_verify_published_images_v69158(
+                        _dedupe_website_chat_images_v68883(
+                            current_website_candidates_v69184
+                        ),
+                        current_final_authority_v69184,
+                        technical_request_prompt_v68879,
+                    )
+                )
+                assistant_images_to_save = _dedupe_website_chat_images_v68883(
+                    non_website_images_v69184
+                    + list(current_website_candidates_v69184 or [])
+                )
+                diagnostic_log(
+                    "technical_current_authority_final_image_bound_v69184",
+                    exact_current_images=len(current_exact_images_v69184 or []),
+                    published_website_images=len([
+                        x for x in assistant_images_to_save
+                        if isinstance(x, dict)
+                        and str(x.get("source") or "") == "website_knowledge"
+                    ]),
+                    source_url=str(
+                        current_final_authority_v69184.get("source_url") or ""
+                    )[:700],
+                )
             else:
                 assistant_images_to_save = [
                     x for x in assistant_images_to_save
