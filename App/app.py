@@ -1,7 +1,11 @@
+# AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
 # AutoTecPro AI v69167 FINAL STABLE PRODUCTION — transactional Technical source authority + stale-pointer self-heal.
+# AutoTecPro AI v69166 FINAL RELEASE — force active Technical pointer after reviewed migration/save.
+# AutoTecPro AI v69165 FINAL RELEASE — Technical exact-duplicate structural migration + locked-package direct authority.
+# AutoTecPro AI v69164 FINAL RELEASE — current-source family/year lock; stale semantic authority blocked; v69050/v69125 fallback preserved.
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -86,75 +90,7 @@ try:
 except Exception:
     create_supabase_client = None
 
-# AutoTecPro AI v68972 — Reference Mode Geometry + Screen/UI Pixel Authority; v68971 Exact Product Route Preserved
-# AutoTecPro AI v68950 — Security & Maintainability Hardening; v68892 Features/Pipelines Preserved
-# AutoTecPro AI v68981 — Reference Authority Recovery Fix; v68980 Safe Performance Preserved
 
-GRAPHIC_V68300_RELEASE = "v68300-true-v66200-pipeline-rollback"
-# v67800 restores the exact v66200 public generation path and fixes deterministic reference copy, official logo, feature grid and footer authority.
-
-# v66000 LTS clean architectural merge:
-# - v40100 exact-source composition and intact-source fallback.
-# - v47000 conservative border-connected masking and untouched source RGB.
-# - v64000 rendering, advanced glass/HDR lighting, five-layer shadows, provider routing, QA, timing,
-#   Supabase/history/product-library/WooCommerce integrations, mobile interface and downloads.
-# - v66000 multi-candidate extraction, source-to-cutout geometry verification, confidence selection,
-#   immutable local product compositing and fail-closed untouched-card authority.
-# v63000 Final Bezel Authority Engine built directly from v62000 LTS.
-# Adds geometric-cliff physical-baseline detection and selective mechanical-tail retention so studio-floor shadows are removed without cutting real mounting tabs.
-# First-priority correction: prevents provider-generated brackets, tabs and false lower-housing geometry from surviving around
-# the immutable product; replaces aggressive GrabCut/component growth with border-connected studio-background isolation,
-# adds a wide product guard band, and keeps the exact uploaded product as the final authoritative layer.
-# v22000 consolidated production update built directly from the current v21010 working base.
-# v51000 OEM Component Transfer Engine built directly from the working v50000 Installed Photographic Integration Engine.
-# v52000 Product Authority & Pixel Provenance Engine built directly from v51000.
-# v54000 Exact Silhouette & Lower-Housing Integrity Engine built directly from v53000.
-# v59000 Connected-Component Bottom-Housing Authority Engine built directly from v58000.
-# v61000 LTS Unified Fidelity & Photoreal Engine built directly from v59000.
-# v61000 LTS Unified Product Fidelity, Photorealism, Deterministic QA & Performance Engine built directly from v60000.
-# Consolidates immutable geometry, source-to-final QA, material-aware lighting, advanced glass optics, clipped shadows,
-# deterministic run manifests, stage timing, targeted recovery metadata and production regression contracts.
-# Adds environment-aware glass reflections, Fresnel edge response, dynamic sun highlights, local HDR scene estimation,
-# geometry-safe body relighting, ambient colour/exposure matching, black-level preservation and refined contact shadows.
-# Replaces broad structural-edge/row-span rescue with dominant-component silhouette recovery, physical-baseline shadow rejection,
-# binary engineering geometry, single-pass premultiplied product resize, and fresh source-mask validation.
-# Fixes the root bottom-bezel defect by preventing bright neutral silver/white housing pixels from being classified as studio background.
-# Adds structural-edge rescue, lower-housing span protection, source-mask integrity rejection, and a fresh cache epoch.
-# v57000 Bottom-Bezel Absolute Authority & Provider Exclusion Engine built directly from v56000.
-# Reserves and reconstructs the entire product bounding region plus an asymmetric lower-housing safety apron
-# before local composition, preventing provider-generated rails, tabs, brackets or false lower bezels from surviving.
-# Adds fail-closed protected-zone coverage verification and a dedicated bottom-apron authority report.
-# v56000 Fresh Mask, Bottom-Bezel Authority & Deterministic Product Composition Engine built directly from v55000.
-# Forces fresh authoritative mask extraction, versions all geometry caches, fails closed on provider-zone clearing,
-# strengthens lower-housing verification, and uses deterministic supersampled product resizing for small controls/UI.
-# v55000 Product Pixel Authority & Deterministic Composition Engine built directly from v54000.
-# v55000 adds immutable source-pixel authority, protected-product-zone inpainting, strict lower-bezel/
-# lower-housing contour validation, fresh source-hash cache epochs, and fail-closed product-region QA.
-# Removes soft connected studio-floor shadows and nearby false components from exact-product cutouts,
-# locks the lower housing and mounting silhouette, and rejects any product mask whose lower profile drifts.
-# Adds authoritative source fingerprinting, new-upload cache invalidation, reference-mode exact-route enforcement,
-# deterministic product provenance manifests, and fail-closed source/geometry validation before publication.
-# Adds ten production upgrades: deterministic local typography, editable logical layers, constraint-based layout solving,
-# product perspective analysis, semantic icon registry, brand color lock, scene strategy selection, multi-reference fusion,
-# scored QA with targeted recovery, and a deterministic campaign builder that keeps provider scope background/vehicle-only.
-# v51000 adds a staged OEM component inventory, donor-to-aperture assembly map, per-mapping fail-closed validation, and no-poster Installed View output while retaining v50000 photographic integration, v49000 dashboard pixel authority and v48000 detail fidelity:
-# three-layer shadows, background harmony, commercial detail QA, and final fail-closed AutoTecPro QA.
-# Adaptive modes: (1) Commercial Lock, (2) Product Recreation, (3) UI Replacement, (4) Product Variant,
-# and (5) Installed View with live OEM-interior research. Commercial/UI modes keep exact product authority;
-# recreation/variant/installed modes allow bounded AI reconstruction under Product DNA and engineering validation.
-# v66850 replaces the incomplete source-photo canvas with a complete deterministic commercial fallback, mandatory geometry/fitment/completeness gates, and retains v66840 resilient Product Library archiving:
-# v66860 restores the proven v66600 recovery principle: missing optional metadata is diagnostic, not proof of failure.
-# Product geometry and full-fitment wording remain release blockers only when direct evidence proves a violation.
-# The complete local commercial fallback remains mandatory and the obsolete opaque source-photo canvas is forbidden.
-# v66840 adds resilient Product Library archiving: Google Drive remains primary, while revoked/expired OAuth tokens automatically fall back to private Supabase Storage without blocking uploads.
-# v66200 restores the proven v40100 full-fitment copy authority, supports flexible year-range wording,
-# and prevents the single representative scene vehicle from replacing broader user-stated compatibility.
-# The v66000 exact-geometry/bezel authority and v66100 performance/integration systems remain unchanged.
-# v66100 LTS is built directly from verified v66000. It preserves the v66000
-# multi-candidate fail-closed bezel geometry authority unchanged while adding:
-# remembered provider routes, persistent fingerprint caches with session fallback,
-# verified-background validation reuse, actual attempt timing, complete-alpha-envelope
-# cropping, confidence-gated environmental integration metadata, and QA reuse.
 # ============================================================
 # App Paths / API
 # ============================================================
@@ -61483,6 +61419,354 @@ def _technical_locked_package_authority_v69165(prompt_text, lock):
     return authority
 
 
+
+TECHNICAL_SOURCE_CREDENTIAL_PREFIX_V69172 = "__ATP_TECH_SOURCE_CREDENTIAL_V69172__:"
+
+
+def _technical_source_credential_key_v69172(source_url):
+    """Stable exact-source credential key. Never vehicle-semantic and never logged."""
+    source_url = str(source_url or "").strip()
+    if not source_url:
+        return ""
+    try:
+        identity = canonical_website_url_identity(source_url)
+    except Exception:
+        identity = source_url.casefold()
+    identity = str(identity or "").strip()
+    if not identity:
+        return ""
+    digest = hashlib.sha256(identity.encode("utf-8", errors="ignore")).hexdigest()
+    return f"{TECHNICAL_SOURCE_CREDENTIAL_PREFIX_V69172}{digest}"
+
+
+def _technical_source_password_from_secrets_v69172(source_url):
+    """Resolve a protected-page password from Streamlit secrets without exposing it.
+
+    Supported forms:
+      AUTOTECPRO_PROTECTED_PAGE_PASSWORDS = {"https://.../": "secret"}
+      AUTOTECPRO_PROTECTED_PAGE_PASSWORD = "secret"  # AutoTecPro host fallback
+    """
+    source_url = str(source_url or "").strip()
+    if not source_url:
+        return ""
+    try:
+        target = canonical_website_url_identity(source_url)
+    except Exception:
+        target = source_url.rstrip("/").casefold()
+    raw = None
+    try:
+        raw = st.secrets.get("AUTOTECPRO_PROTECTED_PAGE_PASSWORDS")
+    except Exception:
+        raw = None
+    mapping = {}
+    if isinstance(raw, dict) or hasattr(raw, "items"):
+        try:
+            mapping = dict(raw.items())
+        except Exception:
+            mapping = dict(raw) if isinstance(raw, dict) else {}
+    elif raw:
+        try:
+            parsed = json.loads(str(raw))
+            if isinstance(parsed, dict):
+                mapping = parsed
+        except Exception:
+            mapping = {}
+    for key, value in mapping.items():
+        try:
+            key_identity = canonical_website_url_identity(str(key or ""))
+        except Exception:
+            key_identity = str(key or "").rstrip("/").casefold()
+        if key_identity and key_identity == target and str(value or ""):
+            return str(value)
+    # Convenient host-scoped fallback for deployments where protected AutoTecPro
+    # pages share one administrator password. It is never used for another host.
+    try:
+        host = str(urlparse(source_url).hostname or "").casefold()
+    except Exception:
+        host = ""
+    if host == "autotecpro.com" or host.endswith(".autotecpro.com"):
+        value = _read_app_secret("AUTOTECPRO_PROTECTED_PAGE_PASSWORD", "")
+        if value:
+            return value
+    return ""
+
+
+def _technical_source_credential_master_v69172():
+    """Return a deployment-local encryption secret; no new secret is mandatory."""
+    master = _read_app_secret("AUTOTECPRO_KNOWLEDGE_CREDENTIAL_KEY", "")
+    if not master:
+        # OPENAI_API_KEY is already a private deployment secret. Deriving a distinct
+        # credential-encryption key avoids plaintext storage and requires no schema
+        # or deployment migration. Operators may set the dedicated key to decouple
+        # credential continuity from future OpenAI key rotation.
+        master = _read_app_secret("OPENAI_API_KEY", "")
+    return master
+
+
+def _technical_source_credential_encrypt_v69172(source_url, password):
+    password = str(password or "")
+    source_url = str(source_url or "").strip()
+    master = _technical_source_credential_master_v69172()
+    if not password or not source_url or not master:
+        return {}
+    try:
+        from cryptography.fernet import Fernet
+        key = base64.urlsafe_b64encode(hashlib.sha256(
+            ("ATP-TECH-CREDENTIAL-V69172\0" + master).encode("utf-8")
+        ).digest())
+        token = Fernet(key).encrypt(password.encode("utf-8")).decode("ascii")
+    except Exception as error:
+        diagnostic_log(
+            "technical_source_credential_encrypt_unavailable_v69172",
+            error_type=type(error).__name__,
+        )
+        return {}
+    return {
+        "schema_version": 69172,
+        "source_url": source_url[:2000],
+        "cipher": "fernet-sha256-derived",
+        "token": token,
+        "updated_at": now_iso(),
+    }
+
+
+def _technical_source_credential_decrypt_v69172(payload, expected_source_url=""):
+    payload = dict(payload or {})
+    if int(payload.get("schema_version") or 0) != 69172:
+        return ""
+    source_url = str(payload.get("source_url") or "").strip()
+    if expected_source_url:
+        try:
+            same = canonical_website_url_identity(source_url) == canonical_website_url_identity(expected_source_url)
+        except Exception:
+            same = bool(source_url and source_url == str(expected_source_url or "").strip())
+        if not same:
+            return ""
+    token = str(payload.get("token") or "")
+    master = _technical_source_credential_master_v69172()
+    if not token or not master:
+        return ""
+    try:
+        from cryptography.fernet import Fernet
+        key = base64.urlsafe_b64encode(hashlib.sha256(
+            ("ATP-TECH-CREDENTIAL-V69172\0" + master).encode("utf-8")
+        ).digest())
+        return Fernet(key).decrypt(token.encode("ascii")).decode("utf-8")
+    except Exception:
+        return ""
+
+
+def _technical_source_credential_row_v69172(source_url):
+    key = _technical_source_credential_key_v69172(source_url)
+    if not key:
+        return ""
+    try:
+        mode, columns, key_col, value_col, time_col = _technical_active_authority_schema_v69164()
+        wanted = [x for x in ("id", key_col, value_col, "solution", "approved_answer",
+                              "source_type", "updated_at", "created_at")
+                  if x and (not columns or x in columns)]
+        rows = list(
+            supabase.table("learned_knowledge")
+            .select(",".join(dict.fromkeys(wanted)))
+            .eq(key_col, key)
+            .order(time_col, desc=True)
+            .limit(1)
+            .execute().data or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "technical_source_credential_read_failed_v69172",
+            error_type=type(error).__name__,
+        )
+        return ""
+    if not rows or not isinstance(rows[0], dict):
+        return ""
+    row = dict(rows[0])
+    raw = str(row.get(value_col) or row.get("solution") or row.get("approved_answer") or "")
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return ""
+    return _technical_source_credential_decrypt_v69172(payload, source_url)
+
+
+def _technical_source_credential_commit_v69172(source_url, password):
+    """Persist a protected-page credential encrypted at rest after admin approval."""
+    source_url = str(source_url or "").strip()
+    password = str(password or "")
+    if not source_url or not password:
+        return {"complete": False, "skipped": True}
+    payload = _technical_source_credential_encrypt_v69172(source_url, password)
+    key = _technical_source_credential_key_v69172(source_url)
+    if not payload or not key:
+        return {"complete": False, "skipped": True}
+    mode, columns, key_col, value_col, time_col = _technical_active_authority_schema_v69164()
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    existing_id = None
+    try:
+        rows = list(
+            supabase.table("learned_knowledge")
+            .select(f"id,{key_col}")
+            .eq(key_col, key)
+            .order(time_col, desc=True)
+            .limit(1)
+            .execute().data or []
+        )
+        if rows and isinstance(rows[0], dict):
+            existing_id = rows[0].get("id")
+    except Exception:
+        existing_id = None
+    if mode == "modern":
+        row_payload = {
+            "issue": key, "solution": encoded, "approved_answer": encoded,
+            "source_type": "technical_source_credential_v69172",
+            "updated_at": now_iso(), "staff_confirmed": True,
+            "record_type": "technical_source_credential",
+            "assistant": "Technical Support", "department": "technical",
+        }
+    else:
+        row_payload = {
+            "question": key, "approved_answer": encoded,
+            "keywords": "technical_source_credential_v69172",
+            "source_type": "technical_source_credential_v69172",
+            "created_at": now_iso(), "staff_confirmed": True,
+            "record_type": "technical_source_credential",
+            "assistant": "Technical Support", "department": "technical",
+        }
+    row_payload = filter_payload_for_table("learned_knowledge", row_payload)
+    if key_col not in row_payload or value_col not in row_payload:
+        return {"complete": False, "reason": "schema"}
+    if existing_id is not None:
+        update_payload = dict(row_payload); update_payload.pop("created_at", None)
+        safe_update_row("learned_knowledge", update_payload, existing_id)
+    else:
+        safe_insert_row("learned_knowledge", row_payload)
+    verified = _technical_source_credential_row_v69172(source_url)
+    if verified != password:
+        raise RuntimeError("Protected-source credential read-back verification failed.")
+    diagnostic_log(
+        "technical_source_credential_commit_verified_v69172",
+        source_url=source_url[:700],
+    )
+    return {"complete": True}
+
+
+def _technical_source_password_v69172(source_url):
+    """Secrets override DB vault, allowing immediate repair of pre-v69172 legacy pages."""
+    value = _technical_source_password_from_secrets_v69172(source_url)
+    if value:
+        return value
+    return _technical_source_credential_row_v69172(source_url)
+
+
+def _technical_exact_source_auto_repair_v69172(prompt_text, current_payload, vector_store_id=""):
+    """Re-fetch and reseed ONLY the exact already-reviewed source URL.
+
+    This path is used only after both the current OpenAI file and same-source durable
+    snapshot are unavailable. It never searches the vector store semantically and
+    never switches URLs. The refetched package must independently prove the same
+    canonical source plus the requested vehicle/year identity before it is committed.
+    """
+    current = dict(current_payload or {})
+    source_url = str(current.get("source_url") or "").strip()
+    if not source_url:
+        return {"status": "unavailable", "reason_code": "NO_CURRENT_SOURCE_URL"}
+    password = _technical_source_password_v69172(source_url)
+    try:
+        extraction = extract_public_webpage(source_url, page_password=password)
+    except Exception as error:
+        text = str(error or "")
+        reason = "PROTECTED_SOURCE_CREDENTIAL_REQUIRED" if "password protected" in text.casefold() or "password was not accepted" in text.casefold() else "EXACT_SOURCE_REFETCH_FAILED"
+        diagnostic_log(
+            "technical_exact_source_refetch_failed_v69172",
+            source_url=source_url[:700],
+            reason=reason,
+            error_type=type(error).__name__,
+        )
+        return {"status": "unavailable", "reason_code": reason, "source_url": source_url}
+
+    actual_url = str(extraction.get("source_url") or extraction.get("requested_url") or "").strip()
+    try:
+        same_source = canonical_website_url_identity(actual_url) == canonical_website_url_identity(source_url)
+    except Exception:
+        same_source = bool(actual_url and actual_url.rstrip("/") == source_url.rstrip("/"))
+    if not same_source:
+        return {"status": "unavailable", "reason_code": "REFETCH_SOURCE_IDENTITY_MISMATCH", "source_url": source_url}
+
+    reviewed = clean_extracted_website_text(extraction.get("content") or "")
+    if len(reviewed) < 120:
+        return {"status": "unavailable", "reason_code": "REFETCH_CONTENT_TOO_SHORT", "source_url": source_url}
+
+    # Rare repair path: rebuild the complete image-aware package so first-turn image
+    # authority is restored at the same time as factual authority. If image analysis
+    # is temporarily unavailable, factual recovery still succeeds and existing exact
+    # durable image-index rows remain eligible downstream.
+    image_analysis = {"images": [], "attempted": 0, "skipped": 0, "failures": 0}
+    try:
+        image_analysis = analyze_website_images(
+            extraction,
+            "Technical Support Database",
+            selected_urls=list(extraction.get("image_candidates") or []),
+        )
+    except Exception as image_error:
+        diagnostic_log(
+            "technical_exact_source_refetch_image_analysis_failed_v69172",
+            source_url=source_url[:700],
+            error_type=type(image_error).__name__,
+        )
+
+    package_text = build_website_knowledge_package_document(
+        extraction,
+        "Technical Support Database",
+        reviewed_content=reviewed,
+        image_analysis=image_analysis,
+    )
+    file_id = str(current.get("file_id") or "").strip()
+    if not file_id:
+        file_id = "snapshot-only-v69172-" + hashlib.sha256(
+            canonical_website_url_identity(source_url).encode("utf-8")
+        ).hexdigest()[:24]
+    filename = str(current.get("filename") or "").strip() or website_knowledge_filename(extraction)
+    package = _technical_package_from_text_v69121(file_id, filename, package_text)
+    if not isinstance(package, dict):
+        return {"status": "unavailable", "reason_code": "REFETCH_PACKAGE_PARSE_FAILED", "source_url": source_url}
+    if not _technical_package_candidate_score_v69157(prompt_text, package):
+        return {"status": "unavailable", "reason_code": "REFETCH_PACKAGE_IDENTITY_REJECTED", "source_url": source_url}
+    if not _technical_package_has_current_structure_v69165(package_text):
+        return {"status": "unavailable", "reason_code": "REFETCH_HIERARCHY_INVALID", "source_url": source_url}
+
+    commit = _technical_active_authority_commit_verified_v69167(package, vector_store_id)
+    snapshot = _technical_durable_snapshot_recover_v69171(
+        source_url,
+        vector_store_id,
+    )
+    if not snapshot or str(snapshot.get("package_text") or "") != package_text:
+        raise RuntimeError("Exact-source repair snapshot verification failed.")
+
+    try:
+        _technical_package_prewarm_inject_v69121(file_id, filename, package_text)
+    except Exception:
+        pass
+    diagnostic_log(
+        "technical_exact_source_auto_repair_verified_v69172",
+        source_url=source_url[:700],
+        file_id=file_id[:160],
+        snapshot_sha256=str(snapshot.get("content_sha256") or "")[:64],
+        image_count=len((image_analysis or {}).get("images") or []),
+    )
+    return {
+        "status": "recovered",
+        "source_url": source_url,
+        "file_id": file_id,
+        "filename": filename,
+        "package_text": package_text,
+        "package": package,
+        "snapshot_sha256_v69171": str(snapshot.get("content_sha256") or ""),
+        "commit": commit,
+        "exact_source_refetch_repair_v69172": True,
+    }
+
+
 TECHNICAL_DURABLE_SNAPSHOT_PREFIX_V69171 = "__ATP_TECH_DURABLE_SNAPSHOT_V69171__:"
 
 
@@ -62316,12 +62600,33 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
             )
 
     if not full:
-        return {
-            "status": "known_current_unavailable",
-            "reason_code": "ACTIVE_FILE_AND_SNAPSHOT_UNAVAILABLE",
-            "family": family, "year": year, "file_id": file_id,
-            "source_url": str(payload.get("source_url") or ""),
-        }
+        # v69172: last safe recovery tier for pre-snapshot legacy sources. Re-fetch
+        # ONLY the exact already-reviewed current URL, optionally using its encrypted
+        # credential/Streamlit secret, verify identity + hierarchy, seed a durable
+        # snapshot transactionally, then continue through the normal structural path.
+        repair_v69172 = _technical_exact_source_auto_repair_v69172(
+            prompt_text,
+            {**dict(payload or {}), "file_id": file_id},
+            vector_store_id,
+        )
+        if str(repair_v69172.get("status") or "") == "recovered":
+            full = str(repair_v69172.get("package_text") or "")
+            file_id = str(repair_v69172.get("file_id") or file_id)
+            payload = dict(_technical_active_authority_row_v69164(
+                family, year, vector_store_id
+            ) or payload or {})
+            diagnostic_log(
+                "technical_active_source_repaired_by_refetch_v69172",
+                family=family[:80], year=year, file_id=file_id[:160],
+                source_url=str(payload.get("source_url") or "")[:700],
+            )
+        else:
+            return {
+                "status": "known_current_unavailable",
+                "reason_code": str(repair_v69172.get("reason_code") or "ACTIVE_FILE_SNAPSHOT_AND_REFETCH_UNAVAILABLE"),
+                "family": family, "year": year, "file_id": file_id,
+                "source_url": str(payload.get("source_url") or ""),
+            }
 
     package = _technical_package_from_text_v69121(
         file_id, str(payload.get("filename") or ""), full
@@ -65418,8 +65723,9 @@ def render_learn_from_website(database_choice):
         placeholder="Enter only if this webpage is password protected",
         key="stable_admin_website_page_password_v68891",
         help=(
-            "Used only to unlock this webpage during extraction. "
-            "The password is not saved to the knowledge base."
+            "Used to unlock this webpage during extraction. For Technical Support pages, "
+            "the credential is encrypted at rest after approval so an exact-source legacy repair "
+            "can re-fetch the same reviewed URL if both its OpenAI file and durable snapshot are unavailable."
         ),
     )
 
@@ -65748,6 +66054,24 @@ def render_learn_from_website(database_choice):
 
         results_v69029 = dict(multi_save_v69029.get("results") or {})
         failures_v69029 = dict(multi_save_v69029.get("failures") or {})
+        # v69172: after Technical approval succeeds, retain the protected-page
+        # credential encrypted at rest. Never place plaintext in the learned package,
+        # vector store, chat history, logs, or diagnostic fields.
+        if (
+            "Technical Support Database" in results_v69029
+            and not failures_v69029.get("Technical Support Database")
+            and str(website_page_password or "")
+        ):
+            try:
+                _technical_source_credential_commit_v69172(
+                    reviewed_extraction.get("source_url") or reviewed_extraction.get("requested_url") or "",
+                    website_page_password,
+                )
+            except Exception as credential_error_v69172:
+                diagnostic_log(
+                    "technical_source_credential_commit_failed_v69172",
+                    error_type=type(credential_error_v69172).__name__,
+                )
         image_incomplete_v69114 = dict(
             multi_save_v69029.get("image_incomplete") or {}
         )
@@ -75710,6 +76034,11 @@ else:
                             "Technical Support Database",
                             include_images=True,
                         )
+                        if str(technical_website_learning_password_v69109 or ""):
+                            _technical_source_credential_commit_v69172(
+                                extraction_v68870.get("source_url") or extraction_v68870.get("requested_url") or "",
+                                technical_website_learning_password_v69109,
+                            )
                     stats_v68870 = dict(
                         save_result_v68870.get("image_analysis") or {}
                     )
