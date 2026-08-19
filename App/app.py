@@ -1,20 +1,9 @@
-# AutoTecPro AI v69175 FINAL PRODUCTION — v69125 Technical core + exact same-file/same-section authority + intelligent transactional link learning + protected Graphic authority preserved.
+# AutoTecPro AI v69177 FINAL PRODUCTION — v69125 Technical core + exact same-file/same-section authority + intelligent transactional link learning + protected Graphic authority preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
-# AutoTecPro AI v69167 FINAL STABLE PRODUCTION — transactional Technical source authority + stale-pointer self-heal.
-# AutoTecPro AI v69166 FINAL RELEASE — force active Technical pointer after reviewed migration/save.
-# AutoTecPro AI v69165 FINAL RELEASE — Technical exact-duplicate structural migration + locked-package direct authority.
-# AutoTecPro AI v69164 FINAL RELEASE — current-source family/year lock; stale semantic authority blocked; v69050/v69125 fallback preserved.
-# AutoTecPro AI v69163 FINAL RELEASE — v69050/v69125 baseline first; all newer Technical authority additive only.\n# AutoTecPro AI v69159 FINAL RELEASE — Graphic durable-job UUID runtime dependency repair; v69158 Technical fixes preserved.
-# AutoTecPro AI v69150 FINAL RELEASE — exact v69125 retrieval + bounded v69050 recovery
-# AutoTecPro AI v69146 — FINAL PRODUCTION: Graphic same-account multi-tab orchestration repair only; frozen Reference Mode, After Install Mode, Graphic generation, and v69125 Technical output contract preserved.
-V69146_GRAPHIC_TAB_ORCHESTRATION_STABILITY = True
-# AutoTecPro AI v69145 — FINAL PRODUCTION: runtime authority lock; exact branch/source/image provenance + reconnect/workspace/fallback safety; v69143 output format and v69125 behavior preserved.
-V69144_RUNTIME_AUTHORITY_LOCK = True
-# AutoTecPro AI v69143 — FINAL PRODUCTION: Quick-Navigation + full-section/subtitle/image learning; v69142 output format and v69125 behavior preserved.
-V69143_QUICK_NAV_SECTION_CONTENT_IMAGE_LEARNING = True
+# AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
@@ -7414,15 +7403,23 @@ if (
     and not st.session_state.get("conversation_id")
 ):
     try:
-        if _conversation_owned_by_user_cached(
+        restored_workspace_matches_v69177 = _conversation_owned_by_user_workspace_cached_v69177(
             str(st.session_state.get("username") or "").strip(),
             _restored_conversation_id_v69026,
-        ):
+            st.session_state.current_assistant,
+        )
+        if restored_workspace_matches_v69177:
             st.session_state.conversation_id = _restored_conversation_id_v69026
             st.session_state.messages = load_messages(_restored_conversation_id_v69026)
             st.session_state.scroll_to_bottom = True
             diagnostic_log(
-                "mobile_conversation_restored_v69026",
+                "mobile_conversation_restored_v69177",
+                conversation_id=_restored_conversation_id_v69026,
+                workspace=st.session_state.current_assistant,
+            )
+        else:
+            diagnostic_log(
+                "mobile_conversation_restore_workspace_rejected_v69177",
                 conversation_id=_restored_conversation_id_v69026,
                 workspace=st.session_state.current_assistant,
             )
@@ -40852,171 +40849,142 @@ def _technical_v69125_exact_images_v69175(prompt_text, authority, max_images=3):
         return _dedupe_website_chat_images_v68883(images)
 
 
+
 def _technical_same_family_variant_evidence_v69124(prompt_text):
-    """v69175: v69125 retrieval with exact same-file + same-section contract authority."""
+    """v69176: exact source/section authority before Manual/Automatic semantic ranking."""
     if not _technical_generic_ac_variant_request_v69124(prompt_text):
-        return {"context": "", "rows": [], "status": "not_applicable", "contract_complete": False}
-    store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
-    if not store_ids:
-        return {"context": "", "rows": [], "status": "no_store", "contract_complete": False}
-    store = str(store_ids[0] or "").strip()
+        return {"context":"","rows":[],"status":"not_applicable","contract_complete":False}
+    stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not stores:
+        return {"context":"","rows":[],"status":"no_store","contract_complete":False}
+    store = str(stores[0] or "").strip()
 
-    def search_branch(branch):
-        request = {
-            "input": _technical_variant_search_query_v69124(prompt_text, branch),
-            "tools": [{"type": "file_search", "vector_store_ids": [store]}],
-        }
-        rows = _website_request_vector_search_rows_v69047(request, max_results=20)
-        output = []
-        for row in rows or []:
-            candidate = _technical_variant_candidate_v69124(prompt_text, row, branch)
-            if candidate:
-                output.append(candidate)
-        output.sort(
-            key=lambda item: (
-                bool(item.get("website_package")),
-                float(item.get("identity_score") or 0.0),
-                str(item.get("extracted_at") or ""),
-                float(item.get("score") or 0.0),
-            ), reverse=True,
-        )
-        return output
-
-    def search_combined():
-        request = {
-            "input": (
-                "AUTOTECPRO TECHNICAL COMPLETE A/C VARIANT RETRIEVAL ONLY. "
-                "Find the CURRENT Technical source for the exact vehicle/year/product/"
-                "factory-system in the user request that contains BOTH the Manual A/C "
-                "and Automatic A/C Car Model / Protocol / climate menu selections. "
-                "Prefer the newest Admin website package. Do not use a nearby vehicle "
-                "or factory-system family.\n\nUSER REQUEST:\n" + str(prompt_text or "").strip()
-            ),
-            "tools": [{"type": "file_search", "vector_store_ids": [store]}],
-        }
-        rows = _website_request_vector_search_rows_v69047(request, max_results=24)
-        output = []
-        for row in rows or []:
-            manual_candidate = _technical_variant_candidate_v69124(prompt_text, row, "manual")
-            automatic_candidate = _technical_variant_candidate_v69124(prompt_text, row, "automatic")
-            if manual_candidate and automatic_candidate:
-                item = dict(manual_candidate)
-                item["combined_query_support_v69175"] = True
-                output.append(item)
-        output.sort(
-            key=lambda item: (
-                bool(item.get("website_package")),
-                float(item.get("identity_score") or 0.0),
-                str(item.get("extracted_at") or ""),
-                float(item.get("score") or 0.0),
-            ), reverse=True,
-        )
-        return output
-
-    try:
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="atp-tech-ac-variant") as executor:
-            manual_future = executor.submit(search_branch, "manual")
-            auto_future = executor.submit(search_branch, "automatic")
-            pair_future = executor.submit(search_combined)
-            manual_candidates = list(manual_future.result() or [])
-            auto_candidates = list(auto_future.result() or [])
-            pair_candidates = list(pair_future.result() or [])
-    except Exception as error:
-        diagnostic_log(
-            "technical_variant_parallel_search_failed_v69125",
-            error_type=type(error).__name__, error=str(error)[:500],
-        )
-        return {"context": "", "rows": [], "status": "search_failed", "contract_complete": False}
-
-    manual_by_file = {str(x.get("file_id") or ""): x for x in manual_candidates if str(x.get("file_id") or "")}
-    auto_by_file = {str(x.get("file_id") or ""): x for x in auto_candidates if str(x.get("file_id") or "")}
-    ordered = []
-    seen = set()
-    for file_id in (set(manual_by_file) & set(auto_by_file)):
-        item = dict(manual_by_file[file_id])
-        item["dual_branch_support_v69125"] = True
-        item["manual_branch_score_v69125"] = float(manual_by_file[file_id].get("score") or 0.0)
-        item["automatic_branch_score_v69125"] = float(auto_by_file[file_id].get("score") or 0.0)
-        ordered.append(item)
-        seen.add(file_id)
-    for collection in (pair_candidates, manual_candidates, auto_candidates):
-        for item in collection:
-            file_id = str(item.get("file_id") or "").strip()
-            if file_id and file_id not in seen:
-                ordered.append(dict(item))
-                seen.add(file_id)
-
-    ordered.sort(
-        key=lambda item: (
-            bool(item.get("website_package")),
-            float(item.get("identity_score") or 0.0),
-            str(item.get("extracted_at") or ""),
-            float(item.get("score") or 0.0),
-        ),
-        reverse=True,
-    )
-    exact_contracts = []
-    for item in ordered[:16]:
-        contract = _technical_v69125_exact_section_contract_v69175(prompt_text, item)
-        if contract:
-            exact_contracts.append(contract)
-    exact_contracts.sort(key=lambda item: tuple(item.get("rank") or ()), reverse=True)
-    selected = dict(exact_contracts[0]) if exact_contracts else {}
-
-    if selected:
-        authority = dict(selected.get("authority") or {})
+    def result_from_contract(contract, route):
+        if not contract:
+            return None
+        authority = dict(contract.get("authority") or {})
         row = {
-            "file_id": str(selected.get("file_id") or ""),
-            "filename": str(selected.get("filename") or ""),
+            "file_id": str(contract.get("file_id") or ""),
+            "filename": str(contract.get("filename") or ""),
             "score": 1.0,
             "text": str(authority.get("section_text") or "")[:50000],
             "technical_variant_evidence_v69124": True,
             "technical_dual_ac_contract_v69125": True,
             "technical_exact_section_contract_v69175": True,
+            "technical_deterministic_source_first_v69176": True,
         }
         result = {
-            "context": (
-                "TECHNICAL MANUAL + AUTOMATIC SIBLING EVIDENCE (v69125 + v69175 exact-section authority):\n"
-                "One exact Technical file and one exact learned configuration section prove both branches. "
-                "Use only this section for this settings turn.\n\n"
-                + str(authority.get("context") or _technical_authority_context_v69155(authority))
-            ),
+            "context": "TECHNICAL EXACT SAME-FILE / SAME-SECTION AUTHORITY (v69176):\\nUse only this exact learned Technical settings section for this turn.\\n\\n" + str(authority.get("context") or _technical_authority_context_v69155(authority)),
             "rows": [row],
-            "status": "recovered_exact_section_v69175",
+            "status": "recovered_exact_section_v69176",
             "contract_complete": True,
-            "manual_value": str(selected.get("manual_value") or ""),
-            "automatic_value": str(selected.get("automatic_value") or ""),
-            "contract_file_id": str(selected.get("file_id") or ""),
-            "contract_source_url": str(selected.get("source_url") or ""),
-            "contract_extracted_at": str(selected.get("extracted_at") or ""),
+            "manual_value": str(contract.get("manual_value") or ""),
+            "automatic_value": str(contract.get("automatic_value") or ""),
+            "contract_file_id": str(contract.get("file_id") or ""),
+            "contract_source_url": str(contract.get("source_url") or ""),
+            "contract_extracted_at": str(contract.get("extracted_at") or ""),
             "exact_authority_v69175": authority,
+            "source_resolution_route_v69176": route,
         }
-        result["context"] += "\n\n" + _technical_variant_contract_context_v69125(result)
-        diagnostic_log(
-            "technical_v69125_exact_section_contract_bound_v69175",
-            file_id=str(selected.get("file_id") or "")[:160],
-            source_url=str(selected.get("source_url") or "")[:700],
-            section=str(authority.get("section_title") or "")[:300],
-        )
+        result["context"] += "\\n\\n" + _technical_variant_contract_context_v69125(result)
         return result
 
-    diagnostic_log(
-        "technical_variant_partial_cross_file_rejected_v69175",
-        manual_candidates=len(manual_candidates),
-        automatic_candidates=len(auto_candidates),
-        combined_candidates=len(pair_candidates),
-    )
-    return {
-        "context": "",
-        "rows": [],
-        "status": "partial_cross_file_rejected_v69175",
-        "contract_complete": False,
-        "partial_candidate_file_ids_v69175": sorted({
-            str(x.get("file_id") or "") for x in (manual_candidates + auto_candidates + pair_candidates)
-            if str(x.get("file_id") or "")
-        })[:24],
-    }
+    try:
+        exact_source = _technical_exact_source_recovery_v69150(prompt_text)
+    except Exception as error:
+        exact_source = {}
+        diagnostic_log("technical_deterministic_source_first_failed_v69176", error_type=type(error).__name__, error=str(error)[:400])
+    if str((exact_source or {}).get("status") or "") == "recovered":
+        candidate = {
+            "file_id": str(exact_source.get("file_id") or ""),
+            "filename": str(exact_source.get("filename") or ""),
+            "source_url": str(exact_source.get("source_url") or ""),
+            "score": 1.0,
+            "identity_score": 10000.0,
+            "website_package": True,
+        }
+        contract = _technical_v69125_exact_section_contract_v69175(prompt_text, candidate)
+        bound = result_from_contract(contract, "identity_first")
+        if bound:
+            return bound
+
+    def search_branch(branch):
+        req = {"input": _technical_variant_search_query_v69124(prompt_text, branch), "tools":[{"type":"file_search","vector_store_ids":[store]}]}
+        rows = _website_request_vector_search_rows_v69047(req, max_results=24)
+        out=[]
+        for row in rows or []:
+            c = _technical_variant_candidate_v69124(prompt_text, row, branch)
+            if c:
+                out.append(c)
+        out.sort(key=lambda x:(bool(x.get("website_package")), float(x.get("identity_score") or 0), str(x.get("extracted_at") or ""), float(x.get("score") or 0)), reverse=True)
+        return out
+
+    def search_combined():
+        req = {"input": "AUTOTECPRO TECHNICAL COMPLETE A/C VARIANT SOURCE RETRIEVAL. Find the exact current installation/technical source for this vehicle/year that contains both Manual and Automatic A/C configuration branches. Return source evidence only.\\n\\nUSER REQUEST:\\n" + str(prompt_text or "").strip(), "tools":[{"type":"file_search","vector_store_ids":[store]}]}
+        rows = _website_request_vector_search_rows_v69047(req, max_results=28)
+        out=[]
+        for row in rows or []:
+            m=_technical_variant_candidate_v69124(prompt_text,row,"manual")
+            a=_technical_variant_candidate_v69124(prompt_text,row,"automatic")
+            if m and a:
+                item=dict(m)
+                item["combined_query_support_v69176"]=True
+                out.append(item)
+        return out
+
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=3, thread_name_prefix="atp-tech-ac-variant") as executor:
+            mf=executor.submit(search_branch,"manual")
+            af=executor.submit(search_branch,"automatic")
+            pf=executor.submit(search_combined)
+            manual=list(mf.result() or [])
+            automatic=list(af.result() or [])
+            combined=list(pf.result() or [])
+    except Exception as error:
+        diagnostic_log("technical_variant_parallel_search_failed_v69176", error_type=type(error).__name__, error=str(error)[:500])
+        manual=[]
+        automatic=[]
+        combined=[]
+
+    candidates=[]
+    seen=set()
+    manual_by={str(x.get("file_id") or ""):x for x in manual if str(x.get("file_id") or "")}
+    auto_by={str(x.get("file_id") or ""):x for x in automatic if str(x.get("file_id") or "")}
+    for fid in (set(manual_by) & set(auto_by)):
+        candidates.append(dict(manual_by[fid]))
+        seen.add(fid)
+    for collection in (combined, manual, automatic):
+        for item in collection:
+            fid=str(item.get("file_id") or "").strip()
+            if fid and fid not in seen:
+                candidates.append(dict(item))
+                seen.add(fid)
+    candidates.sort(key=lambda x:(bool(x.get("website_package")), float(x.get("identity_score") or 0), str(x.get("extracted_at") or ""), float(x.get("score") or 0)), reverse=True)
+
+    contracts=[]
+    for item in candidates[:24]:
+        c=_technical_v69125_exact_section_contract_v69175(prompt_text,item)
+        if c:
+            contracts.append(c)
+    if not contracts:
+        try:
+            inventory=_technical_inventory_probe_v69150(prompt_text,store,max_files=140,timeout_seconds=12.0)
+        except Exception:
+            inventory=[]
+        for item in inventory[:40]:
+            c=_technical_v69125_exact_section_contract_v69175(prompt_text,item)
+            if c:
+                contracts.append(c)
+    if contracts:
+        contracts.sort(key=lambda x:tuple(x.get("rank") or ()), reverse=True)
+        bound=result_from_contract(contracts[0], "section_verified_candidates")
+        if bound:
+            return bound
+
+    diagnostic_log("technical_exact_dual_ac_contract_unavailable_v69176", manual=len(manual), automatic=len(automatic), combined=len(combined))
+    return {"context":"","rows":[],"status":"exact_contract_unavailable_v69176","contract_complete":False}
+
 
 
 
@@ -45255,23 +45223,17 @@ def update_conversation_ai_title(
         )
 
 
-def get_conversation_storage_count(username, role=None):
-    """
-    Count active saved conversations for the signed-in user only.
 
-    Every account has an independent history, including admin accounts.
-    Pinned and unpinned active conversations are both included in the
-    displayed storage count.
-    """
+def get_conversation_storage_count(username, role=None, assistant_name=None):
+    """Count active saved conversations for one signed-in user and optional workspace."""
     username = str(username or "").strip()
+    workspace = clean_assistant_label(str(assistant_name or "").strip())
     if not username:
         return 0
-
     try:
-        return _active_conversation_count_cached(username)
+        return _active_conversation_count_cached(username, workspace)
     except Exception:
         pass
-
     try:
         rows = safe_select_rows(
             "conversations",
@@ -45279,9 +45241,9 @@ def get_conversation_storage_count(username, role=None):
             limit=5000,
         )
         return len([
-            row
-            for row in rows
+            row for row in rows
             if str(row.get("username", "")).lower() == username.lower()
+            and (not workspace or clean_assistant_label(str(row.get("assistant") or "")) == workspace)
             and not (
                 row.get("archived") is True
                 or str(row.get("archived")).lower() == "true"
@@ -45289,6 +45251,7 @@ def get_conversation_storage_count(username, role=None):
         ])
     except Exception:
         return 0
+
 
 
 MAX_UNPINNED_CONVERSATIONS_PER_USER = 100
@@ -45512,20 +45475,18 @@ def save_message(
     )
 
 @st.cache_data(ttl=60, max_entries=256, show_spinner=False)
+
+@st.cache_data(ttl=60, max_entries=512, show_spinner=False)
 def _load_conversations_cached(
     username,
     unpinned_limit=INITIAL_HISTORY_PAGE_SIZE,
+    assistant_name="",
 ):
-    """
-    Load lightweight sidebar summaries incrementally.
-
-    Pinned rows remain available independently. Unpinned rows are transferred
-    only up to the current sidebar page size.
-    """
+    """Load lightweight sidebar summaries with DB-side workspace filtering."""
     username = str(username or "").strip()
+    workspace = clean_assistant_label(str(assistant_name or "").strip())
     if not username:
         return []
-
     try:
         clean_limit = int(unpinned_limit)
     except (TypeError, ValueError):
@@ -45541,62 +45502,73 @@ def _load_conversations_cached(
     )
     base_filter = "archived.is.null,archived.eq.false"
 
-    pinned_result = (
-        supabase
-        .table("conversations")
+    pinned_query = (
+        supabase.table("conversations")
         .select(selected_columns)
         .eq("username", username)
         .eq("pinned", True)
         .or_(base_filter)
-        .order("updated_at", desc=True)
-        .execute()
     )
-    unpinned_result = (
-        supabase
-        .table("conversations")
+    unpinned_query = (
+        supabase.table("conversations")
         .select(selected_columns)
         .eq("username", username)
         .eq("pinned", False)
         .or_(base_filter)
-        .order("updated_at", desc=True)
+    )
+    if workspace:
+        pinned_query = pinned_query.eq("assistant", workspace)
+        unpinned_query = unpinned_query.eq("assistant", workspace)
+
+    pinned_result = pinned_query.order("updated_at", desc=True).execute()
+    unpinned_result = (
+        unpinned_query.order("updated_at", desc=True)
         .limit(clean_limit)
         .execute()
     )
+    return list(pinned_result.data or []) + list(unpinned_result.data or [])
 
-    return list(pinned_result.data or []) + list(
-        unpinned_result.data or []
-    )
 
+
+@st.cache_data(ttl=60, max_entries=256, show_spinner=False)
 
 @st.cache_data(ttl=60, max_entries=256, show_spinner=False)
 def _conversation_summary_index_cached(
     username,
     unpinned_limit=INITIAL_HISTORY_PAGE_SIZE,
+    assistant_name="",
 ):
-    """Index cached sidebar summaries by id for constant-time title/action lookup."""
+    """Index cached sidebar summaries by id for one optional workspace."""
     return {
         str(row.get("id")): row
-        for row in _load_conversations_cached(username, unpinned_limit)
+        for row in _load_conversations_cached(
+            username, unpinned_limit, assistant_name
+        )
         if isinstance(row, dict) and row.get("id") is not None
     }
 
 
+
 @st.cache_data(ttl=60, max_entries=128, show_spinner=False)
-def _active_conversation_count_cached(username):
-    """Return the exact active saved-conversation count for one user."""
+
+@st.cache_data(ttl=60, max_entries=256, show_spinner=False)
+def _active_conversation_count_cached(username, assistant_name=""):
+    """Return exact active saved-conversation count for one user/workspace."""
     username = str(username or "").strip()
+    workspace = clean_assistant_label(str(assistant_name or "").strip())
     if not username:
         return 0
-
-    result = (
-        supabase
-        .table("conversations")
+    query = (
+        supabase.table("conversations")
         .select("id", count="exact", head=True)
         .eq("username", username)
         .or_("archived.is.null,archived.eq.false")
-        .execute()
     )
+    if workspace:
+        query = query.eq("assistant", workspace)
+    result = query.execute()
     return int(result.count or 0)
+
 
 
 @st.cache_data(ttl=60, max_entries=512, show_spinner=False)
@@ -45609,6 +45581,36 @@ def _conversation_owned_by_user_cached(username, conversation_id):
     return persistence_conversation_owned_by_user(
         supabase, username, conversation_id
     )
+
+
+
+@st.cache_data(ttl=60, max_entries=512, show_spinner=False)
+def _conversation_owned_by_user_workspace_cached_v69177(username, conversation_id, assistant_name):
+    """Verify ownership and workspace identity before reconnect/history restoration."""
+    username = str(username or "").strip()
+    conversation_id = str(conversation_id or "").strip()
+    workspace = clean_assistant_label(str(assistant_name or "").strip())
+    if not username or not conversation_id:
+        return False
+    try:
+        query = (
+            supabase.table("conversations")
+            .select("id,username,assistant,archived")
+            .eq("id", conversation_id)
+            .eq("username", username)
+            .limit(1)
+        )
+        rows = list(query.execute().data or [])
+    except Exception:
+        raise
+    if not rows:
+        return False
+    row = rows[0]
+    if row.get("archived") is True or str(row.get("archived")).lower() == "true":
+        return False
+    if workspace and clean_assistant_label(str(row.get("assistant") or "")) != workspace:
+        return False
+    return True
 
 
 def _remember_owned_conversation_v68960(conversation_id):
@@ -45706,26 +45708,27 @@ def load_messages(conversation_id):
     cached_messages = _load_messages_cached(username, conversation_id)
     return [dict(message) for message in cached_messages]
 
+
 def load_conversations(
     username,
     role=None,
     unpinned_limit=INITIAL_HISTORY_PAGE_SIZE,
+    assistant_name=None,
 ):
-    """
-    Load active sidebar summaries for the signed-in user.
-
-    Full messages remain lazy and are fetched only when a conversation opens.
-    """
+    """Load active sidebar summaries for one signed-in user and optional workspace."""
+    workspace = clean_assistant_label(str(assistant_name or "").strip())
     conversations = [
         dict(conversation)
         for conversation in _load_conversations_cached(
             str(username or "").strip(),
             unpinned_limit,
+            workspace,
         )
     ]
     if str(username or "").strip() == str(st.session_state.get("username") or "").strip():
         _remember_owned_conversations_v68960(conversations)
     return conversations
+
 
 def archive_conversation(conversation_id):
     if conversation_id:
@@ -46314,15 +46317,23 @@ def render_history_sidebar_fragment():
             )
         )
 
+        active_history_workspace_v69177 = clean_assistant_label(
+            st.session_state.get("assistant")
+            or st.session_state.get("current_assistant")
+            or globals().get("assistant")
+            or ""
+        )
         conversations = load_conversations(
             st.session_state.username,
             st.session_state.role,
             unpinned_limit=effective_history_limit,
+            assistant_name=active_history_workspace_v69177,
         )
 
         storage_count = get_conversation_storage_count(
             st.session_state.username,
             st.session_state.role,
+            assistant_name=active_history_workspace_v69177,
         )
         st.sidebar.markdown(
             (
@@ -52471,21 +52482,21 @@ def _website_image_index_issue_v68883(image_item):
     return f"website-image:{digest[:40]}"
 
 
+
 def _website_image_page_identity_v69003(payload_or_extraction):
-    """Return the canonical page identity used for page-scoped website image records."""
+    """Canonical page identity shared by learning and durable image persistence."""
     source = dict(payload_or_extraction or {})
-    raw_url = (
-        str(source.get("requested_page") or "").strip()
-        or str(source.get("source_page") or "").strip()
-        or str(source.get("requested_url") or "").strip()
-        or str(source.get("source_url") or "").strip()
-    )
+    raw_url = (str(source.get("requested_page") or "").strip() or str(source.get("source_page") or "").strip() or str(source.get("requested_url") or "").strip() or str(source.get("source_url") or "").strip())
     if not raw_url:
         return ""
     try:
-        return canonical_website_url_identity(raw_url)
+        return _website_learning_canonical_identity_v69175(raw_url)
     except Exception:
-        return raw_url.rstrip("/").casefold()
+        try:
+            return canonical_website_url_identity(raw_url)
+        except Exception:
+            return raw_url.rstrip("/").casefold()
+
 
 
 def _website_image_scoped_issue_v69003(payload):
@@ -52505,46 +52516,51 @@ def _website_image_scoped_issue_v69003(payload):
 
 
 
-@st.cache_data(ttl=300, max_entries=2, show_spinner=False)
+_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176 = {"profile": {}, "at": 0.0}
+
+def _website_image_schema_profile_reset_v69176():
+    _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"] = {}
+    _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"] = 0.0
+
+
 def _website_image_index_schema_profile_v69129():
-    """Detect the live durable-image storage shape without requiring a migration.
+    """Detect usable modern/legacy/hybrid image-index schema from actual live columns."""
+    now_value = time.monotonic()
+    cached = dict(_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176.get("profile") or {})
+    cached_at = float(_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176.get("at") or 0.0)
+    if cached.get("ready") and (now_value - cached_at) < 60.0:
+        return cached
+    actual_columns = set()
+    try:
+        actual_columns = set(get_table_columns("learned_knowledge") or [])
+    except Exception as error:
+        diagnostic_log("website_image_index_column_introspection_failed_v69176", error_type=type(error).__name__, error=str(error)[:400])
+    def build_profile(columns):
+        cols=set(columns or [])
+        if "id" not in cols:
+            return None
+        if "issue" in cols and ("solution" in cols or "approved_answer" in cols):
+            return {"ready":True,"mode":"modern","columns":sorted(cols)}
+        if "question" in cols and "approved_answer" in cols:
+            return {"ready":True,"mode":"legacy","columns":sorted(cols)}
+        return None
+    profile=build_profile(actual_columns)
+    if profile:
+        _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"]=dict(profile)
+        _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"]=now_value
+        return profile
+    probes=(("modern",["id","issue","solution"]),("modern",["id","issue","approved_answer"]),("legacy",["id","question","approved_answer"]))
+    for mode, columns in probes:
+        try:
+            supabase.table("learned_knowledge").select(",".join(columns)).limit(1).execute()
+            profile={"ready":True,"mode":mode,"columns":list(columns)}
+            _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"]=dict(profile)
+            _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"]=now_value
+            return profile
+        except Exception as error:
+            diagnostic_log("website_image_index_schema_probe_failed_v69176", mode=mode, columns=",".join(columns), error_type=type(error).__name__, error=str(error)[:300])
+    return {"ready":False,"mode":"unavailable","columns":sorted(actual_columns)}
 
-    `learned_knowledge` has existed across multiple production schemas. Newer
-    deployments expose issue/source_type/solution; older compatible deployments
-    reliably expose question/approved_answer/keywords. The image index must work
-    with either shape instead of failing all image writes when optional columns are
-    absent.
-    """
-    modern = [
-        "id", "issue", "vehicle", "solution", "approved_answer",
-        "keywords", "source_type", "updated_at",
-    ]
-    legacy = ["id", "question", "approved_answer", "keywords", "created_at"]
-
-    for name, columns in (("modern", modern), ("legacy", legacy)):
-        last_error = None
-        for attempt in range(2):
-            try:
-                supabase.table("learned_knowledge").select(
-                    ",".join(columns)
-                ).limit(1).execute()
-                return {
-                    "ready": True,
-                    "mode": name,
-                    "columns": columns,
-                }
-            except Exception as error:
-                last_error = error
-                if attempt == 0:
-                    time.sleep(0.08)
-        diagnostic_log(
-            "website_image_index_schema_profile_attempt_failed_v69129",
-            mode=name,
-            error_type=type(last_error).__name__ if last_error else "",
-            error=str(last_error)[:400] if last_error else "",
-        )
-
-    return {"ready": False, "mode": "unavailable", "columns": []}
 
 
 def _website_image_index_schema_ready_v69123():
@@ -52553,246 +52569,130 @@ def _website_image_index_schema_ready_v69123():
 
 
 
+
 def _website_image_index_readback_v69123(issue):
-    """Return the exact durable image-index row after insert/update across schemas."""
-    profile = dict(_website_image_index_schema_profile_v69129() or {})
+    """Read one durable image row from modern, legacy, or hybrid schema."""
+    profile=dict(_website_image_index_schema_profile_v69129() or {})
     if not profile.get("ready"):
         return None
-    mode = str(profile.get("mode") or "")
-    issue = str(issue or "")
+    mode=str(profile.get("mode") or ""); available=set(profile.get("columns") or []); issue=str(issue or "")
     try:
-        if mode == "modern":
-            rows = (
-                supabase.table("learned_knowledge")
-                .select("id,issue,solution,approved_answer,source_type,updated_at")
-                .eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
-                .eq("issue", issue)
-                .limit(1)
-                .execute()
-                .data
-                or []
-            )
+        if mode=="modern":
+            cols=[x for x in ("id","issue","solution","approved_answer","source_type","updated_at","created_at") if x in available]
+            query=supabase.table("learned_knowledge").select(",".join(cols)).eq("issue",issue)
+            if "source_type" in available:
+                query=query.eq("source_type",WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            rows=query.limit(2).execute().data or []
         else:
-            rows = (
-                supabase.table("learned_knowledge")
-                .select("id,question,approved_answer,keywords,created_at")
-                .eq("question", issue)
-                .limit(1)
-                .execute()
-                .data
-                or []
-            )
+            cols=[x for x in ("id","question","approved_answer","keywords","created_at","updated_at") if x in available]
+            rows=supabase.table("learned_knowledge").select(",".join(cols)).eq("question",issue).limit(2).execute().data or []
     except Exception as error:
-        diagnostic_log(
-            "website_image_index_readback_failed_query_v69129",
-            mode=mode, error_type=type(error).__name__, error=str(error)[:400],
-        )
+        diagnostic_log("website_image_index_readback_failed_query_v69176",mode=mode,error_type=type(error).__name__,error=str(error)[:400])
         return None
-
     for row in rows:
-        if not isinstance(row, dict):
+        if not isinstance(row,dict):
             continue
-        raw = str(row.get("solution") or row.get("approved_answer") or "")
+        raw=str(row.get("solution") or row.get("approved_answer") or "")
         if raw.startswith(WEBSITE_IMAGE_INDEX_PREFIX_V68883):
-            normalized = dict(row)
-            normalized.setdefault("issue", str(row.get("question") or issue))
-            normalized.setdefault("solution", str(row.get("approved_answer") or ""))
-            normalized.setdefault("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
-            normalized.setdefault("updated_at", str(row.get("created_at") or ""))
+            normalized=dict(row)
+            normalized.setdefault("issue",str(row.get("question") or issue))
+            normalized.setdefault("solution",str(row.get("approved_answer") or ""))
+            normalized.setdefault("source_type",WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            normalized.setdefault("updated_at",str(row.get("created_at") or ""))
             return normalized
     return None
 
 
 
+
+
 def _website_image_index_upsert_v68883(payload):
-    """Persist one durable image row and prove exact read-back on modern or legacy schema."""
-    if not isinstance(payload, dict):
+    """Persist one image row with hybrid-schema support and bounded read-after-write retry."""
+    if not isinstance(payload,dict):
         return False
-    profile = dict(_website_image_index_schema_profile_v69129() or {})
+    profile=dict(_website_image_index_schema_profile_v69129() or {})
     if not profile.get("ready"):
-        diagnostic_log("website_image_index_schema_unavailable_v69129")
-        return False
-
-    issue = _website_image_scoped_issue_v69003(payload)
-    solution = WEBSITE_IMAGE_INDEX_PREFIX_V68883 + json.dumps(
-        payload, ensure_ascii=False, separators=(",", ":")
-    )
-    mode = str(profile.get("mode") or "")
-
-    if mode == "modern":
-        durable_row = {
-            "issue": issue,
-            "vehicle": str(payload.get("page_title") or "")[:240],
-            "solution": solution,
-            "approved_answer": solution,
-            "keywords": str(payload.get("keywords") or "")[:5000],
-            "source_type": WEBSITE_IMAGE_INDEX_SOURCE_V68883,
-            "updated_at": now_iso(),
-        }
-        lookup_column = "issue"
+        _website_image_schema_profile_reset_v69176(); profile=dict(_website_image_index_schema_profile_v69129() or {})
+    if not profile.get("ready"):
+        diagnostic_log("website_image_index_schema_unavailable_v69176"); return False
+    issue=_website_image_scoped_issue_v69003(payload)
+    solution=WEBSITE_IMAGE_INDEX_PREFIX_V68883+json.dumps(payload,ensure_ascii=False,separators=(",",":"))
+    mode=str(profile.get("mode") or ""); available=set(profile.get("columns") or [])
+    if mode=="modern":
+        base={"issue":issue,"vehicle":str(payload.get("page_title") or "")[:240],"solution":solution,"approved_answer":solution,"keywords":str(payload.get("keywords") or "")[:5000],"source_type":WEBSITE_IMAGE_INDEX_SOURCE_V68883,"updated_at":now_iso(),"question":str(payload.get("section_heading") or "Website image")[:500]}; lookup="issue"
     else:
-        # Legacy-compatible durable image row. `question` is the exact scoped issue
-        # discriminator and `approved_answer` carries the complete JSON payload.
-        durable_row = {
-            "question": issue,
-            "approved_answer": solution,
-            "keywords": (
-                WEBSITE_IMAGE_INDEX_SOURCE_V68883 + ", "
-                + str(payload.get("keywords") or "")
-            )[:5000],
-        }
-        lookup_column = "question"
-
-    # Preserve optional Admin metadata only when the live RPC confirms it.
+        base={"question":issue,"approved_answer":solution,"keywords":(WEBSITE_IMAGE_INDEX_SOURCE_V68883+", "+str(payload.get("keywords") or ""))[:5000],"updated_at":now_iso()}; lookup="question"
+    durable={k:v for k,v in base.items() if k in available}
+    if lookup not in durable or not any(k in durable for k in ("solution","approved_answer")):
+        _website_image_schema_profile_reset_v69176(); diagnostic_log("website_image_index_schema_payload_columns_missing_v69176",mode=mode); return False
+    optional={"assistant":{"Technical Support Database":"Technical Support","Sales Database":"Sales","Marketing Database":"Marketing"}.get(str(payload.get("database_choice") or ""),"Technical Support"),"record_type":"website_image","source_question":str(payload.get("source_page") or "")[:1200],"staff_confirmed":True,"confidence_score":100}
+    for k,v in optional.items():
+        if k in available and k not in durable:
+            durable[k]=v
     try:
-        actual_columns = set(get_table_columns("learned_knowledge") or [])
-    except Exception:
-        actual_columns = set()
-    optional = {
-        "assistant": {
-            "Technical Support Database": "Technical Support",
-            "Sales Database": "Sales",
-            "Marketing Database": "Marketing",
-        }.get(str(payload.get("database_choice") or ""), "Technical Support"),
-        "record_type": "website_image",
-        "source_question": str(payload.get("source_page") or "")[:1200],
-        "staff_confirmed": True,
-        "confidence_score": 100,
-    }
-    # Do not overwrite legacy `question`, which is the durable discriminator.
-    if mode == "modern":
-        optional["question"] = str(
-            payload.get("section_heading") or "Website image"
-        )[:500]
-    for key, value in optional.items():
-        if key in actual_columns and key not in durable_row:
-            durable_row[key] = value
-
-    try:
-        existing = (
-            supabase.table("learned_knowledge")
-            .select("id")
-            .eq(lookup_column, issue)
-            .limit(1)
-            .execute()
-            .data
-            or []
-        )
+        existing=supabase.table("learned_knowledge").select("id").eq(lookup,issue).limit(1).execute().data or []
         if existing:
-            result = (
-                supabase.table("learned_knowledge")
-                .update(durable_row)
-                .eq("id", existing[0]["id"])
-                .execute()
-            )
+            supabase.table("learned_knowledge").update(durable).eq("id",existing[0]["id"]).execute()
         else:
-            result = supabase.table("learned_knowledge").insert(durable_row).execute()
-
-        readback = _website_image_index_readback_v69123(issue)
-        if not readback:
-            inserted_rows = list(getattr(result, "data", None) or [])
-            if not existing:
-                for item in inserted_rows:
-                    row_id = str((item or {}).get("id") or "").strip()
-                    if row_id:
-                        try:
-                            supabase.table("learned_knowledge").delete().eq(
-                                "id", row_id
-                            ).execute()
-                        except Exception:
-                            pass
-            diagnostic_log(
-                "website_image_index_readback_failed_v69129",
-                mode=mode, issue=issue[:120],
-            )
-            return False
+            supabase.table("learned_knowledge").insert(durable).execute()
+        rb=None
+        for delay in (0.0,0.08,0.18,0.35):
+            if delay: time.sleep(delay)
+            rb=_website_image_index_readback_v69123(issue)
+            if rb: break
+        if not rb:
+            _website_image_schema_profile_reset_v69176(); diagnostic_log("website_image_index_readback_retry_exhausted_v69176",mode=mode,issue=issue[:120],existing=bool(existing)); return False
     except Exception as error:
-        diagnostic_log(
-            "website_image_index_save_failed_v69129",
-            mode=mode, issue=issue[:120],
-            error_type=type(error).__name__, error=str(error)[:500],
-        )
-        return False
-
-    try:
-        _workspace_durable_image_payloads_v69041.clear()
-    except Exception:
-        pass
+        _website_image_schema_profile_reset_v69176(); diagnostic_log("website_image_index_save_failed_v69176",mode=mode,issue=issue[:120],error_type=type(error).__name__,error=str(error)[:500]); return False
+    try: _workspace_durable_image_payloads_v69041.clear()
+    except Exception: pass
     return True
 
 
 
+
+
 def _website_image_index_db_rows_v69005(columns, *, order_recent=False, max_rows=20000):
-    """Load durable image rows across modern and legacy learned_knowledge schemas."""
-    profile = dict(_website_image_index_schema_profile_v69129() or {})
+    """Load durable image rows across modern, legacy, and hybrid learned_knowledge schemas."""
+    profile=dict(_website_image_index_schema_profile_v69129() or {})
     if not profile.get("ready"):
-        return [], False
-    mode = str(profile.get("mode") or "")
-    available = set(profile.get("columns") or [])
-
-    requested = [x.strip() for x in str(columns or "").split(",") if x.strip()]
-    # Always fetch payload/discriminator columns needed by the normalizer.
-    required = (
-        ["id", "issue", "solution", "approved_answer", "source_type", "updated_at"]
-        if mode == "modern"
-        else ["id", "question", "approved_answer", "keywords", "created_at"]
-    )
-    select_columns = []
-    for name in requested + required:
-        if name in available and name not in select_columns:
-            select_columns.append(name)
-    if not select_columns:
-        return [], False
-
-    rows = []
-    batch_size = 1000
-    complete = True
-    for start in range(0, int(max_rows), batch_size):
+        return [],False
+    mode=str(profile.get("mode") or ""); available=set(profile.get("columns") or [])
+    requested=[x.strip() for x in str(columns or "").split(",") if x.strip()]
+    required=(["id","issue","solution","approved_answer","source_type","updated_at","created_at"] if mode=="modern" else ["id","question","approved_answer","keywords","created_at","updated_at"])
+    select=[]
+    for name in requested+required:
+        if name in available and name not in select: select.append(name)
+    if not select: return [],False
+    rows=[]; batch=1000; complete=True
+    for start in range(0,int(max_rows),batch):
         try:
-            query = supabase.table("learned_knowledge").select(
-                ",".join(select_columns)
-            )
-            if mode == "modern":
-                query = query.eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
-                order_column = "updated_at"
+            query=supabase.table("learned_knowledge").select(",".join(select))
+            if mode=="modern":
+                if "source_type" in available: query=query.eq("source_type",WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+                elif "issue" in available: query=query.like("issue","website-image:%")
+                order_col="updated_at" if "updated_at" in available else ("created_at" if "created_at" in available else "id")
             else:
-                query = query.like("question", "website-image:%")
-                order_column = "created_at"
-            if order_recent:
-                query = query.order(order_column, desc=True)
+                query=query.like("question","website-image:%")
+                order_col="created_at" if "created_at" in available else ("updated_at" if "updated_at" in available else "id")
+            query=query.order(order_col,desc=bool(order_recent))
+            rm=getattr(query,"range",None)
+            if callable(rm): query=rm(start,start+batch-1)
             else:
-                query = query.order("id", desc=False)
-            range_method = getattr(query, "range", None)
-            if callable(range_method):
-                query = range_method(start, start + batch_size - 1)
-            else:
-                if start:
-                    complete = False
-                    break
-                query = query.limit(batch_size)
-            page = list(query.execute().data or [])
+                if start: complete=False; break
+                query=query.limit(batch)
+            page=list(query.execute().data or [])
         except Exception as error:
-            diagnostic_log(
-                "website_image_index_page_load_failed_v69129",
-                mode=mode, error_type=type(error).__name__, error=str(error)[:400],
-            )
-            return rows, False
-
-        normalized_page = []
+            _website_image_schema_profile_reset_v69176(); diagnostic_log("website_image_index_page_load_failed_v69176",mode=mode,error_type=type(error).__name__,error=str(error)[:400]); return rows,False
         for raw in page:
-            row = dict(raw or {})
-            if mode == "legacy":
-                row.setdefault("issue", str(row.get("question") or ""))
-                row.setdefault("solution", str(row.get("approved_answer") or ""))
-                row.setdefault("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
-                row.setdefault("updated_at", str(row.get("created_at") or ""))
-            normalized_page.append(row)
-        rows.extend(normalized_page)
-        if len(page) < batch_size:
-            return rows, True
-    if len(rows) >= int(max_rows):
-        complete = False
-    return rows, complete
+            row=dict(raw or {})
+            if mode=="legacy":
+                row.setdefault("issue",str(row.get("question") or "")); row.setdefault("solution",str(row.get("approved_answer") or "")); row.setdefault("source_type",WEBSITE_IMAGE_INDEX_SOURCE_V68883); row.setdefault("updated_at",str(row.get("created_at") or ""))
+            rows.append(row)
+        if len(page)<batch: return rows,True
+    if len(rows)>=int(max_rows): complete=False
+    return rows,complete
+
 
 
 
@@ -52854,8 +52754,15 @@ def _website_archive_path_is_referenced_v69003(archive_path):
     return False, True
 
 
-def _website_sync_page_image_index_v69003(extraction, database_choice, image_items):
-    """Delete stale/legacy image-index rows for this page after replacement is safely indexed."""
+
+def _website_sync_page_image_index_v69003(
+    extraction,
+    database_choice,
+    image_items,
+    *,
+    remove_unreferenced_archives=True,
+):
+    """Delete stale/legacy image-index rows; optionally defer archive deletion until commit."""
     existing, loaded_ok = _website_image_index_rows_for_page_v69003(
         extraction,
         database_choice,
@@ -52865,15 +52772,16 @@ def _website_sync_page_image_index_v69003(extraction, database_choice, image_ite
         "stale_deleted": 0,
         "legacy_migrated": 0,
         "archive_deleted": 0,
+        "candidate_archive_paths": [],
         "failures": 0,
         "completed": bool(loaded_ok),
+        "archive_cleanup_deferred_v69177": not bool(remove_unreferenced_archives),
     }
     if not loaded_ok:
         stats["failures"] += 1
         stats["completed"] = False
         return stats
 
-    current_payloads = []
     current_issues = set()
     for item in image_items or []:
         if not isinstance(item, dict):
@@ -52883,7 +52791,6 @@ def _website_sync_page_image_index_v69003(extraction, database_choice, image_ite
             database_choice,
             item,
         )
-        current_payloads.append(payload)
         current_issues.add(_website_image_scoped_issue_v69003(payload))
 
     candidate_archive_paths = set()
@@ -52927,26 +52834,13 @@ def _website_sync_page_image_index_v69003(extraction, database_choice, image_ite
                 error=str(error)[:500],
             )
 
-    for archive_path in sorted(candidate_archive_paths):
-        referenced, checked = _website_archive_path_is_referenced_v69003(archive_path)
-        if not checked:
-            stats["failures"] += 1
+    stats["candidate_archive_paths"] = sorted(candidate_archive_paths)
+    if remove_unreferenced_archives:
+        cleanup = _website_cleanup_unreferenced_archives_v69177(candidate_archive_paths)
+        stats["archive_deleted"] += int(cleanup.get("deleted") or 0)
+        stats["failures"] += int(cleanup.get("failures") or 0)
+        if int(cleanup.get("failures") or 0):
             stats["completed"] = False
-            continue
-        if referenced:
-            continue
-        try:
-            _product_library_storage_remove([archive_path])
-            stats["archive_deleted"] += 1
-        except Exception as error:
-            stats["failures"] += 1
-            stats["completed"] = False
-            diagnostic_log(
-                "website_image_page_sync_archive_delete_failed_v69003",
-                archive_path=archive_path,
-                error_type=type(error).__name__,
-                error=str(error)[:500],
-            )
 
     try:
         _website_image_index_rows_v68883.clear()
@@ -52959,19 +52853,135 @@ def _website_sync_page_image_index_v69003(extraction, database_choice, image_ite
     return stats
 
 
+
+
+def _website_image_transaction_snapshot_v69177(extraction, database_choice):
+    """Capture the complete current page image-index state before replacement."""
+    entries, loaded_ok = _website_image_index_rows_for_page_v69003(
+        extraction, database_choice
+    )
+    if not loaded_ok:
+        raise RuntimeError(
+            "Current durable image state could not be loaded; replacement was not started."
+        )
+    return {
+        "entries": [
+            {
+                "row": dict((entry or {}).get("row") or {}),
+                "payload": dict((entry or {}).get("payload") or {}),
+            }
+            for entry in (entries or [])
+        ],
+        "archive_paths": sorted({
+            str(((entry or {}).get("payload") or {}).get("archive_storage_path") or "").strip()
+            for entry in (entries or [])
+            if str(((entry or {}).get("payload") or {}).get("archive_storage_path") or "").strip()
+        }),
+    }
+
+
+def _website_cleanup_unreferenced_archives_v69177(paths):
+    stats = {"checked": 0, "deleted": 0, "failures": 0}
+    for archive_path in sorted({str(x or "").strip() for x in (paths or []) if str(x or "").strip()}):
+        stats["checked"] += 1
+        referenced, checked = _website_archive_path_is_referenced_v69003(archive_path)
+        if not checked:
+            stats["failures"] += 1
+            continue
+        if referenced:
+            continue
+        try:
+            _product_library_storage_remove([archive_path])
+            stats["deleted"] += 1
+        except Exception as error:
+            stats["failures"] += 1
+            diagnostic_log(
+                "website_image_archive_cleanup_failed_v69177",
+                archive_path=archive_path,
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+    return stats
+
+
+def _website_image_transaction_rollback_v69177(
+    extraction,
+    database_choice,
+    snapshot,
+    transaction_archive_paths=None,
+):
+    """Restore exact pre-transaction image metadata and remove new orphan archives."""
+    snapshot = dict(snapshot or {})
+    prior_entries = list(snapshot.get("entries") or [])
+    prior_archive_paths = set(snapshot.get("archive_paths") or [])
+    current_entries, loaded_ok = _website_image_index_rows_for_page_v69003(
+        extraction, database_choice
+    )
+    if not loaded_ok:
+        raise RuntimeError(
+            "Image transaction rollback could not load current page index state."
+        )
+
+    rollback_failures = []
+    # Remove all current rows for this exact page/database, then restore snapshot payloads.
+    for entry in current_entries:
+        row_id = str(((entry or {}).get("row") or {}).get("id") or "").strip()
+        if not row_id:
+            continue
+        try:
+            supabase.table("learned_knowledge").delete().eq("id", row_id).execute()
+        except Exception as error:
+            rollback_failures.append(f"delete:{row_id}:{type(error).__name__}")
+
+    for entry in prior_entries:
+        payload = dict((entry or {}).get("payload") or {})
+        if not payload:
+            continue
+        try:
+            if not _website_image_index_upsert_v68883(payload):
+                rollback_failures.append(
+                    "restore:" + _website_image_scoped_issue_v69003(payload)
+                )
+        except Exception as error:
+            rollback_failures.append(f"restore:{type(error).__name__}")
+
+    try:
+        _website_image_index_rows_v68883.clear()
+    except Exception:
+        pass
+    try:
+        _workspace_durable_image_payloads_v69041.clear()
+    except Exception:
+        pass
+
+    cleanup_candidates = set(transaction_archive_paths or []) - prior_archive_paths
+    archive_cleanup = _website_cleanup_unreferenced_archives_v69177(cleanup_candidates)
+
+    if rollback_failures:
+        raise RuntimeError(
+            "Image transaction rollback was incomplete: "
+            + ", ".join(rollback_failures[:8])
+        )
+    return {
+        "restored_rows": len(prior_entries),
+        "archive_cleanup": archive_cleanup,
+        "rollback_complete": True,
+    }
+
+
+
+
 def _website_archive_and_index_images_v68883(
     extraction,
     database_choice,
     image_items,
 ):
-    """Best-effort archive + durable metadata index for approved website images.
-
-    Text/vector-store saving remains authoritative and must not fail merely because
-    private image archival/index persistence is temporarily unavailable.
-    """
+    """Archive + index approved images and expose transaction-owned archive paths."""
     indexed = 0
     archived = 0
     failures = 0
+    archive_paths = []
+    indexed_issues = []
 
     for image_item in image_items or []:
         if not isinstance(image_item, dict):
@@ -52997,6 +53007,7 @@ def _website_archive_and_index_images_v68883(
                     raw,
                     archive_mime,
                 )
+                archive_paths.append(archive_path)
                 archived += 1
         except Exception as error:
             diagnostic_log(
@@ -53014,18 +53025,21 @@ def _website_archive_and_index_images_v68883(
                 archive_path=archive_path,
                 archive_mime_type=archive_mime,
             )
+            issue = _website_image_scoped_issue_v69003(payload)
             if _website_image_index_upsert_v68883(payload):
                 indexed += 1
+                indexed_issues.append(issue)
             else:
                 failures += 1
                 diagnostic_log(
-                    "website_image_index_rejected_v69129",
+                    "website_image_index_rejected_v69177",
                     image_url=str(image_item.get("url") or "")[:500],
+                    issue=issue[:120],
                 )
         except Exception as error:
             failures += 1
             diagnostic_log(
-                "website_image_index_save_failed_v68883",
+                "website_image_index_save_failed_v69177",
                 image_url=str(image_item.get("url") or "")[:500],
                 error_type=type(error).__name__,
                 error=str(error)[:500],
@@ -53040,7 +53054,10 @@ def _website_archive_and_index_images_v68883(
         "indexed": indexed,
         "archived": archived,
         "failures": failures,
+        "transaction_archive_paths_v69177": sorted(set(archive_paths)),
+        "indexed_issues_v69177": sorted(set(indexed_issues)),
     }
+
 
 
 
@@ -57856,6 +57873,8 @@ def _website_supersede_conflicting_technical_learned_records_v69123(
     return {"matched": matched, "detached": detached, "failed": failed}
 
 
+
+
 def save_website_knowledge_package(
     extraction,
     database_choice,
@@ -57864,13 +57883,12 @@ def save_website_knowledge_package(
     selected_image_urls=None,
     image_analysis_override_v69029=None,
 ):
-    """Save one website package with strict newest-source factual authority.
+    """v69177 transactional link learning shared by Technical, Sales and Marketing.
 
-    v69109 deliberately separates factual text supersession from image promotion:
-    once a new vector is confirmed indexed, every older same-URL vector is detached
-    immediately. Image archive/index health can never reactivate older factual text.
-    If current images cannot be verified, stale same-page image rows are removed and
-    the current text remains authoritative (missing image is safer than a wrong image).
+    The old production factual/image authority is not retired until the new vector,
+    approved image rows, image read-back, and page synchronization are all proven.
+    Any precommit image failure restores the exact prior image metadata and removes
+    transaction-owned orphan archives before the new vector is discarded.
     """
     reviewed = clean_extracted_website_text(
         reviewed_content if reviewed_content is not None else extraction.get("content")
@@ -57891,246 +57909,249 @@ def save_website_knowledge_package(
     else:
         image_analysis = (
             analyze_website_images(extraction, database_choice, selected_urls=selected_image_urls)
-            if include_images
-            else {"images": [], "attempted": 0, "skipped": 0, "failures": 0, "discovered": 0, "limited": False}
+            if include_images else
+            {"images": [], "attempted": 0, "skipped": 0, "failures": 0, "discovered": 0, "limited": False}
         )
+    approved_images = [
+        dict(x) for x in (image_analysis.get("images") or [])
+        if isinstance(x, dict)
+    ]
 
-    version_hash_v68892 = _website_knowledge_version_hash_v68892(
+    version_hash = _website_knowledge_version_hash_v68892(
         extraction, database_choice, reviewed, image_analysis
     )
     package_extraction = dict(extraction)
-    package_extraction["website_version_hash_v68892"] = version_hash_v68892
+    package_extraction["website_version_hash_v68892"] = version_hash
     filename = website_knowledge_filename(package_extraction)
 
-    # Discover superseded same-URL packages BEFORE the exact-duplicate early return.
-    # This closes the production bug where the newest exact package could exist while
-    # an older Simple/Xinbasi/etc. package remained searchable forever.
-    prior_same_url_files_v69109 = _website_same_url_vector_files_v68892(
+    prior_same_url = _website_same_url_vector_files_v68892(
         selected_vector_store_id, extraction, exclude_filename=filename
     )
+    exact_current_exists = vector_store_has_filename(
+        selected_vector_store_id, filename
+    )
+    package_text = build_website_knowledge_package_document(
+        extraction,
+        database_choice,
+        reviewed_content=reviewed,
+        image_analysis=image_analysis,
+    )
 
-    exact_current_exists_v69109 = vector_store_has_filename(selected_vector_store_id, filename)
-    replaced_file_count_v69109 = 0
-    cleanup_pending_v69109 = False
-    factual_supersession_completed_v69109 = False
-
-    if exact_current_exists_v69109:
-        replaced_file_count_v69109 = _website_remove_superseded_vectors_v69109(
-            selected_vector_store_id, prior_same_url_files_v69109
+    file_id = ""
+    newly_uploaded = False
+    if exact_current_exists:
+        indexing_status = "completed"
+    else:
+        website_file = ManagedUploadedFile(
+            package_text.encode("utf-8"), filename, "text/plain"
         )
-        factual_supersession_completed_v69109 = True
-        conflicting_learned_supersession_v69123 = (
-            _website_supersede_conflicting_technical_learned_records_v69123(
-                extraction, reviewed
+        try:
+            file_id = upload_to_vector_store(
+                website_file, selected_vector_store_id
             )
-            if database_choice == "Technical Support Database"
-            else {"matched": 0, "detached": 0, "failed": 0}
-        )
-        conflicting_website_supersession_v69174 = (
-            _website_supersede_conflicting_technical_website_vectors_v69175(
-                extraction, reviewed, selected_vector_store_id, keep_filename=filename
+            newly_uploaded = True
+            indexing_status = _wait_for_vector_store_file(
+                selected_vector_store_id, file_id, timeout_seconds=30
             )
-            if database_choice == "Technical Support Database"
-            else {"matched": 0, "retired": 0, "failed": 0, "image_rows": {}}
-        )
-        _website_invalidate_learning_caches_v69109([database_choice])
+        except Exception:
+            if file_id:
+                _website_remove_vector_file_v68892(
+                    selected_vector_store_id, file_id
+                )
+            raise
+        if str(indexing_status or "").lower() != "completed":
+            _website_remove_vector_file_v68892(
+                selected_vector_store_id, file_id
+            )
+            raise RuntimeError(
+                "The new website package did not finish indexing. "
+                "Prior production authority was preserved."
+            )
 
-        # v69112: promote every image that individually passed ingestion QA even when
-        # another candidate on the same page failed download/provider analysis.  The
-        # old v69109 all-or-nothing check cleared the entire durable page image index
-        # whenever image_analysis.failures > 0, which produced correct text + a known
-        # image URL but no approved publication record.  Approved images are already
-        # individually gated by analyze_website_images(); unrelated failures must not
-        # invalidate them.
-        approved_images_v69112 = [
-            dict(item) for item in (image_analysis.get("images") or [])
-            if isinstance(item, dict)
-        ]
-        if include_images and approved_images_v69112:
+    image_snapshot_v69177 = None
+    transaction_archives_v69177 = []
+    image_sync = {
+        "completed": True,
+        "failures": 0,
+        "skipped_reason": "image-analysis-disabled-preserve-existing-v69177",
+    }
+    try:
+        if include_images:
+            image_snapshot_v69177 = _website_image_transaction_snapshot_v69177(
+                extraction, database_choice
+            )
+
+        if include_images and approved_images:
             image_stats = _website_archive_and_index_images_v68883(
-                extraction, database_choice, approved_images_v69112
+                extraction, database_choice, approved_images
             )
-            image_sync = _website_sync_page_image_index_v69003(
-                extraction, database_choice, approved_images_v69112
+            transaction_archives_v69177 = list(
+                image_stats.get("transaction_archive_paths_v69177") or []
             )
-            image_stats["analysis_failures_v69112"] = int(
-                image_analysis.get("failures") or 0
+            writes_ok = (
+                int(image_stats.get("indexed") or 0) >= len(approved_images)
+                and int(image_stats.get("failures") or 0) == 0
             )
-            image_stats["partial_approved_image_promotion_v69112"] = bool(
-                int(image_analysis.get("failures") or 0) > 0
+            image_sync = (
+                _website_sync_page_image_index_v69003(
+                    extraction,
+                    database_choice,
+                    approved_images,
+                    remove_unreferenced_archives=False,
+                )
+                if writes_ok else
+                {
+                    "completed": False,
+                    "failures": 1,
+                    "skipped_reason": "new-image-write-incomplete-v69177",
+                    "candidate_archive_paths": [],
+                }
             )
         elif include_images:
+            analysis_failed_without_approval_v69177 = bool(
+                int(image_analysis.get("failures") or 0) > 0
+            )
             image_stats = {
                 "indexed": 0,
                 "archived": 0,
                 "failures": int(image_analysis.get("failures") or 0),
-                "current_images_withheld_v69112": True,
-                "withheld_reason_v69112": "no_individually_approved_current_images",
+                "current_images_withheld_v69177": True,
+                "transaction_archive_paths_v69177": [],
             }
-            image_sync = _website_sync_page_image_index_v69003(
-                extraction, database_choice, []
-            )
+            if analysis_failed_without_approval_v69177:
+                image_sync = {
+                    "completed": False,
+                    "failures": 1,
+                    "skipped_reason": "image-analysis-produced-no-approved-images-v69177",
+                    "candidate_archive_paths": [],
+                }
+            else:
+                image_sync = _website_sync_page_image_index_v69003(
+                    extraction,
+                    database_choice,
+                    [],
+                    remove_unreferenced_archives=False,
+                )
         else:
-            image_stats = {"indexed": 0, "archived": 0, "failures": 0, "preserved_existing_v69005": True}
-            image_sync = {"completed": True, "skipped_reason": "image-analysis-disabled-preserve-existing-v69005"}
-        image_durability_v69114 = _website_image_durability_verification_v69114(
+            image_stats = {
+                "indexed": 0,
+                "archived": 0,
+                "failures": 0,
+                "preserved_existing_v69177": True,
+                "transaction_archive_paths_v69177": [],
+            }
+
+        image_durability = _website_image_durability_verification_v69114(
             extraction,
             database_choice,
-            approved_images_v69112 if include_images else [],
+            approved_images if include_images else [],
             image_stats,
             image_sync,
         )
-        _website_invalidate_learning_caches_v69109([database_choice])
-        return {
-            "already_saved": True,
-            "updated_existing_url": bool(prior_same_url_files_v69109),
-            "replaced_file_count": replaced_file_count_v69109,
-            "replacement_cleanup_pending": False,
-            "file_id": "",
-            "filename": filename,
-            "images": list(image_analysis.get("images") or []),
-            "image_analysis": image_analysis,
-            "website_image_index_v68883": image_stats,
-            "website_image_sync_v69003": image_sync,
-            "website_image_durability_v69114": image_durability_v69114,
-            "image_learning_complete_v69114": bool(image_durability_v69114.get("complete")),
-            "factual_supersession_completed_v69109": True,
-            "conflicting_learned_supersession_v69123": conflicting_learned_supersession_v69123,
-            "conflicting_website_supersession_v69174": conflicting_website_supersession_v69174,
-        }
 
-    package_text = build_website_knowledge_package_document(
-        extraction, database_choice, reviewed_content=reviewed, image_analysis=image_analysis
-    )
-    website_file = ManagedUploadedFile(package_text.encode("utf-8"), filename, "text/plain")
+        if include_images and not bool(image_durability.get("complete")):
+            raise RuntimeError(
+                "Image learning did not pass durable write/read-back verification."
+            )
 
-    file_id = ""
-    try:
-        file_id = upload_to_vector_store(website_file, selected_vector_store_id)
-        indexing_status_v68892 = _wait_for_vector_store_file(
-            selected_vector_store_id, file_id, timeout_seconds=30
-        )
-    except Exception:
-        if file_id:
-            _website_remove_vector_file_v68892(selected_vector_store_id, file_id)
-        raise
-
-    if str(indexing_status_v68892 or "").lower() != "completed":
-        _website_remove_vector_file_v68892(selected_vector_store_id, file_id)
+    except Exception as image_transaction_error_v69177:
+        rollback_error = None
+        if include_images and image_snapshot_v69177 is not None:
+            try:
+                _website_image_transaction_rollback_v69177(
+                    extraction,
+                    database_choice,
+                    image_snapshot_v69177,
+                    transaction_archives_v69177,
+                )
+            except Exception as rollback_exception_v69177:
+                rollback_error = rollback_exception_v69177
+                diagnostic_log(
+                    "website_image_transaction_rollback_failed_v69177",
+                    error_type=type(rollback_exception_v69177).__name__,
+                    error=str(rollback_exception_v69177)[:700],
+                )
+        if newly_uploaded and file_id:
+            _website_remove_vector_file_v68892(
+                selected_vector_store_id, file_id
+            )
+        if rollback_error is not None:
+            raise RuntimeError(
+                "Image learning failed and rollback could not be completely verified. "
+                "Prior vector authority was preserved; inspect diagnostics before retrying."
+            ) from rollback_error
         raise RuntimeError(
-            "The new website package did not finish indexing. The prior factual package was preserved."
-        )
+            "Image learning did not pass durable transaction verification. "
+            "New image rows/archive objects were rolled back and the new vector "
+            "was not promoted; prior production authority was preserved."
+        ) from image_transaction_error_v69177
 
-    # FACTUAL COMMIT POINT: new vector is searchable. Remove every older same-URL
-    # vector NOW, before image work. Image failure can no longer resurrect old facts.
-    replaced_file_count_v69109 = _website_remove_superseded_vectors_v69109(
-        selected_vector_store_id, prior_same_url_files_v69109
+    # COMMIT: replacement vector + images are proven. Only now retire stale authority.
+    replaced_file_count = _website_remove_superseded_vectors_v69109(
+        selected_vector_store_id, prior_same_url
     )
-    factual_supersession_completed_v69109 = True
-    conflicting_learned_supersession_v69123 = (
+    conflicting_learned = (
         _website_supersede_conflicting_technical_learned_records_v69123(
             extraction, reviewed
         )
         if database_choice == "Technical Support Database"
         else {"matched": 0, "detached": 0, "failed": 0}
     )
-    conflicting_website_supersession_v69174 = (
+    conflicting_website = (
         _website_supersede_conflicting_technical_website_vectors_v69175(
-            extraction, reviewed, selected_vector_store_id, keep_file_id=file_id, keep_filename=filename
+            extraction,
+            reviewed,
+            selected_vector_store_id,
+            keep_file_id=file_id if file_id else "",
+            keep_filename=filename,
         )
         if database_choice == "Technical Support Database"
         else {"matched": 0, "retired": 0, "failed": 0, "image_rows": {}}
     )
-    _website_invalidate_learning_caches_v69109([database_choice])
 
-    # v69112: factual authority and image authority remain separate, but image
-    # promotion is now PER APPROVED IMAGE rather than all-or-nothing at page level.
-    # analyze_website_images() increments "failures" for any candidate exception while
-    # still returning other images that passed the complete two-pass QA.  Those safe
-    # images must be promoted instead of being erased because a different candidate
-    # failed.
-    approved_images_v69112 = [
-        dict(item) for item in (image_analysis.get("images") or [])
-        if isinstance(item, dict)
-    ]
-    if include_images and approved_images_v69112:
-        website_image_index_stats_v68883 = _website_archive_and_index_images_v68883(
-            extraction, database_choice, approved_images_v69112
-        )
-        website_image_sync_v69003 = _website_sync_page_image_index_v69003(
-            extraction, database_choice, approved_images_v69112
-        )
-        website_image_index_stats_v68883["analysis_failures_v69112"] = int(
-            image_analysis.get("failures") or 0
-        )
-        website_image_index_stats_v68883[
-            "partial_approved_image_promotion_v69112"
-        ] = bool(int(image_analysis.get("failures") or 0) > 0)
-    elif include_images:
-        website_image_index_stats_v68883 = {
-            "indexed": 0,
-            "archived": 0,
-            "failures": int(image_analysis.get("failures") or 0),
-            "current_images_withheld_v69112": True,
-            "withheld_reason_v69112": "no_individually_approved_current_images",
-        }
-        website_image_sync_v69003 = _website_sync_page_image_index_v69003(
-            extraction, database_choice, []
-        )
-    else:
-        website_image_index_stats_v68883 = {
-            "indexed": 0, "archived": 0, "failures": 0,
-            "preserved_existing_v69005": True,
-        }
-        website_image_sync_v69003 = {
-            "completed": True,
-            "skipped_reason": "image-analysis-disabled-preserve-existing-v69005",
-        }
-
-    website_image_durability_v69114 = _website_image_durability_verification_v69114(
-        extraction,
-        database_choice,
-        approved_images_v69112 if include_images else [],
-        website_image_index_stats_v68883,
-        website_image_sync_v69003,
+    archive_cleanup_v69177 = _website_cleanup_unreferenced_archives_v69177(
+        (image_sync or {}).get("candidate_archive_paths") or []
     )
 
-    if database_choice == "Technical Support Database":
+    if database_choice == "Technical Support Database" and file_id:
         try:
             _technical_package_prewarm_inject_v69121(
-                file_id,
-                filename,
-                package_text,
+                file_id, filename, package_text
             )
-        except Exception as error_v69121:
+        except Exception as error:
             diagnostic_log(
-                "technical_package_injection_failed_v69121",
-                error_type=type(error_v69121).__name__,
-                error=str(error_v69121)[:500],
+                "technical_package_injection_failed_v69177",
+                error_type=type(error).__name__,
+                error=str(error)[:500],
             )
 
+    _website_image_schema_profile_reset_v69176()
     _website_invalidate_learning_caches_v69109([database_choice])
+
     return {
-        "already_saved": False,
-        "updated_existing_url": bool(prior_same_url_files_v69109),
-        "replaced_file_count": replaced_file_count_v69109,
-        "replacement_cleanup_pending": cleanup_pending_v69109,
-        "indexing_status": indexing_status_v68892,
+        "already_saved": bool(exact_current_exists),
+        "updated_existing_url": bool(prior_same_url),
+        "replaced_file_count": replaced_file_count,
+        "replacement_cleanup_pending": False,
+        "indexing_status": indexing_status,
         "file_id": file_id,
         "filename": filename,
         "images": list(image_analysis.get("images") or []),
         "image_analysis": image_analysis,
-        "website_image_index_v68883": website_image_index_stats_v68883,
-        "website_image_sync_v69003": website_image_sync_v69003,
-        "website_image_durability_v69114": website_image_durability_v69114,
-        "image_learning_complete_v69114": bool(
-            website_image_durability_v69114.get("complete")
-        ),
-        "factual_supersession_completed_v69109": factual_supersession_completed_v69109,
+        "website_image_index_v68883": image_stats,
+        "website_image_sync_v69003": image_sync,
+        "website_image_durability_v69114": image_durability,
+        "image_learning_complete_v69114": bool(image_durability.get("complete")),
+        "factual_supersession_completed_v69109": True,
         "newest_source_authority_v69109": True,
-        "conflicting_learned_supersession_v69123": conflicting_learned_supersession_v69123,
-        "conflicting_website_supersession_v69174": conflicting_website_supersession_v69174,
+        "conflicting_learned_supersession_v69123": conflicting_learned,
+        "conflicting_website_supersession_v69174": conflicting_website,
+        "transactional_learning_v69177": True,
+        "image_transaction_rollback_safe_v69177": True,
+        "archive_cleanup_v69177": archive_cleanup_v69177,
     }
+
+
 
 
 
@@ -77250,6 +77271,18 @@ else:
                                     ]
                                     generated_images.extend(technical_exact_images_v69175)
 
+                        if (
+                            assistant == "🔧 Technical Support"
+                            and _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
+                            and not technical_exact_authority_v69175
+                        ):
+                            generated_images = [
+                                x for x in generated_images
+                                if not (isinstance(x, dict) and str(x.get("source") or "") == "website_knowledge")
+                            ]
+                            website_index_images_v68883 = []
+                            diagnostic_log("technical_settings_auto_image_fail_closed_v69176")
+
                         generated_images = _website_image_final_authority_v68885(
                             technical_request_prompt_v68879
                             if assistant == "🔧 Technical Support"
@@ -77355,6 +77388,18 @@ else:
                                         )
                                     ]
                                     generated_images.extend(partial_exact_images_v69175)
+                        if (
+                            assistant == "🔧 Technical Support"
+                            and _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
+                            and not partial_exact_authority_v69175
+                        ):
+                            generated_images = [
+                                x for x in generated_images
+                                if not (isinstance(x, dict) and str(x.get("source") or "") == "website_knowledge")
+                            ]
+                            website_index_images_v68883 = []
+                            diagnostic_log("technical_settings_partial_auto_image_fail_closed_v69176")
+
                         generated_images = _website_image_final_authority_v68885(
                             technical_request_prompt_v68879
                             if assistant == "🔧 Technical Support"
@@ -79285,6 +79330,32 @@ else:
         # uploaded/generated images. This keeps them visible after Streamlit
         # reruns and when a saved conversation is reopened.
         assistant_images_to_save = list(generated_images or [])
+        if (
+            assistant == "🔧 Technical Support"
+            and _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
+        ):
+            exact_final_authority_v69176 = dict(
+                technical_variant_evidence_v69124.get("exact_authority_v69175") or {}
+            )
+            if exact_final_authority_v69176:
+                exact_final_images_v69176 = _technical_v69125_exact_images_v69175(
+                    technical_request_prompt_v68879,
+                    exact_final_authority_v69176,
+                    max_images=3,
+                )
+                assistant_images_to_save = [
+                    x for x in assistant_images_to_save
+                    if not (isinstance(x, dict) and str(x.get("source") or "") == "website_knowledge")
+                ]
+                assistant_images_to_save.extend(exact_final_images_v69176)
+                assistant_images_to_save = _dedupe_website_chat_images_v68883(assistant_images_to_save)
+            else:
+                assistant_images_to_save = [
+                    x for x in assistant_images_to_save
+                    if not (isinstance(x, dict) and str(x.get("source") or "") == "website_knowledge")
+                ]
+                diagnostic_log("technical_settings_final_image_fail_closed_v69176")
+            generated_images = list(assistant_images_to_save)
         if (
             assistant == "🔧 Technical Support"
             and str(
