@@ -1,4 +1,4 @@
-# AutoTecPro AI v69187 FINAL PRODUCTION — login stability hardening only; no non-auth pipeline changes.
+# AutoTecPro AI v69188 FINAL PRODUCTION — stability-only: reconnect restore order + cross-session heavy-work coordination; protected pipelines unchanged.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -77,6 +77,7 @@ import csv
 import inspect
 import math
 import gc
+import functools
 from difflib import SequenceMatcher
 try:
     from openpyxl import load_workbook
@@ -213,6 +214,196 @@ def diagnostic_log(event, **fields):
     except Exception:
         # Diagnostics must never affect application behavior.
         pass
+
+
+# ============================================================
+# v69188 Stability-Only Runtime Guards
+# ============================================================
+
+def _restore_clean_assistant_label_v69188(assistant_name):
+    """Early startup-safe equivalent of clean_assistant_label."""
+    value = str(assistant_name or "")
+    for icon in ["🔧", "📈", "📣", "🎨", "🧠", "📦", "📚", "⚙️", "⚙"]:
+        value = value.replace(icon, "")
+    return value.strip()
+
+
+def _conversation_owned_by_user_workspace_startup_v69188(
+    username,
+    conversation_id,
+    assistant_name,
+):
+    """Startup-safe ownership/workspace verification for websocket restoration."""
+    username = str(username or "").strip()
+    conversation_id = str(conversation_id or "").strip()
+    workspace = _restore_clean_assistant_label_v69188(
+        str(assistant_name or "").strip()
+    )
+    if not username or not conversation_id:
+        return False
+
+    query = (
+        supabase.table("conversations")
+        .select("id,username,assistant,archived")
+        .eq("id", conversation_id)
+        .eq("username", username)
+        .limit(1)
+    )
+    rows = list(query.execute().data or [])
+    if not rows:
+        return False
+
+    row = rows[0]
+    if row.get("archived") is True or str(row.get("archived")).lower() == "true":
+        return False
+
+    if (
+        workspace
+        and _restore_clean_assistant_label_v69188(
+            str(row.get("assistant") or "")
+        ) != workspace
+    ):
+        return False
+
+    return True
+
+
+@st.cache_data(ttl=45, max_entries=64, show_spinner=False)
+def _load_messages_startup_v69188(username, conversation_id):
+    """Startup-safe equivalent of the later short-lived message cache."""
+    username = str(username or "").strip()
+    conversation_id = str(conversation_id or "").strip()
+    if not username or not conversation_id:
+        return []
+    return persistence_load_messages_for_user(
+        supabase,
+        username,
+        conversation_id,
+        limit=2000,
+    )
+
+
+@st.cache_resource(show_spinner=False)
+def _heavy_work_coordinator_v69188():
+    """Process-wide re-entrant gate shared by all Streamlit sessions."""
+    return {
+        "lock": threading.RLock(),
+        "state_lock": threading.Lock(),
+        "active": None,
+        "depth": 0,
+    }
+
+
+class _HeavyWorkGuardV69188:
+    def __init__(self, operation, timeout_seconds=900):
+        self.operation = str(operation or "heavy-work")
+        self.timeout_seconds = max(1.0, float(timeout_seconds or 900))
+        self.coordinator = None
+        self.acquired = False
+        self.wait_started = 0.0
+        self.acquired_at = 0.0
+
+    def __enter__(self):
+        self.coordinator = _heavy_work_coordinator_v69188()
+        self.wait_started = time.monotonic()
+        lock = self.coordinator["lock"]
+
+        self.acquired = bool(lock.acquire(timeout=self.timeout_seconds))
+        waited_seconds = max(0.0, time.monotonic() - self.wait_started)
+        if not self.acquired:
+            diagnostic_log(
+                "heavy_work_admission_timeout_v69188",
+                operation=self.operation,
+                waited_seconds=round(waited_seconds, 3),
+            )
+            raise RuntimeError(
+                "The app is busy finishing another image-intensive operation. "
+                "Please retry after it completes."
+            )
+
+        self.acquired_at = time.monotonic()
+        try:
+            with self.coordinator["state_lock"]:
+                active = self.coordinator.get("active")
+                if (
+                    isinstance(active, dict)
+                    and active.get("thread_id") == threading.get_ident()
+                ):
+                    self.coordinator["depth"] = int(
+                        self.coordinator.get("depth") or 0
+                    ) + 1
+                else:
+                    self.coordinator["active"] = {
+                        "operation": self.operation,
+                        "thread_id": threading.get_ident(),
+                        "started_at": time.time(),
+                    }
+                    self.coordinator["depth"] = 1
+        except Exception:
+            pass
+
+        diagnostic_log(
+            "heavy_work_admitted_v69188",
+            operation=self.operation,
+            waited_seconds=round(waited_seconds, 3),
+        )
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        held_seconds = max(
+            0.0,
+            time.monotonic() - (self.acquired_at or self.wait_started),
+        )
+        try:
+            with self.coordinator["state_lock"]:
+                active = self.coordinator.get("active")
+                if (
+                    isinstance(active, dict)
+                    and active.get("thread_id") == threading.get_ident()
+                ):
+                    remaining_depth = max(
+                        0,
+                        int(self.coordinator.get("depth") or 1) - 1,
+                    )
+                    self.coordinator["depth"] = remaining_depth
+                    if remaining_depth == 0:
+                        self.coordinator["active"] = None
+        except Exception:
+            pass
+
+        try:
+            if self.acquired:
+                self.coordinator["lock"].release()
+        finally:
+            diagnostic_log(
+                "heavy_work_released_v69188",
+                operation=self.operation,
+                held_seconds=round(held_seconds, 3),
+                error_type=(
+                    exc_type.__name__
+                    if exc_type is not None
+                    else ""
+                ),
+            )
+        return False
+
+
+def _heavy_work_guard_v69188(operation, timeout_seconds=900):
+    return _HeavyWorkGuardV69188(operation, timeout_seconds=timeout_seconds)
+
+
+def _serialize_heavy_work_v69188(operation):
+    """Serialize only website-learning entry points across Streamlit sessions."""
+    def decorator(function):
+        @functools.wraps(function)
+        def wrapped(*args, **kwargs):
+            with _heavy_work_guard_v69188(operation):
+                return function(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
 
 def _read_app_secret(name, default=""):
     """Read one Streamlit secret safely without exposing its value."""
@@ -7488,14 +7679,20 @@ if (
     and not st.session_state.get("conversation_id")
 ):
     try:
-        restored_workspace_matches_v69177 = _conversation_owned_by_user_workspace_cached_v69177(
+        restored_workspace_matches_v69177 = _conversation_owned_by_user_workspace_startup_v69188(
             str(st.session_state.get("username") or "").strip(),
             _restored_conversation_id_v69026,
             st.session_state.current_assistant,
         )
         if restored_workspace_matches_v69177:
             st.session_state.conversation_id = _restored_conversation_id_v69026
-            st.session_state.messages = load_messages(_restored_conversation_id_v69026)
+            st.session_state.messages = [
+                dict(message_v69188)
+                for message_v69188 in _load_messages_startup_v69188(
+                    str(st.session_state.get("username") or "").strip(),
+                    _restored_conversation_id_v69026,
+                )
+            ]
             st.session_state.scroll_to_bottom = True
             diagnostic_log(
                 "mobile_conversation_restored_v69177",
@@ -58641,6 +58838,7 @@ def _website_supersede_conflicting_technical_learned_records_v69123(
 
 
 
+@_serialize_heavy_work_v69188("website-learning-package")
 def save_website_knowledge_package(
     extraction,
     database_choice,
@@ -58656,6 +58854,11 @@ def save_website_knowledge_package(
     Any precommit image failure restores the exact prior image metadata and removes
     transaction-owned orphan archives before the new vector is discarded.
     """
+    diagnostic_log(
+        "website_learning_memory_checkpoint_v69188",
+        stage="before_save_package",
+        **_graphic_v68874_process_memory_snapshot(),
+    )
     reviewed = clean_extracted_website_text(
         reviewed_content if reviewed_content is not None else extraction.get("content")
     )
@@ -58905,6 +59108,12 @@ def save_website_knowledge_package(
 
     _website_image_schema_profile_reset_v69176()
     _website_invalidate_learning_caches_v69109([database_choice])
+
+    diagnostic_log(
+        "website_learning_memory_checkpoint_v69188",
+        stage="after_commit_cleanup",
+        **_graphic_v68874_process_memory_snapshot(),
+    )
 
     return {
         "already_saved": bool(exact_current_exists),
@@ -67280,6 +67489,7 @@ def _website_destination_image_analysis_v69040(shared_analysis, database_choice)
     return result
 
 
+@_serialize_heavy_work_v69188("website-learning-destinations")
 def save_website_knowledge_to_destinations_v69029(
     extraction,
     destination_selection,
@@ -67777,11 +67987,14 @@ def render_learn_from_website(database_choice):
                     if len(website_destination_labels_v69029) > 1
                     else website_destination_labels_v69029[0]
                 )
-                recovered_analysis_v69045 = analyze_website_images(
-                    reviewed_extraction,
-                    analysis_label_v69045,
-                    selected_urls=selected_image_urls_v68998,
-                )
+                with _heavy_work_guard_v69188(
+                    "website-learning-thin-html-image-analysis"
+                ):
+                    recovered_analysis_v69045 = analyze_website_images(
+                        reviewed_extraction,
+                        analysis_label_v69045,
+                        selected_urls=selected_image_urls_v68998,
+                    )
                 recovered_summary_v69045 = _website_image_knowledge_summary_v69045(
                     reviewed_extraction,
                     recovered_analysis_v69045,
@@ -78022,17 +78235,18 @@ else:
             _graphic_v68874_release_transient_memory("before_graphic_generation")
 
             try:
-                generated_images = generate_graphic_marketing_images(
-                    prompt,
-                    graphic_generation_files,
-                    use_approved_style=graphic_options.get("use_approved_style", True),
-                    preserve_product=graphic_options.get("preserve_product", True),
-                    style_strength=graphic_options.get("style_strength", "High"),
-                    forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
-                    quality_retry=graphic_options.get("quality_retry", True),
-                    product_transform_mode=graphic_options.get("product_transform_mode", "Auto"),
-                    professional_layered_studio=graphic_options.get("professional_layered_studio", True),
-                )
+                with _heavy_work_guard_v69188("graphic-generation"):
+                    generated_images = generate_graphic_marketing_images(
+                        prompt,
+                        graphic_generation_files,
+                        use_approved_style=graphic_options.get("use_approved_style", True),
+                        preserve_product=graphic_options.get("preserve_product", True),
+                        style_strength=graphic_options.get("style_strength", "High"),
+                        forced_upload_role=graphic_options.get("forced_upload_role", "Auto-detect"),
+                        quality_retry=graphic_options.get("quality_retry", True),
+                        product_transform_mode=graphic_options.get("product_transform_mode", "Auto"),
+                        professional_layered_studio=graphic_options.get("professional_layered_studio", True),
+                    )
                 generation_error_v68837 = None
             except Exception as error:
                 generation_error_v68837 = error
