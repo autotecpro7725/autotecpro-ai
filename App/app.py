@@ -1,4 +1,4 @@
-# AutoTecPro AI v69184 FINAL PRODUCTION — surgical Technical current-authority auto-image publication fix on v69183; no other pipeline changed.
+# AutoTecPro AI v69185 FINAL PRODUCTION — surgical Technical current-source ATP semantic auto-image binding on v69184; no other behavior changed.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -62602,6 +62602,41 @@ def _technical_locked_package_authority_v69165(prompt_text, lock):
         "active_source_lock_v69164": True,
         "locked_package_direct_authority_v69165": True,
     }
+
+    # v69185 IMAGE-ONLY FIX:
+    # The current-source path already owns the exact family/year/page. Bind ATP
+    # semantic auto-display image metadata from THIS SAME locked package into the
+    # existing selected-image authority so the unchanged v69170 bridge + v69158
+    # final verifier can publish it automatically in the first response.
+    #
+    # No search, provider, factual, routing, fallback, Graphic, Sales, Marketing,
+    # auth, persistence, or renderer behavior is changed here.
+    atp_semantics_v69185 = _technical_package_atp_semantics_v69178(package_text)
+    if atp_semantics_v69185:
+        authority["atp_semantics_v69178"] = dict(atp_semantics_v69185)
+        semantic_image_urls_v69185 = _technical_atp_semantic_image_urls_v69179(
+            prompt_text,
+            authority,
+            max_images=8,
+        )
+        if semantic_image_urls_v69185:
+            authority["selected_image_urls_v69143"] = list(dict.fromkeys(
+                list(authority.get("selected_image_urls_v69143") or [])
+                + list(semantic_image_urls_v69185)
+            ))
+            authority["image_evidence"] = _technical_exact_package_image_evidence_v69155(
+                package_text,
+                authority["selected_image_urls_v69143"],
+            )
+            authority["current_source_atp_semantic_images_v69185"] = list(
+                semantic_image_urls_v69185
+            )
+            diagnostic_log(
+                "technical_current_source_atp_images_bound_v69185",
+                source_url=str(authority.get("source_url") or "")[:700],
+                section=str(authority.get("section_title") or "")[:300],
+                semantic_images=len(semantic_image_urls_v69185),
+            )
 
     literal = _technical_literal_configuration_v69156(prompt_text, authority)
     if not _technical_literal_is_sufficient_v69156(prompt_text, literal):
