@@ -1,4 +1,4 @@
-# AutoTecPro AI v69185 FINAL PRODUCTION — surgical Technical current-source ATP semantic auto-image binding on v69184; no other behavior changed.
+# AutoTecPro AI v69187 FINAL PRODUCTION — login stability hardening only; no non-auth pipeline changes.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -5709,26 +5709,50 @@ def verify_user_password(password, stored_value):
 
 
 def _upgrade_legacy_user_password(user, supplied_password):
-    """Replace a verified legacy plaintext password in-place with PBKDF2."""
+    """Replace a verified legacy plaintext password in-place with PBKDF2.
+
+    v69187 keeps this rare login-only migration bounded as well. On success the
+    caller's in-memory user record is updated to the exact stored hash so the
+    signed-session credential fingerprint remains valid after the upgrade.
+    """
     user = user or {}
     username = str(user.get("username") or "").strip()
     stored_value = str(user.get("password") or "")
     if not username or security_is_password_hash(stored_value):
         return False
     try:
+        supabase_url = str(st.secrets.get("SUPABASE_URL") or "").strip().rstrip("/")
+        server_key = str(
+            st.secrets.get("SUPABASE_SECRET_KEY")
+            or st.secrets.get("SUPABASE_SERVICE_ROLE_KEY")
+            or ""
+        ).strip()
+        if not supabase_url or not server_key:
+            raise RuntimeError("Bounded legacy password upgrade credentials unavailable")
+
         hashed = _password_hash(supplied_password)
-        (
-            supabase.table("users")
-            .update({"password": hashed})
-            .eq("username", username)
-            .eq("password", stored_value)
-            .execute()
+        response = requests.patch(
+            f"{supabase_url}/rest/v1/users",
+            headers={
+                "apikey": server_key,
+                "Authorization": f"Bearer {server_key}",
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+            },
+            params={
+                "username": f"eq.{username}",
+                "active": "eq.true",
+            },
+            json={"password": hashed},
+            timeout=(3.0, 6.0),
         )
+        response.raise_for_status()
+        user["password"] = hashed
         diagnostic_log("legacy_password_upgraded", username=username)
         return True
     except Exception as error:
         # Authentication must remain available even if a legacy deployment has
-        # a restricted update policy. The production audit will surface this.
+        # a restricted update policy or transient network failure.
         diagnostic_log(
             "legacy_password_upgrade_failed",
             username=username,
@@ -5918,18 +5942,73 @@ def _auth_credential_fingerprint(stored_password):
     return hashlib.sha256(b"AutoTecPro-AI/AuthCredential/v1|" + value).hexdigest()
 
 
-def _load_active_user_record(username):
-    result = (
-        supabase.table("users").select(
-            "username,password,role,active,workspace_permissions,feature_permissions"
+
+def _login_user_lookup_v69186(username, timeout_seconds=6.0):
+    """Bounded server-side user lookup used only by login/session restoration.
+
+    Why this exists:
+    - the previous auth path used an unbounded synchronous Supabase `.execute()`;
+    - successful login could immediately perform the same user lookup again while
+      writing the signed browser session;
+    - under concurrent staff logins or a transient PostgREST/network stall, those
+      blocking reads can hold Streamlit ScriptRunner threads and leave the browser
+      on the native loading spinner until the process recovers/reboots.
+
+    This uses the same server-side Supabase project credentials already configured
+    for the app, but with an explicit connect/read timeout. No password is logged,
+    cached, or sent to the browser.
+    """
+    clean_username = str(username or "").strip()
+    if not clean_username:
+        return None
+
+    supabase_url = str(st.secrets.get("SUPABASE_URL") or "").strip().rstrip("/")
+    server_key = str(
+        st.secrets.get("SUPABASE_SECRET_KEY")
+        or st.secrets.get("SUPABASE_SERVICE_ROLE_KEY")
+        or ""
+    ).strip()
+
+    # Login stability must never fall back to the old unbounded synchronous
+    # Supabase client read. Missing server credentials are a deployment/config
+    # error, not a reason to restore an indefinite blocking path.
+    if not supabase_url or not server_key:
+        raise RuntimeError(
+            "Bounded login lookup requires SUPABASE_URL and "
+            "SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY."
         )
-        .eq("username", str(username or "").strip())
-        .eq("active", True).limit(1).execute()
+
+    timeout_value = max(1.0, float(timeout_seconds or 6.0))
+    response = requests.get(
+        f"{supabase_url}/rest/v1/users",
+        headers={
+            "apikey": server_key,
+            "Authorization": f"Bearer {server_key}",
+            "Accept": "application/json",
+        },
+        params={
+            "select": (
+                "username,password,role,active,"
+                "workspace_permissions,feature_permissions"
+            ),
+            "username": f"eq.{clean_username}",
+            "active": "eq.true",
+            "limit": "1",
+        },
+        timeout=(min(3.0, timeout_value), timeout_value),
     )
-    return result.data[0] if result.data else None
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, list) or not payload:
+        return None
+    user = payload[0] if isinstance(payload[0], dict) else None
+    return dict(user) if user else None
+
+def _load_active_user_record(username):
+    return _login_user_lookup_v69186(username, timeout_seconds=6.0)
 
 
-def save_authenticated_session(username, remember=False, workspace=None, conversation_id=None):
+def save_authenticated_session(username, remember=False, workspace=None, conversation_id=None, credential_fingerprint=None):
     """
     Save a signed browser session so Streamlit websocket/session resets do not
     unexpectedly return an authenticated user to the login page.
@@ -5952,14 +6031,23 @@ def save_authenticated_session(username, remember=False, workspace=None, convers
         if workspace is not None
         else st.session_state.get("current_assistant") or ""
     ).strip()
-    active_user = _load_active_user_record(username)
-    if not active_user:
-        remove_authenticated_session()
-        return
+    proven_fingerprint_v69186 = str(
+        credential_fingerprint
+        or st.session_state.get("_auth_credential_fingerprint_v69186")
+        or ""
+    ).strip()
+    if not proven_fingerprint_v69186:
+        active_user = _load_active_user_record(username)
+        if not active_user:
+            remove_authenticated_session()
+            return
+        proven_fingerprint_v69186 = _auth_credential_fingerprint(
+            active_user.get("password")
+        )
     payload = {
         "version": 2,
         "username": username,
-        "credential_fingerprint": _auth_credential_fingerprint(active_user.get("password")),
+        "credential_fingerprint": proven_fingerprint_v69186,
         "issued_at": issued_at,
         "expires_at": issued_at + lifetime_seconds,
         "remember": bool(remember),
@@ -6039,6 +6127,9 @@ def _load_authenticated_user(username, expected_credential_fingerprint=None):
     st.session_state.feature_permissions = effective_feature_permissions(
         st.session_state.role,
         user.get("feature_permissions"),
+    )
+    st.session_state["_auth_credential_fingerprint_v69186"] = (
+        _auth_credential_fingerprint(user.get("password"))
     )
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("conversation_id", None)
@@ -6349,19 +6440,10 @@ def login_screen():
             return
 
         try:
-            result = (
-                supabase
-                .table("users")
-                .select(
-                    "username,password,role,active,workspace_permissions,feature_permissions"
-                )
-                .eq("username", username)
-                .eq("active", True)
-                .limit(1)
-                .execute()
+            user = _login_user_lookup_v69186(
+                username,
+                timeout_seconds=6.0,
             )
-
-            user = result.data[0] if result.data else None
             password_valid = False
             legacy_password = False
             if user:
@@ -6389,6 +6471,9 @@ def login_screen():
                         st.session_state.role,
                         user.get("feature_permissions"),
                     )
+                )
+                st.session_state["_auth_credential_fingerprint_v69186"] = (
+                    _auth_credential_fingerprint(user.get("password"))
                 )
                 st.session_state.messages = []
                 st.session_state.conversation_id = None
