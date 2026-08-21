@@ -1,4 +1,4 @@
-# AutoTecPro AI v69190 FINAL PRODUCTION — workspace-separated History only; v69189 stability + all protected pipelines preserved.
+# AutoTecPro AI v69191 FINAL PRODUCTION — 100 unpinned conversations per workspace; v69190 workspace-separated History and all protected pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -44766,32 +44766,54 @@ def queue_ai_postprocess(
 
 
 def process_pending_history_trim_v68864():
-    """Run conversation-limit housekeeping only after the visible answer lifecycle."""
-    username = str(
-        st.session_state.pop("_pending_history_trim_v68864", "") or ""
-    ).strip()
-    if not username:
+    """Run per-workspace conversation-limit housekeeping after visible output.
+
+    v69191 stores the originating workspace with the deferred trim request so a
+    later workspace switch cannot cause Technical/Sales/Marketing/Graphic
+    conversations to be counted together. Legacy string checkpoints remain
+    backward-compatible and fall back to the active workspace.
+    """
+    pending_v69191 = st.session_state.pop(
+        "_pending_history_trim_v68864",
+        "",
+    )
+
+    if isinstance(pending_v69191, dict):
+        username = str(pending_v69191.get("username") or "").strip()
+        assistant_name_v69191 = clean_assistant_label(
+            str(pending_v69191.get("assistant") or "").strip()
+        )
+    else:
+        username = str(pending_v69191 or "").strip()
+        assistant_name_v69191 = clean_assistant_label(
+            str(st.session_state.get("current_assistant") or "").strip()
+        )
+
+    if not username or not assistant_name_v69191:
         return
 
     started = time.perf_counter()
     try:
-        # After insertion we want at most the configured maximum. Passing
-        # max+1 reuses the existing pre-insert arithmetic and trims only when
-        # the post-insert count exceeds the real maximum.
+        # After insertion we want at most the configured maximum for this exact
+        # workspace. Passing max+1 retains the existing post-insert arithmetic:
+        # current_count - (max+1) + 1 == current_count - max.
         make_room_for_new_conversation(
             username,
             max_unpinned=MAX_UNPINNED_CONVERSATIONS_PER_USER + 1,
+            assistant_name=assistant_name_v69191,
         )
         diagnostic_log(
-            "history_trim_deferred_v68864",
+            "history_trim_deferred_v69191",
             username=username,
+            workspace=assistant_name_v69191,
             elapsed_seconds=round(time.perf_counter() - started, 3),
         )
     except Exception as error:
         # Housekeeping must never block or break chat.
         diagnostic_log(
-            "history_trim_deferred_failed_v68864",
+            "history_trim_deferred_failed_v69191",
             username=username,
+            workspace=assistant_name_v69191,
             error_type=type(error).__name__,
             error=str(error),
         )
@@ -45796,28 +45818,42 @@ def _detach_learning_reference_before_history_delete(conversation_id):
         ) from error
 
 
-def _delete_old_unpinned_conversation(username, conversation_id):
+def _delete_old_unpinned_conversation(
+    username,
+    conversation_id,
+    assistant_name=None,
+):
     """
-    Delete one old unpinned conversation belonging to one user account.
+    Delete one old unpinned conversation belonging to one user/workspace.
 
-    Pinned conversations are protected. Only that conversation and its
-    message rows are deleted.
+    Pinned conversations are protected. When a workspace is supplied, the row
+    must still belong to that exact workspace before deletion. This prevents a
+    stale/racing trim candidate from deleting another workspace's conversation.
     """
     username = str(username or "").strip()
+    workspace = clean_assistant_label(str(assistant_name or "").strip())
     if not username or not conversation_id:
         return False
 
-    check = (
+    check_query = (
         supabase
         .table("conversations")
-        .select("id, username, pinned")
+        .select("id, username, assistant, pinned")
         .eq("id", conversation_id)
         .eq("username", username)
-        .limit(1)
-        .execute()
     )
+    if workspace:
+        check_query = check_query.eq("assistant", workspace)
+
+    check = check_query.limit(1).execute()
     rows = list(check.data or [])
     if not rows or bool(rows[0].get("pinned", False)):
+        return False
+
+    if (
+        workspace
+        and clean_assistant_label(str(rows[0].get("assistant") or "")) != workspace
+    ):
         return False
 
     _detach_learning_reference_before_history_delete(conversation_id)
@@ -45836,17 +45872,23 @@ def _delete_old_unpinned_conversation(username, conversation_id):
 def make_room_for_new_conversation(
     username,
     max_unpinned=MAX_UNPINNED_CONVERSATIONS_PER_USER,
+    assistant_name=None,
 ):
     """
-    Keep at most 100 unpinned conversations for one user.
+    Keep at most 100 unpinned conversations for one user in one workspace.
 
-    Use an exact database count first, then fetch only the oldest IDs that must
-    be removed. This avoids downloading the user's entire history whenever a
-    new conversation is created.
+    v69191 changes only the retention scope: the exact assistant/workspace is
+    included in both the count and oldest-row query. Pinned conversations remain
+    exempt exactly as before.
     """
     username = str(username or "").strip()
+    workspace = clean_assistant_label(str(assistant_name or "").strip())
     if not username:
         raise RuntimeError("A valid username is required to save chat history.")
+    if not workspace:
+        raise RuntimeError(
+            "A valid workspace is required for per-workspace chat-history limits."
+        )
 
     try:
         max_unpinned = max(1, int(max_unpinned))
@@ -45858,6 +45900,7 @@ def make_room_for_new_conversation(
         .table("conversations")
         .select("id", count="exact", head=True)
         .eq("username", username)
+        .eq("assistant", workspace)
         .eq("pinned", False)
         .or_("archived.is.null,archived.eq.false")
         .execute()
@@ -45870,8 +45913,9 @@ def make_room_for_new_conversation(
     oldest_result = (
         supabase
         .table("conversations")
-        .select("id")
+        .select("id, assistant")
         .eq("username", username)
+        .eq("assistant", workspace)
         .eq("pinned", False)
         .or_("archived.is.null,archived.eq.false")
         .order("created_at", desc=False)
@@ -45883,6 +45927,7 @@ def make_room_for_new_conversation(
         _delete_old_unpinned_conversation(
             username,
             conversation.get("id"),
+            assistant_name=workspace,
         )
 
 
@@ -45925,7 +45970,10 @@ def create_conversation(username, assistant_name, first_message=None):
         messages=False,
         username=username,
     )
-    st.session_state["_pending_history_trim_v68864"] = str(username or "").strip()
+    st.session_state["_pending_history_trim_v68864"] = {
+        "username": str(username or "").strip(),
+        "assistant": clean_assistant_label(assistant_name),
+    }
     return conversation_id
 
 
