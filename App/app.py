@@ -1,4 +1,4 @@
-# AutoTecPro AI v69194 FINAL PRODUCTION — Remember Me auto-login starts New Case; v69193 response hardening and all protected pipelines preserved.
+# AutoTecPro AI v69195 FINAL PRODUCTION — Technical Verified Hot Authority speed path only; v69194 login behavior, v69193 response hardening, and all protected pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -59554,6 +59554,68 @@ def save_website_knowledge_package(
     _website_image_schema_profile_reset_v69176()
     _website_invalidate_learning_caches_v69109([database_choice])
 
+    # v69195: after the successful Technical transaction has committed every
+    # family/year pointer and the learning revision has been bumped, publish those
+    # same already-verified exact packages into the local hot authority. This makes
+    # the first post-learning configuration inquiry warm without weakening the
+    # v69192 commit/read-back gate. Any failure here is speed-only and falls back to
+    # the unchanged durable current-source resolver.
+    if (
+        database_choice == "Technical Support Database"
+        and bool(
+            (locals().get("technical_active_authority_commit_v69192") or {}).get(
+                "complete"
+            )
+        )
+        and isinstance(locals().get("technical_package_v69192"), dict)
+    ):
+        try:
+            hot_package_v69195 = dict(
+                locals().get("technical_package_v69192") or {}
+            )
+            hot_commit_v69195 = dict(
+                locals().get("technical_active_authority_commit_v69192") or {}
+            )
+            for verified_row_v69195 in (
+                hot_commit_v69195.get("verified") or []
+            ):
+                if not isinstance(verified_row_v69195, dict):
+                    continue
+                hot_lock_v69195 = {
+                    "status": "locked",
+                    "family": str(
+                        verified_row_v69195.get("family") or ""
+                    ).casefold(),
+                    "year": verified_row_v69195.get("year"),
+                    "file_id": str(hot_package_v69195.get("file_id") or file_id or ""),
+                    "filename": str(hot_package_v69195.get("filename") or filename or ""),
+                    "source_url": str(hot_package_v69195.get("source_url") or ""),
+                    "page_title": str(hot_package_v69195.get("title") or ""),
+                    "extracted_at": str(hot_package_v69195.get("extracted_at") or ""),
+                    "snapshot_sha256_v69171": str(
+                        hot_package_v69195.get("snapshot_sha256_v69171") or ""
+                    ),
+                    "package_text": str(
+                        hot_package_v69195.get("package_text") or package_text or ""
+                    ),
+                    "package": hot_package_v69195,
+                }
+                _technical_verified_hot_authority_put_v69195(
+                    hot_lock_v69195,
+                    selected_vector_store_id,
+                )
+            diagnostic_log(
+                "technical_verified_hot_authority_post_learning_v69195",
+                verified=len(hot_commit_v69195.get("verified") or []),
+                file_id=str(file_id or "")[:160],
+            )
+        except Exception as hot_learning_error_v69195:
+            diagnostic_log(
+                "technical_verified_hot_authority_post_learning_failed_v69195",
+                error_type=type(hot_learning_error_v69195).__name__,
+                error=str(hot_learning_error_v69195)[:500],
+            )
+
     diagnostic_log(
         "website_learning_memory_checkpoint_v69188",
         stage="after_commit_cleanup",
@@ -64547,6 +64609,201 @@ def _technical_active_authority_bootstrap_v69164(prompt_text, vector_store_id):
     return {}
 
 
+# ============================================================
+# v69195 — verified Technical hot authority (speed-only)
+# ============================================================
+
+@st.cache_resource(show_spinner=False)
+def _technical_verified_hot_authority_state_v69195():
+    """Process-persistent cache containing only previously verified current sources."""
+    return {
+        "lock": threading.RLock(),
+        "entries": {},
+    }
+
+
+def _technical_verified_hot_authority_key_v69195(family, year, vector_store_id):
+    family_key = re.sub(r"[^a-z0-9]+", "", str(family or "").casefold())
+    try:
+        year_key = int(year)
+    except Exception:
+        return ()
+    store_key = str(vector_store_id or "").strip()
+    if not family_key or not store_key or year_key < 1980 or year_key > 2100:
+        return ()
+    return (store_key, family_key, year_key)
+
+
+def _technical_verified_hot_authority_get_v69195(
+    prompt_text,
+    vector_store_id,
+    *,
+    max_age_seconds=300.0,
+):
+    """Return one still-valid exact current source using local memory only.
+
+    The cache is never a new factual authority. Entries are admitted only after the
+    existing v69164/v69171 source identity and durable package validation has already
+    succeeded. Every hit is rechecked with the unchanged package/current-structure
+    and prompt identity gates before use.
+    """
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    families = sorted(set(_website_identity_vehicle_families_v69022(prompt)))
+    years = sorted(set(_website_identity_years_v69022(prompt)))
+    if len(families) != 1 or len(years) != 1:
+        return {}
+
+    family, year = families[0], years[0]
+    key = _technical_verified_hot_authority_key_v69195(
+        family,
+        year,
+        vector_store_id,
+    )
+    if not key:
+        return {}
+
+    state = _technical_verified_hot_authority_state_v69195()
+    with state["lock"]:
+        entry = dict((state.get("entries") or {}).get(key) or {})
+
+    if not entry:
+        return {}
+
+    try:
+        age = max(0.0, time.monotonic() - float(entry.get("stored_monotonic") or 0.0))
+    except Exception:
+        age = float(max_age_seconds or 300.0) + 1.0
+    if age > max(5.0, float(max_age_seconds or 300.0)):
+        with state["lock"]:
+            state["entries"].pop(key, None)
+        return {}
+
+    current_revision = _website_destination_revision_v69109(
+        "Technical Support Database"
+    )
+    if int(entry.get("learning_revision") or 0) != int(current_revision or 0):
+        with state["lock"]:
+            state["entries"].pop(key, None)
+        return {}
+
+    package_text = str(entry.get("package_text") or "")
+    package = dict(entry.get("package") or {})
+    if (
+        not package_text
+        or not isinstance(package, dict)
+        or not _technical_package_has_current_structure_v69165(package_text)
+        or not _technical_package_candidate_score_v69157(prompt_text, package)
+    ):
+        with state["lock"]:
+            state["entries"].pop(key, None)
+        return {}
+
+    source_url = str(entry.get("source_url") or package.get("source_url") or "").strip()
+    file_id = str(entry.get("file_id") or package.get("file_id") or "").strip()
+    if not source_url or not file_id:
+        with state["lock"]:
+            state["entries"].pop(key, None)
+        return {}
+
+    return {
+        "status": "locked",
+        "family": family,
+        "year": year,
+        "file_id": file_id,
+        "filename": str(entry.get("filename") or package.get("filename") or ""),
+        "source_url": source_url,
+        "page_title": str(entry.get("page_title") or package.get("title") or ""),
+        "extracted_at": str(entry.get("extracted_at") or package.get("extracted_at") or ""),
+        "snapshot_sha256_v69171": str(entry.get("snapshot_sha256_v69171") or ""),
+        "package_text": package_text,
+        "package": package,
+        "verified_hot_authority_v69195": True,
+        "hot_age_seconds_v69195": round(age, 4),
+    }
+
+
+def _technical_verified_hot_authority_put_v69195(lock, vector_store_id):
+    """Admit one exact source that the existing resolver has already verified."""
+    lock = dict(lock or {})
+    if str(lock.get("status") or "") != "locked":
+        return False
+    family = str(lock.get("family") or "").casefold()
+    year = lock.get("year")
+    key = _technical_verified_hot_authority_key_v69195(
+        family,
+        year,
+        vector_store_id,
+    )
+    package_text = str(lock.get("package_text") or "")
+    package = dict(lock.get("package") or {})
+    if (
+        not key
+        or not package_text
+        or not package
+        or not _technical_package_has_current_structure_v69165(package_text)
+        or not _technical_package_candidate_score_v69157(
+            f"{family} {year}",
+            package,
+        )
+    ):
+        return False
+
+    entry = {
+        "family": family,
+        "year": int(year),
+        "file_id": str(lock.get("file_id") or package.get("file_id") or ""),
+        "filename": str(lock.get("filename") or package.get("filename") or ""),
+        "source_url": str(lock.get("source_url") or package.get("source_url") or ""),
+        "page_title": str(lock.get("page_title") or package.get("title") or ""),
+        "extracted_at": str(lock.get("extracted_at") or package.get("extracted_at") or ""),
+        "snapshot_sha256_v69171": str(lock.get("snapshot_sha256_v69171") or ""),
+        "package_text": package_text,
+        "package": package,
+        "stored_monotonic": time.monotonic(),
+        "learning_revision": _website_destination_revision_v69109(
+            "Technical Support Database"
+        ),
+    }
+    if not entry["file_id"] or not entry["source_url"]:
+        return False
+
+    state = _technical_verified_hot_authority_state_v69195()
+    with state["lock"]:
+        entries_v69195 = state["entries"]
+        if key not in entries_v69195 and len(entries_v69195) >= 512:
+            oldest_key_v69195 = min(
+                entries_v69195,
+                key=lambda k: float(
+                    (entries_v69195.get(k) or {}).get("stored_monotonic") or 0.0
+                ),
+            )
+            entries_v69195.pop(oldest_key_v69195, None)
+        entries_v69195[key] = entry
+    diagnostic_log(
+        "technical_verified_hot_authority_stored_v69195",
+        family=family[:80],
+        year=int(year),
+        file_id=entry["file_id"][:160],
+        source_url=entry["source_url"][:700],
+    )
+    return True
+
+
+def _technical_verified_hot_authority_available_v69195(
+    prompt_text,
+    vector_store_id,
+):
+    try:
+        return bool(
+            _technical_verified_hot_authority_get_v69195(
+                prompt_text,
+                vector_store_id,
+            )
+        )
+    except Exception:
+        return False
+
+
 def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
     prompt = _technical_settings_routing_prompt_v69117(prompt_text)
     families = sorted(set(_website_identity_vehicle_families_v69022(prompt)))
@@ -64554,6 +64811,25 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
     if len(families) != 1 or len(years) != 1:
         return {"status": "not_applicable", "reason_code": "NEEDS_SINGLE_FAMILY_YEAR"}
     family, year = families[0], years[0]
+
+    # v69195 speed path: a previously verified exact current source can be reused
+    # entirely from process memory. No Supabase read, OpenAI file read, semantic
+    # search, or provider call is needed on a valid hit. Every hit still passes the
+    # unchanged current-structure and prompt-identity gates in the getter above.
+    hot_lock_v69195 = _technical_verified_hot_authority_get_v69195(
+        prompt_text,
+        vector_store_id,
+    )
+    if hot_lock_v69195:
+        diagnostic_log(
+            "technical_verified_hot_authority_hit_v69195",
+            family=str(family)[:80],
+            year=year,
+            file_id=str(hot_lock_v69195.get("file_id") or "")[:160],
+            age_seconds=float(hot_lock_v69195.get("hot_age_seconds_v69195") or 0.0),
+        )
+        return hot_lock_v69195
+
     payload = _technical_active_authority_row_v69164(family, year, vector_store_id)
     if not payload:
         package = _technical_active_authority_bootstrap_v69164(
@@ -64847,7 +65123,7 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
                 "reason_code": "ACTIVE_PACKAGE_IDENTITY_REJECTED",
                 "family": family, "year": year, "file_id": file_id,
             }
-    return {
+    lock_result_v69195 = {
         "status": "locked",
         "family": family, "year": year,
         "file_id": file_id,
@@ -64855,9 +65131,22 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
         "source_url": str(package.get("source_url") or ""),
         "page_title": str(package.get("title") or ""),
         "extracted_at": str(package.get("extracted_at") or ""),
+        "snapshot_sha256_v69171": str(payload.get("snapshot_sha256_v69171") or ""),
         "package_text": full,
         "package": package,
     }
+    try:
+        _technical_verified_hot_authority_put_v69195(
+            lock_result_v69195,
+            vector_store_id,
+        )
+    except Exception as hot_store_error_v69195:
+        diagnostic_log(
+            "technical_verified_hot_authority_store_failed_v69195",
+            error_type=type(hot_store_error_v69195).__name__,
+            error=str(hot_store_error_v69195)[:400],
+        )
+    return lock_result_v69195
 
 
 def _technical_active_structural_authority_v69164(prompt_text, vector_store_id):
@@ -78151,6 +78440,27 @@ else:
                 explicit_visual=bool(explicit_visual_followup_v69114),
             )
 
+        technical_verified_hot_preflight_v69195 = False
+        if (
+            assistant == "🔧 Technical Support"
+            and _technical_configuration_query_v69155(
+                technical_request_prompt_v68879
+            )
+        ):
+            try:
+                hot_store_ids_v69195 = _configured_vector_store_ids(
+                    TECHNICAL_VECTOR_STORE_ID
+                )
+                if hot_store_ids_v69195:
+                    technical_verified_hot_preflight_v69195 = (
+                        _technical_verified_hot_authority_available_v69195(
+                            technical_request_prompt_v68879,
+                            str(hot_store_ids_v69195[0] or "").strip(),
+                        )
+                    )
+            except Exception:
+                technical_verified_hot_preflight_v69195 = False
+
         # v69016: begin Technical image evidence work at the earliest safe point,
         # immediately after routing has authoritatively decided file_search. This
         # overlaps Product Library/context preparation and the full text response.
@@ -78163,6 +78473,7 @@ else:
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
             and str(technical_request_prompt_v68879 or "").strip()
+            and not bool(technical_verified_hot_preflight_v69195)
         ):
             try:
                 technical_early_index_images_v69016 = _website_image_lookup_v68883(
@@ -78344,6 +78655,30 @@ else:
                 use_file_search = False
 
         allow_product_library_lookup = bool(not attachment_only_mode)
+
+        # v69195 Technical speed-only bypass: Car Model / A-C / protocol / exact
+        # configuration questions are answered from verified Technical authority,
+        # not the product catalogue. Avoid an unrelated Supabase catalogue scan
+        # unless the user explicitly asks for Product Library information/photos.
+        technical_product_lookup_bypass_v69195 = bool(
+            assistant == "🔧 Technical Support"
+            and _technical_configuration_query_v69155(
+                technical_request_prompt_v68879
+            )
+            and not _explicit_product_library_request(
+                technical_request_prompt_v68879
+            )
+            and not _product_library_prompt_requests_images(
+                technical_request_prompt_v68879
+            )
+        )
+        if technical_product_lookup_bypass_v69195:
+            allow_product_library_lookup = False
+            diagnostic_log(
+                "technical_product_library_preflight_bypassed_v69195",
+                prompt_class="configuration",
+            )
+
         if assistant == "🎨 Graphic Marketing":
             allow_product_library_lookup = bool(
                 allow_product_library_lookup
