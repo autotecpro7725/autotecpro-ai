@@ -1,4 +1,4 @@
-# AutoTecPro AI v69193 FINAL PRODUCTION — all-workspace response hardening only; v69192 Technical learning/search repair and all protected pipelines preserved.
+# AutoTecPro AI v69194 FINAL PRODUCTION — Remember Me auto-login starts New Case; v69193 response hardening and all protected pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -6597,12 +6597,24 @@ def restore_login_session():
         if restored_workspace:
             st.session_state["_restored_workspace_assistant_v68843"] = restored_workspace
         restored_conversation_v69026 = str(payload.get("conversation_id") or "").strip()
-        if restored_conversation_v69026:
-            st.session_state["_restored_conversation_id_v69026"] = restored_conversation_v69026
+
+        # v69194: a cookie-based authenticated restore is a fresh app entry.
+        # Preserve authentication + the last permitted workspace, but intentionally
+        # do NOT reopen the prior text conversation. The user always lands on a
+        # New Case after closing/reopening the app or otherwise recreating the
+        # Streamlit session from Remember Me.
+        #
+        # In-session Streamlit reruns are unaffected because they keep the live
+        # session_state conversation directly and never enter this restore path.
+        st.session_state.messages = []
+        st.session_state.conversation_id = None
+        st.session_state.pop("_restored_conversation_id_v69026", None)
+
         diagnostic_log(
-            "login_session_restored",
+            "login_session_restored_v69194_new_case",
             username=username,
             workspace=restored_workspace,
+            prior_conversation_present=bool(restored_conversation_v69026),
         )
         return True
     except Exception as error:
