@@ -1,4 +1,4 @@
-# AutoTecPro AI v69189 FINAL PRODUCTION — idle/reconnect stability only; bounded fresh REST history/session reads; all protected pipelines preserved.
+# AutoTecPro AI v69190 FINAL PRODUCTION — workspace-separated History only; v69189 stability + all protected pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -8007,6 +8007,7 @@ def switch_workspace(assistant_name):
 
     st.session_state.messages = []
     st.session_state.conversation_id = None
+    st.session_state.rename_conversation_id = None
     st.session_state.current_assistant = assistant_name
 
     # A pending Technical-photo clarification belongs to the old case/workspace.
@@ -46497,7 +46498,37 @@ def _history_time_label(conversation):
     return conversation_time.strftime("%b %d")
 
 
-def render_history_cards(conversations):
+
+def _history_workspace_identity_v69190(assistant_name=None):
+    """Return stable History scope identity for the active chat workspace.
+
+    Technical, Sales, Marketing, and Graphic each receive an independent
+    History query/UI-state namespace. Other workspaces retain their own
+    normalized namespace but do not borrow another workspace's History.
+    """
+    clean = clean_assistant_label(
+        str(
+            assistant_name
+            or st.session_state.get("current_assistant")
+            or globals().get("assistant")
+            or ""
+        ).strip()
+    )
+    folded = clean.casefold()
+    if folded == "technical support":
+        return "technical", "Technical Support"
+    if folded == "sales":
+        return "sales", "Sales"
+    if folded == "marketing":
+        return "marketing", "Marketing"
+    if folded == "graphic marketing":
+        return "graphic", "Graphic Marketing"
+
+    fallback = re.sub(r"[^a-z0-9]+", "_", folded).strip("_") or "workspace"
+    return fallback[:48], clean or "Workspace"
+
+
+def render_history_cards(conversations, *, history_workspace="", search_value=None):
     """
     Responsive Streamlit-native conversation history.
 
@@ -46506,9 +46537,19 @@ def render_history_cards(conversations):
     - Uses only native Streamlit widgets plus scoped CSS.
     - Does not introduce JavaScript or a second state-management system.
     """
-    search_value = str(
-        st.session_state.get("history_search_query", "")
-    ).strip().lower()
+    if search_value is None:
+        history_slug_v69190, _ = _history_workspace_identity_v69190(
+            history_workspace
+        )
+        search_value = st.session_state.get(
+            f"history_search_query_{history_slug_v69190}",
+            "",
+        )
+
+    search_value = str(search_value or "").strip().lower()
+    history_slug_v69190, history_label_v69190 = (
+        _history_workspace_identity_v69190(history_workspace)
+    )
 
     visible_conversations = []
 
@@ -46636,7 +46677,7 @@ def render_history_cards(conversations):
 
                 row = st.container(
                     key=(
-                        f"history_row_{row_suffix}_"
+                        f"history_row_{history_slug_v69190}_{row_suffix}_"
                         f"{conversation_id}"
                     )
                 )
@@ -46644,10 +46685,24 @@ def render_history_cards(conversations):
                 with row:
                     if st.button(
                         history_label,
-                        key=f"open_{conversation_id}",
+                        key=f"open_{history_slug_v69190}_{conversation_id}",
                         help=title,
                         use_container_width=True,
                     ):
+                        history_username_v69190 = str(
+                            st.session_state.get("username") or ""
+                        ).strip()
+                        if not _conversation_owned_by_user_workspace_cached_v69177(
+                            history_username_v69190,
+                            conversation_id,
+                            history_label_v69190,
+                        ):
+                            st.session_state.history_action_error = (
+                                "That conversation is not available in this workspace."
+                            )
+                            _rerun_fragment_or_app()
+                            return
+
                         st.session_state.conversation_id = conversation_id
                         st.session_state.messages = load_messages(
                             conversation_id
@@ -46681,7 +46736,7 @@ def render_history_cards(conversations):
 
                         if st.button(
                             "Rename",
-                            key=f"rename_{conversation_id}",
+                            key=f"rename_{history_slug_v69190}_{conversation_id}",
                             use_container_width=True,
                         ):
                             st.session_state.rename_conversation_id = str(
@@ -46698,7 +46753,7 @@ def render_history_cards(conversations):
 
                         if st.button(
                             pin_label,
-                            key=f"pin_{conversation_id}",
+                            key=f"pin_{history_slug_v69190}_{conversation_id}",
                             use_container_width=True,
                         ):
                             try:
@@ -46715,7 +46770,7 @@ def render_history_cards(conversations):
 
                         if st.button(
                             "Archive",
-                            key=f"archive_{conversation_id}",
+                            key=f"archive_{history_slug_v69190}_{conversation_id}",
                             use_container_width=True,
                         ):
                             archive_conversation(conversation_id)
@@ -46734,7 +46789,7 @@ def render_history_cards(conversations):
 
                         if st.button(
                             "Delete",
-                            key=f"delete_{conversation_id}",
+                            key=f"delete_{history_slug_v69190}_{conversation_id}",
                             use_container_width=True,
                         ):
                             delete_conversation(conversation_id)
@@ -46762,34 +46817,44 @@ def render_history_cards(conversations):
 def render_history_sidebar_fragment():
     """Render/search/manage sidebar history without rerunning the chat body."""
     try:
-        if "history_unpinned_limit" not in st.session_state:
-            st.session_state.history_unpinned_limit = (
+        active_history_workspace_v69177 = clean_assistant_label(
+            st.session_state.get("current_assistant")
+            or globals().get("assistant")
+            or ""
+        )
+        history_slug_v69190, history_label_v69190 = (
+            _history_workspace_identity_v69190(
+                active_history_workspace_v69177
+            )
+        )
+        history_limit_key_v69190 = (
+            f"history_unpinned_limit_{history_slug_v69190}"
+        )
+        history_search_key_v69190 = (
+            f"history_search_query_{history_slug_v69190}"
+        )
+
+        if history_limit_key_v69190 not in st.session_state:
+            st.session_state[history_limit_key_v69190] = (
                 INITIAL_HISTORY_PAGE_SIZE
             )
 
         current_search = str(
-            st.session_state.get("history_search_query", "")
+            st.session_state.get(history_search_key_v69190, "")
         ).strip()
 
-        # Searching intentionally expands to the full allowed unpinned history
-        # so results are not limited to the currently visible page.
+        # Search/pagination state is independent per workspace. Searching still
+        # expands to the full allowed history for the active workspace only.
         effective_history_limit = (
             MAX_UNPINNED_CONVERSATIONS_PER_USER
             if current_search
             else int(
                 st.session_state.get(
-                    "history_unpinned_limit",
+                    history_limit_key_v69190,
                     INITIAL_HISTORY_PAGE_SIZE,
                 )
                 or INITIAL_HISTORY_PAGE_SIZE
             )
-        )
-
-        active_history_workspace_v69177 = clean_assistant_label(
-            st.session_state.get("assistant")
-            or st.session_state.get("current_assistant")
-            or globals().get("assistant")
-            or ""
         )
         conversations = load_conversations(
             st.session_state.username,
@@ -46824,11 +46889,11 @@ def render_history_sidebar_fragment():
         with refresh_col:
             if st.button(
                 "↻",
-                key="refresh_history",
+                key=f"refresh_history_{history_slug_v69190}",
                 help="Refresh conversations",
                 use_container_width=True,
             ):
-                st.session_state.history_unpinned_limit = (
+                st.session_state[history_limit_key_v69190] = (
                     INITIAL_HISTORY_PAGE_SIZE
                 )
                 invalidate_history_cache()
@@ -46837,7 +46902,7 @@ def render_history_sidebar_fragment():
         with search_col:
             st.text_input(
                 "Search conversations",
-                key="history_search_query",
+                key=history_search_key_v69190,
                 placeholder="Search conversations…",
                 label_visibility="collapsed",
             )
@@ -46912,7 +46977,11 @@ def render_history_sidebar_fragment():
             unsafe_allow_html=True,
         )
 
-        render_history_cards(conversations)
+        render_history_cards(
+            conversations,
+            history_workspace=history_label_v69190,
+            search_value=current_search,
+        )
 
         loaded_unpinned_count = sum(
             1 for conversation in conversations
@@ -46935,15 +47004,15 @@ def render_history_sidebar_fragment():
         ):
             if st.sidebar.button(
                 "Load more",
-                key="load_more_history",
+                key=f"load_more_history_{history_slug_v69190}",
                 use_container_width=False,
                 help="Load older conversations",
             ):
-                st.session_state.history_unpinned_limit = min(
+                st.session_state[history_limit_key_v69190] = min(
                     MAX_UNPINNED_CONVERSATIONS_PER_USER,
                     int(
                         st.session_state.get(
-                            "history_unpinned_limit",
+                            history_limit_key_v69190,
                             INITIAL_HISTORY_PAGE_SIZE,
                         )
                         or INITIAL_HISTORY_PAGE_SIZE
