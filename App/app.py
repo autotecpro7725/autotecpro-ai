@@ -1,4 +1,4 @@
-# AutoTecPro AI v69191 FINAL PRODUCTION — 100 unpinned conversations per workspace; v69190 workspace-separated History and all protected pipelines preserved.
+# AutoTecPro AI v69192 FINAL PRODUCTION — Technical link-publication + empty-completion repair only; v69191 retention and all protected Graphic/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -42321,6 +42321,10 @@ class _StreamingNotSupportedError(RuntimeError):
     """Raised only when the installed OpenAI SDK rejects stream=True."""
 
 
+class _TechnicalEmptyCompletionError(RuntimeError):
+    """Completed Technical file_search call produced no assistant answer text."""
+
+
 def _is_openai_bad_request(error):
     """Return True for a Responses API HTTP 400 without importing SDK internals."""
     name = type(error).__name__.casefold()
@@ -42626,6 +42630,36 @@ def _stream_one_ai_response(request):
         )
         if not received_text and final_text:
             yield final_text
+
+        # v69192: a completed Technical file_search request with zero answer
+        # text is not a successful response. File-search evidence has already
+        # been captured above; escalate so ask_ai_stream can retry the exact
+        # same Technical request once. Never silently publish an empty answer.
+        technical_file_search_active_v69192 = bool(
+            str(assistant or "") == "🔧 Technical Support"
+            and any(
+                isinstance(tool, dict) and tool.get("type") == "file_search"
+                for tool in (active_request.get("tools") or [])
+            )
+        )
+        final_status_v69192 = str(
+            getattr(final_response, "status", "") or ""
+        ).strip().lower()
+        if (
+            technical_file_search_active_v69192
+            and final_status_v69192 == "completed"
+            and not received_text
+            and not final_text.strip()
+        ):
+            diagnostic_log(
+                "technical_empty_completion_detected_v69192",
+                workspace=str(assistant),
+                file_search=True,
+            )
+            raise _TechnicalEmptyCompletionError(
+                "Technical knowledge retrieval completed without answer text."
+            )
+
         return final_response
 
     # A streaming connection that ends without a completed/incomplete/failed
@@ -42670,8 +42704,29 @@ def ask_ai_stream(
     request = original_request
 
     try:
+        technical_empty_retry_used_v69192 = False
+
         for continuation_index in range(MAX_AI_AUTO_CONTINUATIONS + 1):
-            final_response = yield from _stream_one_ai_response(request)
+            try:
+                final_response = yield from _stream_one_ai_response(request)
+            except _TechnicalEmptyCompletionError:
+                if technical_empty_retry_used_v69192:
+                    raise RuntimeError(
+                        "Technical knowledge retrieval completed twice without "
+                        "producing an answer. No unsupported fallback answer was "
+                        "published. Please retry the request."
+                    )
+                technical_empty_retry_used_v69192 = True
+                diagnostic_log(
+                    "technical_empty_completion_retry_v69192",
+                    workspace=str(assistant),
+                )
+                # Retry the original request byte-for-byte at the request-object
+                # level: same vector store, tools, instructions, input, model,
+                # current-source context and include settings. Do not remove
+                # file_search and do not broaden to provider-only retrieval.
+                request = dict(original_request)
+                continue
 
             if final_response is None:
                 return
@@ -42740,6 +42795,23 @@ def ask_ai_stream(
             yield fallback_text
 
         status = str(getattr(response, "status", "") or "").strip().lower()
+        technical_file_search_active_v69192 = bool(
+            str(assistant or "") == "🔧 Technical Support"
+            and any(
+                isinstance(tool, dict) and tool.get("type") == "file_search"
+                for tool in (request.get("tools") or [])
+            )
+        )
+        if (
+            technical_file_search_active_v69192
+            and status == "completed"
+            and not fallback_text.strip()
+        ):
+            raise RuntimeError(
+                "Technical knowledge retrieval completed without answer text. "
+                "No unsupported fallback answer was published. Please retry."
+            )
+
         if status == "failed":
             raise RuntimeError(
                 _response_error_message(
@@ -59178,6 +59250,10 @@ def save_website_knowledge_package(
     newly_uploaded = False
     if exact_current_exists:
         indexing_status = "completed"
+        file_id = _website_vector_file_id_by_filename_v69192(
+            selected_vector_store_id,
+            filename,
+        )
     else:
         website_file = ManagedUploadedFile(
             package_text.encode("utf-8"), filename, "text/plain"
@@ -59323,7 +59399,80 @@ def save_website_knowledge_package(
             "was not promoted; prior production authority was preserved."
         ) from image_transaction_error_v69177
 
-    # COMMIT: replacement vector + images are proven. Only now retire stale authority.
+    # v69192 Technical publication barrier:
+    # Vector indexing and image durability are not sufficient to declare a
+    # configuration page current. For a structured Technical package with an
+    # exact family/year identity, synchronously commit the durable package
+    # snapshot + active family/year pointers and verify their read-back BEFORE
+    # retiring any prior production authority.
+    technical_active_authority_commit_v69192 = {
+        "required": False,
+        "complete": True,
+        "status": "not_applicable",
+    }
+    if database_choice == "Technical Support Database":
+        technical_package_v69192 = _technical_package_from_text_v69121(
+            file_id,
+            filename,
+            package_text,
+        )
+        technical_current_structure_v69192 = bool(
+            isinstance(technical_package_v69192, dict)
+            and _technical_package_has_current_structure_v69165(package_text)
+            and list(technical_package_v69192.get("vehicle_families") or [])
+            and list(technical_package_v69192.get("years") or [])
+        )
+        if technical_current_structure_v69192:
+            technical_active_authority_commit_v69192["required"] = True
+            if not str(file_id or "").strip():
+                raise RuntimeError(
+                    "The Technical package is indexed but its exact OpenAI file "
+                    "identity could not be resolved. Prior current-source authority "
+                    "was preserved; retry the save."
+                )
+            try:
+                technical_active_authority_commit_v69192 = dict(
+                    _technical_active_authority_commit_verified_v69167(
+                        technical_package_v69192,
+                        selected_vector_store_id,
+                    )
+                    or {}
+                )
+                if not bool(
+                    technical_active_authority_commit_v69192.get("complete")
+                ):
+                    raise RuntimeError(
+                        "Technical active-source commit did not verify completely."
+                    )
+                technical_active_authority_commit_v69192["required"] = True
+                technical_active_authority_commit_v69192["status"] = "verified"
+            except Exception as technical_commit_error_v69192:
+                # A multi-year pointer commit can fail after one or more family/
+                # year rows were already written. Never delete the just-indexed
+                # package or its verified images here: doing so could leave a
+                # partially written durable pointer dangling to a removed file.
+                # Keep BOTH old authority and the new package attached, retire
+                # nothing, and make the save visibly incomplete. A retry is
+                # idempotent and can finish/read-back the same checksum package.
+                diagnostic_log(
+                    "technical_active_authority_commit_incomplete_v69192",
+                    file_id=str(file_id or "")[:160],
+                    source_url=str(
+                        (technical_package_v69192 or {}).get("source_url") or ""
+                    )[:700],
+                    newly_uploaded=bool(newly_uploaded),
+                    error_type=type(technical_commit_error_v69192).__name__,
+                    error=str(technical_commit_error_v69192)[:700],
+                )
+                raise RuntimeError(
+                    "Technical knowledge indexed, but durable current-source "
+                    "pointer/snapshot verification is incomplete. The new package "
+                    "and prior authority were both preserved so you can retry "
+                    "safely; no stale authority was retired."
+                ) from technical_commit_error_v69192
+
+    # COMMIT: replacement vector + images + required Technical active source are proven.
+    # Only now retire stale authority.
     replaced_file_count = _website_remove_superseded_vectors_v69109(
         selected_vector_store_id, prior_same_url
     )
@@ -59402,6 +59551,9 @@ def save_website_knowledge_package(
         "image_learning_complete_v69114": bool(image_durability.get("complete")),
         "factual_supersession_completed_v69109": True,
         "newest_source_authority_v69109": True,
+        "technical_active_authority_commit_v69192": (
+            technical_active_authority_commit_v69192
+        ),
         "conflicting_learned_supersession_v69123": conflicting_learned,
         "conflicting_website_supersession_v69174": conflicting_website,
         "transactional_learning_v69177": True,
@@ -67530,6 +67682,26 @@ def vector_store_has_filename(vector_store_id, filename):
         )
 
     return False
+
+
+def _website_vector_file_id_by_filename_v69192(vector_store_id, filename):
+    """Resolve the exact attached OpenAI file id for one checksum filename."""
+    target = str(filename or "").strip()
+    if not target:
+        return ""
+    try:
+        rows = list(_vector_store_file_catalog_v69040(vector_store_id) or [])
+    except Exception:
+        return ""
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("filename") or "").strip() != target:
+            continue
+        file_id = str(row.get("file_id") or "").strip()
+        if file_id:
+            return file_id
+    return ""
 
 
 
