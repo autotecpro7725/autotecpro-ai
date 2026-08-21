@@ -1,4 +1,4 @@
-# AutoTecPro AI v69195 FINAL PRODUCTION — Technical Verified Hot Authority speed path only; v69194 login behavior, v69193 response hardening, and all protected pipelines preserved.
+# AutoTecPro AI v69196 FINAL PRODUCTION — element-level ATP v12 Technical configuration fastpath; v69195 hot authority and all protected pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -67427,6 +67427,182 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
             add_branch("SYNC 3 Automatic Climate","Car Model / A/C Profile",protocol.get("standard_sync3_automatic_climate"))
         if protocol.get("rear_climate_correction"):
             add_branch("Rear Climate Correction","Car Model / A/C Profile",protocol.get("rear_climate_correction"))
+
+    # v69196: ATP v12 element-only pages intentionally do not require standalone
+    # JSON manifests. v69178 already archives root/heading data-atp-* attributes,
+    # but the literal configuration reader above previously consumed only scripts.
+    # Read the already-trusted element metadata generically so every exact
+    # current-source page can use the same deterministic configuration fast path.
+    root = dict(semantics.get("root") or {})
+    headings = [
+        dict(x) for x in (semantics.get("headings") or [])
+        if isinstance(x, dict)
+    ]
+
+    def _element_config_carrier_v69196(row):
+        row = dict(row or {})
+        topic = str(row.get("data-atp-topic") or "").strip().casefold().replace("_", "-")
+        section_id = str(row.get("id") or row.get("data-atp-section") or "").strip().casefold().replace("_", "-")
+        current = str(row.get("data-atp-current-source") or "true").strip().casefold()
+        workspace = str(row.get("data-atp-workspace") or "technical").strip().casefold()
+        return bool(
+            current not in {"false", "0", "no"}
+            and workspace in {"", "technical"}
+            and (
+                topic in {"car-model-ac", "car-model-ac-protocol", "protocol-settings"}
+                or section_id in {"car-model-ac", "protocol-settings"}
+                or row.get("data-atp-climate-routing")
+            )
+        )
+
+    carriers_v69196 = [
+        row for row in headings if _element_config_carrier_v69196(row)
+    ]
+    # Root attributes may contain exact protocol/profile facts for the whole
+    # reviewed page. They are used only for those facts, never as a substitute
+    # for vehicle/menu identity.
+    if root:
+        carriers_v69196.append(root)
+
+    # Protocol is an exact literal element attribute.
+    for carrier_v69196 in carriers_v69196:
+        protocol_v69196 = str(
+            carrier_v69196.get("data-atp-protocol") or ""
+        ).strip()
+        if protocol_v69196:
+            add_field("Protocol", protocol_v69196)
+            break
+
+    # A non-branching element profile is an exact menu route such as
+    # Make|Car Model. Do not confuse root data-atp-make/model vehicle identity
+    # with menu identity; only the explicit configuration profile is used here.
+    for carrier_v69196 in carriers_v69196:
+        profile_literal_v69196 = html.unescape(str(
+            carrier_v69196.get("data-atp-profile") or ""
+        )).strip()
+        if not profile_literal_v69196:
+            continue
+        profile_literal_parts_v69196 = [
+            re.sub(r"\s+", " ", part).strip()
+            for part in re.split(
+                r"\s*(?:\||→|->|>)\s*",
+                profile_literal_v69196,
+            )
+            if re.sub(r"\s+", " ", part).strip()
+        ]
+        if len(profile_literal_parts_v69196) >= 2:
+            add_field("Make", profile_literal_parts_v69196[0])
+            add_field(
+                "Car Model",
+                " > ".join(profile_literal_parts_v69196[1:]),
+            )
+            break
+
+    def _climate_label_v69196(value):
+        value = re.sub(r"\s+", " ", str(value or "")).strip()
+        cf = value.casefold()
+        if "manual" in cf:
+            return "Manual A/C"
+        if "automatic" in cf or re.search(r"\bauto\b", cf):
+            return "Automatic A/C"
+        return value or "Configuration"
+
+    route_rows_v69196 = []
+    for carrier_v69196 in carriers_v69196:
+        routing_v69196 = html.unescape(str(
+            carrier_v69196.get("data-atp-climate-routing") or ""
+        )).strip()
+        if not routing_v69196:
+            continue
+        for raw_route_v69196 in routing_v69196.split("|"):
+            raw_route_v69196 = raw_route_v69196.strip()
+            if not raw_route_v69196:
+                continue
+            route_match_v69196 = re.match(
+                r"^\s*(.*?)\s*(?:=>|=)\s*(.*?)\s*$",
+                raw_route_v69196,
+            )
+            if not route_match_v69196:
+                continue
+            label_v69196 = _climate_label_v69196(
+                route_match_v69196.group(1)
+            )
+            path_v69196 = str(route_match_v69196.group(2) or "").strip()
+            path_parts_v69196 = [
+                re.sub(r"\s+", " ", part).strip()
+                for part in re.split(r"\s*(?:→|->|>)\s*", path_v69196)
+                if re.sub(r"\s+", " ", part).strip()
+            ]
+            if len(path_parts_v69196) >= 2:
+                route_rows_v69196.append((
+                    label_v69196,
+                    list(path_parts_v69196),
+                ))
+
+    # Root fallback profiles are also generic ATP v12 element metadata. They use
+    # Make|Car Model or Make|Car Model|A/C Type and are consulted only when a
+    # heading did not already supply an explicit climate route for that branch.
+    existing_route_labels_v69196 = {
+        str(row[0] or "").casefold() for row in route_rows_v69196
+    }
+    for key_v69196, label_v69196 in (
+        ("data-atp-manual-ac-profile", "Manual A/C"),
+        ("data-atp-automatic-ac-profile", "Automatic A/C"),
+    ):
+        if label_v69196.casefold() in existing_route_labels_v69196:
+            continue
+        profile_v69196 = html.unescape(str(root.get(key_v69196) or "")).strip()
+        if not profile_v69196:
+            continue
+        profile_parts_v69196 = [
+            re.sub(r"\s+", " ", part).strip()
+            for part in re.split(r"\s*(?:\||→|->|>)\s*", profile_v69196)
+            if re.sub(r"\s+", " ", part).strip()
+        ]
+        if len(profile_parts_v69196) >= 2:
+            route_rows_v69196.append((
+                label_v69196,
+                list(profile_parts_v69196),
+            ))
+
+    if route_rows_v69196:
+        menu_makes_v69196 = {
+            str(parts_v69196[0] or "").strip()
+            for _, parts_v69196 in route_rows_v69196
+            if len(parts_v69196) >= 2 and str(parts_v69196[0] or "").strip()
+        }
+        if len(menu_makes_v69196) == 1:
+            add_field("Make", next(iter(menu_makes_v69196)))
+
+        car_models_v69196 = {
+            str(parts_v69196[1] or "").strip()
+            for _, parts_v69196 in route_rows_v69196
+            if len(parts_v69196) >= 2 and str(parts_v69196[1] or "").strip()
+        }
+        common_car_model_v69196 = (
+            next(iter(car_models_v69196))
+            if len(car_models_v69196) == 1
+            else ""
+        )
+        if common_car_model_v69196:
+            add_field("Car Model", common_car_model_v69196)
+
+        for label_v69196, parts_v69196 in route_rows_v69196:
+            if len(parts_v69196) >= 3:
+                # Three-level menu: Make -> Car Model -> A/C Type/leaf.
+                add_branch(
+                    label_v69196,
+                    "A/C Type",
+                    " > ".join(parts_v69196[2:]),
+                )
+            elif len(parts_v69196) == 2 and not common_car_model_v69196:
+                # Two-level menu: Make -> Car Model, where the model itself
+                # varies by climate branch (for example H/L profiles).
+                add_branch(
+                    label_v69196,
+                    "Car Model",
+                    parts_v69196[1],
+                )
 
     return {
         "status":"verified" if (fields or branches) else "insufficient",
