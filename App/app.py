@@ -1,4 +1,4 @@
-# AutoTecPro AI v69196 FINAL PRODUCTION — element-level ATP v12 Technical configuration fastpath; v69195 hot authority and all protected pipelines preserved.
+# AutoTecPro AI v69198 FINAL PRODUCTION — compiled Technical runtime contract + direct-section authority; v69196 element metadata, v69195 hot authority, v69194 login, v69193 response hardening, and all protected Graphic pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -50920,10 +50920,19 @@ def _website_extract_atp_semantics_v69178(page_html, page_url=""):
             self.root = {}
             self.headings = []
             self.images = []
+            self.elements = []
         def handle_starttag(self, tag, attrs):
             tag = str(tag or "").casefold()
             a = {str(k or "").casefold(): str(v or "") for k, v in (attrs or []) if k}
             atp = {k: v for k, v in a.items() if k.startswith("data-atp-")}
+            if atp and len(self.elements) < 2400:
+                element_record = {
+                    "tag": tag,
+                    "id": a.get("id", ""),
+                    **({"href": a.get("href", "")} if a.get("href") else {}),
+                    **atp,
+                }
+                self.elements.append(element_record)
             if a.get("id") == "atp-manual-top" and atp:
                 self.root.update(atp)
             if tag in {"h1","h2","h3","h4","h5","h6"} and atp:
@@ -50946,15 +50955,22 @@ def _website_extract_atp_semantics_v69178(page_html, page_url=""):
     except Exception:
         pass
 
-    if not scripts and not attr_parser.root and not attr_parser.headings and not attr_parser.images:
+    if (
+        not scripts
+        and not attr_parser.root
+        and not attr_parser.headings
+        and not attr_parser.images
+        and not attr_parser.elements
+    ):
         return {}
     return {
-        "schema": "autotecpro-ai-semantic-ingest-v69178",
+        "schema": "autotecpro-ai-semantic-ingest-v69198",
         "page_url": str(page_url or ""),
         "root": dict(attr_parser.root),
         "scripts": scripts,
         "headings": list(attr_parser.headings),
         "images": list(attr_parser.images),
+        "elements": list(attr_parser.elements),
     }
 
 
@@ -59609,6 +59625,26 @@ def save_website_knowledge_package(
                 verified=len(hot_commit_v69195.get("verified") or []),
                 file_id=str(file_id or "")[:160],
             )
+            try:
+                compiled_revision_v69198 = _website_destination_revision_v69109(
+                    "Technical Support Database"
+                )
+                _technical_compiled_runtime_inject_v69198(
+                    hot_package_v69195,
+                    selected_vector_store_id,
+                    compiled_revision_v69198,
+                )
+                diagnostic_log(
+                    "technical_compiled_runtime_post_learning_v69198",
+                    revision=int(compiled_revision_v69198 or 0),
+                    file_id=str(file_id or "")[:160],
+                )
+            except Exception as compiled_learning_error_v69198:
+                diagnostic_log(
+                    "technical_compiled_runtime_post_learning_failed_v69198",
+                    error_type=type(compiled_learning_error_v69198).__name__,
+                    error=str(compiled_learning_error_v69198)[:500],
+                )
         except Exception as hot_learning_error_v69195:
             diagnostic_log(
                 "technical_verified_hot_authority_post_learning_failed_v69195",
@@ -66976,6 +67012,20 @@ def _technical_package_prewarm_start_v69119(store, revision):
                     else:
                         state["status"] = "failed"
                         state["error"] = "EMPTY_REFRESH"
+
+                if packages:
+                    try:
+                        _technical_compiled_runtime_publish_v69198(
+                            list(state.get("packages") or packages),
+                            clean_store,
+                            int(revision or 0),
+                        )
+                    except Exception as compiled_error_v69198:
+                        diagnostic_log(
+                            "technical_compiled_runtime_prewarm_failed_v69198",
+                            error_type=type(compiled_error_v69198).__name__,
+                            error=str(compiled_error_v69198)[:500],
+                        )
                 return packages
             except Exception as error:
                 with state["lock"]:
@@ -67767,6 +67817,712 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
         "systems": sorted(systems),
         "product_codes": sorted(product_codes),
         "atp_semantics_v69178": _technical_package_atp_semantics_v69178(text),
+    }
+
+
+
+# ============================================================
+# v69198 — compiled Technical runtime contract
+# ============================================================
+
+@st.cache_resource(show_spinner=False)
+def _technical_compiled_contract_state_v69198():
+    """Process-persistent, revision-bound direct Technical contract index."""
+    return {
+        "lock": threading.RLock(),
+        "store": "",
+        "revision": -1,
+        "packages": {},
+        "contracts": {},
+        "buckets": {},
+        "built_at": 0.0,
+    }
+
+
+def _technical_contract_norm_v69198(value):
+    value = html.unescape(str(value or ""))
+    value = re.sub(r"<[^>]+>", " ", value)
+    value = re.sub(r"[^a-z0-9]+", " ", value.casefold())
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _technical_contract_tokens_v69198(value):
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", _technical_contract_norm_v69198(value))
+        if len(token) >= 2
+        and token not in {
+            "the", "and", "for", "with", "this", "that", "from", "your", "you",
+            "auto", "autotecpro", "technical", "support", "installation", "system",
+        }
+    }
+
+
+def _technical_contract_carriers_v69198(semantics, section):
+    """Return ATP element metadata that belongs to one compiled section."""
+    semantics = dict(semantics or {})
+    section = dict(section or {})
+    target = _technical_contract_norm_v69198(
+        section.get("target_id") or section.get("section_id") or ""
+    )
+    title = _technical_contract_norm_v69198(section.get("title") or "")
+    carriers = []
+
+    for row in list(semantics.get("headings") or []) + list(semantics.get("elements") or []):
+        if not isinstance(row, dict):
+            continue
+        row = dict(row)
+        rid = _technical_contract_norm_v69198(row.get("id") or "")
+        sec = _technical_contract_norm_v69198(row.get("data-atp-section") or "")
+        topic = _technical_contract_norm_v69198(row.get("data-atp-topic") or "")
+        heading = _technical_contract_norm_v69198(
+            row.get("data-atp-title")
+            or row.get("data-atp-heading-title")
+            or row.get("data-atp-intent")
+            or ""
+        )
+        if (
+            (target and rid == target)
+            or (target and sec and (sec == target or sec in target or target in sec))
+            or (title and sec and (sec in title or title in sec))
+            or (title and topic and (topic in title or title in topic))
+            or (title and heading and (heading in title or title in heading))
+        ):
+            carriers.append(row)
+
+    # Stable de-duplication by ATP routing payload.
+    output = []
+    seen = set()
+    for row in carriers:
+        fingerprint = json.dumps(
+            {k: row.get(k) for k in sorted(row) if k.startswith("data-atp-") or k in {"id", "tag"}},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        output.append(row)
+    return output[:120]
+
+
+def _technical_compile_one_package_v69198(package):
+    """Compile one already-reviewed Technical package into small direct contracts."""
+    package = dict(package or {})
+    package_text = str(package.get("package_text") or "")
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    if not semantics:
+        semantics = _technical_package_atp_semantics_v69178(package_text)
+    hierarchy = _technical_package_hierarchy_v69143(package_text)
+    sections = [dict(x) for x in (hierarchy.get("sections") or []) if isinstance(x, dict)]
+    if not semantics or not sections:
+        return []
+
+    families = [str(x).casefold() for x in (package.get("vehicle_families") or []) if str(x)]
+    years = []
+    for raw_year in package.get("years") or []:
+        try:
+            years.append(int(raw_year))
+        except Exception:
+            pass
+    if not families or not years:
+        return []
+
+    root = dict(semantics.get("root") or {})
+    all_images = [dict(x) for x in (semantics.get("images") or []) if isinstance(x, dict)]
+    contracts = []
+
+    for index, section in enumerate(sections):
+        title = str(section.get("title") or "").strip()
+        target_id = str(section.get("target_id") or section.get("section_id") or "").strip()
+        if not title and not target_id:
+            continue
+
+        carriers = _technical_contract_carriers_v69198(semantics, section)
+        query_keys = []
+        aliases = []
+        topics = []
+        fact_ids = []
+        intents = []
+        image_roles = []
+        branch_scopes = []
+
+        for row in carriers:
+            qk = str(row.get("data-atp-query-key") or "").strip()
+            if qk:
+                query_keys.append(qk)
+            for raw_alias in str(row.get("data-atp-aliases") or "").split("|"):
+                raw_alias = re.sub(r"\s+", " ", raw_alias).strip()
+                if raw_alias:
+                    aliases.append(raw_alias)
+            topic = str(row.get("data-atp-topic") or "").strip()
+            if topic:
+                topics.append(topic)
+            for fid in re.split(r"[|,;]+", str(row.get("data-atp-fact-ids") or "")):
+                fid = fid.strip()
+                if fid:
+                    fact_ids.append(fid)
+            intent = str(row.get("data-atp-intent") or "").strip()
+            if intent:
+                intents.append(intent)
+            role = str(row.get("data-atp-image-role") or "").strip()
+            if role:
+                image_roles.append(role)
+            branch_scope = str(
+                row.get("data-atp-branch-scope")
+                or row.get("data-atp-climate-branch")
+                or row.get("data-atp-audio-branch")
+                or ""
+            ).strip()
+            if branch_scope:
+                branch_scopes.append(branch_scope)
+
+        # Even sparse legacy headings get a direct deterministic contract from
+        # the already-reviewed hierarchy title + target + section text.
+        search_text = " ".join(
+            [
+                title,
+                target_id,
+                str(section.get("text") or "")[:5000],
+                " ".join(query_keys),
+                " ".join(aliases),
+                " ".join(topics),
+                " ".join(fact_ids),
+                " ".join(intents),
+            ]
+        )
+        search_tokens = sorted(_technical_contract_tokens_v69198(search_text))
+
+        meta_sections = {
+            _technical_contract_norm_v69198(row.get("data-atp-section") or "")
+            for row in carriers
+            if str(row.get("data-atp-section") or "").strip()
+        }
+        meta_topics = {
+            _technical_contract_norm_v69198(row.get("data-atp-topic") or "")
+            for row in carriers
+            if str(row.get("data-atp-topic") or "").strip()
+        }
+        meta_facts = {str(x).strip().casefold() for x in fact_ids if str(x).strip()}
+
+        exact_images = []
+        ranked_images = []
+        for image in all_images:
+            current = str(image.get("data-atp-current-source") or "true").strip().casefold()
+            if current in {"false", "0", "no"}:
+                continue
+            image_section = _technical_contract_norm_v69198(image.get("data-atp-section") or "")
+            image_topic = _technical_contract_norm_v69198(image.get("data-atp-topic") or "")
+            image_facts = {
+                str(x).strip().casefold()
+                for x in re.split(r"[|,;]+", str(image.get("data-atp-fact-ids") or ""))
+                if str(x).strip()
+            }
+            target_norm = _technical_contract_norm_v69198(target_id)
+            title_norm = _technical_contract_norm_v69198(title)
+            section_match = bool(
+                image_section
+                and (
+                    image_section == target_norm
+                    or image_section in meta_sections
+                    or (title_norm and (image_section in title_norm or title_norm in image_section))
+                )
+            )
+            topic_match = bool(image_topic and image_topic in meta_topics)
+            fact_match = bool(image_facts and meta_facts and (image_facts & meta_facts))
+            # Section/topic identity is authoritative whenever the image
+            # declares it. Shared fact IDs alone must never pull an image from a
+            # neighboring section (for example Car Model vs fitment/camera).
+            if image_section or image_topic:
+                if not (section_match or topic_match):
+                    continue
+            elif not fact_match:
+                continue
+            url = str(
+                image.get("data-atp-full-resolution-url")
+                or image.get("data-atp-canonical-image-url")
+                or image.get("src")
+                or ""
+            ).strip()
+            if not url.startswith("https://"):
+                continue
+            auto = str(image.get("data-atp-auto-display") or "").strip().casefold() == "true"
+            primary = str(image.get("data-atp-authority") or "").strip().casefold() in {
+                "primary", "autotecpro-primary"
+            }
+            first = str(image.get("data-atp-first-response-eligible") or "").strip().casefold() == "true"
+            try:
+                priority = int(float(image.get("data-atp-first-response-priority") or image.get("data-atp-priority") or 0))
+            except Exception:
+                priority = 0
+            # Direct first-response contracts publish only images explicitly
+            # eligible for automatic/first-response display. Supporting images
+            # remain preserved in the normal learned package fallback.
+            if not (auto or first):
+                continue
+            ranked_images.append((
+                1 if section_match else 0,
+                1 if topic_match else 0,
+                1 if fact_match else 0,
+                1 if first else 0,
+                1 if auto else 0,
+                1 if primary else 0,
+                priority,
+                url,
+            ))
+        ranked_images.sort(reverse=True)
+        for row in ranked_images:
+            url = row[-1]
+            if url not in exact_images:
+                exact_images.append(url)
+            if len(exact_images) >= 8:
+                break
+
+        section_segments = [
+            dict(x) for x in (section.get("segments") or []) if isinstance(x, dict)
+        ][:120]
+        authority_seed = {
+            "status": "selected",
+            "file_id": str(package.get("file_id") or ""),
+            "filename": str(package.get("filename") or ""),
+            "source_url": str(package.get("source_url") or ""),
+            "page_title": str(package.get("title") or ""),
+            "section_title": title,
+            "section_id": target_id or str(section.get("section_id") or ""),
+            "branch_paths": [
+                " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+                for seg in section_segments
+            ],
+            "section_text": str(section.get("text") or "")[:30000],
+            "selected_image_urls_v69143": list(exact_images),
+            "selected_section_title_v69143": title,
+            "selected_branch_paths_v69143": [
+                " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+                for seg in section_segments
+            ],
+            "selected_segments_v69158": section_segments,
+            "atp_semantics_v69178": semantics,
+            "selector_version": 69198,
+            "compiled_runtime_contract_v69198": True,
+        }
+
+        # Precompile exact configuration rows once. This uses the existing v69196
+        # literal metadata parser; no new vehicle-specific fact is created here.
+        config_literal = _technical_metadata_literal_configuration_v69178(
+            f"{title} car model a/c protocol",
+            authority_seed,
+        )
+        config_ready = bool(
+            _technical_literal_is_sufficient_v69156(
+                "car model a/c protocol",
+                config_literal,
+            )
+        )
+        config_structured = (
+            _technical_merge_structured_v69156(
+                config_literal,
+                {"fields": [], "branches": [], "status": "not_needed"},
+            )
+            if config_ready
+            else {}
+        )
+
+        contract_id = hashlib.sha256(
+            (
+                str(package.get("file_id") or "")
+                + "|"
+                + str(target_id or index)
+                + "|"
+                + str(package.get("source_url") or "")
+            ).encode("utf-8")
+        ).hexdigest()[:24]
+
+        contracts.append({
+            "contract_id": contract_id,
+            "file_id": str(package.get("file_id") or ""),
+            "filename": str(package.get("filename") or ""),
+            "source_url": str(package.get("source_url") or ""),
+            "page_title": str(package.get("title") or ""),
+            "extracted_at": str(package.get("extracted_at") or ""),
+            "families": list(families),
+            "years": list(years),
+            "systems": [str(x) for x in (package.get("systems") or []) if str(x)],
+            "product_codes": [str(x) for x in (package.get("product_codes") or []) if str(x)],
+            "section_title": title,
+            "section_id": target_id or str(section.get("section_id") or ""),
+            "section_text": str(section.get("text") or "")[:30000],
+            "segments": section_segments,
+            "query_keys": list(dict.fromkeys(query_keys)),
+            "aliases": list(dict.fromkeys(aliases)),
+            "topics": list(dict.fromkeys(topics)),
+            "fact_ids": list(dict.fromkeys(fact_ids)),
+            "intents": list(dict.fromkeys(intents)),
+            "image_roles": list(dict.fromkeys(image_roles)),
+            "branch_scopes": list(dict.fromkeys(branch_scopes)),
+            "search_tokens": search_tokens,
+            "exact_images": exact_images,
+            "config_ready": bool(config_ready),
+            "config_literal": config_literal if config_ready else {},
+            "config_structured": config_structured if config_ready else {},
+            "root_current_source": str(root.get("data-atp-current-source") or "true"),
+        })
+
+    return contracts
+
+
+def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
+    """Build a compact direct index from reviewed packages; no network I/O."""
+    clean_store = str(store or "").strip()
+    clean_revision = int(revision or 0)
+    package_rows = [dict(x) for x in (packages or []) if isinstance(x, dict)]
+
+    # The current Technical architecture owns one active package per family/year.
+    # Keep only the newest package for each family/year in this direct tier.
+    newest_by_family_year = {}
+    for package in package_rows:
+        families = [str(x).casefold() for x in (package.get("vehicle_families") or []) if str(x)]
+        years = []
+        for raw_year in package.get("years") or []:
+            try:
+                years.append(int(raw_year))
+            except Exception:
+                pass
+        for family in families:
+            for year in years:
+                key = (family, year)
+                rank = (
+                    str(package.get("extracted_at") or ""),
+                    str(package.get("filename") or ""),
+                    str(package.get("file_id") or ""),
+                )
+                old = newest_by_family_year.get(key)
+                if old is None or rank > old[0]:
+                    newest_by_family_year[key] = (rank, package)
+
+    unique_packages = {}
+    for _, package in newest_by_family_year.values():
+        pid = str(package.get("file_id") or package.get("filename") or "")
+        if pid:
+            unique_packages[pid] = package
+
+    contracts = {}
+    buckets = {}
+    package_cache = {}
+    for pid, package in unique_packages.items():
+        package_cache[pid] = {
+            "package_text": str(package.get("package_text") or ""),
+            "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
+            "source_url": str(package.get("source_url") or ""),
+            "file_id": str(package.get("file_id") or ""),
+            "filename": str(package.get("filename") or ""),
+            "title": str(package.get("title") or ""),
+            "extracted_at": str(package.get("extracted_at") or ""),
+        }
+        for contract in _technical_compile_one_package_v69198(package):
+            cid = str(contract.get("contract_id") or "")
+            if not cid:
+                continue
+            contracts[cid] = contract
+            for family in contract.get("families") or []:
+                for year in contract.get("years") or []:
+                    bucket = f"{clean_store}|{str(family).casefold()}|{int(year)}"
+                    buckets.setdefault(bucket, []).append(cid)
+
+    return {
+        "store": clean_store,
+        "revision": clean_revision,
+        "packages": package_cache,
+        "contracts": contracts,
+        "buckets": buckets,
+        "built_at": time.monotonic(),
+    }
+
+
+def _technical_compiled_runtime_publish_v69198(packages, store, revision):
+    built = _technical_compiled_runtime_index_build_v69198(
+        packages,
+        store,
+        revision,
+    )
+    state = _technical_compiled_contract_state_v69198()
+    with state["lock"]:
+        state.update(built)
+    diagnostic_log(
+        "technical_compiled_runtime_published_v69198",
+        revision=int(revision or 0),
+        contracts=len(built.get("contracts") or {}),
+        buckets=len(built.get("buckets") or {}),
+    )
+    return True
+
+
+def _technical_compiled_runtime_inject_v69198(package, store, revision):
+    """Publish one newly verified package into the current revision direct index."""
+    package = dict(package or {})
+    if not package:
+        return False
+    state = _technical_compiled_contract_state_v69198()
+    clean_store = str(store or "").strip()
+    clean_revision = int(revision or 0)
+    with state["lock"]:
+        current_packages = []
+        for cached in (state.get("packages") or {}).values():
+            if not isinstance(cached, dict):
+                continue
+            package_text = str(cached.get("package_text") or "")
+            parsed = _technical_package_from_text_v69121(
+                cached.get("file_id"),
+                cached.get("filename"),
+                package_text,
+            )
+            if isinstance(parsed, dict):
+                current_packages.append(parsed)
+        current_packages.append(package)
+    return _technical_compiled_runtime_publish_v69198(
+        current_packages,
+        clean_store,
+        clean_revision,
+    )
+
+
+def _technical_compiled_contract_lookup_v69198(prompt_text, store):
+    """O(1)-bucket + tiny local section match; no DB/vector/provider calls."""
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    families = sorted(set(_website_identity_vehicle_families_v69022(prompt)))
+    years = sorted(set(_website_identity_years_v69022(prompt)))
+    if len(families) != 1 or len(years) != 1:
+        return {}
+
+    clean_store = str(store or "").strip()
+    current_revision = _website_destination_revision_v69109(
+        "Technical Support Database"
+    )
+    state = _technical_compiled_contract_state_v69198()
+    with state["lock"]:
+        if (
+            str(state.get("store") or "") != clean_store
+            or int(state.get("revision") or -1) != int(current_revision or 0)
+        ):
+            return {}
+        bucket_key = f"{clean_store}|{str(families[0]).casefold()}|{int(years[0])}"
+        contract_ids = list((state.get("buckets") or {}).get(bucket_key) or [])
+        contracts = [
+            dict((state.get("contracts") or {}).get(cid) or {})
+            for cid in contract_ids
+            if isinstance((state.get("contracts") or {}).get(cid), dict)
+        ]
+        package_cache = dict(state.get("packages") or {})
+
+    if not contracts:
+        return {}
+
+    prompt_tokens = _technical_contract_tokens_v69198(prompt)
+    prompt_norm = _technical_contract_norm_v69198(prompt)
+
+    # Family/year/make terms are already hard-gated by the direct bucket and
+    # therefore should not influence which section wins. Remove tokens common to
+    # every section in this exact family/year bucket so generic page identity
+    # cannot outrank the actual inquiry topic (e.g. Reset vs Camera).
+    common_contract_tokens_v69198 = None
+    for contract_v69198 in contracts:
+        tokens_v69198 = set(contract_v69198.get("search_tokens") or [])
+        common_contract_tokens_v69198 = (
+            tokens_v69198
+            if common_contract_tokens_v69198 is None
+            else common_contract_tokens_v69198 & tokens_v69198
+        )
+    identity_tokens_v69198 = _technical_contract_tokens_v69198(
+        " ".join(str(x) for x in families)
+        + " "
+        + " ".join(str(x) for x in years)
+    )
+    scoring_prompt_tokens_v69198 = (
+        set(prompt_tokens)
+        - set(common_contract_tokens_v69198 or set())
+        - set(identity_tokens_v69198)
+    )
+    if not scoring_prompt_tokens_v69198:
+        scoring_prompt_tokens_v69198 = set(prompt_tokens)
+
+    prompt_systems = set(_website_identity_systems_v69022(prompt))
+    prompt_codes = {
+        str(x).casefold() for x in _website_image_product_codes_v69020(prompt)
+    }
+    try:
+        config_query = bool(
+            "car_model_protocol" in _technical_intent_roles_v69152(prompt)
+        )
+    except Exception:
+        config_query = bool(re.search(
+            r"\bcar\s*model\b|\bprotocol\b|\bcan\s*bus\b|\bcanbus\b",
+            str(prompt or ""),
+            flags=re.I,
+        ))
+
+    ranked = []
+    for contract in contracts:
+        systems = set(contract.get("systems") or [])
+        codes = {str(x).casefold() for x in (contract.get("product_codes") or [])}
+        if prompt_systems and systems and not prompt_systems.issubset(systems):
+            continue
+        if prompt_codes and codes and not (prompt_codes & codes):
+            continue
+
+        if config_query and not bool(contract.get("config_ready")):
+            continue
+
+        exact_phrase = 0
+        alias_phrase = 0
+        topic_phrase = 0
+        for phrase in contract.get("aliases") or []:
+            p = _technical_contract_norm_v69198(phrase)
+            if p and p in prompt_norm:
+                alias_phrase = max(alias_phrase, len(p.split()))
+        for phrase in list(contract.get("topics") or []) + [contract.get("section_id"), contract.get("section_title")]:
+            p = _technical_contract_norm_v69198(phrase)
+            if p and p in prompt_norm:
+                topic_phrase = max(topic_phrase, len(p.split()))
+        for qk in contract.get("query_keys") or []:
+            q_tokens = _technical_contract_tokens_v69198(qk)
+            if q_tokens:
+                overlap = len(q_tokens & scoring_prompt_tokens_v69198)
+                exact_phrase = max(exact_phrase, overlap)
+
+        contract_tokens = set(contract.get("search_tokens") or [])
+        overlap = len(scoring_prompt_tokens_v69198 & contract_tokens)
+        title_tokens = _technical_contract_tokens_v69198(
+            str(contract.get("section_title") or "")
+            + " "
+            + str(contract.get("section_id") or "")
+        )
+        title_overlap = len(scoring_prompt_tokens_v69198 & title_tokens)
+        ratio = overlap / max(1, len(scoring_prompt_tokens_v69198))
+        score = (
+            (500 if config_query and contract.get("config_ready") else 0)
+            + alias_phrase * 80
+            + topic_phrase * 90
+            + title_overlap * 38
+            + exact_phrase * 16
+            + overlap * 10
+            + int(ratio * 100)
+        )
+        if score <= 0:
+            continue
+        ranked.append((
+            score,
+            alias_phrase,
+            topic_phrase,
+            title_overlap,
+            exact_phrase,
+            overlap,
+            str(contract.get("section_id") or ""),
+            contract,
+        ))
+
+    if not ranked:
+        return {}
+
+    ranked.sort(key=lambda x: x[:6], reverse=True)
+    best = ranked[0]
+    if len(ranked) > 1 and ranked[1][:6] == best[:6]:
+        if str(ranked[1][7].get("section_id") or "") != str(best[7].get("section_id") or ""):
+            diagnostic_log(
+                "technical_compiled_contract_ambiguous_v69198",
+                family=str(families[0])[:80],
+                year=int(years[0]),
+                score=int(best[0]),
+            )
+            return {}
+
+    contract = dict(best[7])
+    pid = str(contract.get("file_id") or contract.get("filename") or "")
+    package = dict(package_cache.get(pid) or {})
+    package_text = str(package.get("package_text") or "")
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+
+    authority = {
+        "status": "recovered",
+        "file_id": str(contract.get("file_id") or ""),
+        "filename": str(contract.get("filename") or ""),
+        "source_url": str(contract.get("source_url") or ""),
+        "page_title": str(contract.get("page_title") or ""),
+        "package_text": package_text,
+        "section_title": str(contract.get("section_title") or ""),
+        "section_id": str(contract.get("section_id") or ""),
+        "branch_paths": [
+            " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+            for seg in (contract.get("segments") or [])
+        ],
+        "section_text": str(contract.get("section_text") or ""),
+        "selected_image_urls_v69143": list(contract.get("exact_images") or []),
+        "selected_section_title_v69143": str(contract.get("section_title") or ""),
+        "selected_branch_paths_v69143": [
+            " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+            for seg in (contract.get("segments") or [])
+        ],
+        "selected_segments_v69158": list(contract.get("segments") or []),
+        "atp_semantics_v69178": semantics,
+        "selector_version": 69198,
+        "compiled_runtime_contract_v69198": True,
+        "compiled_contract_score_v69198": int(best[0]),
+    }
+
+    if config_query:
+        literal = dict(contract.get("config_literal") or {})
+        if not _technical_literal_is_sufficient_v69156(prompt, literal):
+            return {}
+        structured = dict(contract.get("config_structured") or {})
+        authority["literal_structured_v69156"] = literal
+        authority["structured"] = structured
+        authority["deterministic_literal_authority_v69156"] = True
+        authority["model_structured_v69156"] = {
+            "status": "not_needed", "fields": [], "branches": []
+        }
+        authority["context"] = _technical_authority_context_v69155(authority)
+        authority["rows"] = [{
+            "file_id": authority["file_id"],
+            "filename": authority["filename"],
+            "score": 1.0,
+            "text": str(contract.get("section_text") or "")[:14000],
+            "technical_compiled_contract_v69198": True,
+        }]
+        return {
+            "status": "recovered",
+            "kind": "configuration",
+            "authority": authority,
+            "exact_images": list(authority.get("selected_image_urls_v69143") or []),
+            "compiled_contract_v69198": True,
+        }
+
+    # Ordinary Technical section: exact current-source section context for the
+    # provider, but no vector search. The model still handles natural-language
+    # explanation while being constrained to one verified source section.
+    context = (
+        "AUTOTECPRO VERIFIED COMPILED CURRENT-SOURCE SECTION (v69198)\n"
+        "Use ONLY this exact current-source section for factual claims in this answer. "
+        "Do not broaden to another vehicle, year, page, or older learned source. "
+        "If the requested fact is not stated below, say it is not stated.\n"
+        f"Source URL: {authority['source_url']}\n"
+        f"Section: {authority['section_title']}\n\n"
+        "VERIFIED SECTION TEXT\n=====================\n"
+        + str(contract.get("section_text") or "")[:30000]
+    )
+    row = {
+        "file_id": authority["file_id"],
+        "filename": authority["filename"],
+        "score": 1.0,
+        "text": str(contract.get("section_text") or "")[:14000],
+        "technical_compiled_section_v69198": True,
+    }
+    return {
+        "status": "recovered",
+        "kind": "section",
+        "authority": authority,
+        "context": context,
+        "rows": [row],
+        "exact_images": list(authority.get("selected_image_urls_v69143") or []),
+        "compiled_contract_v69198": True,
     }
 
 
@@ -78616,6 +79372,44 @@ else:
                 explicit_visual=bool(explicit_visual_followup_v69114),
             )
 
+        technical_compiled_preflight_v69198 = {}
+        if (
+            assistant == "🔧 Technical Support"
+            and bool(use_file_search)
+            and str(technical_request_prompt_v68879 or "").strip()
+        ):
+            try:
+                compiled_store_ids_v69198 = _configured_vector_store_ids(
+                    TECHNICAL_VECTOR_STORE_ID
+                )
+                if compiled_store_ids_v69198:
+                    technical_compiled_preflight_v69198 = (
+                        _technical_compiled_contract_lookup_v69198(
+                            technical_request_prompt_v68879,
+                            str(compiled_store_ids_v69198[0] or "").strip(),
+                        )
+                    )
+                    if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered":
+                        diagnostic_log(
+                            "technical_compiled_preflight_hit_v69198",
+                            kind=str(technical_compiled_preflight_v69198.get("kind") or ""),
+                            source_url=str(
+                                (technical_compiled_preflight_v69198.get("authority") or {}).get("source_url")
+                                or ""
+                            )[:700],
+                            section=str(
+                                (technical_compiled_preflight_v69198.get("authority") or {}).get("section_title")
+                                or ""
+                            )[:300],
+                        )
+            except Exception as compiled_preflight_error_v69198:
+                technical_compiled_preflight_v69198 = {}
+                diagnostic_log(
+                    "technical_compiled_preflight_failed_v69198",
+                    error_type=type(compiled_preflight_error_v69198).__name__,
+                    error=str(compiled_preflight_error_v69198)[:500],
+                )
+
         technical_verified_hot_preflight_v69195 = False
         if (
             assistant == "🔧 Technical Support"
@@ -78650,6 +79444,9 @@ else:
             and bool(use_file_search)
             and str(technical_request_prompt_v68879 or "").strip()
             and not bool(technical_verified_hot_preflight_v69195)
+            and str(
+                (technical_compiled_preflight_v69198 or {}).get("status") or ""
+            ) != "recovered"
         ):
             try:
                 technical_early_index_images_v69016 = _website_image_lookup_v68883(
@@ -79985,6 +80782,10 @@ else:
                         and bool(execution_plan.get("use_file_search"))
                         and not bool(technical_website_learning_requested_v68870)
                         and not bool(explicit_learning_requested)
+                        and str(
+                            (locals().get("technical_compiled_preflight_v69198") or {}).get("kind")
+                            or ""
+                        ) != "section"
                         and _technical_configuration_query_v69155(
                             technical_request_prompt_v68879
                         )
@@ -80005,7 +80806,33 @@ else:
                     technical_current_source_lock_v69164 = {
                         "status": "not_applicable"
                     }
-                    if technical_v69156_configuration_required:
+
+                    compiled_kind_v69198 = str(
+                        (locals().get("technical_compiled_preflight_v69198") or {}).get("kind")
+                        or ""
+                    )
+                    compiled_authority_v69198 = dict(
+                        (locals().get("technical_compiled_preflight_v69198") or {}).get("authority")
+                        or {}
+                    )
+                    if (
+                        technical_v69156_configuration_required
+                        and compiled_kind_v69198 == "configuration"
+                        and str(compiled_authority_v69198.get("status") or "") == "recovered"
+                    ):
+                        technical_full_package_authority_v69155 = compiled_authority_v69198
+                        use_file_search = False
+                        diagnostic_log(
+                            "technical_compiled_configuration_bound_v69198",
+                            file_id=str(compiled_authority_v69198.get("file_id") or "")[:160],
+                            source_url=str(compiled_authority_v69198.get("source_url") or "")[:700],
+                            section=str(compiled_authority_v69198.get("section_title") or "")[:300],
+                        )
+
+                    if (
+                        technical_v69156_configuration_required
+                        and str(technical_full_package_authority_v69155.get("status") or "") != "recovered"
+                    ):
                         try:
                             store_ids_v69164 = _configured_vector_store_ids(
                                 TECHNICAL_VECTOR_STORE_ID
@@ -80526,6 +81353,64 @@ else:
                                 contract_complete=bool(technical_exact_source_v69150.get("contract_complete")),
                             )
 
+                    # v69198: ordinary Technical direct-section contract.
+                    # This executes before v69142/v69150 semantic recovery. It is
+                    # current-revision, family/year scoped, and contains one exact
+                    # reviewed section. The provider remains available for natural
+                    # explanation, but vector/file_search is unnecessary on a hit.
+                    technical_compiled_section_v69198 = dict(
+                        locals().get("technical_compiled_preflight_v69198") or {}
+                    )
+                    if (
+                        assistant == "🔧 Technical Support"
+                        and str(technical_compiled_section_v69198.get("status") or "") == "recovered"
+                        and str(technical_compiled_section_v69198.get("kind") or "") == "section"
+                        and not bool(locals().get("technical_v69156_fail_closed"))
+                    ):
+                        compiled_section_context_v69198 = str(
+                            technical_compiled_section_v69198.get("context") or ""
+                        ).strip()
+                        if compiled_section_context_v69198:
+                            ai_request_prompt += "\n\n" + compiled_section_context_v69198
+                        compiled_section_rows_v69198 = [
+                            dict(row)
+                            for row in (technical_compiled_section_v69198.get("rows") or [])
+                            if isinstance(row, dict)
+                        ]
+                        if compiled_section_rows_v69198:
+                            st.session_state[
+                                "_technical_file_search_results_v69012"
+                            ] = compiled_section_rows_v69198[:12]
+                            st.session_state[
+                                "_workspace_file_search_results_v69040"
+                            ] = compiled_section_rows_v69198[:12]
+
+                        compiled_authority_section_v69198 = dict(
+                            technical_compiled_section_v69198.get("authority") or {}
+                        )
+                        st.session_state["_technical_last_section_authority_v69142"] = {
+                            "status": "recovered",
+                            "file_id": str(compiled_authority_section_v69198.get("file_id") or ""),
+                            "filename": str(compiled_authority_section_v69198.get("filename") or ""),
+                            "source_url": str(compiled_authority_section_v69198.get("source_url") or ""),
+                            "page_title": str(compiled_authority_section_v69198.get("page_title") or ""),
+                            "package_text": str(compiled_authority_section_v69198.get("package_text") or ""),
+                            "selected_section_title_v69143": str(compiled_authority_section_v69198.get("section_title") or ""),
+                            "selected_branch_paths_v69143": list(compiled_authority_section_v69198.get("branch_paths") or []),
+                            "selected_image_urls_v69143": list(compiled_authority_section_v69198.get("selected_image_urls_v69143") or []),
+                            "compiled_runtime_contract_v69198": True,
+                        }
+                        use_file_search = False
+                        diagnostic_log(
+                            "technical_compiled_section_bound_v69198",
+                            file_id=str(compiled_authority_section_v69198.get("file_id") or "")[:160],
+                            source_url=str(compiled_authority_section_v69198.get("source_url") or "")[:700],
+                            section=str(compiled_authority_section_v69198.get("section_title") or "")[:300],
+                            images=len(
+                                compiled_authority_section_v69198.get("selected_image_urls_v69143") or []
+                            ),
+                        )
+
                     # v69142: generic learned-section authority for every Technical
                     # knowledge inquiry.  This runs after the v69125 A/C sibling search so
                     # the reference contract can still complete, then prevents a broad main
@@ -80541,6 +81426,10 @@ else:
                             (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
                         ) != "recovered"
                         and bool(execution_plan.get("use_file_search"))
+                        and str(
+                            (locals().get("technical_compiled_section_v69198") or {}).get("status")
+                            or ""
+                        ) != "recovered"
                         and str(technical_request_prompt_v68879 or "").strip()
                     ):
                         try:
