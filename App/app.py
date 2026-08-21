@@ -1,4 +1,4 @@
-# AutoTecPro AI v69188 FINAL PRODUCTION — stability-only: reconnect restore order + cross-session heavy-work coordination; protected pipelines unchanged.
+# AutoTecPro AI v69189 FINAL PRODUCTION — idle/reconnect stability only; bounded fresh REST history/session reads; all protected pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -233,53 +233,23 @@ def _conversation_owned_by_user_workspace_startup_v69188(
     conversation_id,
     assistant_name,
 ):
-    """Startup-safe ownership/workspace verification for websocket restoration."""
-    username = str(username or "").strip()
-    conversation_id = str(conversation_id or "").strip()
-    workspace = _restore_clean_assistant_label_v69188(
-        str(assistant_name or "").strip()
+    """Startup-safe bounded ownership/workspace verification."""
+    return _bounded_conversation_owned_v69189(
+        username,
+        conversation_id,
+        assistant_name,
+        timeout_seconds=6.0,
     )
-    if not username or not conversation_id:
-        return False
-
-    query = (
-        supabase.table("conversations")
-        .select("id,username,assistant,archived")
-        .eq("id", conversation_id)
-        .eq("username", username)
-        .limit(1)
-    )
-    rows = list(query.execute().data or [])
-    if not rows:
-        return False
-
-    row = rows[0]
-    if row.get("archived") is True or str(row.get("archived")).lower() == "true":
-        return False
-
-    if (
-        workspace
-        and _restore_clean_assistant_label_v69188(
-            str(row.get("assistant") or "")
-        ) != workspace
-    ):
-        return False
-
-    return True
 
 
 @st.cache_data(ttl=45, max_entries=64, show_spinner=False)
 def _load_messages_startup_v69188(username, conversation_id):
-    """Startup-safe equivalent of the later short-lived message cache."""
-    username = str(username or "").strip()
-    conversation_id = str(conversation_id or "").strip()
-    if not username or not conversation_id:
-        return []
-    return persistence_load_messages_for_user(
-        supabase,
+    """Startup-safe bounded message restoration."""
+    return _bounded_conversation_messages_v69189(
         username,
         conversation_id,
         limit=2000,
+        timeout_seconds=6.0,
     )
 
 
@@ -403,6 +373,224 @@ def _serialize_heavy_work_v69188(operation):
         return wrapped
 
     return decorator
+
+
+
+# ============================================================
+# v69189 Idle/Reconnect Stability — bounded fresh Supabase reads
+# ============================================================
+
+def _supabase_rest_context_v69189():
+    """Return server-only REST context used by bounded history/session reads."""
+    supabase_url = str(st.secrets.get("SUPABASE_URL") or "").strip().rstrip("/")
+    server_key = str(
+        st.secrets.get("SUPABASE_SECRET_KEY")
+        or st.secrets.get("SUPABASE_SERVICE_ROLE_KEY")
+        or ""
+    ).strip()
+    if not supabase_url or not server_key:
+        raise RuntimeError(
+            "Bounded Supabase reads require SUPABASE_URL and "
+            "SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY."
+        )
+    return supabase_url, server_key
+
+
+def _bounded_supabase_rest_get_v69189(
+    table_name,
+    params,
+    *,
+    timeout_seconds=6.0,
+    prefer_exact_count=False,
+):
+    """Run one fresh PostgREST GET with an explicit connect/read deadline."""
+    table_name = str(table_name or "").strip()
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table_name):
+        raise ValueError("Invalid Supabase table name")
+
+    supabase_url, server_key = _supabase_rest_context_v69189()
+    timeout_value = max(1.0, float(timeout_seconds or 6.0))
+    headers = {
+        "apikey": server_key,
+        "Authorization": f"Bearer {server_key}",
+        "Accept": "application/json",
+        "Connection": "close",
+    }
+    if prefer_exact_count:
+        headers["Prefer"] = "count=exact"
+
+    response = requests.get(
+        f"{supabase_url}/rest/v1/{table_name}",
+        headers=headers,
+        params=dict(params or {}),
+        timeout=(min(3.0, timeout_value), timeout_value),
+    )
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, list):
+        payload = []
+    return [dict(row) for row in payload if isinstance(row, dict)], response
+
+
+def _bounded_conversation_rows_v69189(
+    username,
+    assistant_name="",
+    *,
+    pinned=None,
+    limit=None,
+    select_columns=(
+        "id,username,assistant,title,archived,pinned,created_at,updated_at"
+    ),
+    timeout_seconds=6.0,
+):
+    """Return active conversation rows with the same workspace/user filters."""
+    username = str(username or "").strip()
+    workspace = _restore_clean_assistant_label_v69188(
+        str(assistant_name or "").strip()
+    )
+    if not username:
+        return []
+
+    params = {
+        "select": str(select_columns or "*"),
+        "username": f"eq.{username}",
+        "or": "(archived.is.null,archived.eq.false)",
+        "order": "updated_at.desc",
+    }
+    if workspace:
+        params["assistant"] = f"eq.{workspace}"
+    if pinned is not None:
+        params["pinned"] = "eq.true" if bool(pinned) else "eq.false"
+    if limit is not None:
+        params["limit"] = str(max(1, int(limit)))
+
+    rows, _ = _bounded_supabase_rest_get_v69189(
+        "conversations",
+        params,
+        timeout_seconds=timeout_seconds,
+    )
+    return rows
+
+
+def _bounded_conversation_owned_v69189(
+    username,
+    conversation_id,
+    assistant_name="",
+    *,
+    timeout_seconds=6.0,
+):
+    """Verify active conversation ownership and optional workspace, bounded."""
+    username = str(username or "").strip()
+    conversation_id = str(conversation_id or "").strip()
+    workspace = _restore_clean_assistant_label_v69188(
+        str(assistant_name or "").strip()
+    )
+    if not username or not conversation_id:
+        return False
+
+    params = {
+        "select": "id,username,assistant,archived",
+        "id": f"eq.{conversation_id}",
+        "username": f"eq.{username}",
+        "limit": "1",
+    }
+    rows, _ = _bounded_supabase_rest_get_v69189(
+        "conversations",
+        params,
+        timeout_seconds=timeout_seconds,
+    )
+    if not rows:
+        return False
+    row = rows[0]
+    if row.get("archived") is True or str(row.get("archived")).lower() == "true":
+        return False
+    if (
+        workspace
+        and _restore_clean_assistant_label_v69188(
+            str(row.get("assistant") or "")
+        ) != workspace
+    ):
+        return False
+    return True
+
+
+def _bounded_conversation_messages_v69189(
+    username,
+    conversation_id,
+    *,
+    limit=2000,
+    timeout_seconds=6.0,
+):
+    """Load messages only after bounded ownership verification."""
+    username = str(username or "").strip()
+    conversation_id = str(conversation_id or "").strip()
+    if not username or not conversation_id:
+        return []
+    if not _bounded_conversation_owned_v69189(
+        username,
+        conversation_id,
+        timeout_seconds=timeout_seconds,
+    ):
+        raise PermissionError("Conversation is unavailable.")
+
+    params = {
+        "select": "*",
+        "conversation_id": f"eq.{conversation_id}",
+        "order": "created_at.asc",
+        "limit": str(max(1, int(limit or 2000))),
+    }
+    rows, _ = _bounded_supabase_rest_get_v69189(
+        "messages",
+        params,
+        timeout_seconds=timeout_seconds,
+    )
+    return rows
+
+
+def _bounded_active_conversation_count_v69189(
+    username,
+    assistant_name="",
+    *,
+    timeout_seconds=6.0,
+):
+    """Return exact active conversation count using bounded PostgREST."""
+    username = str(username or "").strip()
+    workspace = _restore_clean_assistant_label_v69188(
+        str(assistant_name or "").strip()
+    )
+    if not username:
+        return 0
+
+    params = {
+        "select": "id",
+        "username": f"eq.{username}",
+        "or": "(archived.is.null,archived.eq.false)",
+        "limit": "1",
+    }
+    if workspace:
+        params["assistant"] = f"eq.{workspace}"
+
+    rows, response = _bounded_supabase_rest_get_v69189(
+        "conversations",
+        params,
+        timeout_seconds=timeout_seconds,
+        prefer_exact_count=True,
+    )
+    content_range = str(response.headers.get("Content-Range") or "").strip()
+    if "/" in content_range:
+        total_text = content_range.rsplit("/", 1)[-1].strip()
+        if total_text.isdigit():
+            return int(total_text)
+
+    fallback_rows = _bounded_conversation_rows_v69189(
+        username,
+        workspace,
+        pinned=None,
+        limit=5000,
+        select_columns="id",
+        timeout_seconds=timeout_seconds,
+    )
+    return len(fallback_rows)
 
 
 def _read_app_secret(name, default=""):
@@ -45542,30 +45730,31 @@ def update_conversation_ai_title(
 
 
 def get_conversation_storage_count(username, role=None, assistant_name=None):
-    """Count active saved conversations for one signed-in user and optional workspace."""
+    """Count active saved conversations with bounded REST reads only."""
     username = str(username or "").strip()
     workspace = clean_assistant_label(str(assistant_name or "").strip())
     if not username:
         return 0
     try:
         return _active_conversation_count_cached(username, workspace)
-    except Exception:
-        pass
-    try:
-        rows = safe_select_rows(
-            "conversations",
-            order_columns=["updated_at", "created_at"],
-            limit=5000,
+    except Exception as error:
+        diagnostic_log(
+            "history_storage_count_bounded_read_failed_v69189",
+            username=username,
+            workspace=workspace,
+            error_type=type(error).__name__,
         )
-        return len([
-            row for row in rows
-            if str(row.get("username", "")).lower() == username.lower()
-            and (not workspace or clean_assistant_label(str(row.get("assistant") or "")) == workspace)
-            and not (
-                row.get("archived") is True
-                or str(row.get("archived")).lower() == "true"
+    try:
+        return len(
+            _bounded_conversation_rows_v69189(
+                username,
+                workspace,
+                pinned=None,
+                limit=5000,
+                select_columns="id",
+                timeout_seconds=6.0,
             )
-        ])
+        )
     except Exception:
         return 0
 
@@ -45799,7 +45988,7 @@ def _load_conversations_cached(
     unpinned_limit=INITIAL_HISTORY_PAGE_SIZE,
     assistant_name="",
 ):
-    """Load lightweight sidebar summaries with DB-side workspace filtering."""
+    """Load lightweight sidebar summaries with bounded fresh REST reads."""
     username = str(username or "").strip()
     workspace = clean_assistant_label(str(assistant_name or "").strip())
     if not username:
@@ -45817,33 +46006,23 @@ def _load_conversations_cached(
         "id,username,assistant,title,archived,pinned,"
         "created_at,updated_at"
     )
-    base_filter = "archived.is.null,archived.eq.false"
-
-    pinned_query = (
-        supabase.table("conversations")
-        .select(selected_columns)
-        .eq("username", username)
-        .eq("pinned", True)
-        .or_(base_filter)
+    pinned_rows = _bounded_conversation_rows_v69189(
+        username,
+        workspace,
+        pinned=True,
+        limit=None,
+        select_columns=selected_columns,
+        timeout_seconds=6.0,
     )
-    unpinned_query = (
-        supabase.table("conversations")
-        .select(selected_columns)
-        .eq("username", username)
-        .eq("pinned", False)
-        .or_(base_filter)
+    unpinned_rows = _bounded_conversation_rows_v69189(
+        username,
+        workspace,
+        pinned=False,
+        limit=clean_limit,
+        select_columns=selected_columns,
+        timeout_seconds=6.0,
     )
-    if workspace:
-        pinned_query = pinned_query.eq("assistant", workspace)
-        unpinned_query = unpinned_query.eq("assistant", workspace)
-
-    pinned_result = pinned_query.order("updated_at", desc=True).execute()
-    unpinned_result = (
-        unpinned_query.order("updated_at", desc=True)
-        .limit(clean_limit)
-        .execute()
-    )
-    return list(pinned_result.data or []) + list(unpinned_result.data or [])
+    return list(pinned_rows) + list(unpinned_rows)
 
 
 
@@ -45870,64 +46049,35 @@ def _conversation_summary_index_cached(
 
 @st.cache_data(ttl=60, max_entries=256, show_spinner=False)
 def _active_conversation_count_cached(username, assistant_name=""):
-    """Return exact active saved-conversation count for one user/workspace."""
-    username = str(username or "").strip()
-    workspace = clean_assistant_label(str(assistant_name or "").strip())
-    if not username:
-        return 0
-    query = (
-        supabase.table("conversations")
-        .select("id", count="exact", head=True)
-        .eq("username", username)
-        .or_("archived.is.null,archived.eq.false")
+    """Return exact active saved-conversation count with a bounded REST read."""
+    return _bounded_active_conversation_count_v69189(
+        username,
+        assistant_name,
+        timeout_seconds=6.0,
     )
-    if workspace:
-        query = query.eq("assistant", workspace)
-    result = query.execute()
-    return int(result.count or 0)
 
 
 
 @st.cache_data(ttl=60, max_entries=512, show_spinner=False)
 def _conversation_owned_by_user_cached(username, conversation_id):
-    """Verify conversation ownership before any message read/write or mutation."""
-    username = str(username or "").strip()
-    conversation_id = str(conversation_id or "").strip()
-    if not username or not conversation_id:
-        return False
-    return persistence_conversation_owned_by_user(
-        supabase, username, conversation_id
+    """Verify conversation ownership with a bounded fresh REST read."""
+    return _bounded_conversation_owned_v69189(
+        username,
+        conversation_id,
+        timeout_seconds=6.0,
     )
 
 
 
 @st.cache_data(ttl=60, max_entries=512, show_spinner=False)
 def _conversation_owned_by_user_workspace_cached_v69177(username, conversation_id, assistant_name):
-    """Verify ownership and workspace identity before reconnect/history restoration."""
-    username = str(username or "").strip()
-    conversation_id = str(conversation_id or "").strip()
-    workspace = clean_assistant_label(str(assistant_name or "").strip())
-    if not username or not conversation_id:
-        return False
-    try:
-        query = (
-            supabase.table("conversations")
-            .select("id,username,assistant,archived")
-            .eq("id", conversation_id)
-            .eq("username", username)
-            .limit(1)
-        )
-        rows = list(query.execute().data or [])
-    except Exception:
-        raise
-    if not rows:
-        return False
-    row = rows[0]
-    if row.get("archived") is True or str(row.get("archived")).lower() == "true":
-        return False
-    if workspace and clean_assistant_label(str(row.get("assistant") or "")) != workspace:
-        return False
-    return True
+    """Verify ownership/workspace identity with a bounded fresh REST read."""
+    return _bounded_conversation_owned_v69189(
+        username,
+        conversation_id,
+        assistant_name,
+        timeout_seconds=6.0,
+    )
 
 
 def _remember_owned_conversation_v68960(conversation_id):
@@ -45965,12 +46115,12 @@ def _require_owned_conversation(conversation_id):
 
 @st.cache_data(ttl=45, max_entries=64, show_spinner=False)
 def _load_messages_cached(username, conversation_id):
-    """Load selected-conversation messages with a short cache."""
-    username = str(username or "").strip()
-    if not username or not conversation_id:
-        return []
-    return persistence_load_messages_for_user(
-        supabase, username, conversation_id, limit=2000
+    """Load selected-conversation messages with bounded fresh REST reads."""
+    return _bounded_conversation_messages_v69189(
+        username,
+        conversation_id,
+        limit=2000,
+        timeout_seconds=6.0,
     )
 
 
@@ -46164,17 +46314,18 @@ def get_current_conversation_title():
 
     try:
         username = _require_owned_conversation(cid)
-        result = (
-            supabase
-            .table("conversations")
-            .select("title")
-            .eq("id", cid)
-            .eq("username", username)
-            .limit(1)
-            .execute()
+        rows, _ = _bounded_supabase_rest_get_v69189(
+            "conversations",
+            {
+                "select": "title",
+                "id": f"eq.{cid}",
+                "username": f"eq.{username}",
+                "limit": "1",
+            },
+            timeout_seconds=6.0,
         )
-        if result.data:
-            title = result.data[0].get("title") or "New Case"
+        if rows:
+            title = rows[0].get("title") or "New Case"
             session_titles[conversation_key] = title
             return title
     except Exception:
@@ -59114,6 +59265,9 @@ def save_website_knowledge_package(
         stage="after_commit_cleanup",
         **_graphic_v68874_process_memory_snapshot(),
     )
+    _graphic_v68874_release_transient_memory(
+        "after_website_learning_package_v69189"
+    )
 
     return {
         "already_saved": bool(exact_current_exists),
@@ -68181,6 +68335,9 @@ def render_learn_from_website(database_choice):
 
     finally:
         st.session_state.admin_website_save_in_progress = False
+        _graphic_v68874_release_transient_memory(
+            "after_admin_website_learning_turn_v69189"
+        )
         # v69028: the persistent Admin-section widget keeps Upload Knowledge
         # selected across this rerun; do not mutate an instantiated widget key.
         st.rerun()
