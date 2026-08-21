@@ -1,4 +1,4 @@
-# AutoTecPro AI v69192 FINAL PRODUCTION — Technical link-publication + empty-completion repair only; v69191 retention and all protected Graphic/Sales/Marketing pipelines preserved.
+# AutoTecPro AI v69193 FINAL PRODUCTION — all-workspace response hardening only; v69192 Technical learning/search repair and all protected pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -42321,8 +42321,12 @@ class _StreamingNotSupportedError(RuntimeError):
     """Raised only when the installed OpenAI SDK rejects stream=True."""
 
 
-class _TechnicalEmptyCompletionError(RuntimeError):
-    """Completed Technical file_search call produced no assistant answer text."""
+class _WorkspaceEmptyCompletionError(RuntimeError):
+    """A completed conversational Responses API call produced no answer text."""
+
+
+class _TechnicalEmptyCompletionError(_WorkspaceEmptyCompletionError):
+    """Backward-compatible v69192 Technical empty-completion exception alias."""
 
 
 def _is_openai_bad_request(error):
@@ -42565,21 +42569,36 @@ def _stream_one_ai_response(request):
                     retried_without_file_search_results_include_v69012 = True
                     continue
                 if not retried_without_file_search:
-                    # v69144 fail-closed Technical authority: a Technical factual
-                    # request may retry once without the optional results include,
-                    # but it must never degrade into a provider-only answer with the
-                    # file_search tool removed. Other workspaces retain the legacy
-                    # availability fallback.
-                    if str(assistant or "") == "🔧 Technical Support":
+                    # v69193 all-workspace authority protection: after the
+                    # optional file_search results include has already been
+                    # removed once, a remaining file_search bad request must
+                    # fail closed for every conversational workspace. Never
+                    # remove the workspace's internal vector-store authority
+                    # and return a provider-only answer that looks normal.
+                    protected_workspace_v69193 = bool(
+                        str(assistant or "") in {
+                            "🔧 Technical Support",
+                            "📈 Sales",
+                            "📣 Marketing",
+                            "🎨 Graphic Marketing",
+                        }
+                    )
+                    if protected_workspace_v69193:
                         diagnostic_log(
-                            "technical_file_search_fail_closed_v69144",
+                            "workspace_file_search_fail_closed_v69193",
                             workspace=str(assistant),
                             error_type=type(error).__name__,
                         )
                         raise RuntimeError(
-                            "Technical knowledge retrieval is temporarily unavailable. "
-                            "Please retry the request; no unsupported fallback answer was published."
+                            f"{str(assistant or 'AutoTecPro AI')} internal "
+                            "knowledge retrieval is temporarily unavailable. "
+                            "Please retry the request; no provider-only fallback "
+                            "answer was published."
                         ) from error
+
+                    # Preserve the legacy availability fallback only for any
+                    # future/unclassified workspace not covered by the explicit
+                    # protected workspace set above.
                     diagnostic_log(
                         "responses_bad_request_file_search_retry",
                         workspace=str(assistant),
@@ -42631,33 +42650,30 @@ def _stream_one_ai_response(request):
         if not received_text and final_text:
             yield final_text
 
-        # v69192: a completed Technical file_search request with zero answer
-        # text is not a successful response. File-search evidence has already
-        # been captured above; escalate so ask_ai_stream can retry the exact
-        # same Technical request once. Never silently publish an empty answer.
-        technical_file_search_active_v69192 = bool(
-            str(assistant or "") == "🔧 Technical Support"
-            and any(
-                isinstance(tool, dict) and tool.get("type") == "file_search"
-                for tool in (active_request.get("tools") or [])
-            )
+        # v69193: a completed conversational response with zero answer text is
+        # never a successful result. This applies to Technical, Sales, Marketing,
+        # and Graphic ordinary chat, with or without file_search. Any file_search
+        # evidence has already been captured above. ask_ai_stream retries the
+        # exact original request once and never silently publishes a blank turn.
+        workspace_file_search_active_v69193 = any(
+            isinstance(tool, dict) and tool.get("type") == "file_search"
+            for tool in (active_request.get("tools") or [])
         )
-        final_status_v69192 = str(
+        final_status_v69193 = str(
             getattr(final_response, "status", "") or ""
         ).strip().lower()
         if (
-            technical_file_search_active_v69192
-            and final_status_v69192 == "completed"
+            final_status_v69193 == "completed"
             and not received_text
             and not final_text.strip()
         ):
             diagnostic_log(
-                "technical_empty_completion_detected_v69192",
+                "workspace_empty_completion_detected_v69193",
                 workspace=str(assistant),
-                file_search=True,
+                file_search=bool(workspace_file_search_active_v69193),
             )
-            raise _TechnicalEmptyCompletionError(
-                "Technical knowledge retrieval completed without answer text."
+            raise _WorkspaceEmptyCompletionError(
+                "The AI response completed without answer text."
             )
 
         return final_response
@@ -42704,27 +42720,27 @@ def ask_ai_stream(
     request = original_request
 
     try:
-        technical_empty_retry_used_v69192 = False
+        workspace_empty_retry_used_v69193 = False
 
         for continuation_index in range(MAX_AI_AUTO_CONTINUATIONS + 1):
             try:
                 final_response = yield from _stream_one_ai_response(request)
-            except _TechnicalEmptyCompletionError:
-                if technical_empty_retry_used_v69192:
+            except _WorkspaceEmptyCompletionError:
+                if workspace_empty_retry_used_v69193:
                     raise RuntimeError(
-                        "Technical knowledge retrieval completed twice without "
-                        "producing an answer. No unsupported fallback answer was "
+                        f"{str(assistant or 'AutoTecPro AI')} completed twice "
+                        "without producing an answer. The exact request was "
+                        "preserved and no unsupported fallback answer was "
                         "published. Please retry the request."
                     )
-                technical_empty_retry_used_v69192 = True
+                workspace_empty_retry_used_v69193 = True
                 diagnostic_log(
-                    "technical_empty_completion_retry_v69192",
+                    "workspace_empty_completion_retry_v69193",
                     workspace=str(assistant),
                 )
-                # Retry the original request byte-for-byte at the request-object
-                # level: same vector store, tools, instructions, input, model,
-                # current-source context and include settings. Do not remove
-                # file_search and do not broaden to provider-only retrieval.
+                # Retry the exact original request once: same model, vector
+                # stores, tools, include settings, input, instructions, live
+                # context, and workspace authority. Never broaden the request.
                 request = dict(original_request)
                 continue
 
@@ -42787,6 +42803,7 @@ def ask_ai_stream(
 
     # Non-streaming compatibility fallback with the same bounded continuation.
     request = original_request
+    workspace_nonstream_empty_retry_used_v69193 = False
     for continuation_index in range(MAX_AI_AUTO_CONTINUATIONS + 1):
         response = client.responses.create(**request)
         _capture_response_file_search_results_v69012(response)
@@ -42795,22 +42812,21 @@ def ask_ai_stream(
             yield fallback_text
 
         status = str(getattr(response, "status", "") or "").strip().lower()
-        technical_file_search_active_v69192 = bool(
-            str(assistant or "") == "🔧 Technical Support"
-            and any(
-                isinstance(tool, dict) and tool.get("type") == "file_search"
-                for tool in (request.get("tools") or [])
+        if status == "completed" and not fallback_text.strip():
+            if workspace_nonstream_empty_retry_used_v69193:
+                raise RuntimeError(
+                    f"{str(assistant or 'AutoTecPro AI')} completed twice "
+                    "without producing an answer. The exact request was "
+                    "preserved and no unsupported fallback answer was "
+                    "published. Please retry the request."
+                )
+            workspace_nonstream_empty_retry_used_v69193 = True
+            diagnostic_log(
+                "workspace_nonstream_empty_completion_retry_v69193",
+                workspace=str(assistant),
             )
-        )
-        if (
-            technical_file_search_active_v69192
-            and status == "completed"
-            and not fallback_text.strip()
-        ):
-            raise RuntimeError(
-                "Technical knowledge retrieval completed without answer text. "
-                "No unsupported fallback answer was published. Please retry."
-            )
+            request = dict(original_request)
+            continue
 
         if status == "failed":
             raise RuntimeError(
