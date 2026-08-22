@@ -1,4 +1,4 @@
-# AutoTecPro AI v69199 FINAL PRODUCTION — instant Technical on-demand durable-snapshot hydration + embedded compiled contracts + strict direct-section provider bypass; v69198/v69196/v69195 and all protected Graphic/auth/History/persistence pipelines preserved.
+# AutoTecPro AI v69200 FINAL PRODUCTION — verified direct Technical authority: exact-route leaf preference + conflict-safe provider bypass; v69199 durable compiled hydration retained; all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -68440,6 +68440,9 @@ def _technical_compile_one_package_v69198(package):
         intents = []
         image_roles = []
         branch_scopes = []
+        exact_route_values_v69200 = []
+        multi_route_values_v69200 = []
+        conflict_sensitive_v69200 = False
 
         for row in carriers:
             qk = str(row.get("data-atp-query-key") or "").strip()
@@ -68470,6 +68473,40 @@ def _technical_compile_one_package_v69198(package):
             ).strip()
             if branch_scope:
                 branch_scopes.append(branch_scope)
+
+            for route_key_v69200 in (
+                "data-atp-audio-path",
+                "data-atp-camera-class",
+                "data-atp-camera-type",
+                "data-atp-video-input",
+                "data-atp-view-app",
+                "data-atp-system-group-scope",
+            ):
+                route_value_v69200 = str(row.get(route_key_v69200) or "").strip()
+                if route_value_v69200:
+                    exact_route_values_v69200.append(route_value_v69200)
+
+            for multi_key_v69200 in (
+                "data-atp-audio-paths",
+                "data-atp-system-groups",
+            ):
+                multi_value_v69200 = str(row.get(multi_key_v69200) or "").strip()
+                if multi_value_v69200:
+                    multi_route_values_v69200.extend(
+                        [
+                            part_v69200.strip()
+                            for part_v69200 in multi_value_v69200.split("|")
+                            if part_v69200.strip()
+                        ]
+                    )
+
+            if any(
+                ("current-publish" in str(key_v69200).casefold())
+                or ("final-verification" in str(key_v69200).casefold())
+                for key_v69200 in row.keys()
+                if str(key_v69200).startswith("data-atp-")
+            ):
+                conflict_sensitive_v69200 = True
 
         # Even sparse legacy headings get a direct deterministic contract from
         # the already-reviewed hierarchy title + target + section text.
@@ -68653,6 +68690,9 @@ def _technical_compile_one_package_v69198(package):
             "intents": list(dict.fromkeys(intents)),
             "image_roles": list(dict.fromkeys(image_roles)),
             "branch_scopes": list(dict.fromkeys(branch_scopes)),
+            "exact_route_values_v69200": list(dict.fromkeys(exact_route_values_v69200)),
+            "multi_route_values_v69200": list(dict.fromkeys(multi_route_values_v69200)),
+            "conflict_sensitive_v69200": bool(conflict_sensitive_v69200),
             "search_tokens": search_tokens,
             "exact_images": exact_images,
             "config_ready": bool(config_ready),
@@ -68895,19 +68935,44 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         )
         title_overlap = len(scoring_prompt_tokens_v69198 & title_tokens)
         ratio = overlap / max(1, len(scoring_prompt_tokens_v69198))
+
+        exact_route_phrase_v69200 = 0
+        for route_value_v69200 in contract.get("exact_route_values_v69200") or []:
+            route_norm_v69200 = _technical_contract_norm_v69198(route_value_v69200)
+            if route_norm_v69200 and route_norm_v69200 in prompt_norm:
+                exact_route_phrase_v69200 = max(
+                    exact_route_phrase_v69200,
+                    len(route_norm_v69200.split()),
+                )
+
+        multi_route_match_v69200 = 0
+        multi_route_miss_v69200 = 0
+        for route_value_v69200 in contract.get("multi_route_values_v69200") or []:
+            route_norm_v69200 = _technical_contract_norm_v69198(route_value_v69200)
+            if not route_norm_v69200:
+                continue
+            if route_norm_v69200 in prompt_norm:
+                multi_route_match_v69200 += 1
+            else:
+                multi_route_miss_v69200 += 1
+
         score = (
             (500 if config_query and contract.get("config_ready") else 0)
+            + exact_route_phrase_v69200 * 180
             + alias_phrase * 80
             + topic_phrase * 90
             + title_overlap * 38
             + exact_phrase * 16
             + overlap * 10
             + int(ratio * 100)
+            + multi_route_match_v69200 * 20
+            - multi_route_miss_v69200 * 35
         )
         if score <= 0:
             continue
         ranked.append((
             score,
+            exact_route_phrase_v69200,
             alias_phrase,
             topic_phrase,
             title_overlap,
@@ -68922,8 +68987,8 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
 
     ranked.sort(key=lambda x: x[:6], reverse=True)
     best = ranked[0]
-    if len(ranked) > 1 and ranked[1][:6] == best[:6]:
-        if str(ranked[1][7].get("section_id") or "") != str(best[7].get("section_id") or ""):
+    if len(ranked) > 1 and ranked[1][:7] == best[:7]:
+        if str(ranked[1][8].get("section_id") or "") != str(best[8].get("section_id") or ""):
             diagnostic_log(
                 "technical_compiled_contract_ambiguous_v69198",
                 family=str(families[0])[:80],
@@ -68932,7 +68997,7 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
             )
             return {}
 
-    contract = dict(best[7])
+    contract = dict(best[8])
     pid = str(contract.get("file_id") or contract.get("filename") or "")
     package = dict(package_cache.get(pid) or {})
     package_text = str(package.get("package_text") or "")
@@ -69032,20 +69097,24 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         direct_fastpath_v69199 = False
 
     strong_match_v69199 = bool(
-        int(best[1] or 0) >= 2
-        or int(best[2] or 0) >= 1
-        or int(best[3] or 0) >= 2
+        int(best[1] or 0) >= 1
+        or int(best[2] or 0) >= 2
+        or int(best[3] or 0) >= 1
         or int(best[4] or 0) >= 2
+        or int(best[5] or 0) >= 2
     )
     margin_v69199 = int(best[0]) - second_score_v69199
+    conflict_sensitive_v69200 = bool(contract.get("conflict_sensitive_v69200"))
     direct_answer_eligible_v69199 = bool(
         direct_fastpath_v69199
         and strong_match_v69199
+        and not conflict_sensitive_v69200
         and (
             second_score_v69199 < 0
             or margin_v69199 >= 35
-            or int(best[1] or 0) >= 3
-            or int(best[2] or 0) >= 2
+            or int(best[1] or 0) >= 1
+            or int(best[2] or 0) >= 3
+            or int(best[3] or 0) >= 2
         )
         and 1 <= len(str(contract.get("section_text") or "")) <= 9000
     )
@@ -69062,6 +69131,8 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
             "eligible": direct_answer_eligible_v69199,
             "direct_fastpath": direct_fastpath_v69199,
             "strong_match": strong_match_v69199,
+            "conflict_sensitive_v69200": conflict_sensitive_v69200,
+            "exact_route_phrase_v69200": int(best[1] or 0),
             "best_score": int(best[0] or 0),
             "second_score": second_score_v69199,
             "margin": margin_v69199,
