@@ -1,4 +1,4 @@
-# AutoTecPro AI v69202 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
+# AutoTecPro AI v69203 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -67747,13 +67747,81 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
                     parts_v69196[1],
                 )
 
+    # v69203: a current-source configuration section may intentionally disclose
+    # that the exact Car Model/A-C menu value is not documented while still
+    # providing verified protocol/instructions and an exact current-section image.
+    # Treat that as a publishable SOURCE-LIMITED result instead of declaring the
+    # entire current source unavailable.  This does not invent a setting and does
+    # not re-enable any older/cross-source fallback.
+    source_limited_v69203 = False
+    existing_config_fields_v69203 = {
+        str(row.get("field") or "").strip().casefold()
+        for row in fields if isinstance(row, dict)
+    } | {
+        str(row.get("field") or "").strip().casefold()
+        for branch in branches if isinstance(branch, dict)
+        for row in (branch.get("fields") or []) if isinstance(row, dict)
+    }
+    if "car model" not in existing_config_fields_v69203:
+        selected_section_id_v69203 = str(
+            authority.get("section_id") or authority.get("selected_section_id") or ""
+        ).strip().casefold().replace("_", "-")
+        selected_section_title_v69203 = str(
+            authority.get("section_title") or authority.get("selected_section_title_v69143") or ""
+        ).strip().casefold()
+        selected_text_v69203 = re.sub(
+            r"\s+", " ", str(authority.get("section_text") or "")
+        ).strip().casefold()
+        exact_config_section_v69203 = bool(
+            selected_section_id_v69203 in {"protocol-settings", "car-model-ac", "car-model-ac-protocol"}
+            or "car model" in selected_section_title_v69203
+            or "a/c setting" in selected_section_title_v69203
+            or "ac setting" in selected_section_title_v69203
+        )
+        explicit_source_limit_v69203 = False
+        for carrier_v69203 in carriers_v69196:
+            if str(carrier_v69203.get("data-atp-climate-profile") or "").strip().casefold() == "source-not-defined":
+                explicit_source_limit_v69203 = True
+                break
+        visible_config_instruction_v69203 = bool(
+            "car model" in selected_text_v69203
+            and (
+                "select the correct" in selected_text_v69203
+                or "select the corresponding" in selected_text_v69203
+                or "try another suitable" in selected_text_v69203
+                or "vehicle year" in selected_text_v69203
+                or "climate-control configuration" in selected_text_v69203
+            )
+        )
+        protocol_present_v69203 = any(
+            str(row.get("field") or "").strip().casefold() == "protocol"
+            and str(row.get("value") or "").strip()
+            for row in fields if isinstance(row, dict)
+        )
+        if (
+            exact_config_section_v69203
+            and explicit_source_limit_v69203
+            and visible_config_instruction_v69203
+            and protocol_present_v69203
+        ):
+            add_field("Car Model", "Source not defined in current source")
+            source_limited_v69203 = True
+
     return {
-        "status":"verified" if (fields or branches) else "insufficient",
-        "summary":"",
+        "status":(
+            "verified_source_limited"
+            if source_limited_v69203
+            else "verified" if (fields or branches) else "insufficient"
+        ),
+        "summary":(
+            "Exact Car Model/A-C menu value is not documented in the current source."
+            if source_limited_v69203 else ""
+        ),
         "fields":fields,
         "branches":branches,
         "required_clarification":"",
         "authority":"autotecpro_semantic_metadata_v69178",
+        "source_limited_v69203": bool(source_limited_v69203),
     }
 
 
