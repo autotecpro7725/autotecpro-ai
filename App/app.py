@@ -1,4 +1,4 @@
-# AutoTecPro AI v69203 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
+# AutoTecPro AI v69204 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -67747,6 +67747,236 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
                     parts_v69196[1],
                 )
 
+    # v69204: exact-section approved image metadata may contain literal Car Model
+    # menu rows that are visible in the current-source screenshot but absent from
+    # the surrounding HTML text.  Consume only the already-ingested, two-pass-QA
+    # structured visible_text for images selected by this exact configuration
+    # section.  No live OCR, semantic fallback, or cross-source inference occurs.
+    existing_config_fields_v69204 = {
+        str(row.get("field") or "").strip().casefold()
+        for row in fields if isinstance(row, dict)
+    } | {
+        str(row.get("field") or "").strip().casefold()
+        for branch in branches if isinstance(branch, dict)
+        for row in (branch.get("fields") or []) if isinstance(row, dict)
+    }
+    image_literal_rows_v69204 = []
+    image_literal_used_v69204 = False
+    if "car model" not in existing_config_fields_v69204:
+        selected_section_id_v69204 = str(
+            authority.get("section_id") or authority.get("selected_section_id") or ""
+        ).strip().casefold().replace("_", "-")
+        selected_section_title_v69204 = str(
+            authority.get("section_title") or authority.get("selected_section_title_v69143") or ""
+        ).strip().casefold()
+        exact_config_section_v69204 = bool(
+            selected_section_id_v69204 in {"protocol-settings", "car-model-ac", "car-model-ac-protocol"}
+            or "car model" in selected_section_title_v69204
+            or "a/c setting" in selected_section_title_v69204
+            or "ac setting" in selected_section_title_v69204
+        )
+        image_evidence_v69204 = [
+            dict(x) for x in (authority.get("image_evidence") or []) if isinstance(x, dict)
+        ]
+        # Compiled/prewarm construction may provide package_text + selected URLs
+        # but no hydrated evidence yet. Hydrate only those exact selected URLs.
+        if (
+            exact_config_section_v69204
+            and not image_evidence_v69204
+            and str(authority.get("package_text") or "")
+        ):
+            try:
+                image_evidence_v69204 = _technical_exact_package_image_evidence_v69155(
+                    str(authority.get("package_text") or ""),
+                    list(
+                        authority.get("selected_image_urls_v69143")
+                        or authority.get("image_urls")
+                        or []
+                    ),
+                )
+            except Exception:
+                image_evidence_v69204 = []
+
+        if exact_config_section_v69204 and image_evidence_v69204:
+            prompt_cf_v69204 = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+            requested_years_v69204 = {
+                int(y) for y in re.findall(r"\b(20\d{2})\b", prompt_cf_v69204)
+            }
+            root_models_v69204 = [
+                re.sub(r"\s+", " ", x).strip()
+                for x in re.split(r"[|,;/]+", str(root.get("data-atp-model") or ""))
+                if re.sub(r"\s+", " ", x).strip()
+            ]
+            requested_models_v69204 = [
+                model for model in root_models_v69204
+                if re.search(r"(?<![a-z0-9])" + re.escape(model.casefold()) + r"(?![a-z0-9])", prompt_cf_v69204)
+            ]
+            # A prompt that explicitly names a different vehicle family must never
+            # receive screenshot-derived menu rows from this page. Reuse the same
+            # conservative identity-family parser used by the Technical hard gates;
+            # ordinary words such as "console" or "settings" are not treated as models.
+            try:
+                prompt_families_v69204 = set(_website_identity_vehicle_families_v69022(prompt_text))
+                root_families_v69204 = set()
+                for model_v69204 in root_models_v69204:
+                    root_families_v69204.update(_website_identity_vehicle_families_v69022(model_v69204))
+            except Exception:
+                prompt_families_v69204 = set()
+                root_families_v69204 = set()
+            foreign_model_signal_v69204 = bool(
+                prompt_families_v69204
+                and root_families_v69204
+                and prompt_families_v69204.isdisjoint(root_families_v69204)
+            )
+
+            visible_lines_v69204 = []
+            image_context_chunks_v69204 = []
+            for item_v69204 in image_evidence_v69204:
+                structured_v69204 = dict(item_v69204.get("structured_metadata") or {})
+                relationship_v69204 = str(structured_v69204.get("relationship") or "").strip().casefold()
+                # Stored image payloads are already QA-approved. If relationship
+                # is present, it still must be direct/contextual.
+                if relationship_v69204 and relationship_v69204 not in {"direct", "contextual"}:
+                    continue
+                context_v69204 = " ".join((
+                    str(item_v69204.get("section_heading") or ""),
+                    str(item_v69204.get("nearby_instruction_text") or ""),
+                    str(item_v69204.get("caption") or ""),
+                    str(structured_v69204.get("vehicle_model") or ""),
+                    str(structured_v69204.get("system_or_variant") or ""),
+                    str(structured_v69204.get("topic") or ""),
+                ))
+                image_context_chunks_v69204.append(context_v69204)
+                raw_visible_v69204 = structured_v69204.get("visible_text") or []
+                if not isinstance(raw_visible_v69204, list):
+                    raw_visible_v69204 = [raw_visible_v69204]
+                for raw_line_v69204 in raw_visible_v69204:
+                    # Preserve literal row wording while allowing extractors that
+                    # return newline/semicolon-separated labels in one item.
+                    for split_line_v69204 in re.split(r"[\r\n;]+", str(raw_line_v69204 or "")):
+                        clean_line_v69204 = re.sub(r"\s+", " ", html.unescape(split_line_v69204)).strip(" \t-|•")
+                        if clean_line_v69204 and clean_line_v69204 not in visible_lines_v69204:
+                            visible_lines_v69204.append(clean_line_v69204)
+
+            visible_blob_v69204 = " ".join(visible_lines_v69204)
+            current_match_v69204 = re.search(
+                r"\bcurrent\s*:?\s*([A-Za-z][A-Za-z0-9 ._/-]{1,60}?)(?=\s+protocol\b|$)",
+                visible_blob_v69204,
+                flags=re.I,
+            )
+            current_model_v69204 = re.sub(r"\s+", " ", current_match_v69204.group(1)).strip() if current_match_v69204 else ""
+            correspondence_rule_v69204 = " ".join(
+                str(v or "") for k, v in root.items()
+                if str(k).startswith("data-atp-") and str(k).endswith("profile-rule")
+            ).casefold()
+            correspondence_allowed_v69204 = "correspond" in correspondence_rule_v69204
+
+            # Exact prompt branch discriminators. These filter; they never create
+            # a value. Broad questions retain every same-year verified menu row.
+            requested_manual_v69204 = bool(re.search(r"\bmanual\b", prompt_cf_v69204))
+            requested_auto_v69204 = bool(re.search(r"\b(?:auto|automatic)\b", prompt_cf_v69204))
+            requested_screens_v69204 = {
+                m.group(1) for m in re.finditer(r"\b(\d+(?:\.\d+)?)\s*(?:inch|inches|\")", prompt_cf_v69204)
+            }
+            requested_systems_v69204 = {
+                m.group(0).upper().replace(" ", "")
+                for m in re.finditer(r"\bIOB\b|\bIO[3-6](?:\s*/\s*IO[3-6])?\b", str(prompt_text or ""), flags=re.I)
+            }
+
+            def _candidate_year_v69204(line_v69204):
+                m4_v69204 = re.match(r"^\s*(20\d{2})\b", line_v69204)
+                if m4_v69204:
+                    return int(m4_v69204.group(1))
+                m2_v69204 = re.match(r"^\s*(\d{2})\b", line_v69204)
+                if m2_v69204:
+                    yy_v69204 = int(m2_v69204.group(1))
+                    if 0 <= yy_v69204 <= 99:
+                        return 2000 + yy_v69204
+                return None
+
+            def _candidate_label_v69204(line_v69204):
+                parts_v69204 = []
+                screen_v69204 = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:inch|inches|\")\b", line_v69204, flags=re.I)
+                system_v69204 = re.search(r"\b(IOB|IO[3-6]\s*/\s*IO[3-6])\b", line_v69204, flags=re.I)
+                if screen_v69204:
+                    parts_v69204.append(screen_v69204.group(1) + '-inch')
+                if system_v69204:
+                    parts_v69204.append(re.sub(r"\s+", "", system_v69204.group(1).upper()))
+                if re.search(r"\bmanual\b", line_v69204, flags=re.I):
+                    parts_v69204.append("Manual A/C")
+                elif re.search(r"\b(?:auto|automatic)\b", line_v69204, flags=re.I):
+                    parts_v69204.append("Automatic A/C")
+                return " ".join(parts_v69204) or "Image-verified configuration"
+
+            if not foreign_model_signal_v69204:
+                for line_v69204 in visible_lines_v69204:
+                    line_cf_v69204 = line_v69204.casefold()
+                    year_v69204 = _candidate_year_v69204(line_v69204)
+                    if year_v69204 is None:
+                        continue
+                    if requested_years_v69204 and year_v69204 not in requested_years_v69204:
+                        continue
+                    # Require strong menu/configuration grammar. A naked year or
+                    # navigation label is never a Car Model value.
+                    if not re.search(
+                        r"\b(?:screen|inch|inches|manual|auto|automatic|iob|io[3-6]|a\s*/?\s*c|climate)\b",
+                        line_cf_v69204,
+                        flags=re.I,
+                    ):
+                        continue
+                    if requested_manual_v69204 and "manual" not in line_cf_v69204:
+                        continue
+                    if requested_auto_v69204 and not re.search(r"\b(?:auto|automatic)\b", line_cf_v69204):
+                        continue
+                    if requested_screens_v69204:
+                        candidate_screen_v69204 = re.search(r"\b(\d+(?:\.\d+)?)\s*(?:inch|inches|\")", line_cf_v69204)
+                        if not candidate_screen_v69204 or candidate_screen_v69204.group(1) not in requested_screens_v69204:
+                            continue
+                    if requested_systems_v69204:
+                        candidate_systems_v69204 = {
+                            re.sub(r"\s+", "", m.group(0).upper())
+                            for m in re.finditer(r"\bIOB\b|\bIO[3-6](?:\s*/\s*IO[3-6])?\b", line_v69204, flags=re.I)
+                        }
+                        if not (requested_systems_v69204 & candidate_systems_v69204):
+                            continue
+
+                    model_match_v69204 = True
+                    if requested_models_v69204:
+                        model_match_v69204 = any(
+                            re.search(r"(?<![a-z0-9])" + re.escape(model.casefold()) + r"(?![a-z0-9])", line_cf_v69204)
+                            for model in requested_models_v69204
+                        )
+                        if not model_match_v69204 and current_model_v69204:
+                            model_match_v69204 = any(
+                                model.casefold() in current_model_v69204.casefold()
+                                for model in requested_models_v69204
+                            )
+                        if not model_match_v69204 and correspondence_allowed_v69204:
+                            # Page-authored correspondence (e.g. sister model uses
+                            # the displayed menu family) is allowed only when both
+                            # requested and displayed models are within root scope.
+                            current_in_scope_v69204 = any(
+                                model.casefold() in current_model_v69204.casefold()
+                                for model in root_models_v69204
+                            )
+                            model_match_v69204 = bool(current_in_scope_v69204)
+                    if not model_match_v69204:
+                        continue
+                    image_literal_rows_v69204.append((
+                        _candidate_label_v69204(line_v69204),
+                        line_v69204,
+                    ))
+
+            # De-duplicate exact visible rows while preserving screenshot order.
+            seen_image_rows_v69204 = set()
+            for label_v69204, value_v69204 in image_literal_rows_v69204:
+                key_v69204 = value_v69204.casefold()
+                if key_v69204 in seen_image_rows_v69204:
+                    continue
+                seen_image_rows_v69204.add(key_v69204)
+                add_branch(label_v69204, "Car Model", value_v69204)
+                image_literal_used_v69204 = True
+
     # v69203: a current-source configuration section may intentionally disclose
     # that the exact Car Model/A-C menu value is not documented while still
     # providing verified protocol/instructions and an exact current-section image.
@@ -67822,6 +68052,8 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
         "required_clarification":"",
         "authority":"autotecpro_semantic_metadata_v69178",
         "source_limited_v69203": bool(source_limited_v69203),
+        "image_literal_authority_v69204": bool(image_literal_used_v69204),
+        "image_literal_row_count_v69204": len({str(v).casefold() for _, v in image_literal_rows_v69204}),
     }
 
 
@@ -68758,6 +68990,7 @@ def _technical_compile_one_package_v69198(package):
             "filename": str(package.get("filename") or ""),
             "source_url": str(package.get("source_url") or ""),
             "page_title": str(package.get("title") or ""),
+            "package_text": package_text,
             "section_title": title,
             "section_id": target_id or str(section.get("section_id") or ""),
             "branch_paths": [
@@ -68772,6 +69005,9 @@ def _technical_compile_one_package_v69198(package):
                 for seg in section_segments
             ],
             "selected_segments_v69158": section_segments,
+            "image_evidence": _technical_exact_package_image_evidence_v69155(
+                package_text, exact_images
+            ),
             "atp_semantics_v69178": semantics,
             "selector_version": 69198,
             "compiled_runtime_contract_v69198": True,
@@ -68835,6 +69071,7 @@ def _technical_compile_one_package_v69198(package):
             "conflict_sensitive_v69200": bool(conflict_sensitive_v69200),
             "search_tokens": search_tokens,
             "exact_images": exact_images,
+            "config_image_evidence_v69204": list(authority_seed.get("image_evidence") or []),
             "config_ready": bool(config_ready),
             "config_literal": config_literal if config_ready else {},
             "config_structured": config_structured if config_ready else {},
@@ -69164,6 +69401,7 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
             for seg in (contract.get("segments") or [])
         ],
         "selected_segments_v69158": list(contract.get("segments") or []),
+        "image_evidence": list(contract.get("config_image_evidence_v69204") or []),
         "atp_semantics_v69178": semantics,
         "selector_version": 69198,
         "compiled_runtime_contract_v69198": True,
@@ -69171,10 +69409,25 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
     }
 
     if config_query:
-        literal = dict(contract.get("config_literal") or {})
-        if not _technical_literal_is_sufficient_v69156(prompt, literal):
-            return {}
-        structured = dict(contract.get("config_structured") or {})
+        # v69204: when this compiled contract carries approved exact-section image
+        # evidence, re-run only the deterministic literal parser with the ACTUAL
+        # user prompt. This applies year/screen/climate/system filters at query
+        # time instead of publishing a package-wide precompiled image menu. No
+        # provider call, OCR, vector search, or semantic fallback is introduced.
+        if authority.get("image_evidence"):
+            literal = _technical_metadata_literal_configuration_v69178(prompt, authority)
+            if not _technical_literal_is_sufficient_v69156(prompt, literal):
+                return {}
+            structured = _technical_merge_structured_v69156(
+                literal, {"fields": [], "branches": [], "status": "not_needed"}
+            )
+            authority["compiled_image_literal_reparsed_v69204"] = True
+        else:
+            literal = dict(contract.get("config_literal") or {})
+            if not _technical_literal_is_sufficient_v69156(prompt, literal):
+                return {}
+            structured = dict(contract.get("config_structured") or {})
+            authority["compiled_image_literal_reparsed_v69204"] = False
         authority["literal_structured_v69156"] = literal
         authority["structured"] = structured
         authority["deterministic_literal_authority_v69156"] = True
