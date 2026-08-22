@@ -1,4 +1,4 @@
-# AutoTecPro AI v69200 FINAL PRODUCTION — verified direct Technical authority: exact-route leaf preference + conflict-safe provider bypass; v69199 durable compiled hydration retained; all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
+# AutoTecPro AI v69202 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -52279,7 +52279,7 @@ def _website_image_size_policy_v68996(width, height, context_score=0, technical_
     }
 
 
-@st.cache_data(ttl=1800, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=24, show_spinner=False)
 def _download_public_website_image(image_url, context_score=0, technical_context=False):
     """Fetch and validate one public website image for vision analysis.
 
@@ -52605,7 +52605,7 @@ def _website_preview_data_url_v68999(image_bytes, mime_type="image/jpeg"):
         return f"data:{mime_type or 'image/jpeg'};base64," + base64.b64encode(raw).decode("ascii")
 
 
-@st.cache_data(ttl=1800, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=32, show_spinner=False)
 def _website_preview_candidate_v68998(candidate_json):
     """Server-validate one candidate and return a self-contained preview data URL."""
     try:
@@ -55208,7 +55208,7 @@ def _website_file_destination_v69040(text_value):
     } else "Technical Support Database"
 
 
-@st.cache_data(ttl=900, max_entries=96, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=24, show_spinner=False)
 def _website_file_full_text_v69012(file_id):
     """Read one retrieved Technical file by exact OpenAI file id, with a bounded cache."""
     clean_id = str(file_id or "").strip()
@@ -56273,7 +56273,7 @@ def _website_image_rank_v68883(prompt_text, payload):
     return score
 
 
-@st.cache_data(ttl=900, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=24, show_spinner=False)
 def _website_storage_bytes_v68883(path):
     clean_path = str(path or "").strip().lstrip("/")
     if not clean_path:
@@ -67610,6 +67610,78 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
                     list(path_parts_v69196),
                 ))
 
+    # v69201: support richer ATP profile matrices such as
+    # data-atp-profile-sync2-auto="F150 HI|S2 Auto" without hard-coding any
+    # product-specific setting value.  The profile is accepted only when every
+    # literal value is also present in the already-selected exact section text.
+    # This keeps current-source fail-closed authority intact and prevents a root
+    # attribute from leaking into an unrelated section.
+    profile_section_text_v69201 = re.sub(
+        r"\s+", " ", str(authority.get("section_text") or "")
+    ).strip()
+    profile_section_cf_v69201 = profile_section_text_v69201.casefold()
+    if root and profile_section_cf_v69201 and not route_rows_v69196:
+        profile_rows_v69201 = []
+        for key_v69201, raw_profile_v69201 in root.items():
+            key_cf_v69201 = str(key_v69201 or "").strip().casefold()
+            match_v69201 = re.match(r"^data-atp-profile-(.+)$", key_cf_v69201)
+            if not match_v69201:
+                continue
+            suffix_v69201 = str(match_v69201.group(1) or "").strip()
+            # Profile-matrix attributes must carry an explicit branch dimension.
+            if not re.search(
+                r"(?:^|[-_])(?:sync\d+|manual|auto|automatic|climate|screen|onstar|type|option)(?:$|[-_])",
+                suffix_v69201,
+                flags=re.I,
+            ):
+                continue
+            profile_literal_v69201 = html.unescape(
+                str(raw_profile_v69201 or "")
+            ).strip()
+            parts_v69201 = [
+                re.sub(r"\s+", " ", part).strip()
+                for part in re.split(r"\s*\|\s*", profile_literal_v69201)
+                if re.sub(r"\s+", " ", part).strip()
+            ]
+            if len(parts_v69201) < 2:
+                continue
+            # Same-section corroboration is mandatory.  Do not let root metadata
+            # alone establish a setting on a neighboring section.
+            if not all(part.casefold() in profile_section_cf_v69201 for part in parts_v69201):
+                continue
+
+            label_tokens_v69201 = []
+            for token_v69201 in re.split(r"[-]+", suffix_v69201):
+                token_v69201 = token_v69201.strip()
+                if not token_v69201:
+                    continue
+                sync_match_v69201 = re.fullmatch(r"sync(\d+)", token_v69201, flags=re.I)
+                if sync_match_v69201:
+                    label_tokens_v69201.append("SYNC " + sync_match_v69201.group(1))
+                elif re.fullmatch(r"\d+_\d+", token_v69201):
+                    label_tokens_v69201.append(token_v69201.replace("_", ".") + "-inch")
+                elif token_v69201.isdigit():
+                    label_tokens_v69201.append(token_v69201 + "-inch")
+                elif token_v69201.casefold() == "manual":
+                    label_tokens_v69201.append("Manual A/C")
+                elif token_v69201.casefold() in {"auto", "automatic"}:
+                    label_tokens_v69201.append("Automatic A/C")
+                else:
+                    label_tokens_v69201.append(token_v69201.replace("_", " ").title())
+            label_v69201 = " ".join(label_tokens_v69201).strip() or suffix_v69201
+            profile_rows_v69201.append((label_v69201, parts_v69201))
+
+        for label_v69201, parts_v69201 in profile_rows_v69201:
+            # ATP v12 profile matrices encode the menu's Car Model first and the
+            # branch-specific A/C/profile leaf second.  Both are corroborated by
+            # the exact selected section before publication.
+            add_branch(label_v69201, "Car Model", parts_v69201[0])
+            add_branch(
+                label_v69201,
+                "A/C Type",
+                " > ".join(parts_v69201[1:]),
+            )
+
     # Root fallback profiles are also generic ATP v12 element metadata. They use
     # Make|Car Model or Make|Car Model|A/C Type and are consulted only when a
     # heading did not already supply an explicit climate route for that branch.
@@ -74269,7 +74341,7 @@ def _product_library_update_product(product_id, product_name, compatibility, des
     return (result.data or [payload])[0]
 
 
-@st.cache_data(ttl=900, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=24, show_spinner=False)
 def _product_library_asset_data_url(asset):
     """Download one private optimized image and return a history-safe data URL."""
     asset = asset or {}
