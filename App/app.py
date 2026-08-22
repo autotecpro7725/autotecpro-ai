@@ -1,4 +1,4 @@
-# AutoTecPro AI v69198 FINAL PRODUCTION — compiled Technical runtime contract + direct-section authority; v69196 element metadata, v69195 hot authority, v69194 login, v69193 response hardening, and all protected Graphic pipelines preserved.
+# AutoTecPro AI v69199 FINAL PRODUCTION — instant Technical on-demand durable-snapshot hydration + embedded compiled contracts + strict direct-section provider bypass; v69198/v69196/v69195 and all protected Graphic/auth/History/persistence pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -59273,6 +59273,13 @@ def save_website_knowledge_package(
     version_hash = _website_knowledge_version_hash_v68892(
         extraction, database_choice, reviewed, image_analysis
     )
+    if database_choice == "Technical Support Database":
+        version_hash = hashlib.sha256(
+            (
+                str(version_hash or "")
+                + "|v69199-durable-compiled-contract-v1"
+            ).encode("utf-8")
+        ).hexdigest()
     package_extraction = dict(extraction)
     package_extraction["website_version_hash_v68892"] = version_hash
     filename = website_knowledge_filename(package_extraction)
@@ -59289,6 +59296,20 @@ def save_website_knowledge_package(
         reviewed_content=reviewed,
         image_analysis=image_analysis,
     )
+    if database_choice == "Technical Support Database":
+        try:
+            package_text = _technical_embed_compiled_contract_v69199(
+                package_text,
+                filename,
+            )
+        except Exception as compiled_embed_error_v69199:
+            # Speed-only enhancement. Never block or weaken the established
+            # publication transaction if compilation cannot be embedded.
+            diagnostic_log(
+                "technical_compiled_contract_embed_failed_v69199",
+                error_type=type(compiled_embed_error_v69199).__name__,
+                error=str(compiled_embed_error_v69199)[:500],
+            )
 
     file_id = ""
     newly_uploaded = False
@@ -59629,7 +59650,7 @@ def save_website_knowledge_package(
                 compiled_revision_v69198 = _website_destination_revision_v69109(
                     "Technical Support Database"
                 )
-                _technical_compiled_runtime_inject_v69198(
+                _technical_compiled_runtime_merge_package_v69199(
                     hot_package_v69195,
                     selected_vector_store_id,
                     compiled_revision_v69198,
@@ -67821,6 +67842,453 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
 
 
 
+
+# ============================================================
+# v69199 — durable compiled-contract hydration + strict direct-section answer
+# ============================================================
+
+TECHNICAL_COMPILED_CONTRACT_PREFIX_V69199 = "TECHNICAL_COMPILED_CONTRACT_JSON_V69199:"
+TECHNICAL_COMPILED_CONTRACT_SCHEMA_V69199 = "autotecpro-technical-compiled-contract-v69199"
+
+
+def _technical_compiled_payload_from_text_v69199(package_text):
+    """Read a precompiled Technical contract payload embedded in the durable package."""
+    value = str(package_text or "")
+    match = re.search(
+        r"(?im)^" + re.escape(TECHNICAL_COMPILED_CONTRACT_PREFIX_V69199) + r"\s*(\{.*\})\s*$",
+        value,
+    )
+    if not match:
+        return {}
+    try:
+        payload = json.loads(str(match.group(1) or ""))
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    if str(payload.get("schema") or "") != TECHNICAL_COMPILED_CONTRACT_SCHEMA_V69199:
+        return {}
+    contracts = payload.get("contracts")
+    if not isinstance(contracts, list):
+        return {}
+    return payload
+
+
+def _technical_compiled_contract_sanitize_v69199(contract):
+    """Strip runtime/file identity from an embedded contract template."""
+    if not isinstance(contract, dict):
+        return {}
+    output = dict(contract)
+    for key in (
+        "contract_id", "file_id", "filename", "source_url", "page_title",
+        "extracted_at",
+    ):
+        output.pop(key, None)
+    # Authority is reconstructed from the current durable package at runtime.
+    return output
+
+
+def _technical_compiled_payload_build_v69199(package):
+    """Compile once during learning and serialize only deterministic package-local data."""
+    package = dict(package or {})
+    contracts = []
+    try:
+        raw_contracts = list(_technical_compile_one_package_v69198(package) or [])
+    except Exception as error:
+        diagnostic_log(
+            "technical_compiled_payload_build_failed_v69199",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        raw_contracts = []
+    for contract in raw_contracts:
+        clean = _technical_compiled_contract_sanitize_v69199(contract)
+        if clean:
+            contracts.append(clean)
+    if not contracts:
+        return {}
+    package_text = str(package.get("package_text") or "")
+    return {
+        "schema": TECHNICAL_COMPILED_CONTRACT_SCHEMA_V69199,
+        "compiler_version": 69199,
+        "package_sha256_before_marker": hashlib.sha256(
+            package_text.encode("utf-8")
+        ).hexdigest(),
+        "contracts": contracts,
+    }
+
+
+def _technical_embed_compiled_contract_v69199(package_text, filename=""):
+    """Append one durable compiled contract marker before Technical vector publication."""
+    value = str(package_text or "")
+    if not value or TECHNICAL_COMPILED_CONTRACT_PREFIX_V69199 in value:
+        return value
+    try:
+        package = _technical_package_from_text_v69121(
+            "",
+            str(filename or ""),
+            value,
+        )
+    except Exception:
+        package = None
+    if not isinstance(package, dict):
+        return value
+    payload = _technical_compiled_payload_build_v69199(package)
+    if not payload:
+        return value
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    marker = TECHNICAL_COMPILED_CONTRACT_PREFIX_V69199 + encoded
+    # Keep the marker outside reviewed WEBPAGE TEXT so it can never contaminate
+    # factual page identity or provider context, even on pages with no images.
+    needle = "\nWEBPAGE TEXT\n"
+    if needle in value:
+        return value.replace(
+            needle,
+            "\n" + marker + "\n" + needle,
+            1,
+        )
+    return value.rstrip() + "\n" + marker + "\n"
+
+
+def _technical_compile_one_package_v69199(package):
+    """Use the durable precompiled payload when present; otherwise keep v69198 compatibility."""
+    package = dict(package or {})
+    package_text = str(package.get("package_text") or "")
+    payload = _technical_compiled_payload_from_text_v69199(package_text)
+    templates = list(payload.get("contracts") or []) if payload else []
+    if not templates:
+        return _technical_compile_one_package_v69198(package)
+
+    file_id = str(package.get("file_id") or "")
+    filename = str(package.get("filename") or "")
+    source_url = str(package.get("source_url") or "")
+    page_title = str(package.get("title") or "")
+    extracted_at = str(package.get("extracted_at") or "")
+    output = []
+    for index, template in enumerate(templates):
+        if not isinstance(template, dict):
+            continue
+        contract = dict(template)
+        section_id = str(contract.get("section_id") or "")
+        contract["contract_id"] = hashlib.sha256(
+            (
+                file_id + "|" + filename + "|" + source_url + "|" + section_id + "|" + str(index)
+            ).encode("utf-8")
+        ).hexdigest()[:24]
+        contract["file_id"] = file_id
+        contract["filename"] = filename
+        contract["source_url"] = source_url
+        contract["page_title"] = page_title
+        contract["extracted_at"] = extracted_at
+        contract["embedded_compiled_contract_v69199"] = True
+        output.append(contract)
+    return output
+
+
+def _technical_compiled_runtime_merge_package_v69199(package, store, revision):
+    """Merge one verified current package into the in-process index without wiping warm peers."""
+    package = dict(package or {})
+    clean_store = str(store or "").strip()
+    clean_revision = int(revision or 0)
+    contracts = list(_technical_compile_one_package_v69199(package) or [])
+    if not contracts:
+        return False
+
+    state = _technical_compiled_contract_state_v69198()
+    with state["lock"]:
+        if (
+            str(state.get("store") or "") != clean_store
+            or int(state.get("revision") or -1) != clean_revision
+        ):
+            state.update({
+                "store": clean_store,
+                "revision": clean_revision,
+                "packages": {},
+                "contracts": {},
+                "buckets": {},
+                "built_at": time.monotonic(),
+            })
+
+        package_id = str(package.get("file_id") or package.get("filename") or "")
+        if not package_id:
+            return False
+
+        # Remove older compiled entries for the exact family/year scopes carried by
+        # this verified current package, while preserving unrelated warm packages.
+        target_scopes = {
+            (str(f).casefold(), int(y))
+            for contract in contracts
+            for f in (contract.get("families") or [])
+            for y in (contract.get("years") or [])
+            if str(f).strip()
+        }
+        remove_ids = set()
+        for bucket_key, ids in list((state.get("buckets") or {}).items()):
+            try:
+                _, fam, year_text = bucket_key.rsplit("|", 2)
+                scope = (str(fam).casefold(), int(year_text))
+            except Exception:
+                scope = None
+            if scope in target_scopes:
+                remove_ids.update(ids or [])
+                state["buckets"].pop(bucket_key, None)
+        for cid in remove_ids:
+            state["contracts"].pop(cid, None)
+
+        state["packages"][package_id] = {
+            "package_text": str(package.get("package_text") or ""),
+            "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
+            "source_url": str(package.get("source_url") or ""),
+            "file_id": str(package.get("file_id") or ""),
+            "filename": str(package.get("filename") or ""),
+            "title": str(package.get("title") or ""),
+            "extracted_at": str(package.get("extracted_at") or ""),
+        }
+        for contract in contracts:
+            cid = str(contract.get("contract_id") or "")
+            if not cid:
+                continue
+            state["contracts"][cid] = contract
+            for family in contract.get("families") or []:
+                for year in contract.get("years") or []:
+                    bucket_key = f"{clean_store}|{str(family).casefold()}|{int(year)}"
+                    state["buckets"].setdefault(bucket_key, []).append(cid)
+        state["built_at"] = time.monotonic()
+
+    diagnostic_log(
+        "technical_compiled_runtime_merge_package_v69199",
+        file_id=str(package.get("file_id") or "")[:160],
+        contracts=len(contracts),
+        revision=clean_revision,
+    )
+    return True
+
+
+
+def _technical_resolve_family_year_v69199(prompt_text, store="", allow_registry=False):
+    """Resolve family/year generically from parser, warm index, then durable registry.
+
+    This adds support for newly learned vehicle families without hard-coding model names.
+    """
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    years = sorted(set(_website_identity_years_v69022(prompt)))
+    if len(years) != 1:
+        return "", None
+    year = int(years[0])
+
+    families = sorted(set(_website_identity_vehicle_families_v69022(prompt)))
+    if len(families) == 1:
+        return str(families[0]).casefold(), year
+    if len(families) > 1:
+        return "", None
+
+    prompt_norm = _technical_contract_norm_v69198(prompt)
+    prompt_tokens = set(prompt_norm.split())
+    clean_store = str(store or "").strip()
+
+    # Warm process-local index: discover any newly learned family generically.
+    state = _technical_compiled_contract_state_v69198()
+    warm_candidates = set()
+    with state["lock"]:
+        if (
+            not clean_store
+            or str(state.get("store") or "") in {"", clean_store}
+        ):
+            for bucket_key in (state.get("buckets") or {}):
+                try:
+                    _, family, bucket_year = str(bucket_key).rsplit("|", 2)
+                    bucket_year = int(bucket_year)
+                except Exception:
+                    continue
+                if bucket_year != year:
+                    continue
+                family_tokens = set(
+                    _technical_contract_norm_v69198(family).split()
+                )
+                if family_tokens and family_tokens.issubset(prompt_tokens):
+                    warm_candidates.add(str(family).casefold())
+    if len(warm_candidates) == 1:
+        return next(iter(warm_candidates)), year
+    if len(warm_candidates) > 1:
+        return "", None
+
+    if not allow_registry:
+        return "", None
+
+    # Cold process: consult the compact durable package registry only. This is
+    # metadata-only and avoids OpenAI/vector file reads.
+    try:
+        registry_rows = list(_technical_registry_rows_v69162(clean_store) or [])
+    except Exception:
+        registry_rows = []
+    registry_candidates = set()
+    for row in registry_rows:
+        if not isinstance(row, dict):
+            continue
+        row_years = set()
+        for raw_year in row.get("years") or []:
+            try:
+                row_years.add(int(raw_year))
+            except Exception:
+                pass
+        if year not in row_years:
+            continue
+        for raw_family in row.get("vehicle_families") or []:
+            family = str(raw_family or "").casefold().strip()
+            if not family:
+                continue
+            family_tokens = set(
+                _technical_contract_norm_v69198(family).split()
+            )
+            if family_tokens and family_tokens.issubset(prompt_tokens):
+                registry_candidates.add(family)
+    if len(registry_candidates) == 1:
+        return next(iter(registry_candidates)), year
+    return "", None
+
+
+def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
+    """Cold-path hydrate from the verified durable snapshot, not OpenAI/vector search."""
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    clean_store = str(store or "").strip()
+    family, year = _technical_resolve_family_year_v69199(
+        prompt,
+        clean_store,
+        allow_registry=True,
+    )
+    if not family or year is None:
+        return {}
+    pointer = dict(
+        _technical_active_authority_row_v69164(
+            family,
+            year,
+            clean_store,
+        ) or {}
+    )
+    if not pointer:
+        return {}
+
+    source_url = str(pointer.get("source_url") or "").strip()
+    file_id = str(pointer.get("file_id") or "").strip()
+    filename = str(pointer.get("filename") or "").strip()
+    expected_sha = str(pointer.get("snapshot_sha256_v69171") or "").strip()
+    if not source_url or not file_id:
+        return {}
+
+    snapshot = dict(
+        _technical_durable_snapshot_recover_v69171(
+            source_url,
+            clean_store,
+            expected_sha256=expected_sha,
+        ) or {}
+    )
+    if not snapshot:
+        return {}
+    if str(snapshot.get("file_id") or "").strip() not in {"", file_id}:
+        return {}
+
+    package_text = str(snapshot.get("package_text") or "")
+    package = _technical_package_from_text_v69121(
+        file_id,
+        filename or str(snapshot.get("filename") or ""),
+        package_text,
+    )
+    if not isinstance(package, dict):
+        return {}
+
+    if family not in {
+        str(x).casefold() for x in (package.get("vehicle_families") or [])
+    }:
+        return {}
+    if year not in {
+        int(x) for x in (package.get("years") or []) if str(x).strip().isdigit()
+    }:
+        return {}
+
+    revision = _website_destination_revision_v69109(
+        "Technical Support Database"
+    )
+    if not _technical_compiled_runtime_merge_package_v69199(
+        package,
+        clean_store,
+        revision,
+    ):
+        return {}
+
+    diagnostic_log(
+        "technical_compiled_on_demand_hydrated_v69199",
+        family=family,
+        year=year,
+        file_id=file_id[:160],
+        source_url=source_url[:700],
+        embedded_payload=bool(
+            _technical_compiled_payload_from_text_v69199(package_text)
+        ),
+    )
+    return _technical_compiled_contract_lookup_v69198(prompt_text, clean_store)
+
+
+def _technical_direct_section_answer_v69199(prompt_text, compiled_result):
+    """Provider-free answer only for a strict, single, current direct-section hit.
+
+    It publishes source text verbatim/near-verbatim instead of generating new facts.
+    Complex, broad, ambiguous, long, or weakly matched inquiries remain provider-bound.
+    """
+    result = dict(compiled_result or {})
+    if (
+        str(result.get("status") or "") != "recovered"
+        or str(result.get("kind") or "") != "section"
+    ):
+        return ""
+
+    authority = dict(result.get("authority") or {})
+    meta = dict(result.get("direct_answer_meta_v69199") or {})
+    if not bool(meta.get("eligible")):
+        return ""
+
+    text_value = str(authority.get("section_text") or "").strip()
+    title = str(authority.get("section_title") or "Technical Instructions").strip()
+    if not text_value or len(text_value) > 9000:
+        return ""
+
+    prompt_norm = _technical_contract_norm_v69198(prompt_text)
+    if re.search(
+        r"\b(?:compare|comparison|versus|vs|all\s+issues|everything|summari[sz]e\s+all)\b",
+        prompt_norm,
+        flags=re.I,
+    ):
+        return ""
+
+    # Keep source formatting where possible while removing purely structural
+    # blank-line noise. No factual paraphrase is introduced.
+    raw_lines = [re.sub(r"[ \t]+", " ", x).strip() for x in text_value.splitlines()]
+    clean_lines = []
+    for line in raw_lines:
+        if not line:
+            if clean_lines and clean_lines[-1] != "":
+                clean_lines.append("")
+            continue
+        if line.casefold().startswith("branch:"):
+            clean_lines.append("**" + line + "**")
+        else:
+            clean_lines.append(line)
+    while clean_lines and clean_lines[-1] == "":
+        clean_lines.pop()
+    body = "\n".join(clean_lines).strip()
+    if not body:
+        return ""
+
+    display_title = _technical_request_display_label_v69158(
+        prompt_text,
+        authority,
+    )
+    return (
+        f"## {display_title or title}\n\n"
+        "Verified AutoTecPro Technical instructions from the exact current source:\n\n"
+        + body
+    ).strip()
+
+
 # ============================================================
 # v69198 — compiled Technical runtime contract
 # ============================================================
@@ -67859,43 +68327,68 @@ def _technical_contract_tokens_v69198(value):
 
 
 def _technical_contract_carriers_v69198(semantics, section):
-    """Return ATP element metadata that belongs to one compiled section."""
+    """Return ATP element metadata that belongs to one compiled section.
+
+    v69199 tightens v69198 carrier selection to exact section identity first.
+    Topic/title similarity is compatibility fallback only, preventing sibling
+    metadata from contaminating a leaf contract (for example Audio Overview vs
+    Bluetooth Audio).
+    """
     semantics = dict(semantics or {})
     section = dict(section or {})
     target = _technical_contract_norm_v69198(
         section.get("target_id") or section.get("section_id") or ""
     )
     title = _technical_contract_norm_v69198(section.get("title") or "")
-    carriers = []
+    rows = [
+        dict(row)
+        for row in list(semantics.get("headings") or []) + list(semantics.get("elements") or [])
+        if isinstance(row, dict)
+    ]
 
-    for row in list(semantics.get("headings") or []) + list(semantics.get("elements") or []):
-        if not isinstance(row, dict):
-            continue
-        row = dict(row)
+    exact = []
+    broad = []
+    for row in rows:
         rid = _technical_contract_norm_v69198(row.get("id") or "")
-        sec = _technical_contract_norm_v69198(row.get("data-atp-section") or "")
+        sec = _technical_contract_norm_v69198(
+            row.get("data-atp-section")
+            or row.get("data-atp-section-id")
+            or ""
+        )
+        related = _technical_contract_norm_v69198(
+            row.get("data-atp-related-heading") or ""
+        )
         topic = _technical_contract_norm_v69198(row.get("data-atp-topic") or "")
         heading = _technical_contract_norm_v69198(
             row.get("data-atp-title")
+            or row.get("data-atp-section-title")
             or row.get("data-atp-heading-title")
             or row.get("data-atp-intent")
             or ""
         )
-        if (
-            (target and rid == target)
-            or (target and sec and (sec == target or sec in target or target in sec))
-            or (title and sec and (sec in title or title in sec))
-            or (title and topic and (topic in title or title in topic))
-            or (title and heading and (heading in title or title in heading))
-        ):
-            carriers.append(row)
 
-    # Stable de-duplication by ATP routing payload.
+        if target and (rid == target or sec == target or related == target):
+            exact.append(row)
+            continue
+
+        if (
+            (target and sec and (sec in target or target in sec))
+            or (title and heading and heading == title)
+            or (title and topic and (topic in title or title in topic))
+        ):
+            broad.append(row)
+
+    carriers = exact if exact else broad
+
     output = []
     seen = set()
     for row in carriers:
         fingerprint = json.dumps(
-            {k: row.get(k) for k in sorted(row) if k.startswith("data-atp-") or k in {"id", "tag"}},
+            {
+                k: row.get(k)
+                for k in sorted(row)
+                if k.startswith("data-atp-") or k in {"id", "tag"}
+            },
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
@@ -68219,7 +68712,7 @@ def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
             "title": str(package.get("title") or ""),
             "extracted_at": str(package.get("extracted_at") or ""),
         }
-        for contract in _technical_compile_one_package_v69198(package):
+        for contract in _technical_compile_one_package_v69199(package):
             cid = str(contract.get("contract_id") or "")
             if not cid:
                 continue
@@ -68289,12 +68782,16 @@ def _technical_compiled_runtime_inject_v69198(package, store, revision):
 def _technical_compiled_contract_lookup_v69198(prompt_text, store):
     """O(1)-bucket + tiny local section match; no DB/vector/provider calls."""
     prompt = _technical_settings_routing_prompt_v69117(prompt_text)
-    families = sorted(set(_website_identity_vehicle_families_v69022(prompt)))
-    years = sorted(set(_website_identity_years_v69022(prompt)))
-    if len(families) != 1 or len(years) != 1:
-        return {}
-
     clean_store = str(store or "").strip()
+    family_v69199, year_v69199 = _technical_resolve_family_year_v69199(
+        prompt,
+        clean_store,
+        allow_registry=False,
+    )
+    if not family_v69199 or year_v69199 is None:
+        return {}
+    families = [family_v69199]
+    years = [int(year_v69199)]
     current_revision = _website_destination_revision_v69109(
         "Technical Support Database"
     )
@@ -68515,6 +69012,44 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         "text": str(contract.get("section_text") or "")[:14000],
         "technical_compiled_section_v69198": True,
     }
+    second_score_v69199 = int(ranked[1][0]) if len(ranked) > 1 else -1
+    direct_fastpath_v69199 = False
+    try:
+        direct_fastpath_v69199 = any(
+            str(row_v69199.get("data-atp-direct-fastpath") or "").strip().casefold()
+            == "true"
+            for row_v69199 in _technical_contract_carriers_v69198(
+                semantics,
+                {
+                    "target_id": contract.get("section_id"),
+                    "section_id": contract.get("section_id"),
+                    "title": contract.get("section_title"),
+                },
+            )
+            if isinstance(row_v69199, dict)
+        )
+    except Exception:
+        direct_fastpath_v69199 = False
+
+    strong_match_v69199 = bool(
+        int(best[1] or 0) >= 2
+        or int(best[2] or 0) >= 1
+        or int(best[3] or 0) >= 2
+        or int(best[4] or 0) >= 2
+    )
+    margin_v69199 = int(best[0]) - second_score_v69199
+    direct_answer_eligible_v69199 = bool(
+        direct_fastpath_v69199
+        and strong_match_v69199
+        and (
+            second_score_v69199 < 0
+            or margin_v69199 >= 35
+            or int(best[1] or 0) >= 3
+            or int(best[2] or 0) >= 2
+        )
+        and 1 <= len(str(contract.get("section_text") or "")) <= 9000
+    )
+
     return {
         "status": "recovered",
         "kind": "section",
@@ -68523,6 +69058,14 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         "rows": [row],
         "exact_images": list(authority.get("selected_image_urls_v69143") or []),
         "compiled_contract_v69198": True,
+        "direct_answer_meta_v69199": {
+            "eligible": direct_answer_eligible_v69199,
+            "direct_fastpath": direct_fastpath_v69199,
+            "strong_match": strong_match_v69199,
+            "best_score": int(best[0] or 0),
+            "second_score": second_score_v69199,
+            "margin": margin_v69199,
+        },
     }
 
 
@@ -79383,12 +79926,23 @@ else:
                     TECHNICAL_VECTOR_STORE_ID
                 )
                 if compiled_store_ids_v69198:
+                    compiled_store_v69199 = str(
+                        compiled_store_ids_v69198[0] or ""
+                    ).strip()
                     technical_compiled_preflight_v69198 = (
                         _technical_compiled_contract_lookup_v69198(
                             technical_request_prompt_v68879,
-                            str(compiled_store_ids_v69198[0] or "").strip(),
+                            compiled_store_v69199,
                         )
                     )
+                    if str(technical_compiled_preflight_v69198.get("status") or "") != "recovered":
+                        technical_compiled_preflight_v69198 = (
+                            _technical_compiled_on_demand_hydrate_v69199(
+                                technical_request_prompt_v68879,
+                                compiled_store_v69199,
+                            )
+                            or technical_compiled_preflight_v69198
+                        )
                     if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered":
                         diagnostic_log(
                             "technical_compiled_preflight_hit_v69198",
@@ -81682,6 +82236,28 @@ else:
                                     technical_full_package_authority_v69155,
                                 )
                             )
+
+                        if (
+                            assistant == "🔧 Technical Support"
+                            and not technical_direct_answer_v69158
+                        ):
+                            technical_direct_answer_v69158 = (
+                                _technical_direct_section_answer_v69199(
+                                    technical_request_prompt_v68879,
+                                    locals().get("technical_compiled_preflight_v69198") or {},
+                                )
+                            )
+                            if technical_direct_answer_v69158:
+                                diagnostic_log(
+                                    "technical_direct_section_provider_bypass_v69199",
+                                    section=str(
+                                        (
+                                            (locals().get("technical_compiled_preflight_v69198") or {}).get("authority")
+                                            or {}
+                                        ).get("section_title")
+                                        or ""
+                                    )[:300],
+                                )
 
                         stream_source_v69158 = (
                             [technical_current_source_safe_answer_v69164]
