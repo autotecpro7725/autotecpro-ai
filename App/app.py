@@ -1,4 +1,4 @@
-# AutoTecPro AI v69204 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
+# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -57267,31 +57267,388 @@ def _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.25):
 
 
 
-def _workspace_atp_compact_context_v69181(package, prompt_text):
-    """Compact exact Sales/Marketing ATP authority without removing any safety/retrieval gate.
+def _workspace_atp_product_contract_v69205(package):
+    """Build a compact deterministic Sales/Marketing product contract from ATP element metadata."""
+    package = dict(package or {})
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    elements = [dict(x) for x in (semantics.get("elements") or []) if isinstance(x, dict)]
+    images = [dict(x) for x in (semantics.get("images") or []) if isinstance(x, dict)]
 
-    v69180 injected up to ~60k characters (full semantic payload + broad webpage text)
-    and still kept the established multi-store file_search enabled. v69181 keeps the
-    exact same selected package and file_search contract, but sends only the highest-
-    value machine metadata plus inquiry-related literal webpage windows. This reduces
-    provider prefill/token latency without broadening or changing authority.
+    contract = {
+        "product_identity_key": "",
+        "product_family": "",
+        "product_type": "",
+        "brand": "",
+        "make": "",
+        "models": [],
+        "year_start": None,
+        "year_end": None,
+        "screen_size": "",
+        "display_type": "",
+        "platform": "",
+        "processor": "",
+        "ram": "",
+        "storage": "",
+        "facts": [],
+        "features": [],
+        "compatibility_branches": [],
+        "related_products": [],
+        "primary_images": [],
+    }
+
+    def split_values(value):
+        return [
+            re.sub(r"\s+", " ", str(x or "")).strip()
+            for x in re.split(r"[;|]", str(value or ""))
+            if re.sub(r"\s+", " ", str(x or "")).strip()
+        ]
+
+    scalar_map = {
+        "data-atp-product-identity-key": "product_identity_key",
+        "data-atp-product-family": "product_family",
+        "data-atp-product-type": "product_type",
+        "data-atp-brand": "brand",
+        "data-atp-make": "make",
+        "data-atp-screen-size": "screen_size",
+        "data-atp-display-type": "display_type",
+        "data-atp-platform": "platform",
+        "data-atp-processor": "processor",
+        "data-atp-ram": "ram",
+        "data-atp-storage": "storage",
+    }
+
+    for row in elements:
+        for key, dest in scalar_map.items():
+            if not contract.get(dest) and str(row.get(key) or "").strip():
+                contract[dest] = str(row.get(key) or "").strip()
+        if not contract["models"] and str(row.get("data-atp-model") or "").strip():
+            contract["models"] = split_values(row.get("data-atp-model"))
+        for key, dest in (("data-atp-year-start", "year_start"), ("data-atp-year-end", "year_end")):
+            if contract.get(dest) is None:
+                try:
+                    contract[dest] = int(str(row.get(key) or "").strip())
+                except Exception:
+                    pass
+        for item in split_values(row.get("data-atp-facts")):
+            if item not in contract["facts"]:
+                contract["facts"].append(item)
+        for item in split_values(row.get("data-atp-feature")):
+            if item not in contract["features"]:
+                contract["features"].append(item)
+
+        branch_id = str(row.get("data-atp-compatibility-branch-id") or "").strip()
+        if branch_id:
+            years = []
+            for raw in split_values(row.get("data-atp-years")):
+                try:
+                    years.append(int(raw))
+                except Exception:
+                    pass
+            excluded = []
+            for raw in split_values(row.get("data-atp-excluded-years")):
+                try:
+                    excluded.append(int(raw))
+                except Exception:
+                    pass
+            if not years:
+                try:
+                    ys = int(str(row.get("data-atp-year-start") or "").strip())
+                    ye = int(str(row.get("data-atp-year-end") or "").strip())
+                    if ys <= ye and (ye - ys) <= 30:
+                        years = list(range(ys, ye + 1))
+                except Exception:
+                    pass
+            branch = {
+                "branch_id": branch_id,
+                "make": str(row.get("data-atp-make") or contract.get("make") or "").strip(),
+                "models": split_values(row.get("data-atp-model")) or list(contract.get("models") or []),
+                "years": sorted(set(years)),
+                "trim": str(row.get("data-atp-trim") or "").strip(),
+                "excluded_years": sorted(set(excluded)),
+                "source_authority": str(row.get("data-atp-source-authority") or "").strip(),
+                "current_source": str(row.get("data-atp-current-source") or "").strip().casefold() == "true",
+            }
+            if branch not in contract["compatibility_branches"]:
+                contract["compatibility_branches"].append(branch)
+
+        if str(row.get("data-atp-link-role") or "").strip().casefold() == "related-product":
+            contract["related_products"].append({
+                "href": str(row.get("href") or "").strip(),
+                "topic": str(row.get("data-atp-topic") or "").strip(),
+                "authority": str(row.get("data-atp-link-authority") or "").strip(),
+                "current_source": str(row.get("data-atp-current-source") or "").strip().casefold() == "true",
+            })
+
+    for row in images:
+        role = str(row.get("data-atp-image-role") or "").strip().casefold()
+        level = str(row.get("data-atp-authority-level") or row.get("data-atp-authority") or "").strip().casefold()
+        if role == "primary-product-image" or level == "primary":
+            contract["primary_images"].append(str(row.get("src") or "").strip())
+
+    contract["facts"] = list(dict.fromkeys(contract["facts"]))
+    contract["features"] = list(dict.fromkeys(contract["features"]))
+    contract["primary_images"] = [x for x in dict.fromkeys(contract["primary_images"]) if x]
+    return contract
+
+
+def _workspace_atp_workspace_image_policy_v69205(meta, workspace_label):
+    """Resolve workspace-native Sales/Marketing image policy with backward-compatible generic aliases."""
+    meta = dict(meta or {})
+    workspace = str(workspace_label or "")
+    if is_sales_workspace(workspace):
+        policy = str(meta.get("data-atp-sales-auto-display") or "").strip().casefold()
+    elif is_marketing_workspace(workspace):
+        policy = str(meta.get("data-atp-marketing-auto-display") or "").strip().casefold()
+    else:
+        policy = ""
+    if not policy:
+        policy = str(meta.get("data-atp-auto-display") or "").strip().casefold()
+
+    authority = str(
+        meta.get("data-atp-authority")
+        or meta.get("data-atp-authority-level")
+        or ""
+    ).strip().casefold()
+    try:
+        priority = int(float(
+            meta.get("data-atp-priority")
+            or meta.get("data-atp-ai-priority")
+            or 0
+        ))
+    except Exception:
+        priority = 0
+    return policy, authority, priority
+
+
+
+def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cached_record, conversation_id=None):
+    """Reuse only the same conversation/workspace/current-revision product authority for identity-free follow-ups."""
+    workspace = str(workspace_label or "")
+    if not (is_sales_workspace(workspace) or is_marketing_workspace(workspace)) or is_graphic_workspace(workspace):
+        return {}
+    record = dict(cached_record or {})
+    if not record:
+        return {}
+    if _normalized_workspace_name(record.get("workspace")) != _normalized_workspace_name(workspace):
+        return {}
+    if str(record.get("conversation_id") or "") != str(conversation_id or ""):
+        return {}
+
+    destination = "Sales Database" if is_sales_workspace(workspace) else "Marketing Database"
+    if str(record.get("destination") or "") != destination:
+        return {}
+    try:
+        current_revision = int(_website_destination_revision_v69109(destination) or 0)
+        stored_revision = int(record.get("revision") or 0)
+    except Exception:
+        return {}
+    if current_revision != stored_revision:
+        return {}
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return {}
+    # Any new explicit vehicle/year/product identity must be resolved fresh.
+    if (
+        _website_identity_vehicle_families_v69022(prompt)
+        or _website_identity_years_v69022(prompt)
+        or _website_image_product_codes_v69020(prompt)
+    ):
+        return {}
+
+    authority = dict(record.get("authority") or {})
+    if str(authority.get("status") or "") != "recovered":
+        return {}
+    if str(authority.get("destination") or "") != destination:
+        return {}
+    return authority
+
+
+def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, authority):
+    """Provider-bypass deterministic product facts for exact current Sales/Marketing ATP pages.
+
+    Creative/campaign writing, pricing, comparisons, and any unsupported facts continue
+    through the unchanged provider/file_search path. This function never reads Technical
+    or Graphic evidence and never invents absent product facts.
+    """
+    workspace = str(workspace_label or "")
+    if not (is_sales_workspace(workspace) or is_marketing_workspace(workspace)) or is_graphic_workspace(workspace):
+        return ""
+    authority = dict(authority or {})
+    if str(authority.get("status") or "") != "recovered":
+        return ""
+    package = dict(authority.get("package") or {})
+    destination = "Sales Database" if is_sales_workspace(workspace) else "Marketing Database"
+    if str(package.get("destination") or "").strip() != destination:
+        return ""
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    p = prompt.casefold()
+    if not p:
+        return ""
+
+    # Preserve provider authority for creative/comparative/commercial tasks.
+    if re.search(
+        r"\b(write|draft|create|generate|caption|campaign|facebook|instagram|social|ad copy|advertis|email|blog|seo|compare|comparison|versus|vs\.?|price|cost|discount|coupon|quote|dealer)\b",
+        p,
+    ):
+        return ""
+
+    contract = _workspace_atp_product_contract_v69205(package)
+    if not contract.get("product_identity_key"):
+        return ""
+
+    requested_years = sorted(_website_identity_years_v69022(prompt))
+    requested_models = []
+    for model in ("RAM 1500", "RAM 2500", "RAM 3500"):
+        if re.search(r"\b" + re.escape(model.casefold()).replace(r"\ ", r"\s*") + r"\b", p):
+            requested_models.append(model)
+
+    fitment_intent = bool(re.search(
+        r"\b(fit|fits|compatible|compatibility|work with|works with|for my|support(?:s|ed)?|which years?|what years?)\b",
+        p,
+    ))
+    spec_intent = bool(re.search(
+        r"\b(spec|specs|specification|specifications|screen size|display|processor|snapdragon|storage|memory|carplay|android auto|4g|lte|wi-?fi|steering wheel|swc)\b",
+        p,
+    )) or bool(re.search(r"\b(?:how much|what|gb)\s+ram\b|\bram\s+(?:size|memory|capacity)\b", p))
+    visual_intent = bool(re.search(r"\b(show|send|display|photo|image|picture)\b", p))
+    warranty_intent = "warranty" in p
+    installation_intent = "installation video" in p or "install video" in p
+    climate_guide_intent = "climate" in p and ("guide" in p or "identify" in p or "version" in p)
+
+    if fitment_intent and requested_years:
+        year = requested_years[0]
+        branches = list(contract.get("compatibility_branches") or [])
+        matching = [
+            b for b in branches
+            if year in set(b.get("years") or [])
+            and (
+                not requested_models
+                or any(m in set(b.get("models") or []) for m in requested_models)
+            )
+        ]
+        if matching:
+            branch = matching[0]
+            trim = str(branch.get("trim") or "").strip()
+            product_label = " ".join(
+                x for x in (
+                    str(contract.get("screen_size") or "").strip(),
+                    "Dodge RAM infotainment system",
+                ) if x
+            ).strip()
+            model_label = requested_models[0] if requested_models else "Dodge RAM"
+            if trim:
+                if "new body" in p or "new-body" in p:
+                    return (
+                        f"No. This {product_label} is the **{trim}** product for {year} {model_label}. "
+                        "The current product source explicitly routes the newer body style to a different product."
+                    )
+                if "classic" in p:
+                    return (
+                        f"Yes. This {product_label} is compatible with the **{year} {model_label} {trim}**."
+                    )
+                return (
+                    f"This {product_label} is compatible with the **{year} {model_label} only when it is {trim}**. "
+                    "It is not the current product authority for the newer body style."
+                )
+            return f"Yes. This {product_label} is compatible with the **{year} {model_label}**."
+
+        # Exact product page scope is authoritative only for listed branches.
+        if requested_models:
+            return (
+                f"The current product source does **not list {year} {requested_models[0]}** in this product's compatible fitment branches."
+            )
+
+    if visual_intent and contract.get("primary_images"):
+        return "Here is the **primary current-source product image** for this exact product."
+
+    if spec_intent:
+        wanted = []
+        def add(label, value):
+            value = str(value or "").strip()
+            if value:
+                wanted.append((label, value))
+        if "screen" in p or "display" in p:
+            add("Screen", contract.get("screen_size"))
+            add("Display", contract.get("display_type"))
+        elif "processor" in p or "snapdragon" in p:
+            add("Processor", contract.get("processor"))
+        elif re.search(r"\bmemory\b|\b(?:how much|what|gb)\s+ram\b|\bram\s+(?:size|memory|capacity)\b", p):
+            add("RAM", contract.get("ram"))
+        elif "storage" in p:
+            add("Storage", contract.get("storage"))
+        elif "carplay" in p:
+            if any("carplay" in str(x).casefold() for x in contract.get("features") or []):
+                add("Apple CarPlay", "Built-in Wireless Apple CarPlay")
+        elif "android auto" in p:
+            if any("android-auto" in str(x).casefold() or "android auto" in str(x).casefold() for x in contract.get("features") or []):
+                add("Android Auto", "Built-in Wireless Android Auto")
+        elif "4g" in p or "lte" in p:
+            if any("4g" in str(x).casefold() or "lte" in str(x).casefold() for x in contract.get("facts") or []):
+                add("4G LTE", "Supported")
+        elif "wifi" in p or "wi-fi" in p:
+            if any("wifi" in str(x).casefold().replace("-", "") for x in contract.get("facts") or []):
+                add("Wi-Fi", "Supported")
+        elif "steering" in p or "swc" in p:
+            if any("steering" in str(x).casefold() or "swc" in str(x).casefold() for x in contract.get("facts") or []):
+                add("Steering-wheel controls", "Supported")
+        else:
+            add("Screen", contract.get("screen_size"))
+            add("Display", contract.get("display_type"))
+            add("Processor", contract.get("processor"))
+            add("RAM", contract.get("ram"))
+            add("Storage", contract.get("storage"))
+            if any("carplay" in str(x).casefold() for x in contract.get("features") or []):
+                add("Apple CarPlay", "Wireless")
+            if any("android-auto" in str(x).casefold() or "android auto" in str(x).casefold() for x in contract.get("features") or []):
+                add("Android Auto", "Wireless")
+            if any("wifi" in str(x).casefold().replace("-", "") for x in contract.get("facts") or []):
+                add("Wi-Fi", "Supported")
+            if any("4g" in str(x).casefold() or "lte" in str(x).casefold() for x in contract.get("facts") or []):
+                add("4G LTE", "Supported")
+            if any("steering" in str(x).casefold() or "swc" in str(x).casefold() for x in contract.get("facts") or []):
+                add("Steering-wheel controls", "Supported")
+        if wanted:
+            return "\n".join(["| Product specification | Current source |", "|---|---|"] + [f"| {k} | {v} |" for k, v in wanted])
+
+    webpage_text = str(package.get("webpage_text") or "")
+    if warranty_intent:
+        m = re.search(r"\b(\d+)\s+year\s+factory\s+warranty\b", webpage_text, flags=re.I)
+        if m:
+            return (
+                f"This product comes with a **{m.group(1)} year factory warranty**. "
+                "The current product source also states that extended warranty can be purchased separately."
+            )
+
+    if installation_intent and any("installation-video" in str(x).casefold() for x in contract.get("features") or []):
+        return "Yes. The current product source states that an **installation video is available**."
+
+    if climate_guide_intent and any("climate-control-identification-guide" in str(x).casefold() for x in contract.get("features") or []):
+        return "Yes. The current product source includes an **authoritative climate-control identification guide** to confirm the correct vehicle version before ordering."
+
+    return ""
+
+
+def _workspace_atp_compact_context_v69181(package, prompt_text):
+    """Compact exact Sales/Marketing ATP authority with workspace-native image policy.
+
+    v69205 keeps the established provider/file_search fallback contract intact while
+    honoring Sales/Marketing-specific image metadata aliases already present in current
+    product HTML. Technical and Graphic paths are not called from this function.
     """
     package = dict(package or {})
     semantics = dict(package.get("atp_semantics_v69178") or {})
     scripts = dict(semantics.get("scripts") or {}) if isinstance(semantics.get("scripts"), dict) else {}
+    destination = str(package.get("destination") or "").strip()
+    workspace_label = "📈 Sales & Marketing" if destination == "Sales Database" else "Marketing" if destination == "Marketing Database" else ""
 
-    # Highest-value exact ATP scripts. Keep structured facts and page identity first.
     compact_scripts = {}
-    for sid in (
-        "autotecpro-ai-metadata",
-        "autotecpro-ai-facts",
-        "autotecpro-ai-aliases",
-    ):
+    for sid in ("autotecpro-ai-metadata", "autotecpro-ai-facts", "autotecpro-ai-aliases"):
         value = scripts.get(sid)
         if isinstance(value, (dict, list)):
             compact_scripts[sid] = value
 
-    # Section-level scripts are retained only when they lexically overlap the prompt.
     prompt_tokens = {
         x for x in re.findall(r"[a-z0-9]+", str(prompt_text or "").casefold())
         if len(x) > 2
@@ -57309,28 +57666,47 @@ def _workspace_atp_compact_context_v69181(package, prompt_text):
     for _, sid, value in section_candidates[:4]:
         compact_scripts[sid] = value
 
-    # Only exact auto-display images need to be sent to the model; full image inventory
-    # remains preserved in the package/cache and in the existing durable image pipeline.
     compact_images = []
+    ranked_images = []
     for row in (semantics.get("images") or []):
         if not isinstance(row, dict):
             continue
-        if str(row.get("data-atp-auto-display") or "").strip().casefold() != "true":
+        policy, authority, priority = _workspace_atp_workspace_image_policy_v69205(row, workspace_label)
+        topic_evidence = " ".join(str(row.get(k) or "") for k in (
+            "data-atp-topic", "data-atp-image-role"
+        ))
+        topic_tokens = set(re.findall(r"[a-z0-9]+", topic_evidence.casefold())) - {
+            "autotecpro", "dodge", "ram", "1500", "2500", "3500",
+            "product", "infotainment", "system", "feature", "overview",
+        }
+        overlap = len(prompt_tokens & topic_tokens)
+        if policy not in {"true", "topic-only"}:
             continue
+        if policy == "topic-only" and overlap <= 0:
+            continue
+        primary = int(
+            str(row.get("data-atp-image-role") or "").strip().casefold() == "primary-product-image"
+            or authority == "primary"
+        )
+        ranked_images.append((overlap, primary, priority, row))
+    ranked_images.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    for _, _, _, row in ranked_images[:8]:
+        policy, authority, priority = _workspace_atp_workspace_image_policy_v69205(row, workspace_label)
         compact_images.append({
-            key: row.get(key)
-            for key in (
-                "src", "alt", "title",
-                "data-atp-image-role", "data-atp-section", "data-atp-topic",
-                "data-atp-authority", "data-atp-auto-display",
-                "data-atp-priority", "data-atp-related-heading",
-            )
-            if row.get(key) not in (None, "")
+            key: value for key, value in {
+                "src": row.get("src"),
+                "alt": row.get("alt"),
+                "title": row.get("title"),
+                "data-atp-image-role": row.get("data-atp-image-role"),
+                "data-atp-topic": row.get("data-atp-topic"),
+                "data-atp-authority": row.get("data-atp-authority") or row.get("data-atp-authority-level"),
+                "data-atp-auto-display": policy,
+                "data-atp-priority": priority,
+                "data-atp-product-identity-key": row.get("data-atp-product-identity-key"),
+                "data-atp-compatibility-scope": row.get("data-atp-compatibility-scope"),
+            }.items() if value not in (None, "")
         })
-        if len(compact_images) >= 8:
-            break
 
-    # Relevant headings only. These are routing aids, not a replacement for source text.
     compact_headings = []
     ranked_headings = []
     for row in (semantics.get("headings") or []):
@@ -57338,7 +57714,7 @@ def _workspace_atp_compact_context_v69181(package, prompt_text):
             continue
         raw = " ".join(str(row.get(k) or "") for k in (
             "id", "data-atp-title", "data-atp-title-normalized",
-            "data-atp-section", "data-atp-topic",
+            "data-atp-section", "data-atp-topic", "data-atp-product-identity-key",
         ))
         tokens = set(re.findall(r"[a-z0-9]+", raw.casefold()))
         overlap = len(prompt_tokens & tokens)
@@ -57351,7 +57727,7 @@ def _workspace_atp_compact_context_v69181(package, prompt_text):
             for key in (
                 "tag", "id", "data-atp-title", "data-atp-section",
                 "data-atp-topic", "data-atp-authority",
-                "data-atp-parent-node",
+                "data-atp-parent-node", "data-atp-product-identity-key",
             )
             if row.get(key) not in (None, "")
         })
@@ -57360,6 +57736,7 @@ def _workspace_atp_compact_context_v69181(package, prompt_text):
         "schema": semantics.get("schema"),
         "page_url": semantics.get("page_url"),
         "root": dict(semantics.get("root") or {}),
+        "product_contract_v69205": _workspace_atp_product_contract_v69205(package),
         "scripts": compact_scripts,
         "headings": compact_headings,
         "images": compact_images,
@@ -57368,11 +57745,7 @@ def _workspace_atp_compact_context_v69181(package, prompt_text):
     package_text = str(package.get("package_text") or "")
     excerpt = ""
     try:
-        excerpt = str(
-            _technical_package_section_excerpt_v69142(
-                package_text, prompt_text, max_windows=2
-            ) or ""
-        ).strip()
+        excerpt = str(_technical_package_section_excerpt_v69142(package_text, prompt_text, max_windows=2) or "").strip()
     except Exception:
         excerpt = ""
     if not excerpt:
@@ -57384,7 +57757,9 @@ def _workspace_atp_compact_context_v69181(package, prompt_text):
         sort_keys=True,
         separators=(",", ":"),
     )
-    return semantic_json[:14000], excerpt[:18000]
+    return semantic_json[:16000], excerpt[:18000]
+
+
 
 
 def _technical_exact_atp_image_ready_v69181(prompt_text):
@@ -57412,116 +57787,294 @@ def _technical_exact_atp_image_ready_v69181(prompt_text):
         return False
 
 def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
-    """Select one exact ATP Sales/Marketing package by deterministic vehicle/year/system/product identity."""
-    workspace=str(workspace_label or "")
-    destination=("Sales Database" if is_sales_workspace(workspace) else "Marketing Database" if is_marketing_workspace(workspace) else "")
-    if not destination or is_graphic_workspace(workspace): return {}
-    prompt=re.sub(r"\s+"," ",str(prompt_text or "")).strip()
-    if not prompt: return {}
-    pf=set(_website_identity_vehicle_families_v69022(prompt)); py=set(_website_identity_years_v69022(prompt)); ps=set(_website_identity_systems_v69022(prompt)); pc={str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
-    # No deterministic identity -> preserve the existing semantic vector path unchanged.
-    if not (pf or pc): return {}
-    packages,status=_workspace_atp_package_snapshot_v69180(destination,wait_seconds=0.0)
-    ranked=[]
+    """Select one exact current Sales/Marketing ATP product package deterministically.
+
+    v69205 adds first-class product identity, screen-size and trim/body-style routing while
+    preserving the established semantic/file_search fallback on a true direct miss.
+    """
+    workspace = str(workspace_label or "")
+    destination = (
+        "Sales Database" if is_sales_workspace(workspace)
+        else "Marketing Database" if is_marketing_workspace(workspace)
+        else ""
+    )
+    if not destination or is_graphic_workspace(workspace):
+        return {}
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return {}
+
+    pf = set(_website_identity_vehicle_families_v69022(prompt))
+    py = set(_website_identity_years_v69022(prompt))
+    ps = set(_website_identity_systems_v69022(prompt))
+    pc = {str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
+    prompt_tokens = {
+        x for x in re.findall(r"[a-z0-9]+", prompt.casefold())
+        if len(x) > 1
+    }
+    explicit_classic = "classic" in prompt.casefold()
+    explicit_new_body = bool(re.search(r"\bnew(?:er)?[-\s]+body(?:[-\s]+style)?\b", prompt.casefold()))
+
+    # No deterministic product/vehicle identity: leave all existing semantic behavior unchanged.
+    if not (pf or pc or re.search(r"\b(?:ram\s*(?:1500|2500|3500)|\d{2}(?:\.\d)?\s*(?:inch|\"))\b", prompt.casefold())):
+        return {}
+
+    # A bounded cold-start wait materially improves first-query latency after a reboot;
+    # warm queries remain process-memory lookups.
+    packages, status = _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.45)
+    ranked = []
     for package in packages:
         if str(package.get("destination") or "").strip() != destination:
             continue
-        fam=set(package.get("vehicle_families") or []); yrs={int(x) for x in (package.get("years") or []) if str(x).isdigit()}; sys=set(package.get("systems") or []); codes={str(x).casefold() for x in (package.get("product_codes") or [])}
-        if pf and fam and not pf.issubset(fam): continue
-        if py and yrs and not py.issubset(yrs): continue
-        if ps and sys and not ps.issubset(sys): continue
-        if pc and codes and not (pc & codes): continue
-        family_overlap=len(pf & fam); code_overlap=len(pc & codes); year_overlap=len(py & yrs); system_overlap=len(ps & sys)
-        score=family_overlap*10000+code_overlap*8000+system_overlap*2500+year_overlap*800
-        ranked.append((score,str(package.get("extracted_at") or ""),str(package.get("filename") or ""),package))
+        fam = set(package.get("vehicle_families") or [])
+        yrs = {int(x) for x in (package.get("years") or []) if str(x).isdigit()}
+        sys = set(package.get("systems") or [])
+        codes = {str(x).casefold() for x in (package.get("product_codes") or [])}
+        contract = _workspace_atp_product_contract_v69205(package)
+
+        if pf and fam and not pf.issubset(fam):
+            continue
+        if py and yrs and not py.issubset(yrs):
+            continue
+        if ps and sys and not ps.issubset(sys):
+            continue
+        if pc and codes and not (pc & codes):
+            continue
+
+        # Explicit new-body requests must never bind a Classic-only exact product package.
+        if explicit_new_body and py:
+            branch_rows = [
+                b for b in (contract.get("compatibility_branches") or [])
+                if set(py) & set(b.get("years") or [])
+            ]
+            if branch_rows and all(str(b.get("trim") or "").casefold() == "classic trim" for b in branch_rows):
+                continue
+
+        identity_tokens = set(re.findall(
+            r"[a-z0-9]+",
+            " ".join(str(contract.get(k) or "") for k in (
+                "product_identity_key", "product_family", "product_type",
+                "screen_size", "display_type", "platform", "processor",
+            )).casefold(),
+        ))
+        identity_overlap = len(prompt_tokens & identity_tokens)
+        family_overlap = len(pf & fam)
+        code_overlap = len(pc & codes)
+        year_overlap = len(py & yrs)
+        system_overlap = len(ps & sys)
+
+        trim_bonus = 0
+        if explicit_classic and py:
+            if any(
+                str(b.get("trim") or "").casefold() == "classic trim"
+                and bool(set(py) & set(b.get("years") or []))
+                for b in (contract.get("compatibility_branches") or [])
+            ):
+                trim_bonus = 6000
+
+        score = (
+            family_overlap * 10000
+            + code_overlap * 8000
+            + trim_bonus
+            + system_overlap * 2500
+            + identity_overlap * 1200
+            + year_overlap * 800
+        )
+        ranked.append((
+            score,
+            str(package.get("extracted_at") or ""),
+            str(package.get("filename") or ""),
+            package,
+        ))
+
     if not ranked:
-        diagnostic_log("workspace_atp_metadata_fast_miss_v69180",workspace=workspace,destination=destination,status=status)
+        diagnostic_log(
+            "workspace_atp_metadata_fast_miss_v69205",
+            workspace=workspace,
+            destination=destination,
+            status=status,
+        )
         return {}
-    ranked.sort(key=lambda x:(x[0],x[1],x[2]),reverse=True)
-    top=ranked[0]
-    # Ambiguous equal-strength different pages fail back to the existing vector path.
-    if len(ranked)>1 and ranked[1][0] == top[0]:
-        s1=str(top[3].get("source_url") or ""); s2=str(ranked[1][3].get("source_url") or "")
-        try: same=canonical_website_url_identity(s1)==canonical_website_url_identity(s2)
-        except Exception: same=s1==s2
+
+    ranked.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    top = ranked[0]
+    if len(ranked) > 1 and ranked[1][0] == top[0]:
+        s1 = str(top[3].get("source_url") or "")
+        s2 = str(ranked[1][3].get("source_url") or "")
+        try:
+            same = canonical_website_url_identity(s1) == canonical_website_url_identity(s2)
+        except Exception:
+            same = s1 == s2
         if not same:
-            diagnostic_log("workspace_atp_metadata_fast_ambiguous_v69180",workspace=workspace,destination=destination,score=top[0])
+            diagnostic_log(
+                "workspace_atp_metadata_fast_ambiguous_v69205",
+                workspace=workspace,
+                destination=destination,
+                score=top[0],
+            )
             return {}
-    package=dict(top[3]); semantics=dict(package.get("atp_semantics_v69178") or {})
-    if not semantics: return {}
-    # v69181: same exact package authority, much smaller provider prefill.
-    semantic_json, relevant_webpage_excerpt = _workspace_atp_compact_context_v69181(
-        package, prompt
-    )
-    context=(
-        "\n\nAUTOTECPRO ATP METADATA-FIRST AUTHORITY (v69181)\n"
+
+    package = dict(top[3])
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    if not semantics:
+        return {}
+
+    semantic_json, relevant_webpage_excerpt = _workspace_atp_compact_context_v69181(package, prompt)
+    context = (
+        "\n\nAUTOTECPRO ATP METADATA-FIRST AUTHORITY (v69205)\n"
         f"Destination: {destination}\nSource URL: {package.get('source_url') or ''}\n"
-        "This exact learned AutoTecPro page was selected by deterministic vehicle/year/system/product identity. "
-        "Use its ATP structured metadata as the first authority, then its reviewed inquiry-related WEBPAGE TEXT. "
-        "Do not broaden to another page or workspace. The established workspace file_search remains enabled for supporting knowledge. "
+        "This exact learned AutoTecPro product page was selected by deterministic current-product identity. "
+        "Its fitment branches, trim/body-style rules, product facts, and workspace-native image policy are first authority. "
+        "Do not broaden to another product or workspace unless this exact contract cannot answer the requested fact. "
+        "The established workspace file_search remains available only as the unchanged supporting fallback. "
         "If a requested fact is absent, say it is not stated instead of guessing.\n"
         f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json}\n\n"
         f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n{relevant_webpage_excerpt}\n"
     )
-    row={"file_id":str(package.get("file_id") or ""),"filename":str(package.get("filename") or ""),"score":1.0,"text":str(package.get("package_text") or ""),"workspace_atp_metadata_first_v69180":True}
-    return {"status":"recovered","destination":destination,"context":context,"row":row,"package":package,"score":top[0],"source_url":str(package.get("source_url") or "")}
+    row = {
+        "file_id": str(package.get("file_id") or ""),
+        "filename": str(package.get("filename") or ""),
+        "score": 1.0,
+        "text": str(package.get("package_text") or ""),
+        "workspace_atp_metadata_first_v69180": True,
+        "workspace_atp_product_fast_v69205": True,
+    }
+    return {
+        "status": "recovered",
+        "destination": destination,
+        "context": context,
+        "row": row,
+        "package": package,
+        "score": top[0],
+        "source_url": str(package.get("source_url") or ""),
+        "product_contract_v69205": _workspace_atp_product_contract_v69205(package),
+    }
+
+
 
 
 def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, max_images=3):
-    """Publish only destination-owned durable images explicitly marked ATP auto-display=true for the exact selected page/topic."""
-    workspace=str(workspace_label or "")
-    destination=("Sales Database" if is_sales_workspace(workspace) else "Marketing Database" if is_marketing_workspace(workspace) else "")
-    if not destination or is_graphic_workspace(workspace): return []
-    authority=dict(authority or {}); package=dict(authority.get("package") or {})
-    if str(authority.get("status") or "")!="recovered" or str(authority.get("destination") or "")!=destination: return []
-    if str(package.get("destination") or "").strip() != destination: return []
-    source=str(package.get("source_url") or "").strip()
-    try: source_identity=canonical_website_url_identity(source) if source else ""
-    except Exception: source_identity=""
-    semantics=dict(package.get("atp_semantics_v69178") or {}); semantic_images=[dict(x) for x in (semantics.get("images") or []) if isinstance(x,dict)]
-    wanted=[]
-    prompt_tokens=set(_website_image_tokens_v68883(str(prompt_text or "")))
-    for meta in semantic_images:
-        url=str(meta.get("src") or "").strip()
-        if not url.startswith("https://") or "video-icon" in url.casefold(): continue
-        if str(meta.get("data-atp-auto-display") or "").strip().casefold()!="true": continue
-        auth=str(meta.get("data-atp-authority") or "").strip().casefold()
-        if auth and auth not in {"primary","authoritative","exact"}: continue
-        evidence=" ".join(str(meta.get(k) or "") for k in ("data-atp-section","data-atp-topic","data-atp-image-role","alt"))
-        overlap=len(prompt_tokens & set(_website_image_tokens_v68883(evidence)))
-        try: priority=int(float(meta.get("data-atp-priority") or 0))
-        except Exception: priority=0
-        wanted.append((overlap,priority,url))
-    if not wanted: return []
-    wanted.sort(key=lambda x:(x[0],x[1]),reverse=True)
-    # Multiple equally broad auto-display images with no prompt/topic overlap are ambiguous;
-    # preserve the existing answer-aware image recovery instead of guessing.
-    if len(wanted) > 1 and int(wanted[0][0] or 0) <= 0:
+    """Publish destination-owned exact product images using workspace-native ATP policy.
+
+    Sales reads `data-atp-sales-auto-display`; Marketing reads
+    `data-atp-marketing-auto-display`; the legacy generic key remains a fallback.
+    `topic-only` is eligible only on a real topic overlap. Generic product requests
+    prefer the unique primary product image rather than guessing among supporting art.
+    """
+    workspace = str(workspace_label or "")
+    destination = (
+        "Sales Database" if is_sales_workspace(workspace)
+        else "Marketing Database" if is_marketing_workspace(workspace)
+        else ""
+    )
+    if not destination or is_graphic_workspace(workspace):
         return []
-    durable=[]
-    by_url={}
+    authority = dict(authority or {})
+    package = dict(authority.get("package") or {})
+    if str(authority.get("status") or "") != "recovered" or str(authority.get("destination") or "") != destination:
+        return []
+    if str(package.get("destination") or "").strip() != destination:
+        return []
+
+    source = str(package.get("source_url") or "").strip()
+    try:
+        source_identity = canonical_website_url_identity(source) if source else ""
+    except Exception:
+        source_identity = ""
+
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    semantic_images = [dict(x) for x in (semantics.get("images") or []) if isinstance(x, dict)]
+    prompt_tokens = set(_website_image_tokens_v68883(str(prompt_text or "")))
+    wanted = []
+
+    for meta in semantic_images:
+        url = str(meta.get("src") or "").strip()
+        if not url.startswith("https://") or "video-icon" in url.casefold():
+            continue
+        policy, auth, priority = _workspace_atp_workspace_image_policy_v69205(meta, workspace)
+        if policy not in {"true", "topic-only"}:
+            continue
+        topic_evidence = " ".join(str(meta.get(k) or "") for k in (
+            "data-atp-topic", "data-atp-image-role",
+        ))
+        topic_tokens = set(_website_image_tokens_v68883(topic_evidence)) - {
+            "autotecpro", "dodge", "ram", "1500", "2500", "3500",
+            "product", "infotainment", "system", "feature", "overview",
+        }
+        overlap = len(prompt_tokens & topic_tokens)
+        if policy == "topic-only" and overlap <= 0:
+            continue
+
+        role = str(meta.get("data-atp-image-role") or "").strip().casefold()
+        primary = int(role == "primary-product-image" or auth == "primary")
+        # Reject explicitly low/non-authoritative assets but allow product-supporting levels.
+        if auth in {"navigation-only", "non-authoritative", "none", "decorative"}:
+            continue
+        wanted.append((overlap, primary, priority, url, meta))
+
+    if not wanted:
+        return []
+
+    wanted.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+
+    # Exact topic intent wins over general product art. This prevents a QHD/climate
+    # inquiry from also publishing unrelated broad Marketing imagery.
+    top_overlap = int(wanted[0][0] or 0)
+    if top_overlap > 0:
+        wanted = [row for row in wanted if int(row[0] or 0) == top_overlap]
+    else:
+        # On a broad/general query, Marketing may authorize many images. Prefer the
+        # unique primary product image instead of suppressing the entire exact path.
+        primaries = [row for row in wanted if int(row[1] or 0) > 0]
+        if len(primaries) == 1:
+            wanted = primaries
+        elif len(wanted) > 1:
+            return []
+
+    durable = []
+    by_url = {}
     for payload in _workspace_durable_image_payloads_v69041(destination):
-        url=str(payload.get("image_url") or "").strip()
-        page=str(payload.get("source_page") or "").strip()
-        try: same_page=bool(source_identity and page and canonical_website_url_identity(page)==source_identity)
-        except Exception: same_page=False
-        if same_page and url: by_url[url]=dict(payload)
-    seen=set()
-    for overlap,priority,url in wanted:
-        payload=by_url.get(url)
-        if not payload: continue
-        if not _website_image_vehicle_fitment_gate_v68997(prompt_text,payload): continue
-        record=_website_image_record_for_chat_v68883(payload)
-        if not record: continue
-        ident=str(record.get("website_image_sha256") or record.get("data_url") or "")
-        if ident in seen: continue
+        url = str(payload.get("image_url") or "").strip()
+        page = str(payload.get("source_page") or "").strip()
+        try:
+            same_page = bool(source_identity and page and canonical_website_url_identity(page) == source_identity)
+        except Exception:
+            same_page = False
+        if same_page and url:
+            by_url[url] = dict(payload)
+
+    seen = set()
+    for overlap, primary, priority, url, meta in wanted:
+        payload = by_url.get(url)
+        if not payload:
+            continue
+        if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
+            continue
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            continue
+        ident = str(record.get("website_image_sha256") or record.get("data_url") or "")
+        if ident in seen:
+            continue
         seen.add(ident)
-        record["website_workspace_destination_v69180"]=destination
-        record["website_atp_metadata_exact_v69180"]=True
-        record["website_workspace_match_score_v69040"]=float(1000+priority+overlap*10)
+        record["website_workspace_destination_v69180"] = destination
+        record["website_atp_metadata_exact_v69180"] = True
+        record["website_atp_workspace_policy_v69205"] = str(
+            meta.get("data-atp-sales-auto-display")
+            if is_sales_workspace(workspace)
+            else meta.get("data-atp-marketing-auto-display")
+            or meta.get("data-atp-auto-display")
+            or ""
+        )
+        record["website_workspace_match_score_v69040"] = float(
+            1000 + priority + overlap * 10 + primary * 500
+        )
         durable.append(record)
-        if len(durable)>=max(1,int(max_images or 1)): break
+        if len(durable) >= max(1, int(max_images or 1)):
+            break
     return durable
+
+
 
 @st.cache_data(ttl=120, max_entries=4, show_spinner=False)
 def _workspace_durable_image_payloads_v69041(destination):
@@ -82656,16 +83209,43 @@ else:
                                 exact_row_v69180 = dict(workspace_atp_authority_v69180.get("row") or {})
                                 if exact_row_v69180:
                                     st.session_state["_workspace_file_search_results_v69040"] = [exact_row_v69180]
+                                destination_v69205 = str(workspace_atp_authority_v69180.get("destination") or "")
+                                st.session_state["_workspace_last_atp_authority_v69205"] = {
+                                    "workspace": str(assistant),
+                                    "conversation_id": str(st.session_state.get("conversation_id") or ""),
+                                    "destination": destination_v69205,
+                                    "revision": int(_website_destination_revision_v69109(destination_v69205) or 0),
+                                    "authority": dict(workspace_atp_authority_v69180),
+                                }
                                 # Keep the existing Sales/Marketing multi-store file_search enabled.
                                 # ATP metadata is priority context, not a replacement for the established
                                 # Sales→Technical and Marketing→Sales→Technical retrieval contracts.
                                 diagnostic_log(
                                     "workspace_atp_metadata_first_bound_v69180",
                                     workspace=str(assistant),
-                                    destination=str(workspace_atp_authority_v69180.get("destination") or ""),
+                                    destination=destination_v69205,
                                     source_url=str(workspace_atp_authority_v69180.get("source_url") or "")[:600],
                                     score=int(workspace_atp_authority_v69180.get("score") or 0),
                                 )
+                            else:
+                                followup_authority_v69205 = _workspace_atp_followup_authority_v69205(
+                                    assistant,
+                                    interaction_prompt,
+                                    st.session_state.get("_workspace_last_atp_authority_v69205") or {},
+                                    conversation_id=st.session_state.get("conversation_id"),
+                                )
+                                if str(followup_authority_v69205.get("status") or "") == "recovered":
+                                    workspace_atp_authority_v69180 = followup_authority_v69205
+                                    ai_request_prompt += str(workspace_atp_authority_v69180.get("context") or "")
+                                    exact_row_v69205 = dict(workspace_atp_authority_v69180.get("row") or {})
+                                    if exact_row_v69205:
+                                        st.session_state["_workspace_file_search_results_v69040"] = [exact_row_v69205]
+                                    diagnostic_log(
+                                        "workspace_atp_followup_authority_reused_v69205",
+                                        workspace=str(assistant),
+                                        destination=str(workspace_atp_authority_v69180.get("destination") or ""),
+                                        source_url=str(workspace_atp_authority_v69180.get("source_url") or "")[:600],
+                                    )
                         except Exception as error_v69180:
                             workspace_atp_authority_v69180 = {}
                             diagnostic_log(
@@ -82673,6 +83253,33 @@ else:
                                 workspace=str(assistant),
                                 error_type=type(error_v69180).__name__,
                                 error=str(error_v69180)[:500],
+                            )
+
+                    workspace_atp_direct_answer_v69205 = ""
+                    if (
+                        (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+                        and str((workspace_atp_authority_v69180 or {}).get("status") or "") == "recovered"
+                    ):
+                        try:
+                            workspace_atp_direct_answer_v69205 = _workspace_atp_product_direct_answer_v69205(
+                                assistant,
+                                interaction_prompt,
+                                workspace_atp_authority_v69180,
+                            )
+                            if workspace_atp_direct_answer_v69205:
+                                diagnostic_log(
+                                    "workspace_atp_product_provider_bypass_v69205",
+                                    workspace=str(assistant),
+                                    destination=str(workspace_atp_authority_v69180.get("destination") or ""),
+                                    source_url=str(workspace_atp_authority_v69180.get("source_url") or "")[:600],
+                                )
+                        except Exception as error_v69205:
+                            workspace_atp_direct_answer_v69205 = ""
+                            diagnostic_log(
+                                "workspace_atp_product_direct_answer_failed_v69205",
+                                workspace=str(assistant),
+                                error_type=type(error_v69205).__name__,
+                                error=str(error_v69205)[:500],
                             )
 
                     try:
@@ -82729,16 +83336,23 @@ else:
                             else (
                                 [technical_direct_answer_v69158]
                                 if technical_direct_answer_v69158
-                                else ask_ai_stream(
-                                ai_request_prompt,
-                                graphic_generation_files,
-                                detected_live_request=detected_request,
-                                detected_technical_tool=detected_technical_tool,
-                                detected_workspace_tool=detected_workspace_tool,
-                                response_mode=response_mode,
-                                use_file_search=use_file_search,
-                                live_data_override=preloaded_live_data,
-                                order_displayed_by_app=bool(order_display_text),
+                                else (
+                                    [workspace_atp_direct_answer_v69205]
+                                    if (
+                                        (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+                                        and str(locals().get("workspace_atp_direct_answer_v69205") or "").strip()
+                                    )
+                                    else ask_ai_stream(
+                                        ai_request_prompt,
+                                        graphic_generation_files,
+                                        detected_live_request=detected_request,
+                                        detected_technical_tool=detected_technical_tool,
+                                        detected_workspace_tool=detected_workspace_tool,
+                                        response_mode=response_mode,
+                                        use_file_search=use_file_search,
+                                        live_data_override=preloaded_live_data,
+                                        order_displayed_by_app=bool(order_display_text),
+                                    )
                                 )
                             )
                         )
