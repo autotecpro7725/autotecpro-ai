@@ -1,4 +1,4 @@
-# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
+# AutoTecPro AI v69217 FINAL PRODUCTION — restore v69050 file_search answer authority and remove impossible assistant-file image download fallback\n# AutoTecPro AI v69216 FINAL PRODUCTION — demote synthetic compiled incompleteness and restore v69050 file_search provider authority for generic Technical multi-source recovery\n# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
 # AutoTecPro AI v69214 FINAL PRODUCTION — query-scoped legacy Technical source migration; hosted assistant-file download failure removed from direct authority path.\n# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
@@ -55946,11 +55946,17 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
         if file_text:
             payloads = _website_structured_image_payloads_from_file_v69012(file_text, filename, file_id)
             payloads.extend(_website_legacy_html_payloads_from_file_v69012(file_text, filename, file_id))
+        # v69217: assistant-purpose files cannot be downloaded through files.content
+        # in the deployed OpenAI API. The exact file_search result snippet is the only
+        # allowed provider-side image evidence here. If that snippet lacks a structured
+        # image payload, skip it and let the dedicated file_search image query retrieve
+        # a better snippet instead of issuing a guaranteed-400 file download.
         if not payloads and file_id:
-            full_text = _website_file_full_text_v69012(file_id)
-            if full_text:
-                payloads = _website_structured_image_payloads_from_file_v69012(full_text, filename, file_id)
-                payloads.extend(_website_legacy_html_payloads_from_file_v69012(full_text, filename, file_id))
+            diagnostic_log(
+                "technical_image_full_file_download_skipped_v69217",
+                file_id=file_id[:160],
+                filename=filename[:220],
+            )
         if not payloads:
             continue
         for payload in payloads:
@@ -84159,6 +84165,45 @@ else:
                             technical_compiled_preflight_v69198 = (
                                 hydrated_preflight_v69211
                             )
+                    if (
+                        str(technical_compiled_preflight_v69198.get("status") or "") == "recovered"
+                        and bool(
+                            (
+                                technical_compiled_preflight_v69198.get("authority")
+                                or {}
+                            ).get("current_source_set_incomplete_v69214")
+                            or (
+                                technical_compiled_preflight_v69198.get("authority")
+                                or {}
+                            ).get("current_source_set_incomplete_v69213")
+                            or (
+                                technical_compiled_preflight_v69198.get("authority")
+                                or {}
+                            ).get("current_source_set_incomplete_v69212")
+                        )
+                    ):
+                        diagnostic_log(
+                            "technical_compiled_incomplete_demoted_to_v69050_provider_v69216",
+                            family=str(
+                                (
+                                    technical_compiled_preflight_v69198.get("authority")
+                                    or {}
+                                ).get("vehicle_family")
+                                or ""
+                            )[:120],
+                            section=str(
+                                (
+                                    technical_compiled_preflight_v69198.get("authority")
+                                    or {}
+                                ).get("section_title")
+                                or ""
+                            )[:300],
+                        )
+                        technical_compiled_preflight_v69198 = {}
+                        # The proven v69050 path is file_search-grounded. Never let a
+                        # synthetic compiled miss disable retrieval for this turn.
+                        use_file_search = True
+
                     if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered":
                         diagnostic_log(
                             "technical_compiled_preflight_hit_v69198",
@@ -86529,6 +86574,50 @@ else:
                                     )[:300],
                                 )
 
+                        technical_provider_prompt_v69216 = ai_request_prompt
+                        if (
+                            assistant == "🔧 Technical Support"
+                            and not technical_direct_answer_v69158
+                            and not technical_current_source_safe_answer_v69164
+                            and bool(use_file_search)
+                            and _technical_configuration_query_v69155(
+                                technical_request_prompt_v68879
+                            )
+                            and not set(
+                                _website_identity_systems_v69022(
+                                    technical_request_prompt_v68879
+                                )
+                            )
+                            and not set(
+                                _website_image_product_codes_v69020(
+                                    technical_request_prompt_v68879
+                                )
+                            )
+                        ):
+                            technical_provider_prompt_v69216 = (
+                                str(ai_request_prompt or "")
+                                + "\n\n"
+                                + """
+AUTOTECPRO TECHNICAL GENERIC MULTI-SOURCE RECOVERY — LIVE FILE_SEARCH AUTHORITY:
+- Search the Technical Support Vector Store for ALL current AutoTecPro source documents matching the user's exact vehicle family/model and requested year.
+- Do not stop after the first matching file.
+- Treat each distinct current factory-system / product-series / configuration branch as a valid parallel match when its applicability includes the exact requested year.
+- Prefer sources explicitly marked current/current-authoritative/current-source=true.
+- Exclude historical, superseded, deprecated, inactive, non-current, wrong-year, wrong-vehicle, and wrong-system sources.
+- Never infer that one configuration is the only valid branch merely because it appears first in retrieval.
+- For a generic model/year request, publish every verified current matching branch in the same answer.
+- Preserve exact configuration values from the retrieved source. Do not merge settings across branches.
+- If retrieval cannot establish the complete current matching set, say that completeness could not be verified instead of presenting one branch as complete.
+- Do not invent an image URL. Related images are published later only by AutoTecPro's deterministic image authority.
+"""
+                            )
+                            diagnostic_log(
+                                "technical_v69050_generic_multisource_provider_enabled_v69216",
+                                prompt=str(
+                                    technical_request_prompt_v68879 or ""
+                                )[:300],
+                            )
+
                         stream_source_v69158 = (
                             [technical_current_source_safe_answer_v69164]
                             if technical_current_source_safe_answer_v69164
@@ -86542,7 +86631,7 @@ else:
                                         and str(locals().get("workspace_atp_direct_answer_v69205") or "").strip()
                                     )
                                     else ask_ai_stream(
-                                        ai_request_prompt,
+                                        technical_provider_prompt_v69216,
                                         graphic_generation_files,
                                         detected_live_request=detected_request,
                                         detected_technical_tool=detected_technical_tool,
