@@ -70496,20 +70496,180 @@ def _technical_resolve_family_year_v69199(prompt_text, store="", allow_registry=
     return "", None
 
 
-def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
-    """Completeness-safe Technical cold hydrate from a proven package catalogue.
 
-    v69212 removes image-index URLs from mandatory package enumeration. Generic
-    model/year queries now obtain completeness only from:
-      1) a generation-proven ready prewarm catalogue,
-      2) the same in-flight full-catalogue future after a bounded wait, or
-      3) a bounded synchronous full-catalogue build if no usable future exists.
+@st.cache_data(ttl=2, max_entries=256, show_spinner=False)
+def _technical_durable_snapshot_scope_v69213(vector_store_id, family, year):
+    """Enumerate the complete durable Technical snapshot set for one family/year.
 
-    Image metadata is used only after product/source authority is established.
+    This is the cold-query authority in v69213. It reads compact snapshot metadata
+    from Supabase and decompresses only packages that match the requested vehicle
+    family/year. It does not wait for global Technical prewarm and does not use the
+    OpenAI image index or files.content endpoint as package-completeness authority.
     """
-    prompt = _technical_settings_routing_prompt_v69117(
-        prompt_text
+    store = str(vector_store_id or "").strip()
+    family = re.sub(r"[^a-z0-9]+", "", str(family or "").casefold())
+    try:
+        year = int(year)
+    except Exception:
+        return {"complete": False, "rows": [], "reason": "INVALID_SCOPE"}
+    if not family or year < 1980 or year > 2100:
+        return {"complete": False, "rows": [], "reason": "INVALID_SCOPE"}
+
+    try:
+        mode, columns, key_col, value_col, time_col = (
+            _technical_active_authority_schema_v69164()
+        )
+        wanted = [
+            x
+            for x in (
+                "id",
+                key_col,
+                value_col,
+                "solution",
+                "approved_answer",
+                "source_type",
+                "openai_file_id",
+                "vector_store_id",
+                "updated_at",
+                "created_at",
+            )
+            if x and (not columns or x in columns)
+        ]
+        query = supabase.table("learned_knowledge").select(
+            ",".join(dict.fromkeys(wanted))
+        )
+        if "source_type" in columns:
+            query = query.eq(
+                "source_type",
+                "technical_durable_snapshot_v69171",
+            )
+        rows = list(
+            query.like(
+                key_col,
+                TECHNICAL_DURABLE_SNAPSHOT_PREFIX_V69171 + "%",
+            )
+            .order(time_col, desc=True)
+            .limit(4000)
+            .execute().data
+            or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "technical_scoped_snapshot_index_read_failed_v69213",
+            family=family,
+            year=year,
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return {
+            "complete": False,
+            "rows": [],
+            "reason": "SNAPSHOT_INDEX_READ_FAILED",
+        }
+
+    matches = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        raw = str(
+            row.get(value_col)
+            or row.get("solution")
+            or row.get("approved_answer")
+            or ""
+        ).strip()
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            continue
+        if (
+            not isinstance(payload, dict)
+            or int(payload.get("schema_version") or 0) != 69171
+        ):
+            continue
+
+        payload_store = str(
+            payload.get("vector_store_id")
+            or row.get("vector_store_id")
+            or ""
+        ).strip()
+        if store and payload_store and payload_store != store:
+            continue
+
+        families = {
+            re.sub(
+                r"[^a-z0-9]+",
+                "",
+                str(x or "").casefold(),
+            )
+            for x in (payload.get("vehicle_families") or [])
+            if str(x or "").strip()
+        }
+        years = set()
+        for raw_year in payload.get("years") or []:
+            try:
+                years.add(int(raw_year))
+            except Exception:
+                pass
+        if family not in families or year not in years:
+            continue
+
+        payload = dict(payload)
+        payload["_row_id_v69213"] = row.get("id")
+        payload["_row_time_v69213"] = str(
+            row.get("updated_at")
+            or row.get("created_at")
+            or ""
+        )
+        matches.append(payload)
+
+    # Same source URL is one durable package identity. Keep the newest verified
+    # snapshot row for that source while preserving different overlapping pages.
+    best = {}
+    for payload in matches:
+        source_url = str(payload.get("source_url") or "").strip()
+        try:
+            key = canonical_website_url_identity(source_url)
+        except Exception:
+            key = source_url.casefold()
+        if not key:
+            continue
+        rank = (
+            str(payload.get("extracted_at") or ""),
+            str(payload.get("_row_time_v69213") or ""),
+            str(payload.get("file_id") or ""),
+        )
+        old = best.get(key)
+        if old is None or rank > old[0]:
+            best[key] = (rank, payload)
+
+    output = [value[1] for value in best.values()]
+    output.sort(
+        key=lambda payload: (
+            str(payload.get("extracted_at") or ""),
+            str(payload.get("_row_time_v69213") or ""),
+            str(payload.get("file_id") or ""),
+        ),
+        reverse=True,
     )
+    diagnostic_log(
+        "technical_scoped_snapshot_index_ready_v69213",
+        family=family,
+        year=year,
+        rows=len(output),
+    )
+    return {"complete": True, "rows": output, "reason": "READY"}
+
+
+def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
+    """Fast query-scoped Technical hydrate from durable current package snapshots.
+
+    v69213 removes the global-prewarm dependency from user-facing model/year
+    configuration queries. The user's vehicle family/year is resolved first, then
+    only durable package snapshots for that exact scope are decoded and verified.
+
+    Global Technical prewarm remains a background performance optimization only.
+    """
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
     clean_store = str(store or "").strip()
     family, year = _technical_resolve_family_year_v69199(
         prompt,
@@ -70539,7 +70699,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             "retry shortly before relying on a setting."
         )
         diagnostic_log(
-            "technical_current_source_set_incomplete_v69212",
+            "technical_current_source_set_incomplete_v69213",
             family=family,
             year=int(year),
             reason=str(reason or "")[:180],
@@ -70560,14 +70720,14 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                     "Current Technical Source Set Temporarily Unavailable"
                 ),
                 "section_id": (
-                    "current-source-set-incomplete-v69212"
+                    "current-source-set-incomplete-v69213"
                 ),
                 "section_text": message,
                 "branch_paths": [],
                 "selected_image_urls_v69143": [],
                 "selected_segments_v69158": [],
                 "compiled_runtime_contract_v69198": True,
-                "current_source_set_incomplete_v69212": True,
+                "current_source_set_incomplete_v69213": True,
             },
             "context": "",
             "rows": [],
@@ -70575,29 +70735,28 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             "compiled_contract_v69198": True,
             "direct_answer_meta_v69199": {
                 "eligible": True,
-                "current_source_set_incomplete_v69212": True,
+                "current_source_set_incomplete_v69213": True,
             },
         }
-
-    revision = _website_destination_revision_v69109(
-        "Technical Support Database"
-    )
 
     def package_matches(package):
         if not isinstance(package, dict):
             return False
         package_families = {
-            str(x).casefold().strip()
-            for x in (
-                package.get("vehicle_families") or []
+            re.sub(
+                r"[^a-z0-9]+",
+                "",
+                str(x or "").casefold(),
             )
-            if str(x).strip()
+            for x in (package.get("vehicle_families") or [])
+            if str(x or "").strip()
         }
-        package_years = {
-            int(x)
-            for x in (package.get("years") or [])
-            if str(x).strip().isdigit()
-        }
+        package_years = set()
+        for raw_year in package.get("years") or []:
+            try:
+                package_years.add(int(raw_year))
+            except Exception:
+                pass
         if family not in package_families:
             return False
         if int(year) not in package_years:
@@ -70613,13 +70772,10 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             for x in (package.get("product_codes") or [])
             if str(x).strip()
         }
-
         if (
             prompt_systems
             and package_systems
-            and not prompt_systems.issubset(
-                package_systems
-            )
+            and not prompt_systems.issubset(package_systems)
         ):
             return False
         if (
@@ -70666,226 +70822,223 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             }
         )
 
-    def complete_catalogue():
-        """Return only a full catalogue proven complete for this revision."""
-        _technical_package_prewarm_start_v69119(
+    scope = dict(
+        _technical_durable_snapshot_scope_v69213(
             clean_store,
-            revision,
+            family,
+            int(year),
         )
-        state = _technical_package_prewarm_state_v69119()
-        key = _technical_package_prewarm_key_v69119(
-            clean_store,
-            revision,
+        or {}
+    )
+    if not bool(scope.get("complete")):
+        return safe_incomplete(
+            str(scope.get("reason") or "SCOPED_INDEX_UNAVAILABLE")
         )
 
-        with state["lock"]:
-            same_key = state.get("key") == key
-            status = str(state.get("status") or "")
-            if same_key and status == "ready":
-                return [
-                    dict(item)
-                    for item in (state.get("packages") or [])
-                    if isinstance(item, dict)
-                ], "PREWARM_READY"
-            future = (
-                state.get("future")
-                if same_key
-                else None
+    payloads = [
+        dict(x)
+        for x in (scope.get("rows") or [])
+        if isinstance(x, dict)
+    ]
+
+    recovered = []
+    rejected = []
+    for payload in payloads:
+        decoded = _technical_durable_snapshot_decode_v69171(
+            payload,
+            expected_source_url=str(
+                payload.get("source_url") or ""
+            ),
+        )
+        if not decoded:
+            rejected.append(
+                (
+                    str(payload.get("source_url") or ""),
+                    "SNAPSHOT_DECODE_FAILED",
+                )
             )
+            continue
 
-        # Cold first-query path: wait on the exact same full-catalogue build
-        # already started at startup. This avoids duplicate vector-store scans.
-        if future is not None:
+        package = _technical_package_from_text_v69121(
+            str(decoded.get("file_id") or ""),
+            str(decoded.get("filename") or ""),
+            str(decoded.get("package_text") or ""),
+        )
+        if not isinstance(package, dict):
+            rejected.append(
+                (
+                    str(decoded.get("source_url") or ""),
+                    "PACKAGE_PARSE_FAILED",
+                )
+            )
+            continue
+
+        if not package_matches(package):
+            # Explicit system/product queries legitimately filter other current
+            # branches from the same family/year.
+            continue
+        if not source_current(package):
+            continue
+        recovered.append(package)
+
+    # Registry rows are a migration bridge for any source that has current scope
+    # metadata but whose durable snapshot row was not included in the snapshot
+    # scan. Only successfully recovered, scope-matching packages are added.
+    try:
+        registry_rows = list(
+            _technical_registry_rows_v69162(clean_store) or []
+        )
+    except Exception:
+        registry_rows = []
+
+    known_sources = set()
+    for package in recovered:
+        source_url = str(package.get("source_url") or "").strip()
+        try:
+            known_sources.add(
+                canonical_website_url_identity(source_url)
+            )
+        except Exception:
+            known_sources.add(source_url.casefold())
+
+    for row in registry_rows:
+        if not isinstance(row, dict):
+            continue
+        row_families = {
+            re.sub(
+                r"[^a-z0-9]+",
+                "",
+                str(x or "").casefold(),
+            )
+            for x in (row.get("vehicle_families") or [])
+            if str(x or "").strip()
+        }
+        row_years = set()
+        for raw_year in row.get("years") or []:
             try:
-                future.result(timeout=5.0)
+                row_years.add(int(raw_year))
             except Exception:
                 pass
+        if family not in row_families or int(year) not in row_years:
+            continue
 
-            with state["lock"]:
-                if (
-                    state.get("key") == key
-                    and str(state.get("status") or "")
-                    == "ready"
-                    and state.get("packages")
-                ):
-                    return [
-                        dict(item)
-                        for item in (
-                            state.get("packages") or []
-                        )
-                        if isinstance(item, dict)
-                    ], "PREWARM_COMPLETED_AFTER_WAIT"
+        row_systems = {
+            str(x).strip()
+            for x in (row.get("systems") or [])
+            if str(x).strip()
+        }
+        row_codes = {
+            str(x).strip().casefold()
+            for x in (row.get("product_codes") or [])
+            if str(x).strip()
+        }
+        if (
+            prompt_systems
+            and row_systems
+            and not prompt_systems.issubset(row_systems)
+        ):
+            continue
+        if (
+            prompt_codes
+            and row_codes
+            and not (prompt_codes & row_codes)
+        ):
+            continue
 
-                future_still_running = bool(
-                    state.get("key") == key
-                    and state.get("future") is not None
-                    and not state.get("future").done()
-                )
-
-            # Do not launch a duplicate expensive full catalogue build while
-            # the process-wide build is still actively running.
-            if future_still_running:
-                return [], "PREWARM_STILL_RUNNING"
-
-        # No usable full build exists. Perform one synchronous complete catalogue
-        # build. The catalogue builder is concurrent and atomic in v69212.
+        source_url = str(row.get("source_url") or "").strip()
         try:
-            packages = list(
-                _technical_admin_website_package_catalog_v69113(
-                    clean_store,
-                    int(revision or 0),
-                )
-                or []
-            )
+            source_key = canonical_website_url_identity(source_url)
         except Exception:
-            packages = []
-        if not packages:
-            return [], "DIRECT_FULL_CATALOG_UNAVAILABLE"
+            source_key = source_url.casefold()
+        if not source_key or source_key in known_sources:
+            continue
 
-        # Publish the completed generation back into the process-wide state so
-        # this cold request also warms subsequent Streamlit reruns/users.
-        try:
-            shared_generation = (
-                _technical_vector_store_generation_v69161(
-                    clean_store,
-                    max_age_seconds=0.0,
-                )
-            )
-        except Exception:
-            shared_generation = ""
-
-        with state["lock"]:
-            state.update({
-                "key": key,
-                "status": "ready",
-                "packages": [
-                    dict(item)
-                    for item in packages
-                    if isinstance(item, dict)
-                ],
-                "error": "",
-                "completed_at": time.monotonic(),
-            })
-            if shared_generation:
-                state["shared_generation_v69161"] = (
-                    shared_generation
-                )
-
-        try:
-            _technical_registry_upsert_packages_v69162(
-                packages,
-                clean_store,
-            )
-        except Exception:
-            pass
-
-        return packages, "DIRECT_FULL_CATALOG"
-
-    packages, catalogue_route = complete_catalogue()
-
-    if not packages:
-        if generic_scope:
-            return safe_incomplete(catalogue_route)
-
-        # Explicit system/product query may use the old exact active pointer,
-        # but only after validating the requested discriminator.
-        pointer = dict(
-            _technical_active_authority_row_v69164(
-                family,
-                year,
-                clean_store,
-            )
-            or {}
-        )
-        if not pointer:
-            return safe_incomplete(
-                catalogue_route or "NO_EXPLICIT_POINTER"
-            )
-
-        source_url = str(
-            pointer.get("source_url") or ""
-        ).strip()
-        expected_sha = str(
-            pointer.get("snapshot_sha256_v69171") or ""
-        ).strip()
-        snapshot = dict(
-            _technical_durable_snapshot_recover_v69171(
-                source_url,
-                clean_store,
-                expected_sha256=expected_sha,
-            )
-            or {}
+        snapshot = _technical_durable_snapshot_recover_v69171(
+            source_url,
+            clean_store,
         )
         if not snapshot:
-            return safe_incomplete(
-                "EXPLICIT_POINTER_SNAPSHOT_UNAVAILABLE",
-                attempted=1,
-                recovered=0,
+            # A registry row claims this exact source is part of the current
+            # scope, so a missing durable snapshot is a real completeness failure.
+            rejected.append(
+                (source_url, "REGISTRY_SNAPSHOT_UNAVAILABLE")
             )
+            continue
         package = _technical_package_from_text_v69121(
             str(
                 snapshot.get("file_id")
-                or pointer.get("file_id")
+                or row.get("file_id")
                 or ""
             ),
             str(
                 snapshot.get("filename")
-                or pointer.get("filename")
+                or row.get("filename")
                 or ""
             ),
             str(snapshot.get("package_text") or ""),
         )
         if (
-            not isinstance(package, dict)
-            or not package_matches(package)
-            or not source_current(package)
+            isinstance(package, dict)
+            and package_matches(package)
+            and source_current(package)
         ):
-            return safe_incomplete(
-                "LEGACY_POINTER_SCOPE_MISMATCH",
-                attempted=1,
-                recovered=0,
-            )
+            recovered.append(package)
+            known_sources.add(source_key)
 
-        if not _technical_compiled_runtime_merge_package_v69199(
-            package,
-            clean_store,
-            revision,
-        ):
-            return safe_incomplete(
-                "EXPLICIT_POINTER_MERGE_FAILED",
-                attempted=1,
-                recovered=0,
-            )
-        return _technical_compiled_contract_lookup_v69198(
-            prompt_text,
-            clean_store,
+    if rejected:
+        # Only durable-snapshot or registry candidates for the exact family/year
+        # can reach this list. Unrelated Technical pages cannot poison this scope.
+        return safe_incomplete(
+            "SCOPED_CURRENT_SOURCE_RECOVERY_FAILED",
+            attempted=len(payloads) + len(registry_rows),
+            recovered=len(recovered),
         )
 
-    current_matches = [
-        dict(package)
-        for package in packages
-        if package_matches(package)
-        and source_current(package)
-    ]
-
-    if not current_matches:
+    if not recovered:
+        # No scoped durable source exists. Do not wait for the global catalogue
+        # and do not use vector/image retrieval as proof of completeness.
         return safe_incomplete(
-            "NO_VERIFIED_CURRENT_PACKAGE",
-            attempted=len(packages),
+            "NO_SCOPED_DURABLE_CURRENT_PACKAGE",
+            attempted=len(payloads),
             recovered=0,
         )
 
-    # Generic requests require the complete current family/year set. Explicit
-    # requests keep only branches that satisfy the user's discriminator.
-    publish_packages = current_matches
-
-    try:
-        _technical_registry_upsert_packages_v69162(
-            packages,
-            clean_store,
+    # Same-source newest wins while different current product/system branches
+    # remain parallel candidates.
+    by_source = {}
+    for package in recovered:
+        source_url = str(package.get("source_url") or "").strip()
+        try:
+            key = (
+                canonical_website_url_identity(source_url)
+                if source_url
+                else ""
+            )
+        except Exception:
+            key = source_url.casefold()
+        key = key or (
+            "file:"
+            + str(
+                package.get("file_id")
+                or package.get("filename")
+                or ""
+            )
         )
-    except Exception:
-        pass
+        rank = (
+            str(package.get("extracted_at") or ""),
+            str(package.get("filename") or ""),
+            str(package.get("file_id") or ""),
+        )
+        old = by_source.get(key)
+        if old is None or rank > old[0]:
+            by_source[key] = (rank, package)
+
+    publish_packages = [
+        value[1] for value in by_source.values()
+    ]
+    revision = _website_destination_revision_v69109(
+        "Technical Support Database"
+    )
 
     if not _technical_compiled_runtime_publish_v69198(
         publish_packages,
@@ -70910,14 +71063,10 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         )
 
     if generic_scope and len(publish_packages) > 1:
-        # A complete multi-source catalogue was proven. The lookup must retain
-        # multi-match authority rather than silently collapsing to one branch.
         if not bool(
             result.get("universal_multi_match_v69208")
-            or (
-                dict(result.get("authority") or {}).get(
-                    "universal_multi_match_v69208"
-                )
+            or dict(result.get("authority") or {}).get(
+                "universal_multi_match_v69208"
             )
         ):
             return safe_incomplete(
@@ -70927,15 +71076,15 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             )
 
     diagnostic_log(
-        "technical_complete_catalog_hydrate_v69212",
+        "technical_scoped_durable_hydrate_v69213",
         family=family,
         year=int(year),
-        route=catalogue_route,
-        catalogue_packages=len(packages),
-        matched_packages=len(publish_packages),
+        snapshot_candidates=len(payloads),
+        current_packages=len(publish_packages),
         generic=bool(generic_scope),
     )
     return result
+
 
 
 
@@ -72449,6 +72598,11 @@ def _technical_package_prewarm_inject_v69121(file_id, filename, package_text):
             error_type=type(registry_error_v69212).__name__,
             error=str(registry_error_v69212)[:500],
         )
+
+    try:
+        _technical_durable_snapshot_scope_v69213.clear()
+    except Exception:
+        pass
 
     diagnostic_log(
         "technical_package_injected_v69121",
