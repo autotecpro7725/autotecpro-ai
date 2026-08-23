@@ -1,4 +1,5 @@
-# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
+# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
+# AutoTecPro AI v69214 FINAL PRODUCTION — query-scoped legacy Technical source migration; hosted assistant-file download failure removed from direct authority path.\n# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -70660,16 +70661,653 @@ def _technical_durable_snapshot_scope_v69213(vector_store_id, family, year):
     return {"complete": True, "rows": output, "reason": "READY"}
 
 
-def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
-    """Fast query-scoped Technical hydrate from durable current package snapshots.
 
-    v69213 removes the global-prewarm dependency from user-facing model/year
-    configuration queries. The user's vehicle family/year is resolved first, then
-    only durable package snapshots for that exact scope are decoded and verified.
+def _technical_scoped_source_candidates_v69214(
+    prompt_text,
+    vector_store_id,
+    family,
+    year,
+    existing_source_urls=None,
+):
+    """Discover only exact-scope Technical source URLs for legacy migration.
 
-    Global Technical prewarm remains a background performance optimization only.
+    Sources:
+    - durable Technical package registry rows;
+    - the legacy active family/year pointer;
+    - durable Technical image-index rows already learned from the exact page.
+
+    The image index is discovery evidence only. No image-index row becomes factual
+    authority until the exact source page is re-fetched and independently proves
+    current-source + vehicle/year compatibility.
     """
-    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    store = str(vector_store_id or "").strip()
+    family = re.sub(r"[^a-z0-9]+", "", str(family or "").casefold())
+    try:
+        year = int(year)
+    except Exception:
+        return []
+
+    existing = set()
+    for raw_url in existing_source_urls or []:
+        raw_url = str(raw_url or "").strip()
+        if not raw_url:
+            continue
+        try:
+            existing.add(canonical_website_url_identity(raw_url))
+        except Exception:
+            existing.add(raw_url.rstrip("/").casefold())
+
+    prompt_systems = {
+        str(x).strip()
+        for x in _website_identity_systems_v69022(prompt_text)
+        if str(x).strip()
+    }
+    prompt_codes = {
+        str(x).strip().casefold()
+        for x in _website_image_product_codes_v69020(prompt_text)
+        if str(x).strip()
+    }
+
+    candidates = {}
+
+    def add_candidate(
+        source_url,
+        origin,
+        *,
+        file_id="",
+        filename="",
+        systems=None,
+        product_codes=None,
+        indexed_at="",
+        mandatory=False,
+    ):
+        source_url = str(source_url or "").strip()
+        if not source_url.startswith(("http://", "https://")):
+            return
+        try:
+            key = canonical_website_url_identity(source_url)
+        except Exception:
+            key = source_url.rstrip("/").casefold()
+        if not key or key in existing:
+            return
+
+        systems = {
+            str(x).strip()
+            for x in (systems or [])
+            if str(x).strip()
+        }
+        codes = {
+            str(x).strip().casefold()
+            for x in (product_codes or [])
+            if str(x).strip()
+        }
+        if prompt_systems and systems and not prompt_systems.issubset(systems):
+            return
+        if prompt_codes and codes and not (prompt_codes & codes):
+            return
+
+        rank = (
+            3 if origin == "registry" else 2 if origin == "active_pointer" else 1,
+            str(indexed_at or ""),
+        )
+        old = candidates.get(key)
+        record = {
+            "source_url": source_url,
+            "origin": str(origin or ""),
+            "file_id": str(file_id or ""),
+            "filename": str(filename or ""),
+            "systems": sorted(systems),
+            "product_codes": sorted(codes),
+            "indexed_at": str(indexed_at or ""),
+            "mandatory": bool(mandatory),
+            "_rank": rank,
+        }
+        if old is None or rank > old.get("_rank", (0, "")):
+            candidates[key] = record
+        elif mandatory:
+            old["mandatory"] = True
+
+    # 1) Durable registry: strongest legacy-discovery evidence.
+    try:
+        for row in _technical_registry_rows_v69162(store) or []:
+            if not isinstance(row, dict):
+                continue
+            families = {
+                re.sub(r"[^a-z0-9]+", "", str(x or "").casefold())
+                for x in (row.get("vehicle_families") or [])
+                if str(x or "").strip()
+            }
+            years = set()
+            for raw_year in row.get("years") or []:
+                try:
+                    years.add(int(raw_year))
+                except Exception:
+                    pass
+            if family not in families or year not in years:
+                continue
+            add_candidate(
+                row.get("source_url"),
+                "registry",
+                file_id=row.get("file_id"),
+                filename=row.get("filename"),
+                systems=row.get("systems"),
+                product_codes=row.get("product_codes"),
+                indexed_at=(
+                    row.get("extracted_at")
+                    or row.get("registry_created_at_v69162")
+                    or ""
+                ),
+                mandatory=True,
+            )
+    except Exception as error:
+        diagnostic_log(
+            "technical_scoped_registry_discovery_failed_v69214",
+            family=family,
+            year=year,
+            error_type=type(error).__name__,
+        )
+
+    # 2) Legacy family/year pointer: it proves at least that one reviewed source
+    # was current for this scope, but it cannot enumerate overlapping peers.
+    try:
+        pointer = dict(
+            _technical_active_authority_row_v69164(
+                family,
+                year,
+                store,
+            )
+            or {}
+        )
+    except Exception:
+        pointer = {}
+    if pointer:
+        add_candidate(
+            pointer.get("source_url"),
+            "active_pointer",
+            file_id=pointer.get("file_id"),
+            filename=pointer.get("filename"),
+            systems=pointer.get("systems"),
+            product_codes=pointer.get("product_codes"),
+            indexed_at=pointer.get("extracted_at"),
+            mandatory=True,
+        )
+
+    # 3) Durable image index: migration discovery only.
+    #
+    # Unlike the older broad helper, v69214 requires POSITIVE family + year proof
+    # from the durable row before the page can enter the mandatory source set.
+    # Sparse/unidentified image rows are ignored and therefore cannot poison an
+    # unrelated vehicle query.
+    generic_scope = not prompt_systems and not prompt_codes
+    try:
+        image_rows = [
+            dict(x)
+            for x in (_website_image_index_rows_v68883() or [])
+            if isinstance(x, dict)
+            and str(x.get("database_choice") or "")
+            == "Technical Support Database"
+        ]
+    except Exception:
+        image_rows = []
+
+    for row in image_rows:
+        source_url = str(row.get("source_page") or "").strip()
+        if not source_url:
+            continue
+
+        identity = dict(row.get("page_identity_v69024") or {})
+        row_families = {
+            re.sub(r"[^a-z0-9]+", "", str(x or "").casefold())
+            for x in (
+                identity.get("vehicle_families")
+                or identity.get("families")
+                or []
+            )
+            if str(x or "").strip()
+        }
+        row_years = set()
+        for raw_year in (
+            identity.get("years")
+            or identity.get("vehicle_years")
+            or []
+        ):
+            try:
+                row_years.add(int(raw_year))
+            except Exception:
+                pass
+        row_systems = {
+            str(x).strip()
+            for x in (
+                identity.get("systems")
+                or identity.get("factory_systems")
+                or []
+            )
+            if str(x).strip()
+        }
+
+        context = " ".join(
+            (
+                str(row.get("page_title") or ""),
+                source_url,
+                str(row.get("section_heading") or ""),
+                str(row.get("nearby_instruction_text") or ""),
+                str(row.get("caption") or ""),
+                str(row.get("visual_analysis") or ""),
+            )
+        )
+        if not row_families:
+            try:
+                row_families = {
+                    re.sub(r"[^a-z0-9]+", "", str(x or "").casefold())
+                    for x in _website_identity_vehicle_families_v69022(context)
+                    if str(x or "").strip()
+                }
+            except Exception:
+                row_families = set()
+        if not row_years:
+            try:
+                row_years = {
+                    int(x)
+                    for x in _website_identity_years_v69022(context)
+                }
+            except Exception:
+                row_years = set()
+        if not row_systems:
+            try:
+                row_systems = {
+                    str(x).strip()
+                    for x in _website_identity_systems_v69022(context)
+                    if str(x).strip()
+                }
+            except Exception:
+                row_systems = set()
+
+        # Positive exact-scope evidence is mandatory. Empty/unknown identity rows
+        # are not allowed to enter completeness authority.
+        if family not in row_families or year not in row_years:
+            continue
+
+        add_candidate(
+            source_url,
+            "image_index",
+            systems=row_systems,
+            indexed_at=row.get("indexed_at"),
+            mandatory=bool(generic_scope),
+        )
+
+    output = []
+    for record in candidates.values():
+        record = dict(record)
+        record.pop("_rank", None)
+        output.append(record)
+    output.sort(
+        key=lambda record: (
+            1 if record.get("mandatory") else 0,
+            str(record.get("indexed_at") or ""),
+            str(record.get("source_url") or ""),
+        ),
+        reverse=True,
+    )
+
+    diagnostic_log(
+        "technical_scoped_source_candidates_v69214",
+        family=family,
+        year=year,
+        candidates=len(output),
+        mandatory=sum(1 for x in output if x.get("mandatory")),
+        registry=sum(1 for x in output if x.get("origin") == "registry"),
+        image_index=sum(1 for x in output if x.get("origin") == "image_index"),
+    )
+    return output
+
+
+
+
+@st.cache_resource(show_spinner=False)
+def _technical_scoped_disproven_state_v69214():
+    """Short-lived process cache for exact-refetched historical/out-of-scope pages."""
+    return {
+        "lock": threading.Lock(),
+        "rows": {},
+    }
+
+
+def _technical_scoped_source_is_disproven_v69214(source_url):
+    state = _technical_scoped_disproven_state_v69214()
+    try:
+        key = canonical_website_url_identity(str(source_url or "").strip())
+    except Exception:
+        key = str(source_url or "").strip().rstrip("/").casefold()
+    if not key:
+        return False
+    now = time.monotonic()
+    with state["lock"]:
+        expires = float(state["rows"].get(key) or 0.0)
+        if expires > now:
+            return True
+        state["rows"].pop(key, None)
+    return False
+
+
+def _technical_scoped_mark_disproven_v69214(source_url, ttl_seconds=120):
+    state = _technical_scoped_disproven_state_v69214()
+    try:
+        key = canonical_website_url_identity(str(source_url or "").strip())
+    except Exception:
+        key = str(source_url or "").strip().rstrip("/").casefold()
+    if not key:
+        return
+    with state["lock"]:
+        state["rows"][key] = time.monotonic() + max(
+            5.0,
+            float(ttl_seconds or 120),
+        )
+        if len(state["rows"]) > 2048:
+            now = time.monotonic()
+            for old_key, expires in list(state["rows"].items()):
+                if float(expires or 0.0) <= now:
+                    state["rows"].pop(old_key, None)
+
+
+def _technical_scoped_clear_disproven_v69214(source_url=""):
+    state = _technical_scoped_disproven_state_v69214()
+    if source_url:
+        try:
+            key = canonical_website_url_identity(str(source_url or "").strip())
+        except Exception:
+            key = str(source_url or "").strip().rstrip("/").casefold()
+        with state["lock"]:
+            state["rows"].pop(key, None)
+        return
+    with state["lock"]:
+        state["rows"].clear()
+
+
+@st.cache_resource(show_spinner=False)
+def _technical_scoped_migration_locks_v69214():
+    """Process-wide per-source locks for one-time legacy source migration."""
+    return {
+        "guard": threading.Lock(),
+        "locks": {},
+    }
+
+
+def _technical_scoped_migration_lock_for_v69214(source_url):
+    state = _technical_scoped_migration_locks_v69214()
+    try:
+        key = canonical_website_url_identity(
+            str(source_url or "").strip()
+        )
+    except Exception:
+        key = str(source_url or "").strip().rstrip("/").casefold()
+    key = key or "unknown"
+    with state["guard"]:
+        lock = state["locks"].get(key)
+        if lock is None:
+            lock = threading.RLock()
+            state["locks"][key] = lock
+        # Keep this tiny process cache bounded.
+        if len(state["locks"]) > 512:
+            for old_key in list(state["locks"])[:128]:
+                if old_key != key:
+                    state["locks"].pop(old_key, None)
+    return lock
+
+
+def _technical_exact_source_fast_migrate_v69214(
+    prompt_text,
+    candidate,
+    vector_store_id,
+):
+    """Re-fetch one exact reviewed source URL without OpenAI file download.
+
+    This is a one-time migration path for sources learned before durable v69171
+    snapshots were available. It never performs semantic vector search and never
+    switches URLs. The live page must independently prove the exact source identity,
+    current-source metadata, and requested vehicle/year scope before the package is
+    committed to the durable snapshot + package registry.
+
+    Existing durable website-image metadata remains the image authority, so the
+    migration does not perform expensive AI image analysis.
+    """
+    candidate = dict(candidate or {})
+    source_url = str(candidate.get("source_url") or "").strip()
+    if not source_url:
+        return {"status": "unavailable", "reason_code": "NO_SOURCE_URL"}
+
+    password = _technical_source_password_v69172(source_url)
+    try:
+        extraction = extract_public_webpage(
+            source_url,
+            page_password=password,
+        )
+    except Exception as error:
+        text = str(error or "").casefold()
+        reason = (
+            "PROTECTED_SOURCE_CREDENTIAL_REQUIRED"
+            if "password protected" in text
+            or "password was not accepted" in text
+            else "EXACT_SOURCE_REFETCH_FAILED"
+        )
+        diagnostic_log(
+            "technical_scoped_source_refetch_failed_v69214",
+            source_url=source_url[:700],
+            origin=str(candidate.get("origin") or ""),
+            reason=reason,
+            error_type=type(error).__name__,
+        )
+        return {
+            "status": "unavailable",
+            "reason_code": reason,
+            "source_url": source_url,
+        }
+
+    actual_url = str(
+        extraction.get("source_url")
+        or extraction.get("requested_url")
+        or ""
+    ).strip()
+    try:
+        same_source = (
+            canonical_website_url_identity(actual_url)
+            == canonical_website_url_identity(source_url)
+        )
+    except Exception:
+        same_source = bool(
+            actual_url
+            and actual_url.rstrip("/") == source_url.rstrip("/")
+        )
+    if not same_source:
+        return {
+            "status": "unavailable",
+            "reason_code": "REFETCH_SOURCE_IDENTITY_MISMATCH",
+            "source_url": source_url,
+        }
+
+    reviewed = clean_extracted_website_text(
+        extraction.get("content") or ""
+    )
+    if len(reviewed) < 120:
+        return {
+            "status": "unavailable",
+            "reason_code": "REFETCH_CONTENT_TOO_SHORT",
+            "source_url": source_url,
+        }
+
+    # No AI image-analysis round trip here. Existing durable image-index rows for
+    # this already-learned source remain eligible at final exact-source publication.
+    package_text = build_website_knowledge_package_document(
+        extraction,
+        "Technical Support Database",
+        reviewed_content=reviewed,
+        image_analysis={
+            "images": [],
+            "attempted": 0,
+            "skipped": 0,
+            "failures": 0,
+        },
+    )
+    file_id = str(candidate.get("file_id") or "").strip()
+    if not file_id:
+        file_id = (
+            "legacy-refetch-v69214-"
+            + hashlib.sha256(
+                canonical_website_url_identity(
+                    source_url
+                ).encode("utf-8")
+            ).hexdigest()[:24]
+        )
+    filename = (
+        str(candidate.get("filename") or "").strip()
+        or website_knowledge_filename(extraction)
+    )
+    package = _technical_package_from_text_v69121(
+        file_id,
+        filename,
+        package_text,
+    )
+    if not isinstance(package, dict):
+        return {
+            "status": "unavailable",
+            "reason_code": "REFETCH_PACKAGE_PARSE_FAILED",
+            "source_url": source_url,
+        }
+
+    if not _technical_package_candidate_score_v69157(
+        prompt_text,
+        package,
+    ):
+        return {
+            "status": "unavailable",
+            "reason_code": "REFETCH_PACKAGE_IDENTITY_REJECTED",
+            "source_url": source_url,
+        }
+    if not _technical_package_has_current_structure_v69165(
+        package_text
+    ):
+        return {
+            "status": "unavailable",
+            "reason_code": "REFETCH_HIERARCHY_INVALID",
+            "source_url": source_url,
+        }
+
+    # A successful exact refetch may prove that an old discovery row is now
+    # historical/superseded. Return that proof to the caller without committing
+    # the obsolete page as a new durable current snapshot.
+    try:
+        semantics_v69214 = _technical_package_atp_semantics_v69178(
+            package_text
+        )
+    except Exception:
+        semantics_v69214 = {}
+    root_v69214 = dict(
+        (semantics_v69214 or {}).get("root") or {}
+    )
+    current_flag_v69214 = str(
+        root_v69214.get("data-atp-current-source") or ""
+    ).strip().casefold()
+    source_status_v69214 = str(
+        root_v69214.get("data-atp-source-status") or ""
+    ).strip().casefold()
+
+    if (
+        current_flag_v69214 in {"false", "0", "no"}
+        or source_status_v69214
+        in {
+            "historical",
+            "superseded",
+            "deprecated",
+            "inactive",
+            "non-current",
+        }
+    ):
+        _technical_scoped_mark_disproven_v69214(
+            source_url,
+            ttl_seconds=120,
+        )
+        diagnostic_log(
+            "technical_scoped_source_refetch_historical_v69214",
+            source_url=source_url[:700],
+            origin=str(candidate.get("origin") or ""),
+        )
+        return {
+            "status": "recovered",
+            "source_url": source_url,
+            "file_id": file_id,
+            "filename": filename,
+            "package_text": package_text,
+            "package": package,
+            "current_disproven_v69214": True,
+        }
+
+    if not (
+        current_flag_v69214 in {"true", "1", "yes"}
+        or source_status_v69214
+        in {"current", "current-authoritative"}
+    ):
+        return {
+            "status": "unavailable",
+            "reason_code": "REFETCH_CURRENT_SOURCE_UNPROVEN",
+            "source_url": source_url,
+        }
+
+    # Persist package bytes independently from OpenAI's assistant-file lifecycle.
+    snapshot = _technical_durable_snapshot_commit_verified_v69171(
+        package,
+        vector_store_id,
+    )
+    _technical_registry_upsert_package_v69162(
+        package,
+        vector_store_id,
+    )
+    try:
+        _technical_package_prewarm_inject_v69121(
+            file_id,
+            filename,
+            package_text,
+        )
+    except Exception:
+        pass
+    try:
+        _technical_durable_snapshot_scope_v69213.clear()
+    except Exception:
+        pass
+
+    diagnostic_log(
+        "technical_scoped_source_migrated_v69214",
+        source_url=source_url[:700],
+        origin=str(candidate.get("origin") or ""),
+        file_id=file_id[:160],
+        snapshot_sha256=str(
+            snapshot.get("content_sha256") or ""
+        )[:64],
+    )
+    return {
+        "status": "recovered",
+        "source_url": source_url,
+        "file_id": file_id,
+        "filename": filename,
+        "package_text": package_text,
+        "package": package,
+        "snapshot_sha256_v69171": str(
+            snapshot.get("content_sha256") or ""
+        ),
+        "legacy_scoped_migration_v69214": True,
+    }
+
+
+def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
+    """Query-scoped current Technical authority with legacy auto-migration.
+
+    v69214 keeps the v69213 fast durable-snapshot path, but closes its production
+    migration gap: when older learned sources have no v69171 snapshot, exact source
+    URLs are discovered from durable local metadata and re-fetched directly from the
+    original AutoTecPro page. OpenAI assistant-file downloads and global Technical
+    prewarm are never required for direct model/year completeness.
+    """
+    prompt = _technical_settings_routing_prompt_v69117(
+        prompt_text
+    )
     clean_store = str(store or "").strip()
     family, year = _technical_resolve_family_year_v69199(
         prompt,
@@ -70699,7 +71337,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             "retry shortly before relying on a setting."
         )
         diagnostic_log(
-            "technical_current_source_set_incomplete_v69213",
+            "technical_current_source_set_incomplete_v69214",
             family=family,
             year=int(year),
             reason=str(reason or "")[:180],
@@ -70720,14 +71358,14 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                     "Current Technical Source Set Temporarily Unavailable"
                 ),
                 "section_id": (
-                    "current-source-set-incomplete-v69213"
+                    "current-source-set-incomplete-v69214"
                 ),
                 "section_text": message,
                 "branch_paths": [],
                 "selected_image_urls_v69143": [],
                 "selected_segments_v69158": [],
                 "compiled_runtime_contract_v69198": True,
-                "current_source_set_incomplete_v69213": True,
+                "current_source_set_incomplete_v69214": True,
             },
             "context": "",
             "rows": [],
@@ -70735,20 +71373,23 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             "compiled_contract_v69198": True,
             "direct_answer_meta_v69199": {
                 "eligible": True,
-                "current_source_set_incomplete_v69213": True,
+                "current_source_set_incomplete_v69214": True,
             },
         }
 
     def package_matches(package):
         if not isinstance(package, dict):
             return False
+
         package_families = {
             re.sub(
                 r"[^a-z0-9]+",
                 "",
                 str(x or "").casefold(),
             )
-            for x in (package.get("vehicle_families") or [])
+            for x in (
+                package.get("vehicle_families") or []
+            )
             if str(x or "").strip()
         }
         package_years = set()
@@ -70757,6 +71398,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                 package_years.add(int(raw_year))
             except Exception:
                 pass
+
         if family not in package_families:
             return False
         if int(year) not in package_years:
@@ -70769,13 +71411,17 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         }
         package_codes = {
             str(x).strip().casefold()
-            for x in (package.get("product_codes") or [])
+            for x in (
+                package.get("product_codes") or []
+            )
             if str(x).strip()
         }
         if (
             prompt_systems
             and package_systems
-            and not prompt_systems.issubset(package_systems)
+            and not prompt_systems.issubset(
+                package_systems
+            )
         ):
             return False
         if (
@@ -70792,8 +71438,10 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         )
         if not semantics:
             try:
-                semantics = _technical_package_atp_semantics_v69178(
-                    package.get("package_text") or ""
+                semantics = (
+                    _technical_package_atp_semantics_v69178(
+                        package.get("package_text") or ""
+                    )
                 )
             except Exception:
                 semantics = {}
@@ -70804,6 +71452,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         status = str(
             root.get("data-atp-source-status") or ""
         ).strip().casefold()
+
         if current in {"false", "0", "no"}:
             return False
         if status in {
@@ -70822,6 +71471,9 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             }
         )
 
+    # --------------------------------------------------------------
+    # Tier 1: current durable snapshots — fastest steady-state path.
+    # --------------------------------------------------------------
     scope = dict(
         _technical_durable_snapshot_scope_v69213(
             clean_store,
@@ -70832,7 +71484,10 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     )
     if not bool(scope.get("complete")):
         return safe_incomplete(
-            str(scope.get("reason") or "SCOPED_INDEX_UNAVAILABLE")
+            str(
+                scope.get("reason")
+                or "SCOPED_INDEX_UNAVAILABLE"
+            )
         )
 
     payloads = [
@@ -70840,9 +71495,9 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         for x in (scope.get("rows") or [])
         if isinstance(x, dict)
     ]
-
     recovered = []
-    rejected = []
+    failed_mandatory = []
+
     for payload in payloads:
         decoded = _technical_durable_snapshot_decode_v69171(
             payload,
@@ -70851,9 +71506,11 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             ),
         )
         if not decoded:
-            rejected.append(
+            failed_mandatory.append(
                 (
-                    str(payload.get("source_url") or ""),
+                    str(
+                        payload.get("source_url") or ""
+                    ),
                     "SNAPSHOT_DECODE_FAILED",
                 )
             )
@@ -70865,157 +71522,173 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             str(decoded.get("package_text") or ""),
         )
         if not isinstance(package, dict):
-            rejected.append(
+            failed_mandatory.append(
                 (
-                    str(decoded.get("source_url") or ""),
+                    str(
+                        decoded.get("source_url") or ""
+                    ),
                     "PACKAGE_PARSE_FAILED",
                 )
             )
             continue
 
+        # A durable snapshot is authoritative only if its exact package still
+        # satisfies the requested scope and current-source metadata.
         if not package_matches(package):
-            # Explicit system/product queries legitimately filter other current
-            # branches from the same family/year.
             continue
         if not source_current(package):
             continue
         recovered.append(package)
 
-    # Registry rows are a migration bridge for any source that has current scope
-    # metadata but whose durable snapshot row was not included in the snapshot
-    # scan. Only successfully recovered, scope-matching packages are added.
-    try:
-        registry_rows = list(
-            _technical_registry_rows_v69162(clean_store) or []
-        )
-    except Exception:
-        registry_rows = []
-
-    known_sources = set()
-    for package in recovered:
-        source_url = str(package.get("source_url") or "").strip()
-        try:
-            known_sources.add(
-                canonical_website_url_identity(source_url)
-            )
-        except Exception:
-            known_sources.add(source_url.casefold())
-
-    for row in registry_rows:
-        if not isinstance(row, dict):
-            continue
-        row_families = {
-            re.sub(
-                r"[^a-z0-9]+",
-                "",
-                str(x or "").casefold(),
-            )
-            for x in (row.get("vehicle_families") or [])
-            if str(x or "").strip()
-        }
-        row_years = set()
-        for raw_year in row.get("years") or []:
-            try:
-                row_years.add(int(raw_year))
-            except Exception:
-                pass
-        if family not in row_families or int(year) not in row_years:
-            continue
-
-        row_systems = {
-            str(x).strip()
-            for x in (row.get("systems") or [])
-            if str(x).strip()
-        }
-        row_codes = {
-            str(x).strip().casefold()
-            for x in (row.get("product_codes") or [])
-            if str(x).strip()
-        }
-        if (
-            prompt_systems
-            and row_systems
-            and not prompt_systems.issubset(row_systems)
-        ):
-            continue
-        if (
-            prompt_codes
-            and row_codes
-            and not (prompt_codes & row_codes)
-        ):
-            continue
-
-        source_url = str(row.get("source_url") or "").strip()
-        try:
-            source_key = canonical_website_url_identity(source_url)
-        except Exception:
-            source_key = source_url.casefold()
-        if not source_key or source_key in known_sources:
-            continue
-
-        snapshot = _technical_durable_snapshot_recover_v69171(
-            source_url,
-            clean_store,
-        )
-        if not snapshot:
-            # A registry row claims this exact source is part of the current
-            # scope, so a missing durable snapshot is a real completeness failure.
-            rejected.append(
-                (source_url, "REGISTRY_SNAPSHOT_UNAVAILABLE")
-            )
-            continue
-        package = _technical_package_from_text_v69121(
-            str(
-                snapshot.get("file_id")
-                or row.get("file_id")
-                or ""
-            ),
-            str(
-                snapshot.get("filename")
-                or row.get("filename")
-                or ""
-            ),
-            str(snapshot.get("package_text") or ""),
-        )
-        if (
-            isinstance(package, dict)
-            and package_matches(package)
-            and source_current(package)
-        ):
-            recovered.append(package)
-            known_sources.add(source_key)
-
-    if rejected:
-        # Only durable-snapshot or registry candidates for the exact family/year
-        # can reach this list. Unrelated Technical pages cannot poison this scope.
+    if failed_mandatory:
         return safe_incomplete(
-            "SCOPED_CURRENT_SOURCE_RECOVERY_FAILED",
-            attempted=len(payloads) + len(registry_rows),
+            "SCOPED_DURABLE_SOURCE_CORRUPT",
+            attempted=len(payloads),
             recovered=len(recovered),
         )
 
-    if not recovered:
-        # No scoped durable source exists. Do not wait for the global catalogue
-        # and do not use vector/image retrieval as proof of completeness.
+    # --------------------------------------------------------------
+    # Tier 2: legacy exact-source migration.
+    #
+    # This is the production repair for sources learned before v69171.
+    # Candidate URLs come only from durable metadata already owned by
+    # AutoTecPro. Missing candidates are re-fetched from the exact source URL,
+    # never from OpenAI files.content or semantic vector search.
+    # --------------------------------------------------------------
+    existing_urls = [
+        str(package.get("source_url") or "")
+        for package in recovered
+        if str(package.get("source_url") or "").strip()
+    ]
+    candidates = _technical_scoped_source_candidates_v69214(
+        prompt,
+        clean_store,
+        family,
+        int(year),
+        existing_source_urls=existing_urls,
+    )
+
+    migration_attempted = 0
+    migration_recovered = 0
+    mandatory_failures = []
+
+    for candidate in candidates:
+        source_url = str(
+            candidate.get("source_url") or ""
+        ).strip()
+        if not source_url:
+            continue
+
+        if _technical_scoped_source_is_disproven_v69214(
+            source_url
+        ):
+            continue
+
+        # Same-source migration is process-wide serialized. A concurrent first
+        # request can migrate the source once; later requests re-check the newly
+        # committed snapshot or disproven-current state instead of repeating the
+        # live webpage fetch.
+        with _technical_scoped_migration_lock_for_v69214(
+            source_url
+        ):
+            if _technical_scoped_source_is_disproven_v69214(
+                source_url
+            ):
+                continue
+
+            snapshot = _technical_durable_snapshot_recover_v69171(
+                source_url,
+                clean_store,
+            )
+            if snapshot:
+                package = _technical_package_from_text_v69121(
+                    str(
+                        snapshot.get("file_id")
+                        or candidate.get("file_id")
+                        or ""
+                    ),
+                    str(
+                        snapshot.get("filename")
+                        or candidate.get("filename")
+                        or ""
+                    ),
+                    str(snapshot.get("package_text") or ""),
+                )
+                if (
+                    isinstance(package, dict)
+                    and package_matches(package)
+                    and source_current(package)
+                ):
+                    recovered.append(package)
+                    continue
+
+            migration_attempted += 1
+            repair = _technical_exact_source_fast_migrate_v69214(
+                prompt,
+                candidate,
+                clean_store,
+            )
+        if str(repair.get("status") or "") == "recovered":
+            package = dict(repair.get("package") or {})
+            if (
+                package_matches(package)
+                and source_current(package)
+            ):
+                recovered.append(package)
+                migration_recovered += 1
+                continue
+
+            # A successful exact refetch that proves the page is historical,
+            # superseded, or outside the requested scope is positive evidence
+            # that this discovery hint is NOT a required current branch.
+            diagnostic_log(
+                "technical_scoped_candidate_disproven_current_v69214",
+                source_url=source_url[:700],
+                origin=str(candidate.get("origin") or ""),
+                scope_match=bool(package_matches(package)),
+                current=bool(source_current(package)),
+            )
+            continue
+
+        # Only an unresolved exact-scope candidate can block a generic result.
+        # Successfully disproven historical/out-of-scope pages are ignored above.
+        if bool(candidate.get("mandatory")):
+            mandatory_failures.append(
+                (
+                    source_url,
+                    str(
+                        repair.get("reason_code")
+                        or "MIGRATION_FAILED"
+                    ),
+                )
+            )
+
+    if mandatory_failures:
         return safe_incomplete(
-            "NO_SCOPED_DURABLE_CURRENT_PACKAGE",
-            attempted=len(payloads),
-            recovered=0,
+            "KNOWN_SCOPED_SOURCE_MIGRATION_FAILED",
+            attempted=migration_attempted,
+            recovered=len(recovered),
         )
 
-    # Same-source newest wins while different current product/system branches
-    # remain parallel candidates.
+    # Deduplicate same source URL after snapshot + migration convergence.
     by_source = {}
     for package in recovered:
-        source_url = str(package.get("source_url") or "").strip()
+        if not isinstance(package, dict):
+            continue
+        source_url = str(
+            package.get("source_url") or ""
+        ).strip()
         try:
             key = (
-                canonical_website_url_identity(source_url)
+                canonical_website_url_identity(
+                    source_url
+                )
                 if source_url
                 else ""
             )
         except Exception:
-            key = source_url.casefold()
+            key = source_url.rstrip("/").casefold()
+
         key = key or (
             "file:"
             + str(
@@ -71034,12 +71707,23 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             by_source[key] = (rank, package)
 
     publish_packages = [
-        value[1] for value in by_source.values()
+        value[1]
+        for value in by_source.values()
     ]
+
+    if not publish_packages:
+        return safe_incomplete(
+            "NO_SCOPED_CURRENT_PACKAGE",
+            attempted=(
+                len(payloads)
+                + migration_attempted
+            ),
+            recovered=0,
+        )
+
     revision = _website_destination_revision_v69109(
         "Technical Support Database"
     )
-
     if not _technical_compiled_runtime_publish_v69198(
         publish_packages,
         clean_store,
@@ -71064,8 +71748,12 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
 
     if generic_scope and len(publish_packages) > 1:
         if not bool(
-            result.get("universal_multi_match_v69208")
-            or dict(result.get("authority") or {}).get(
+            result.get(
+                "universal_multi_match_v69208"
+            )
+            or dict(
+                result.get("authority") or {}
+            ).get(
                 "universal_multi_match_v69208"
             )
         ):
@@ -71076,14 +71764,18 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             )
 
     diagnostic_log(
-        "technical_scoped_durable_hydrate_v69213",
+        "technical_scoped_authority_ready_v69214",
         family=family,
         year=int(year),
-        snapshot_candidates=len(payloads),
+        durable_packages=len(payloads),
+        migration_candidates=len(candidates),
+        migration_attempted=migration_attempted,
+        migration_recovered=migration_recovered,
         current_packages=len(publish_packages),
         generic=bool(generic_scope),
     )
     return result
+
 
 
 
@@ -72601,6 +73293,12 @@ def _technical_package_prewarm_inject_v69121(file_id, filename, package_text):
 
     try:
         _technical_durable_snapshot_scope_v69213.clear()
+    except Exception:
+        pass
+    try:
+        _technical_scoped_clear_disproven_v69214(
+            new_source
+        )
     except Exception:
         pass
 
