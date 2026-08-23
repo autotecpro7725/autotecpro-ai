@@ -11522,6 +11522,14 @@ def extract_images_from_message_content(content):
             "website_workspace_match_score_v69040",
             "website_workspace_durable_fallback_v69041",
             "website_workspace_archive_resolved_v69041",
+            # v69210: retain ATP exact/multi-product workspace provenance on
+            # Streamlit rerun and History reconstruction.
+            "website_workspace_destination_v69180",
+            "website_atp_metadata_exact_v69180",
+            "website_atp_workspace_policy_v69205",
+            # v69209 is the current setter; retain it for backward compatibility.
+            "workspace_multi_match_image_v69209",
+            "workspace_multi_match_image_v69210",
             # v69144: preserve exact learned Technical page/section/branch authority
             # across reruns and History reconstruction. These are provenance-only
             # fields and do not alter the visible image renderer.
@@ -46319,10 +46327,161 @@ def invalidate_history_cache(
 
 
 def load_messages(conversation_id):
-    """Load messages only for a conversation owned by the signed-in user."""
-    username = str(st.session_state.get("username") or "").strip()
-    cached_messages = _load_messages_cached(username, conversation_id)
-    return [dict(message) for message in cached_messages]
+    """Load owned messages and restore current Sales/Marketing ATP authority when safe.
+
+    v69210 reconstructs the latest explicit product/model/year authority after a
+    History reopen. It re-resolves against the CURRENT destination revision rather
+    than persisting stale package objects inside message text.
+    """
+    username = str(
+        st.session_state.get("username") or ""
+    ).strip()
+    cached_messages = _load_messages_cached(
+        username,
+        conversation_id,
+    )
+    messages = [
+        dict(message) for message in cached_messages
+    ]
+
+    try:
+        workspace = str(
+            st.session_state.get("current_assistant")
+            or globals().get("assistant")
+            or ""
+        )
+        resolver = globals().get(
+            "_workspace_atp_metadata_fast_authority_v69180"
+        )
+        sales_check = globals().get("is_sales_workspace")
+        marketing_check = globals().get(
+            "is_marketing_workspace"
+        )
+        graphic_check = globals().get("is_graphic_workspace")
+
+        eligible_workspace = bool(
+            callable(resolver)
+            and callable(sales_check)
+            and callable(marketing_check)
+            and (
+                sales_check(workspace)
+                or marketing_check(workspace)
+            )
+            and not (
+                callable(graphic_check)
+                and graphic_check(workspace)
+            )
+        )
+
+        if eligible_workspace:
+            destination = (
+                "Sales Database"
+                if sales_check(workspace)
+                else "Marketing Database"
+            )
+
+            restored_authority = {}
+            # Latest explicit identity wins. Identity-free follow-ups are skipped.
+            for message in reversed(messages[-40:]):
+                if str(
+                    message.get("role") or ""
+                ).strip().casefold() != "user":
+                    continue
+
+                prompt_value = str(
+                    message.get("content") or ""
+                )
+                try:
+                    prompt_value, _ = (
+                        extract_images_from_message_content(
+                            prompt_value
+                        )
+                    )
+                except Exception:
+                    pass
+                try:
+                    prompt_value, _ = (
+                        extract_documents_from_message_content(
+                            prompt_value
+                        )
+                    )
+                except Exception:
+                    pass
+                prompt_value = clean_visible_chat_text(
+                    prompt_value
+                ).strip()
+                if not prompt_value:
+                    continue
+
+                authority = resolver(
+                    workspace,
+                    prompt_value,
+                )
+                if (
+                    str(
+                        (authority or {}).get("status")
+                        or ""
+                    )
+                    == "recovered"
+                    and str(
+                        (authority or {}).get("destination")
+                        or ""
+                    )
+                    == destination
+                ):
+                    restored_authority = dict(authority)
+                    break
+
+            if restored_authority:
+                st.session_state[
+                    "_workspace_last_atp_authority_v69205"
+                ] = {
+                    "workspace": workspace,
+                    "conversation_id": str(
+                        conversation_id or ""
+                    ),
+                    "destination": destination,
+                    "revision": int(
+                        _website_destination_revision_v69109(
+                            destination
+                        )
+                        or 0
+                    ),
+                    "authority": restored_authority,
+                }
+                exact_row = dict(
+                    restored_authority.get("row") or {}
+                )
+                if exact_row:
+                    st.session_state[
+                        "_workspace_file_search_results_v69040"
+                    ] = [exact_row]
+                diagnostic_log(
+                    "workspace_atp_history_authority_restored_v69210",
+                    workspace=workspace,
+                    destination=destination,
+                    multi=bool(
+                        restored_authority.get(
+                            "universal_multi_match_v69209"
+                        )
+                    ),
+                )
+            else:
+                st.session_state.pop(
+                    "_workspace_last_atp_authority_v69205",
+                    None,
+                )
+    except Exception as error_v69210:
+        # History rendering must never fail because fast authority reconstruction
+        # failed; the existing provider/file_search fallback remains available.
+        diagnostic_log(
+            "workspace_atp_history_authority_restore_failed_v69210",
+            error_type=type(error_v69210).__name__,
+            error=str(error_v69210)[:500],
+        )
+
+    return messages
+
 
 
 def load_conversations(
@@ -55087,23 +55246,154 @@ def _website_image_final_payload_gate_v68885(prompt_text, payload):
 
 
 def _website_image_payload_for_chat_record_v69005(image_record):
-    """Resolve a model-emitted website image back to its approved durable payload."""
+    """Resolve one website image record back to its exact approved durable payload.
+
+    v69210 uses a two-pass provenance resolver:
+    1) exact digest + source page/destination when available;
+    2) exact digest if globally unique;
+    3) source-page-qualified URL fallback;
+    4) URL fallback only when globally unique.
+
+    A URL match can no longer preempt a later exact digest/source match.
+    """
     if not isinstance(image_record, dict):
         return None
-    digest = str(image_record.get("website_image_sha256") or "").strip().lower()
+
+    digest = str(
+        image_record.get("website_image_sha256") or ""
+    ).strip().lower()
     candidate_urls = {
-        str(image_record.get("archive_web_url") or "").strip(),
+        str(
+            image_record.get("archive_web_url") or ""
+        ).strip(),
         str(image_record.get("data_url") or "").strip(),
     }
     candidate_urls.discard("")
-    for payload in _website_image_index_rows_v68883():
-        payload_digest = str(payload.get("image_sha256") or "").strip().lower()
-        payload_url = str(payload.get("image_url") or "").strip()
-        if digest and payload_digest and digest == payload_digest:
-            return payload
-        if payload_url and payload_url in candidate_urls:
-            return payload
+
+    record_source = str(
+        image_record.get("website_source_page_v69010") or ""
+    ).strip()
+    record_destination = str(
+        image_record.get("website_workspace_destination_v69180")
+        or image_record.get("website_workspace_destination_v69040")
+        or ""
+    ).strip()
+
+    try:
+        record_source_key = (
+            canonical_website_url_identity(record_source)
+            if record_source
+            else ""
+        )
+    except Exception:
+        record_source_key = record_source.casefold()
+
+    payloads = [
+        dict(payload)
+        for payload in _website_image_index_rows_v68883()
+        if isinstance(payload, dict)
+    ]
+
+    def same_source(payload):
+        if not record_source_key:
+            return False
+        payload_source = str(
+            payload.get("source_page") or ""
+        ).strip()
+        if not payload_source:
+            return False
+        try:
+            payload_key = canonical_website_url_identity(
+                payload_source
+            )
+        except Exception:
+            payload_key = payload_source.casefold()
+        return payload_key == record_source_key
+
+    def same_destination(payload):
+        if not record_destination:
+            return True
+        return (
+            str(
+                payload.get("database_choice") or ""
+            ).strip()
+            == record_destination
+        )
+
+    # Pass 1: exact digest across the complete durable index.
+    if digest:
+        digest_matches = [
+            payload
+            for payload in payloads
+            if str(
+                payload.get("image_sha256") or ""
+            ).strip().lower()
+            == digest
+        ]
+        if digest_matches:
+            source_matches = [
+                payload
+                for payload in digest_matches
+                if same_source(payload)
+                and same_destination(payload)
+            ]
+            if len(source_matches) == 1:
+                return source_matches[0]
+
+            # When the published record carries an exact source page, digest
+            # equality is not permission to jump to a different product page.
+            if not record_source_key:
+                destination_matches = [
+                    payload
+                    for payload in digest_matches
+                    if same_destination(payload)
+                ]
+                if len(destination_matches) == 1:
+                    return destination_matches[0]
+
+                if (
+                    not record_destination
+                    and len(digest_matches) == 1
+                ):
+                    return digest_matches[0]
+
+    # Pass 2: URL fallback is provenance-qualified whenever possible.
+    url_matches = [
+        payload
+        for payload in payloads
+        if str(payload.get("image_url") or "").strip()
+        in candidate_urls
+    ]
+    if not url_matches:
+        return None
+
+    source_url_matches = [
+        payload
+        for payload in url_matches
+        if same_source(payload)
+        and same_destination(payload)
+    ]
+    if len(source_url_matches) == 1:
+        return source_url_matches[0]
+
+    # Exact source-page provenance is authoritative when present.
+    if record_source_key:
+        return None
+
+    destination_url_matches = [
+        payload
+        for payload in url_matches
+        if same_destination(payload)
+    ]
+    if len(destination_url_matches) == 1:
+        return destination_url_matches[0]
+
+    if not record_destination and len(url_matches) == 1:
+        return url_matches[0]
+
+    # Ambiguous shared URL with no exact source/digest proof: fail closed.
     return None
+
 
 
 def _website_model_control_payload_v69010(image_record):
@@ -57941,19 +58231,27 @@ def _technical_exact_atp_image_ready_v69181(prompt_text):
         return False
 
 def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
-    """Select one exact current Sales/Marketing ATP product package deterministically.
+    """Select current Sales/Marketing ATP product package(s) deterministically.
 
-    v69205 adds first-class product identity, screen-size and trim/body-style routing while
-    preserving the established semantic/file_search fallback on a true direct miss.
+    v69210 hardening:
+    - current-source status is a hard precedence rule, not only a multi-match flag;
+    - when compatibility branches exist, requested model/year must be proven by
+      those branches before a product can enter the direct result set;
+    - exact product/model number still narrows to one exact current package;
+    - multiple current compatible packages are all retained for model+year queries;
+    - legacy packages with no current-source metadata keep the pre-v69209 single-
+      result fallback only when no reviewed current package exists.
     """
     workspace = str(workspace_label or "")
     destination = (
         "Sales Database" if is_sales_workspace(workspace)
-        else "Marketing Database" if is_marketing_workspace(workspace)
+        else "Marketing Database"
+        if is_marketing_workspace(workspace)
         else ""
     )
     if not destination or is_graphic_workspace(workspace):
         return {}
+
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not prompt:
         return {}
@@ -57961,27 +58259,265 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
     pf = set(_website_identity_vehicle_families_v69022(prompt))
     py = set(_website_identity_years_v69022(prompt))
     ps = set(_website_identity_systems_v69022(prompt))
-    pc = {str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
+    pc = {
+        str(x).casefold()
+        for x in _website_image_product_codes_v69020(prompt)
+    }
     prompt_tokens = {
-        x for x in re.findall(r"[a-z0-9]+", prompt.casefold())
+        x
+        for x in re.findall(r"[a-z0-9]+", prompt.casefold())
         if len(x) > 1
     }
-    explicit_classic = "classic" in prompt.casefold()
-    explicit_new_body = bool(re.search(r"\bnew(?:er)?[-\s]+body(?:[-\s]+style)?\b", prompt.casefold()))
+    prompt_cf = prompt.casefold()
+    explicit_classic = "classic" in prompt_cf
+    explicit_new_body = bool(
+        re.search(
+            r"\bnew(?:er)?[-\s]+body(?:[-\s]+style)?\b",
+            prompt_cf,
+        )
+    )
 
-    # No deterministic product/vehicle identity: leave all existing semantic behavior unchanged.
-    if not (pf or pc or re.search(r"\b(?:ram\s*(?:1500|2500|3500)|\d{2}(?:\.\d)?\s*(?:inch|\"))\b", prompt.casefold())):
+    # No deterministic product/vehicle identity: leave provider/file_search behavior unchanged.
+    if not (
+        pf
+        or pc
+        or re.search(
+            r"\b(?:ram\s*(?:1500|2500|3500)|"
+            r"\d{2}(?:\.\d)?\s*(?:inch|\"))\b",
+            prompt_cf,
+        )
+    ):
         return {}
 
-    # A bounded cold-start wait materially improves first-query latency after a reboot;
-    # warm queries remain process-memory lookups.
-    packages, status = _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.45)
+    packages, status = _workspace_atp_package_snapshot_v69180(
+        destination,
+        wait_seconds=0.45,
+    )
+
+    def source_state_v69210(package):
+        """Return True=current, False=explicit historical, None=legacy/unspecified."""
+        semantics = dict(package.get("atp_semantics_v69178") or {})
+        rows = []
+        root = semantics.get("root")
+        if isinstance(root, dict):
+            rows.append(dict(root))
+        rows.extend(
+            dict(x)
+            for x in (
+                list(semantics.get("elements") or [])
+                + list(semantics.get("headings") or [])
+                + list(semantics.get("images") or [])
+            )
+            if isinstance(x, dict)
+        )
+
+        # Prefer product/compatibility-level source authority over supporting
+        # image/link metadata. A current page may legitimately contain a
+        # data-atp-current-source=false related-product link, while an old page
+        # may still contain historical image rows whose old flags were not
+        # rewritten. Neither may determine the product package's source state.
+        authority_rows = []
+        for row in rows:
+            link_role = str(
+                row.get("data-atp-link-role") or ""
+            ).strip().casefold()
+            if link_role == "related-product":
+                continue
+            if (
+                row.get("data-atp-compatibility-branch-id")
+                or row.get("data-atp-product-identity-key")
+                or str(
+                    row.get("data-atp-source-authority") or ""
+                ).strip().casefold()
+                in {
+                    "exact-current-source",
+                    "current-authoritative",
+                    "historical",
+                    "superseded",
+                }
+                or row == root
+            ):
+                authority_rows.append(row)
+
+        probe_rows = authority_rows or rows
+        values = []
+        statuses = []
+        source_authorities = []
+        for row in probe_rows:
+            if "data-atp-current-source" in row:
+                values.append(
+                    str(
+                        row.get("data-atp-current-source") or ""
+                    ).strip().casefold()
+                )
+            if "data-atp-source-status" in row:
+                statuses.append(
+                    str(
+                        row.get("data-atp-source-status") or ""
+                    ).strip().casefold()
+                )
+            if "data-atp-source-authority" in row:
+                source_authorities.append(
+                    str(
+                        row.get("data-atp-source-authority") or ""
+                    ).strip().casefold()
+                )
+
+        # Explicit current-source polarity outranks descriptive source-authority
+        # labels. This prevents an older package whose metadata still says
+        # "exact-current-source" from becoming current after it has explicitly
+        # been marked data-atp-current-source=false.
+        if any(
+            value in {"true", "1", "yes"}
+            for value in values
+        ):
+            return True
+        if values and all(
+            value in {"false", "0", "no", ""}
+            for value in values
+        ):
+            return False
+
+        if any(
+            status in {"current", "current-authoritative"}
+            for status in statuses
+        ):
+            return True
+        if any(
+            status in {
+                "historical",
+                "superseded",
+                "deprecated",
+                "inactive",
+                "non-current",
+            }
+            for status in statuses
+        ):
+            return False
+
+        if any(
+            value in {
+                "exact-current-source",
+                "current-authoritative",
+            }
+            for value in source_authorities
+        ):
+            return True
+        if any(
+            value in {"historical", "superseded"}
+            for value in source_authorities
+        ):
+            return False
+
+        return None
+
+    def branch_families_v69210(branch):
+        text = " ".join(
+            [
+                str(branch.get("make") or ""),
+                *[
+                    str(x)
+                    for x in (branch.get("models") or [])
+                    if str(x).strip()
+                ],
+            ]
+        )
+        try:
+            return set(
+                _website_identity_vehicle_families_v69022(text)
+            )
+        except Exception:
+            return set()
+
+    def branch_eligibility_v69210(contract):
+        """Prove requested year/model from exact compatibility branches when present."""
+        branches = [
+            dict(x)
+            for x in (
+                contract.get("compatibility_branches") or []
+            )
+            if isinstance(x, dict)
+        ]
+        if not branches:
+            return True, []
+
+        model_branches = []
+        for branch in branches:
+            branch_families = branch_families_v69210(branch)
+            if (
+                pf
+                and branch_families
+                and not pf.issubset(branch_families)
+            ):
+                continue
+            model_branches.append(branch)
+
+        if pf and not model_branches:
+            return False, []
+
+        # If a current branch is explicitly identified inside this product,
+        # historical branches inside the same page cannot prove fitment.
+        current_branches = [
+            branch
+            for branch in model_branches
+            if bool(branch.get("current_source"))
+        ]
+        if current_branches:
+            model_branches = current_branches
+
+        filtered = []
+        for branch in model_branches:
+            trim_cf = str(
+                branch.get("trim") or ""
+            ).strip().casefold()
+
+            if explicit_new_body and "classic" in trim_cf:
+                continue
+
+            if explicit_classic:
+                # Preserve v69209's explicit Classic hard gate: once branch
+                # metadata exists, only an explicitly Classic branch may prove it.
+                if "classic" not in trim_cf:
+                    continue
+
+            filtered.append(branch)
+
+        if py:
+            supported_years = set()
+            for branch in filtered:
+                branch_years = {
+                    int(x)
+                    for x in (branch.get("years") or [])
+                    if str(x).isdigit()
+                }
+                excluded = {
+                    int(x)
+                    for x in (
+                        branch.get("excluded_years") or []
+                    )
+                    if str(x).isdigit()
+                }
+                supported_years.update(branch_years - excluded)
+
+            if not py.issubset(supported_years):
+                return False, filtered
+
+        return True, filtered
+
     ranked = []
     for package in packages:
-        if str(package.get("destination") or "").strip() != destination:
+        if (
+            str(package.get("destination") or "").strip()
+            != destination
+        ):
             continue
+
         fam = set(package.get("vehicle_families") or [])
-        yrs = {int(x) for x in (package.get("years") or []) if str(x).isdigit()}
+        yrs = {
+            int(x)
+            for x in (package.get("years") or [])
+            if str(x).isdigit()
+        }
         sys = set(package.get("systems") or [])
         contract = _workspace_atp_product_contract_v69205(package)
         codes = {
@@ -57995,54 +58531,65 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
 
         if pf and fam and not pf.issubset(fam):
             continue
-        if py and yrs and not py.issubset(yrs):
-            continue
         if ps and sys and not ps.issubset(sys):
             continue
         if pc and (not codes or not (pc & codes)):
             continue
 
-        # Explicit new-body requests must never bind a Classic-only exact product package.
-        if explicit_new_body and py:
-            branch_rows = [
-                b for b in (contract.get("compatibility_branches") or [])
-                if set(py) & set(b.get("years") or [])
-            ]
-            if branch_rows and all(str(b.get("trim") or "").casefold() == "classic trim" for b in branch_rows):
+        branches = list(
+            contract.get("compatibility_branches") or []
+        )
+
+        # Branch metadata is the exact compatibility authority when present.
+        if branches:
+            branch_ok, eligible_branches = (
+                branch_eligibility_v69210(contract)
+            )
+            if not branch_ok:
+                continue
+        else:
+            eligible_branches = []
+            # Legacy packages without branch metadata retain package-year gating.
+            if py and yrs and not py.issubset(yrs):
                 continue
 
-        if explicit_classic and py:
-            branch_rows_v69209 = [
-                b for b in (contract.get("compatibility_branches") or [])
-                if set(py) & set(b.get("years") or [])
-            ]
-            if branch_rows_v69209 and not any(
-                "classic" in str(b.get("trim") or "").casefold()
-                for b in branch_rows_v69209
-            ):
-                continue
-
-        identity_tokens = set(re.findall(
-            r"[a-z0-9]+",
-            " ".join(str(contract.get(k) or "") for k in (
-                "product_identity_key", "product_family", "product_type",
-                "screen_size", "display_type", "platform", "processor",
-            )).casefold(),
-        ))
+        identity_tokens = set(
+            re.findall(
+                r"[a-z0-9]+",
+                " ".join(
+                    str(contract.get(k) or "")
+                    for k in (
+                        "product_identity_key",
+                        "product_family",
+                        "product_type",
+                        "screen_size",
+                        "display_type",
+                        "platform",
+                        "processor",
+                    )
+                ).casefold(),
+            )
+        )
         identity_overlap = len(prompt_tokens & identity_tokens)
         family_overlap = len(pf & fam)
         code_overlap = len(pc & codes)
-        year_overlap = len(py & yrs)
-        system_overlap = len(ps & sys)
 
-        trim_bonus = 0
-        if explicit_classic and py:
-            if any(
-                str(b.get("trim") or "").casefold() == "classic trim"
-                and bool(set(py) & set(b.get("years") or []))
-                for b in (contract.get("compatibility_branches") or [])
-            ):
-                trim_bonus = 6000
+        if py and eligible_branches:
+            branch_years = set()
+            for branch in eligible_branches:
+                branch_years.update(
+                    int(x)
+                    for x in (
+                        branch.get("years") or []
+                    )
+                    if str(x).isdigit()
+                )
+            year_overlap = len(py & branch_years)
+        else:
+            year_overlap = len(py & yrs)
+
+        system_overlap = len(ps & sys)
+        trim_bonus = 6000 if explicit_classic and eligible_branches else 0
 
         score = (
             family_overlap * 10000
@@ -58052,73 +58599,143 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
             + identity_overlap * 1200
             + year_overlap * 800
         )
-        semantics_v69209 = dict(package.get("atp_semantics_v69178") or {})
-        current_v69209 = any(
-            isinstance(row_v69209, dict)
-            and str(row_v69209.get("data-atp-current-source") or "").strip().casefold() == "true"
-            for row_v69209 in (
-                list(semantics_v69209.get("elements") or [])
-                + list(semantics_v69209.get("images") or [])
-            )
-        )
-        ranked.append((
-            score,
-            str(package.get("extracted_at") or ""),
-            str(package.get("filename") or ""),
-            package,
-            contract,
-            sorted(codes),
-            bool(current_v69209),
-        ))
+
+        ranked.append({
+            "score": score,
+            "extracted_at": str(
+                package.get("extracted_at") or ""
+            ),
+            "filename": str(
+                package.get("filename") or ""
+            ),
+            "package": dict(package),
+            "contract": dict(contract),
+            "codes": sorted(codes),
+            "source_state": source_state_v69210(package),
+        })
 
     if not ranked:
         diagnostic_log(
-            "workspace_atp_metadata_fast_miss_v69205",
+            "workspace_atp_metadata_fast_miss_v69210",
             workspace=workspace,
             destination=destination,
             status=status,
         )
         return {}
 
-    ranked.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    ranked.sort(
+        key=lambda item: (
+            int(item.get("score") or 0),
+            str(item.get("extracted_at") or ""),
+            str(item.get("filename") or ""),
+        ),
+        reverse=True,
+    )
 
-    # Collapse repeated learning of the same source URL; newest first.
-    deduped_v69209 = []
-    seen_sources_v69209 = set()
-    for item_v69209 in ranked:
-        source_v69209 = str(item_v69209[3].get("source_url") or "")
+    # Collapse repeated learning of the same exact source URL. Source freshness
+    # is evaluated BEFORE timestamp so a later historical/revoked copy cannot
+    # displace a reviewed current copy of the same page.
+    best_by_source = {}
+    for item in ranked:
+        package = dict(item.get("package") or {})
+        source = str(package.get("source_url") or "")
         try:
-            source_key_v69209 = (
-                canonical_website_url_identity(source_v69209)
-                if source_v69209 else ""
+            source_key = (
+                canonical_website_url_identity(source)
+                if source
+                else ""
             )
         except Exception:
-            source_key_v69209 = source_v69209.casefold()
-        source_key_v69209 = source_key_v69209 or str(
-            item_v69209[2] or ""
+            source_key = source.casefold()
+        source_key = source_key or str(
+            item.get("filename") or ""
         ).casefold()
-        if source_key_v69209 in seen_sources_v69209:
-            continue
-        seen_sources_v69209.add(source_key_v69209)
-        deduped_v69209.append(item_v69209)
 
-    def build_authority_v69209(item_v69209):
-        package = dict(item_v69209[3] or {})
-        semantics = dict(package.get("atp_semantics_v69178") or {})
+        state = item.get("source_state")
+        freshness_rank = (
+            2 if state is True
+            else 1 if state is None
+            else 0
+        )
+        item_rank = (
+            freshness_rank,
+            int(item.get("score") or 0),
+            str(item.get("extracted_at") or ""),
+            str(item.get("filename") or ""),
+        )
+        old = best_by_source.get(source_key)
+        if old is None or item_rank > old[0]:
+            best_by_source[source_key] = (
+                item_rank,
+                item,
+            )
+
+    deduped = [
+        value[1]
+        for value in best_by_source.values()
+    ]
+    deduped.sort(
+        key=lambda item: (
+            int(item.get("score") or 0),
+            str(item.get("extracted_at") or ""),
+            str(item.get("filename") or ""),
+        ),
+        reverse=True,
+    )
+
+    current_items = [
+        item
+        for item in deduped
+        if item.get("source_state") is True
+    ]
+    legacy_items = [
+        item
+        for item in deduped
+        if item.get("source_state") is None
+    ]
+
+    # Hard freshness rule:
+    # - any reviewed current package excludes historical and legacy competitors;
+    # - if there is no reviewed current package, legacy/unspecified packages may
+    #   retain the old single-result behavior;
+    # - explicit historical packages are never direct authority by themselves.
+    if current_items:
+        eligible = current_items
+    elif legacy_items:
+        eligible = legacy_items
+    else:
+        diagnostic_log(
+            "workspace_atp_no_current_or_legacy_authority_v69210",
+            workspace=workspace,
+            destination=destination,
+        )
+        return {}
+
+    def build_authority_v69210(item):
+        package = dict(item.get("package") or {})
+        semantics = dict(
+            package.get("atp_semantics_v69178") or {}
+        )
         if not semantics:
             return {}
+
         semantic_json, relevant_webpage_excerpt = (
-            _workspace_atp_compact_context_v69181(package, prompt)
+            _workspace_atp_compact_context_v69181(
+                package,
+                prompt,
+            )
         )
         context = (
-            "\n\nAUTOTECPRO ATP METADATA-FIRST AUTHORITY (v69209)\n"
-            f"Destination: {destination}\nSource URL: {package.get('source_url') or ''}\n"
-            "This exact learned AutoTecPro product page is one current compatible "
-            "product branch for the requested vehicle. Keep this branch's facts and "
-            "image authority isolated from every other product branch. If a requested "
-            "fact is absent, say it is not stated instead of guessing.\n"
+            "\n\nAUTOTECPRO ATP METADATA-FIRST AUTHORITY (v69210)\n"
+            f"Destination: {destination}\n"
+            f"Source URL: {package.get('source_url') or ''}\n"
+            "This exact learned AutoTecPro product page is a current-compatible "
+            "product branch for the requested vehicle scope. Keep this branch's "
+            "facts and image authority isolated from every other product branch. "
+            "If a requested fact is absent, say it is not stated instead of guessing.\n"
             f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json}\n\n"
-            f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n{relevant_webpage_excerpt}\n"
+            f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n"
+            f"{relevant_webpage_excerpt}\n"
         )
         row = {
             "file_id": str(package.get("file_id") or ""),
@@ -58128,6 +58745,9 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
             "workspace_atp_metadata_first_v69180": True,
             "workspace_atp_product_fast_v69205": True,
             "workspace_atp_multi_match_v69209": True,
+            "workspace_atp_current_source_v69210": (
+                item.get("source_state") is True
+            ),
         }
         return {
             "status": "recovered",
@@ -58135,55 +58755,57 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
             "context": context,
             "row": row,
             "package": package,
-            "score": int(item_v69209[0] or 0),
-            "source_url": str(package.get("source_url") or ""),
-            "product_contract_v69205": dict(item_v69209[4] or {}),
-            "product_codes_v69209": list(item_v69209[5] or []),
+            "score": int(item.get("score") or 0),
+            "source_url": str(
+                package.get("source_url") or ""
+            ),
+            "product_contract_v69205": dict(
+                item.get("contract") or {}
+            ),
+            "product_codes_v69209": list(
+                item.get("codes") or []
+            ),
+            "current_source_v69210": (
+                item.get("source_state") is True
+            ),
         }
 
-    # Exact model/product number explicitly supplied: narrow to one exact package.
+    # Explicit exact model/product number always narrows within the freshness-safe pool.
     if pc:
-        return build_authority_v69209(deduped_v69209[0])
+        return build_authority_v69210(eligible[0])
 
-    # Universal Sales/Marketing overlap: only when BOTH vehicle family and year
-    # are explicit. All reviewed current matches are published together.
-    if pf and py:
-        current_matches_v69209 = [
-            item_v69209
-            for item_v69209 in deduped_v69209
-            if bool(item_v69209[6])
+    # Universal overlap is intentionally limited to reviewed CURRENT packages.
+    if pf and py and len(current_items) > 1:
+        authorities = [
+            build_authority_v69210(item)
+            for item in current_items
         ]
-        if len(current_matches_v69209) > 1:
-            authorities_v69209 = [
-                build_authority_v69209(item_v69209)
-                for item_v69209 in current_matches_v69209
-            ]
-            authorities_v69209 = [
-                item_v69209
-                for item_v69209 in authorities_v69209
-                if item_v69209
-            ]
-            if len(authorities_v69209) > 1:
-                return {
-                    "status": "recovered",
-                    "destination": destination,
-                    "context": "\n".join(
-                        str(item_v69209.get("context") or "")
-                        for item_v69209 in authorities_v69209
-                    ),
-                    "row": {},
-                    "package": {},
-                    "score": max(
-                        int(item_v69209.get("score") or 0)
-                        for item_v69209 in authorities_v69209
-                    ),
-                    "source_url": "",
-                    "universal_multi_match_v69209": True,
-                    "multi_match_authorities_v69209": authorities_v69209,
-                }
+        authorities = [
+            item for item in authorities if item
+        ]
+        if len(authorities) > 1:
+            return {
+                "status": "recovered",
+                "destination": destination,
+                "context": "\n".join(
+                    str(item.get("context") or "")
+                    for item in authorities
+                    if str(item.get("context") or "").strip()
+                ),
+                "row": {},
+                "package": {},
+                "score": max(
+                    int(item.get("score") or 0)
+                    for item in authorities
+                ),
+                "source_url": "",
+                "universal_multi_match_v69209": True,
+                "multi_match_authorities_v69209": authorities,
+                "current_source_v69210": True,
+            }
 
-    # Preserve the existing one-package behavior when there is no overlap.
-    return build_authority_v69209(deduped_v69209[0])
+    return build_authority_v69210(eligible[0])
+
 
 
 
@@ -58228,7 +58850,14 @@ def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, 
                     seen_v69209.add(ident_v69209)
                     record_v69209["workspace_multi_match_image_v69209"] = True
                     combined_v69209.append(record_v69209)
-        return combined_v69209[:max(1, int(max_images or 3))]
+        # v69210 universal rule: one primary first-response photo per matched
+        # current product. The caller's historical cap cannot truncate a valid
+        # multi-product set.
+        effective_limit_v69210 = max(
+            max(1, int(max_images or 3)),
+            len(multi_v69209),
+        )
+        return combined_v69209[:effective_limit_v69210]
 
     package = dict(authority.get("package") or {})
     if str(authority.get("status") or "") != "recovered" or str(authority.get("destination") or "") != destination:
