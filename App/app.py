@@ -57470,10 +57470,6 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
     Creative/campaign writing, pricing, comparisons, and any unsupported facts continue
     through the unchanged provider/file_search path. This function never reads Technical
     or Graphic evidence and never invents absent product facts.
-
-    v69206 hardening: compatibility questions evaluate the complete requested year set
-    and can publish the product's full source-defined compatibility branches when the
-    user asks which years fit. No other Sales/Marketing behavior is changed.
     """
     workspace = str(workspace_label or "")
     if not (is_sales_workspace(workspace) or is_marketing_workspace(workspace)) or is_graphic_workspace(workspace):
@@ -57521,121 +57517,48 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
     installation_intent = "installation video" in p or "install video" in p
     climate_guide_intent = "climate" in p and ("guide" in p or "identify" in p or "version" in p)
 
-    if fitment_intent:
+    if fitment_intent and requested_years:
+        year = requested_years[0]
         branches = list(contract.get("compatibility_branches") or [])
-
-        def _branch_applies_to_models(branch):
-            if not requested_models:
-                return True
-            branch_models = set(branch.get("models") or [])
-            return any(model in branch_models for model in requested_models)
-
-        def _year_span(year_values):
-            years = sorted({int(y) for y in (year_values or []) if str(y).isdigit()})
-            if not years:
-                return ""
-            ranges = []
-            run_start = run_end = years[0]
-            for year_value in years[1:]:
-                if year_value == run_end + 1:
-                    run_end = year_value
-                    continue
-                ranges.append(str(run_start) if run_start == run_end else f"{run_start}–{run_end}")
-                run_start = run_end = year_value
-            ranges.append(str(run_start) if run_start == run_end else f"{run_start}–{run_end}")
-            return ", ".join(ranges)
-
-        relevant_branches = [b for b in branches if _branch_applies_to_models(b)]
-        product_label = " ".join(
-            x for x in (
-                str(contract.get("screen_size") or "").strip(),
-                "Dodge RAM infotainment system",
-            ) if x
-        ).strip()
-        model_label = requested_models[0] if len(requested_models) == 1 else ("Dodge RAM" if not requested_models else " / ".join(requested_models))
-
-        # No explicit year: answer directly from the exact current product's compatibility branches.
-        if not requested_years and relevant_branches:
-            branch_parts = []
-            for branch in relevant_branches:
-                span = _year_span(branch.get("years") or [])
-                if not span:
-                    continue
-                trim = str(branch.get("trim") or "").strip()
-                branch_parts.append(f"**{span} {model_label}**" + (f" — **{trim} only**" if trim else ""))
-            if branch_parts:
-                return (
-                    f"This {product_label} is compatible with: "
-                    + "; ".join(branch_parts)
-                    + "."
-                )
-
-        if requested_years:
-            requested_set = set(requested_years)
-            covered_by_branch = {}
-            uncovered = set(requested_years)
-
-            for branch in relevant_branches:
-                branch_years = requested_set & set(branch.get("years") or [])
-                if not branch_years:
-                    continue
-                trim = str(branch.get("trim") or "").strip()
-                key = trim or "__no_trim__"
-                covered_by_branch.setdefault(key, set()).update(branch_years)
-                uncovered -= branch_years
-
-            # New-body wording must never bind years whose exact current branch is Classic-only.
-            if "new body" in p or "new-body" in p:
-                classic_years = set()
-                for trim_key, years_for_trim in covered_by_branch.items():
-                    if trim_key != "__no_trim__":
-                        classic_years.update(years_for_trim)
-                if classic_years:
-                    span = _year_span(classic_years)
+        matching = [
+            b for b in branches
+            if year in set(b.get("years") or [])
+            and (
+                not requested_models
+                or any(m in set(b.get("models") or []) for m in requested_models)
+            )
+        ]
+        if matching:
+            branch = matching[0]
+            trim = str(branch.get("trim") or "").strip()
+            product_label = " ".join(
+                x for x in (
+                    str(contract.get("screen_size") or "").strip(),
+                    "Dodge RAM infotainment system",
+                ) if x
+            ).strip()
+            model_label = requested_models[0] if requested_models else "Dodge RAM"
+            if trim:
+                if "new body" in p or "new-body" in p:
                     return (
-                        f"No. This {product_label} is the **Classic Trim** product for **{span} {model_label}**. "
+                        f"No. This {product_label} is the **{trim}** product for {year} {model_label}. "
                         "The current product source explicitly routes the newer body style to a different product."
                     )
-
-            if covered_by_branch:
-                parts = []
-                non_trim_years = covered_by_branch.get("__no_trim__", set())
-                if non_trim_years:
-                    parts.append(f"**{_year_span(non_trim_years)} {model_label}**")
-
-                for trim_key, years_for_trim in covered_by_branch.items():
-                    if trim_key == "__no_trim__":
-                        continue
-                    parts.append(f"**{_year_span(years_for_trim)} {model_label} — {trim_key} only**")
-
-                if uncovered:
-                    parts.append(f"**not listed for {_year_span(uncovered)} {model_label}**")
-
-                if len(parts) == 1 and not uncovered:
-                    only_key = next(iter(covered_by_branch))
-                    only_years = covered_by_branch[only_key]
-                    span = _year_span(only_years)
-                    if only_key == "__no_trim__":
-                        return f"Yes. This {product_label} is compatible with **{span} {model_label}**."
-                    if "classic" in p:
-                        return f"Yes. This {product_label} is compatible with **{span} {model_label} {only_key}**."
+                if "classic" in p:
                     return (
-                        f"This {product_label} is compatible with **{span} {model_label} only when it is {only_key}**. "
-                        "It is not the current product authority for the newer body style."
+                        f"Yes. This {product_label} is compatible with the **{year} {model_label} {trim}**."
                     )
-
                 return (
-                    f"For the requested years, this {product_label} has the following current-source compatibility: "
-                    + "; ".join(parts)
-                    + "."
+                    f"This {product_label} is compatible with the **{year} {model_label} only when it is {trim}**. "
+                    "It is not the current product authority for the newer body style."
                 )
+            return f"Yes. This {product_label} is compatible with the **{year} {model_label}**."
 
-            # Exact product page scope is authoritative only for listed branches.
-            if requested_models:
-                return (
-                    f"The current product source does **not list {_year_span(requested_years)} {model_label}** "
-                    "in this product's compatible fitment branches."
-                )
+        # Exact product page scope is authoritative only for listed branches.
+        if requested_models:
+            return (
+                f"The current product source does **not list {year} {requested_models[0]}** in this product's compatible fitment branches."
+            )
 
     if visual_intent and contract.get("primary_images"):
         return "Here is the **primary current-source product image** for this exact product."
@@ -57705,6 +57628,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
         return "Yes. The current product source includes an **authoritative climate-control identification guide** to confirm the correct vehicle version before ordering."
 
     return ""
+
 
 def _workspace_atp_compact_context_v69181(package, prompt_text):
     """Compact exact Sales/Marketing ATP authority with workspace-native image policy.
