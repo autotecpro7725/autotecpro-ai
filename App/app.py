@@ -1,5 +1,4 @@
-# AutoTecPro AI v69225 FINAL PRODUCTION — rebuilt directly from v69217 with bounded read-only overlap discovery, 722/726 correction, exact multi-image authority, and early status\n# AutoTecPro AI v69217 FINAL PRODUCTION — restore v69050 file_search answer authority and remove impossible assistant-file image download fallback\n# AutoTecPro AI v69216 FINAL PRODUCTION — demote synthetic compiled incompleteness and restore v69050 file_search provider authority for generic Technical multi-source recovery\n# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
-# AutoTecPro AI v69214 FINAL PRODUCTION — query-scoped legacy Technical source migration; hosted assistant-file download failure removed from direct authority path.\n# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
+# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
 # AutoTecPro AI v69169 FINAL PRODUCTION — exact current-source-bound Technical recovery; stale semantic fallback blocked.
@@ -7920,10 +7919,6 @@ st.sidebar.markdown(
 )
 
 
-# v69225: bind before any Streamlit workspace callback can execute.
-TECHNICAL_PHOTO_CONTEXT_KEY_V68879 = "_technical_photo_context_v68879"
-
-
 def _workspace_slug_from_assistant_v69023(assistant_name):
     """Return the stable workspace slug used by transition state."""
     clean = str(assistant_name or "").strip()
@@ -11527,14 +11522,6 @@ def extract_images_from_message_content(content):
             "website_workspace_match_score_v69040",
             "website_workspace_durable_fallback_v69041",
             "website_workspace_archive_resolved_v69041",
-            # v69210: retain ATP exact/multi-product workspace provenance on
-            # Streamlit rerun and History reconstruction.
-            "website_workspace_destination_v69180",
-            "website_atp_metadata_exact_v69180",
-            "website_atp_workspace_policy_v69205",
-            # v69209 is the current setter; retain it for backward compatibility.
-            "workspace_multi_match_image_v69209",
-            "workspace_multi_match_image_v69210",
             # v69144: preserve exact learned Technical page/section/branch authority
             # across reruns and History reconstruction. These are provenance-only
             # fields and do not alter the visible image renderer.
@@ -46332,161 +46319,10 @@ def invalidate_history_cache(
 
 
 def load_messages(conversation_id):
-    """Load owned messages and restore current Sales/Marketing ATP authority when safe.
-
-    v69210 reconstructs the latest explicit product/model/year authority after a
-    History reopen. It re-resolves against the CURRENT destination revision rather
-    than persisting stale package objects inside message text.
-    """
-    username = str(
-        st.session_state.get("username") or ""
-    ).strip()
-    cached_messages = _load_messages_cached(
-        username,
-        conversation_id,
-    )
-    messages = [
-        dict(message) for message in cached_messages
-    ]
-
-    try:
-        workspace = str(
-            st.session_state.get("current_assistant")
-            or globals().get("assistant")
-            or ""
-        )
-        resolver = globals().get(
-            "_workspace_atp_metadata_fast_authority_v69180"
-        )
-        sales_check = globals().get("is_sales_workspace")
-        marketing_check = globals().get(
-            "is_marketing_workspace"
-        )
-        graphic_check = globals().get("is_graphic_workspace")
-
-        eligible_workspace = bool(
-            callable(resolver)
-            and callable(sales_check)
-            and callable(marketing_check)
-            and (
-                sales_check(workspace)
-                or marketing_check(workspace)
-            )
-            and not (
-                callable(graphic_check)
-                and graphic_check(workspace)
-            )
-        )
-
-        if eligible_workspace:
-            destination = (
-                "Sales Database"
-                if sales_check(workspace)
-                else "Marketing Database"
-            )
-
-            restored_authority = {}
-            # Latest explicit identity wins. Identity-free follow-ups are skipped.
-            for message in reversed(messages[-40:]):
-                if str(
-                    message.get("role") or ""
-                ).strip().casefold() != "user":
-                    continue
-
-                prompt_value = str(
-                    message.get("content") or ""
-                )
-                try:
-                    prompt_value, _ = (
-                        extract_images_from_message_content(
-                            prompt_value
-                        )
-                    )
-                except Exception:
-                    pass
-                try:
-                    prompt_value, _ = (
-                        extract_documents_from_message_content(
-                            prompt_value
-                        )
-                    )
-                except Exception:
-                    pass
-                prompt_value = clean_visible_chat_text(
-                    prompt_value
-                ).strip()
-                if not prompt_value:
-                    continue
-
-                authority = resolver(
-                    workspace,
-                    prompt_value,
-                )
-                if (
-                    str(
-                        (authority or {}).get("status")
-                        or ""
-                    )
-                    == "recovered"
-                    and str(
-                        (authority or {}).get("destination")
-                        or ""
-                    )
-                    == destination
-                ):
-                    restored_authority = dict(authority)
-                    break
-
-            if restored_authority:
-                st.session_state[
-                    "_workspace_last_atp_authority_v69205"
-                ] = {
-                    "workspace": workspace,
-                    "conversation_id": str(
-                        conversation_id or ""
-                    ),
-                    "destination": destination,
-                    "revision": int(
-                        _website_destination_revision_v69109(
-                            destination
-                        )
-                        or 0
-                    ),
-                    "authority": restored_authority,
-                }
-                exact_row = dict(
-                    restored_authority.get("row") or {}
-                )
-                if exact_row:
-                    st.session_state[
-                        "_workspace_file_search_results_v69040"
-                    ] = [exact_row]
-                diagnostic_log(
-                    "workspace_atp_history_authority_restored_v69210",
-                    workspace=workspace,
-                    destination=destination,
-                    multi=bool(
-                        restored_authority.get(
-                            "universal_multi_match_v69209"
-                        )
-                    ),
-                )
-            else:
-                st.session_state.pop(
-                    "_workspace_last_atp_authority_v69205",
-                    None,
-                )
-    except Exception as error_v69210:
-        # History rendering must never fail because fast authority reconstruction
-        # failed; the existing provider/file_search fallback remains available.
-        diagnostic_log(
-            "workspace_atp_history_authority_restore_failed_v69210",
-            error_type=type(error_v69210).__name__,
-            error=str(error_v69210)[:500],
-        )
-
-    return messages
-
+    """Load messages only for a conversation owned by the signed-in user."""
+    username = str(st.session_state.get("username") or "").strip()
+    cached_messages = _load_messages_cached(username, conversation_id)
+    return [dict(message) for message in cached_messages]
 
 
 def load_conversations(
@@ -55251,154 +55087,23 @@ def _website_image_final_payload_gate_v68885(prompt_text, payload):
 
 
 def _website_image_payload_for_chat_record_v69005(image_record):
-    """Resolve one website image record back to its exact approved durable payload.
-
-    v69210 uses a two-pass provenance resolver:
-    1) exact digest + source page/destination when available;
-    2) exact digest if globally unique;
-    3) source-page-qualified URL fallback;
-    4) URL fallback only when globally unique.
-
-    A URL match can no longer preempt a later exact digest/source match.
-    """
+    """Resolve a model-emitted website image back to its approved durable payload."""
     if not isinstance(image_record, dict):
         return None
-
-    digest = str(
-        image_record.get("website_image_sha256") or ""
-    ).strip().lower()
+    digest = str(image_record.get("website_image_sha256") or "").strip().lower()
     candidate_urls = {
-        str(
-            image_record.get("archive_web_url") or ""
-        ).strip(),
+        str(image_record.get("archive_web_url") or "").strip(),
         str(image_record.get("data_url") or "").strip(),
     }
     candidate_urls.discard("")
-
-    record_source = str(
-        image_record.get("website_source_page_v69010") or ""
-    ).strip()
-    record_destination = str(
-        image_record.get("website_workspace_destination_v69180")
-        or image_record.get("website_workspace_destination_v69040")
-        or ""
-    ).strip()
-
-    try:
-        record_source_key = (
-            canonical_website_url_identity(record_source)
-            if record_source
-            else ""
-        )
-    except Exception:
-        record_source_key = record_source.casefold()
-
-    payloads = [
-        dict(payload)
-        for payload in _website_image_index_rows_v68883()
-        if isinstance(payload, dict)
-    ]
-
-    def same_source(payload):
-        if not record_source_key:
-            return False
-        payload_source = str(
-            payload.get("source_page") or ""
-        ).strip()
-        if not payload_source:
-            return False
-        try:
-            payload_key = canonical_website_url_identity(
-                payload_source
-            )
-        except Exception:
-            payload_key = payload_source.casefold()
-        return payload_key == record_source_key
-
-    def same_destination(payload):
-        if not record_destination:
-            return True
-        return (
-            str(
-                payload.get("database_choice") or ""
-            ).strip()
-            == record_destination
-        )
-
-    # Pass 1: exact digest across the complete durable index.
-    if digest:
-        digest_matches = [
-            payload
-            for payload in payloads
-            if str(
-                payload.get("image_sha256") or ""
-            ).strip().lower()
-            == digest
-        ]
-        if digest_matches:
-            source_matches = [
-                payload
-                for payload in digest_matches
-                if same_source(payload)
-                and same_destination(payload)
-            ]
-            if len(source_matches) == 1:
-                return source_matches[0]
-
-            # When the published record carries an exact source page, digest
-            # equality is not permission to jump to a different product page.
-            if not record_source_key:
-                destination_matches = [
-                    payload
-                    for payload in digest_matches
-                    if same_destination(payload)
-                ]
-                if len(destination_matches) == 1:
-                    return destination_matches[0]
-
-                if (
-                    not record_destination
-                    and len(digest_matches) == 1
-                ):
-                    return digest_matches[0]
-
-    # Pass 2: URL fallback is provenance-qualified whenever possible.
-    url_matches = [
-        payload
-        for payload in payloads
-        if str(payload.get("image_url") or "").strip()
-        in candidate_urls
-    ]
-    if not url_matches:
-        return None
-
-    source_url_matches = [
-        payload
-        for payload in url_matches
-        if same_source(payload)
-        and same_destination(payload)
-    ]
-    if len(source_url_matches) == 1:
-        return source_url_matches[0]
-
-    # Exact source-page provenance is authoritative when present.
-    if record_source_key:
-        return None
-
-    destination_url_matches = [
-        payload
-        for payload in url_matches
-        if same_destination(payload)
-    ]
-    if len(destination_url_matches) == 1:
-        return destination_url_matches[0]
-
-    if not record_destination and len(url_matches) == 1:
-        return url_matches[0]
-
-    # Ambiguous shared URL with no exact source/digest proof: fail closed.
+    for payload in _website_image_index_rows_v68883():
+        payload_digest = str(payload.get("image_sha256") or "").strip().lower()
+        payload_url = str(payload.get("image_url") or "").strip()
+        if digest and payload_digest and digest == payload_digest:
+            return payload
+        if payload_url and payload_url in candidate_urls:
+            return payload
     return None
-
 
 
 def _website_model_control_payload_v69010(image_record):
@@ -55950,17 +55655,11 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
         if file_text:
             payloads = _website_structured_image_payloads_from_file_v69012(file_text, filename, file_id)
             payloads.extend(_website_legacy_html_payloads_from_file_v69012(file_text, filename, file_id))
-        # v69217: assistant-purpose files cannot be downloaded through files.content
-        # in the deployed OpenAI API. The exact file_search result snippet is the only
-        # allowed provider-side image evidence here. If that snippet lacks a structured
-        # image payload, skip it and let the dedicated file_search image query retrieve
-        # a better snippet instead of issuing a guaranteed-400 file download.
         if not payloads and file_id:
-            diagnostic_log(
-                "technical_image_full_file_download_skipped_v69217",
-                file_id=file_id[:160],
-                filename=filename[:220],
-            )
+            full_text = _website_file_full_text_v69012(file_id)
+            if full_text:
+                payloads = _website_structured_image_payloads_from_file_v69012(full_text, filename, file_id)
+                payloads.extend(_website_legacy_html_payloads_from_file_v69012(full_text, filename, file_id))
         if not payloads:
             continue
         for payload in payloads:
@@ -57421,35 +57120,11 @@ def _workspace_atp_package_inject_v69180(file_id, filename, package_text, destin
         configured_v69183 = _configured_vector_store_ids(
             mapping_v69183.get(target, "")
         )
-        prior_key_v69211 = str(bucket.get("key") or "")
-        prior_status_v69211 = str(bucket.get("status") or "idle")
-        prior_future_v69211 = bucket.get("future")
-        expected_key_v69211 = ""
         if configured_v69183:
             current_store_v69183 = str(configured_v69183[0] or "").strip()
             current_revision_v69183 = _website_destination_revision_v69109(target)
-            expected_key_v69211 = f"{current_store_v69183}::{int(current_revision_v69183 or 0)}"
-            bucket["key"] = expected_key_v69211
-
-        # v69211: injecting one newly learned product does not prove that a cold
-        # destination cache contains every other overlapping current product.
-        # Preserve READY only when the same revision was already complete; preserve
-        # an in-flight complete prewarm when one exists; otherwise mark this as a
-        # partial injection so snapshot() cannot publish it as complete authority.
-        same_key_v69211 = bool(
-            expected_key_v69211
-            and prior_key_v69211 == expected_key_v69211
-        )
-        if same_key_v69211 and prior_status_v69211 == "ready":
-            bucket["status"] = "ready"
-        elif (
-            same_key_v69211
-            and prior_status_v69211 in {"running", "refreshing", "stale_ready"}
-            and prior_future_v69211 is not None
-        ):
-            bucket["status"] = prior_status_v69211
-        else:
-            bucket["status"] = "partial"
+            bucket["key"] = f"{current_store_v69183}::{int(current_revision_v69183 or 0)}"
+        bucket["status"] = "ready"
         bucket["error"] = ""
     return True
 
@@ -57614,7 +57289,6 @@ def _workspace_atp_product_contract_v69205(package):
         "processor": "",
         "ram": "",
         "storage": "",
-        "product_codes": [],
         "facts": [],
         "features": [],
         "compatibility_branches": [],
@@ -57643,29 +57317,10 @@ def _workspace_atp_product_contract_v69205(package):
         "data-atp-storage": "storage",
     }
 
-    for raw_code_v69209 in (package.get("product_codes") or []):
-        code_v69209 = str(raw_code_v69209 or "").strip()
-        if code_v69209 and code_v69209.casefold() not in {
-            str(x).casefold() for x in contract["product_codes"]
-        }:
-            contract["product_codes"].append(code_v69209)
-
     for row in elements:
         for key, dest in scalar_map.items():
             if not contract.get(dest) and str(row.get(key) or "").strip():
                 contract[dest] = str(row.get(key) or "").strip()
-        for key_v69209 in (
-            "data-atp-product-series",
-            "data-atp-product-code",
-            "data-atp-product-id",
-            "data-atp-model-number",
-        ):
-            for code_v69209 in split_values(row.get(key_v69209)):
-                if code_v69209.casefold() not in {
-                    str(x).casefold() for x in contract["product_codes"]
-                }:
-                    contract["product_codes"].append(code_v69209)
-
         if not contract["models"] and str(row.get("data-atp-model") or "").strip():
             contract["models"] = split_values(row.get("data-atp-model"))
         for key, dest in (("data-atp-year-start", "year_start"), ("data-atp-year-end", "year_end")):
@@ -57732,9 +57387,6 @@ def _workspace_atp_product_contract_v69205(package):
 
     contract["facts"] = list(dict.fromkeys(contract["facts"]))
     contract["features"] = list(dict.fromkeys(contract["features"]))
-    contract["product_codes"] = [
-        x for x in dict.fromkeys(contract["product_codes"]) if x
-    ]
     contract["primary_images"] = [x for x in dict.fromkeys(contract["primary_images"]) if x]
     return contract
 
@@ -57809,11 +57461,6 @@ def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cache
         return {}
     if str(authority.get("destination") or "") != destination:
         return {}
-    # v69211: a cold-start completeness guard is not product authority and must
-    # never be reused as a same-conversation factual follow-up after the catalogue
-    # may have finished loading.
-    if bool(authority.get("catalog_incomplete_v69211")):
-        return {}
     return authority
 
 
@@ -57834,69 +57481,6 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
     authority = dict(authority or {})
     if str(authority.get("status") or "") != "recovered":
         return ""
-    if bool(authority.get("catalog_incomplete_v69211")):
-        return (
-            "## Current Product Sources Temporarily Loading\n\n"
-            "The complete reviewed AutoTecPro product source set for this vehicle "
-            "could not be loaded within the bounded cold-start window. No single "
-            "product was published as though it were the only matching current "
-            "product. Please retry after the catalogue finishes loading."
-        )
-    multi_v69209 = [
-        dict(x)
-        for x in (authority.get("multi_match_authorities_v69209") or [])
-        if isinstance(x, dict)
-        and str(x.get("status") or "") == "recovered"
-    ]
-    if len(multi_v69209) > 1:
-        blocks_v69209 = []
-        for index_v69209, sub_v69209 in enumerate(multi_v69209, start=1):
-            sub_answer_v69209 = _workspace_atp_product_direct_answer_v69205(
-                workspace_label, prompt_text, sub_v69209
-            )
-            if not str(sub_answer_v69209 or "").strip():
-                continue
-            contract_v69209 = dict(
-                sub_v69209.get("product_contract_v69205")
-                or _workspace_atp_product_contract_v69205(
-                    sub_v69209.get("package") or {}
-                )
-            )
-            codes_v69209 = [
-                str(x).strip().upper()
-                for x in (
-                    contract_v69209.get("product_codes")
-                    or sub_v69209.get("product_codes_v69209")
-                    or []
-                )
-                if str(x).strip()
-            ]
-            identity_v69209 = str(
-                contract_v69209.get("product_identity_key")
-                or contract_v69209.get("product_family")
-                or contract_v69209.get("product_type")
-                or ""
-            ).strip()
-            label_bits_v69209 = []
-            if codes_v69209:
-                label_bits_v69209.append(" / ".join(codes_v69209))
-            if identity_v69209:
-                label_bits_v69209.append(identity_v69209)
-            label_v69209 = " — ".join(label_bits_v69209) or f"Current Product {index_v69209}"
-            blocks_v69209.append(
-                f"### Option {index_v69209} — {label_v69209}\n\n"
-                + str(sub_answer_v69209).strip()
-            )
-        if len(blocks_v69209) > 1:
-            return (
-                "## Multiple Current AutoTecPro Products Match\n\n"
-                "More than one current product matches this vehicle model and year. "
-                "All verified current matches are shown below. If you provide the exact "
-                "AutoTecPro model/product number, the result will narrow to that product only.\n\n"
-                + "\n\n".join(blocks_v69209)
-            ).strip()
-        return ""
-
     package = dict(authority.get("package") or {})
     destination = "Sales Database" if is_sales_workspace(workspace) else "Marketing Database"
     if str(package.get("destination") or "").strip() != destination:
@@ -58279,27 +57863,19 @@ def _technical_exact_atp_image_ready_v69181(prompt_text):
         return False
 
 def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
-    """Select current Sales/Marketing ATP product package(s) deterministically.
+    """Select one exact current Sales/Marketing ATP product package deterministically.
 
-    v69210 hardening:
-    - current-source status is a hard precedence rule, not only a multi-match flag;
-    - when compatibility branches exist, requested model/year must be proven by
-      those branches before a product can enter the direct result set;
-    - exact product/model number still narrows to one exact current package;
-    - multiple current compatible packages are all retained for model+year queries;
-    - legacy packages with no current-source metadata keep the pre-v69209 single-
-      result fallback only when no reviewed current package exists.
+    v69205 adds first-class product identity, screen-size and trim/body-style routing while
+    preserving the established semantic/file_search fallback on a true direct miss.
     """
     workspace = str(workspace_label or "")
     destination = (
         "Sales Database" if is_sales_workspace(workspace)
-        else "Marketing Database"
-        if is_marketing_workspace(workspace)
+        else "Marketing Database" if is_marketing_workspace(workspace)
         else ""
     )
     if not destination or is_graphic_workspace(workspace):
         return {}
-
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not prompt:
         return {}
@@ -58307,379 +57883,70 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
     pf = set(_website_identity_vehicle_families_v69022(prompt))
     py = set(_website_identity_years_v69022(prompt))
     ps = set(_website_identity_systems_v69022(prompt))
-    pc = {
-        str(x).casefold()
-        for x in _website_image_product_codes_v69020(prompt)
-    }
+    pc = {str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
     prompt_tokens = {
-        x
-        for x in re.findall(r"[a-z0-9]+", prompt.casefold())
+        x for x in re.findall(r"[a-z0-9]+", prompt.casefold())
         if len(x) > 1
     }
-    prompt_cf = prompt.casefold()
-    explicit_classic = "classic" in prompt_cf
-    explicit_new_body = bool(
-        re.search(
-            r"\bnew(?:er)?[-\s]+body(?:[-\s]+style)?\b",
-            prompt_cf,
-        )
-    )
+    explicit_classic = "classic" in prompt.casefold()
+    explicit_new_body = bool(re.search(r"\bnew(?:er)?[-\s]+body(?:[-\s]+style)?\b", prompt.casefold()))
 
-    # No deterministic product/vehicle identity: leave provider/file_search behavior unchanged.
-    if not (
-        pf
-        or pc
-        or re.search(
-            r"\b(?:ram\s*(?:1500|2500|3500)|"
-            r"\d{2}(?:\.\d)?\s*(?:inch|\"))\b",
-            prompt_cf,
-        )
-    ):
+    # No deterministic product/vehicle identity: leave all existing semantic behavior unchanged.
+    if not (pf or pc or re.search(r"\b(?:ram\s*(?:1500|2500|3500)|\d{2}(?:\.\d)?\s*(?:inch|\"))\b", prompt.casefold())):
         return {}
 
-    packages, status = _workspace_atp_package_snapshot_v69180(
-        destination,
-        wait_seconds=0.45,
-    )
-
-    # v69211: Sales/Marketing do not have Technical's single family/year pointer,
-    # and their prewarm publishes packages atomically.  The related cold-start risk
-    # is different: if the complete catalogue is still loading after 0.45 s, the old
-    # path fell through to provider/file_search where one overlapping product could
-    # be returned without the others.  Give the same in-flight complete build one
-    # bounded extra wait for deterministic vehicle/product facts.
-    creative_or_commercial_v69211 = bool(re.search(
-        r"\b(write|draft|create|generate|caption|campaign|facebook|instagram|social|ad copy|advertis|email|blog|seo|compare|comparison|versus|vs\.?|price|cost|discount|coupon|quote|dealer)\b",
-        prompt_cf,
-    ))
-    deterministic_scope_v69211 = bool(
-        (pf and py) or pc
-    ) and not creative_or_commercial_v69211
-    if (
-        not packages
-        and deterministic_scope_v69211
-        and str(status or "") in {"running", "stale_ready", "refreshing"}
-    ):
-        packages, status = _workspace_atp_package_snapshot_v69180(
-            destination,
-            wait_seconds=1.35,
-        )
-
-    if not packages and deterministic_scope_v69211:
-        diagnostic_log(
-            "workspace_atp_complete_catalog_unavailable_v69211",
-            workspace=workspace,
-            destination=destination,
-            status=str(status or ""),
-        )
-        return {
-            "status": "recovered",
-            "destination": destination,
-            "context": "",
-            "row": {},
-            "package": {},
-            "score": 0,
-            "source_url": "",
-            "catalog_incomplete_v69211": True,
-            "catalog_status_v69211": str(status or ""),
-        }
-
-    def source_state_v69210(package):
-        """Return True=current, False=explicit historical, None=legacy/unspecified."""
-        semantics = dict(package.get("atp_semantics_v69178") or {})
-        rows = []
-        root = semantics.get("root")
-        if isinstance(root, dict):
-            rows.append(dict(root))
-        rows.extend(
-            dict(x)
-            for x in (
-                list(semantics.get("elements") or [])
-                + list(semantics.get("headings") or [])
-                + list(semantics.get("images") or [])
-            )
-            if isinstance(x, dict)
-        )
-
-        # Prefer product/compatibility-level source authority over supporting
-        # image/link metadata. A current page may legitimately contain a
-        # data-atp-current-source=false related-product link, while an old page
-        # may still contain historical image rows whose old flags were not
-        # rewritten. Neither may determine the product package's source state.
-        authority_rows = []
-        for row in rows:
-            link_role = str(
-                row.get("data-atp-link-role") or ""
-            ).strip().casefold()
-            if link_role == "related-product":
-                continue
-            if (
-                row.get("data-atp-compatibility-branch-id")
-                or row.get("data-atp-product-identity-key")
-                or str(
-                    row.get("data-atp-source-authority") or ""
-                ).strip().casefold()
-                in {
-                    "exact-current-source",
-                    "current-authoritative",
-                    "historical",
-                    "superseded",
-                }
-                or row == root
-            ):
-                authority_rows.append(row)
-
-        probe_rows = authority_rows or rows
-        values = []
-        statuses = []
-        source_authorities = []
-        for row in probe_rows:
-            if "data-atp-current-source" in row:
-                values.append(
-                    str(
-                        row.get("data-atp-current-source") or ""
-                    ).strip().casefold()
-                )
-            if "data-atp-source-status" in row:
-                statuses.append(
-                    str(
-                        row.get("data-atp-source-status") or ""
-                    ).strip().casefold()
-                )
-            if "data-atp-source-authority" in row:
-                source_authorities.append(
-                    str(
-                        row.get("data-atp-source-authority") or ""
-                    ).strip().casefold()
-                )
-
-        # Explicit current-source polarity outranks descriptive source-authority
-        # labels. This prevents an older package whose metadata still says
-        # "exact-current-source" from becoming current after it has explicitly
-        # been marked data-atp-current-source=false.
-        if any(
-            value in {"true", "1", "yes"}
-            for value in values
-        ):
-            return True
-        if values and all(
-            value in {"false", "0", "no", ""}
-            for value in values
-        ):
-            return False
-
-        if any(
-            status in {"current", "current-authoritative"}
-            for status in statuses
-        ):
-            return True
-        if any(
-            status in {
-                "historical",
-                "superseded",
-                "deprecated",
-                "inactive",
-                "non-current",
-            }
-            for status in statuses
-        ):
-            return False
-
-        if any(
-            value in {
-                "exact-current-source",
-                "current-authoritative",
-            }
-            for value in source_authorities
-        ):
-            return True
-        if any(
-            value in {"historical", "superseded"}
-            for value in source_authorities
-        ):
-            return False
-
-        return None
-
-    def branch_families_v69210(branch):
-        text = " ".join(
-            [
-                str(branch.get("make") or ""),
-                *[
-                    str(x)
-                    for x in (branch.get("models") or [])
-                    if str(x).strip()
-                ],
-            ]
-        )
-        try:
-            return set(
-                _website_identity_vehicle_families_v69022(text)
-            )
-        except Exception:
-            return set()
-
-    def branch_eligibility_v69210(contract):
-        """Prove requested year/model from exact compatibility branches when present."""
-        branches = [
-            dict(x)
-            for x in (
-                contract.get("compatibility_branches") or []
-            )
-            if isinstance(x, dict)
-        ]
-        if not branches:
-            return True, []
-
-        model_branches = []
-        for branch in branches:
-            branch_families = branch_families_v69210(branch)
-            if (
-                pf
-                and branch_families
-                and not pf.issubset(branch_families)
-            ):
-                continue
-            model_branches.append(branch)
-
-        if pf and not model_branches:
-            return False, []
-
-        # If a current branch is explicitly identified inside this product,
-        # historical branches inside the same page cannot prove fitment.
-        current_branches = [
-            branch
-            for branch in model_branches
-            if bool(branch.get("current_source"))
-        ]
-        if current_branches:
-            model_branches = current_branches
-
-        filtered = []
-        for branch in model_branches:
-            trim_cf = str(
-                branch.get("trim") or ""
-            ).strip().casefold()
-
-            if explicit_new_body and "classic" in trim_cf:
-                continue
-
-            if explicit_classic:
-                # Preserve v69209's explicit Classic hard gate: once branch
-                # metadata exists, only an explicitly Classic branch may prove it.
-                if "classic" not in trim_cf:
-                    continue
-
-            filtered.append(branch)
-
-        if py:
-            supported_years = set()
-            for branch in filtered:
-                branch_years = {
-                    int(x)
-                    for x in (branch.get("years") or [])
-                    if str(x).isdigit()
-                }
-                excluded = {
-                    int(x)
-                    for x in (
-                        branch.get("excluded_years") or []
-                    )
-                    if str(x).isdigit()
-                }
-                supported_years.update(branch_years - excluded)
-
-            if not py.issubset(supported_years):
-                return False, filtered
-
-        return True, filtered
-
+    # A bounded cold-start wait materially improves first-query latency after a reboot;
+    # warm queries remain process-memory lookups.
+    packages, status = _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.45)
     ranked = []
     for package in packages:
-        if (
-            str(package.get("destination") or "").strip()
-            != destination
-        ):
+        if str(package.get("destination") or "").strip() != destination:
             continue
-
         fam = set(package.get("vehicle_families") or [])
-        yrs = {
-            int(x)
-            for x in (package.get("years") or [])
-            if str(x).isdigit()
-        }
+        yrs = {int(x) for x in (package.get("years") or []) if str(x).isdigit()}
         sys = set(package.get("systems") or [])
+        codes = {str(x).casefold() for x in (package.get("product_codes") or [])}
         contract = _workspace_atp_product_contract_v69205(package)
-        codes = {
-            str(x).casefold()
-            for x in (
-                list(package.get("product_codes") or [])
-                + list(contract.get("product_codes") or [])
-            )
-            if str(x).strip()
-        }
 
         if pf and fam and not pf.issubset(fam):
             continue
+        if py and yrs and not py.issubset(yrs):
+            continue
         if ps and sys and not ps.issubset(sys):
             continue
-        if pc and (not codes or not (pc & codes)):
+        if pc and codes and not (pc & codes):
             continue
 
-        branches = list(
-            contract.get("compatibility_branches") or []
-        )
-
-        # Branch metadata is the exact compatibility authority when present.
-        if branches:
-            branch_ok, eligible_branches = (
-                branch_eligibility_v69210(contract)
-            )
-            if not branch_ok:
-                continue
-        else:
-            eligible_branches = []
-            # Legacy packages without branch metadata retain package-year gating.
-            if py and yrs and not py.issubset(yrs):
+        # Explicit new-body requests must never bind a Classic-only exact product package.
+        if explicit_new_body and py:
+            branch_rows = [
+                b for b in (contract.get("compatibility_branches") or [])
+                if set(py) & set(b.get("years") or [])
+            ]
+            if branch_rows and all(str(b.get("trim") or "").casefold() == "classic trim" for b in branch_rows):
                 continue
 
-        identity_tokens = set(
-            re.findall(
-                r"[a-z0-9]+",
-                " ".join(
-                    str(contract.get(k) or "")
-                    for k in (
-                        "product_identity_key",
-                        "product_family",
-                        "product_type",
-                        "screen_size",
-                        "display_type",
-                        "platform",
-                        "processor",
-                    )
-                ).casefold(),
-            )
-        )
+        identity_tokens = set(re.findall(
+            r"[a-z0-9]+",
+            " ".join(str(contract.get(k) or "") for k in (
+                "product_identity_key", "product_family", "product_type",
+                "screen_size", "display_type", "platform", "processor",
+            )).casefold(),
+        ))
         identity_overlap = len(prompt_tokens & identity_tokens)
         family_overlap = len(pf & fam)
         code_overlap = len(pc & codes)
-
-        if py and eligible_branches:
-            branch_years = set()
-            for branch in eligible_branches:
-                branch_years.update(
-                    int(x)
-                    for x in (
-                        branch.get("years") or []
-                    )
-                    if str(x).isdigit()
-                )
-            year_overlap = len(py & branch_years)
-        else:
-            year_overlap = len(py & yrs)
-
+        year_overlap = len(py & yrs)
         system_overlap = len(ps & sys)
-        trim_bonus = 6000 if explicit_classic and eligible_branches else 0
+
+        trim_bonus = 0
+        if explicit_classic and py:
+            if any(
+                str(b.get("trim") or "").casefold() == "classic trim"
+                and bool(set(py) & set(b.get("years") or []))
+                for b in (contract.get("compatibility_branches") or [])
+            ):
+                trim_bonus = 6000
 
         score = (
             family_overlap * 10000
@@ -58689,213 +57956,75 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
             + identity_overlap * 1200
             + year_overlap * 800
         )
-
-        ranked.append({
-            "score": score,
-            "extracted_at": str(
-                package.get("extracted_at") or ""
-            ),
-            "filename": str(
-                package.get("filename") or ""
-            ),
-            "package": dict(package),
-            "contract": dict(contract),
-            "codes": sorted(codes),
-            "source_state": source_state_v69210(package),
-        })
+        ranked.append((
+            score,
+            str(package.get("extracted_at") or ""),
+            str(package.get("filename") or ""),
+            package,
+        ))
 
     if not ranked:
         diagnostic_log(
-            "workspace_atp_metadata_fast_miss_v69210",
+            "workspace_atp_metadata_fast_miss_v69205",
             workspace=workspace,
             destination=destination,
             status=status,
         )
         return {}
 
-    ranked.sort(
-        key=lambda item: (
-            int(item.get("score") or 0),
-            str(item.get("extracted_at") or ""),
-            str(item.get("filename") or ""),
-        ),
-        reverse=True,
-    )
-
-    # Collapse repeated learning of the same exact source URL. Source freshness
-    # is evaluated BEFORE timestamp so a later historical/revoked copy cannot
-    # displace a reviewed current copy of the same page.
-    best_by_source = {}
-    for item in ranked:
-        package = dict(item.get("package") or {})
-        source = str(package.get("source_url") or "")
+    ranked.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    top = ranked[0]
+    if len(ranked) > 1 and ranked[1][0] == top[0]:
+        s1 = str(top[3].get("source_url") or "")
+        s2 = str(ranked[1][3].get("source_url") or "")
         try:
-            source_key = (
-                canonical_website_url_identity(source)
-                if source
-                else ""
-            )
+            same = canonical_website_url_identity(s1) == canonical_website_url_identity(s2)
         except Exception:
-            source_key = source.casefold()
-        source_key = source_key or str(
-            item.get("filename") or ""
-        ).casefold()
-
-        state = item.get("source_state")
-        freshness_rank = (
-            2 if state is True
-            else 1 if state is None
-            else 0
-        )
-        item_rank = (
-            freshness_rank,
-            int(item.get("score") or 0),
-            str(item.get("extracted_at") or ""),
-            str(item.get("filename") or ""),
-        )
-        old = best_by_source.get(source_key)
-        if old is None or item_rank > old[0]:
-            best_by_source[source_key] = (
-                item_rank,
-                item,
+            same = s1 == s2
+        if not same:
+            diagnostic_log(
+                "workspace_atp_metadata_fast_ambiguous_v69205",
+                workspace=workspace,
+                destination=destination,
+                score=top[0],
             )
-
-    deduped = [
-        value[1]
-        for value in best_by_source.values()
-    ]
-    deduped.sort(
-        key=lambda item: (
-            int(item.get("score") or 0),
-            str(item.get("extracted_at") or ""),
-            str(item.get("filename") or ""),
-        ),
-        reverse=True,
-    )
-
-    current_items = [
-        item
-        for item in deduped
-        if item.get("source_state") is True
-    ]
-    legacy_items = [
-        item
-        for item in deduped
-        if item.get("source_state") is None
-    ]
-
-    # Hard freshness rule:
-    # - any reviewed current package excludes historical and legacy competitors;
-    # - if there is no reviewed current package, legacy/unspecified packages may
-    #   retain the old single-result behavior;
-    # - explicit historical packages are never direct authority by themselves.
-    if current_items:
-        eligible = current_items
-    elif legacy_items:
-        eligible = legacy_items
-    else:
-        diagnostic_log(
-            "workspace_atp_no_current_or_legacy_authority_v69210",
-            workspace=workspace,
-            destination=destination,
-        )
-        return {}
-
-    def build_authority_v69210(item):
-        package = dict(item.get("package") or {})
-        semantics = dict(
-            package.get("atp_semantics_v69178") or {}
-        )
-        if not semantics:
             return {}
 
-        semantic_json, relevant_webpage_excerpt = (
-            _workspace_atp_compact_context_v69181(
-                package,
-                prompt,
-            )
-        )
-        context = (
-            "\n\nAUTOTECPRO ATP METADATA-FIRST AUTHORITY (v69210)\n"
-            f"Destination: {destination}\n"
-            f"Source URL: {package.get('source_url') or ''}\n"
-            "This exact learned AutoTecPro product page is a current-compatible "
-            "product branch for the requested vehicle scope. Keep this branch's "
-            "facts and image authority isolated from every other product branch. "
-            "If a requested fact is absent, say it is not stated instead of guessing.\n"
-            f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json}\n\n"
-            f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n"
-            f"{relevant_webpage_excerpt}\n"
-        )
-        row = {
-            "file_id": str(package.get("file_id") or ""),
-            "filename": str(package.get("filename") or ""),
-            "score": 1.0,
-            "text": str(package.get("package_text") or ""),
-            "workspace_atp_metadata_first_v69180": True,
-            "workspace_atp_product_fast_v69205": True,
-            "workspace_atp_multi_match_v69209": True,
-            "workspace_atp_current_source_v69210": (
-                item.get("source_state") is True
-            ),
-        }
-        return {
-            "status": "recovered",
-            "destination": destination,
-            "context": context,
-            "row": row,
-            "package": package,
-            "score": int(item.get("score") or 0),
-            "source_url": str(
-                package.get("source_url") or ""
-            ),
-            "product_contract_v69205": dict(
-                item.get("contract") or {}
-            ),
-            "product_codes_v69209": list(
-                item.get("codes") or []
-            ),
-            "current_source_v69210": (
-                item.get("source_state") is True
-            ),
-        }
+    package = dict(top[3])
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    if not semantics:
+        return {}
 
-    # Explicit exact model/product number always narrows within the freshness-safe pool.
-    if pc:
-        return build_authority_v69210(eligible[0])
-
-    # Universal overlap is intentionally limited to reviewed CURRENT packages.
-    if pf and py and len(current_items) > 1:
-        authorities = [
-            build_authority_v69210(item)
-            for item in current_items
-        ]
-        authorities = [
-            item for item in authorities if item
-        ]
-        if len(authorities) > 1:
-            return {
-                "status": "recovered",
-                "destination": destination,
-                "context": "\n".join(
-                    str(item.get("context") or "")
-                    for item in authorities
-                    if str(item.get("context") or "").strip()
-                ),
-                "row": {},
-                "package": {},
-                "score": max(
-                    int(item.get("score") or 0)
-                    for item in authorities
-                ),
-                "source_url": "",
-                "universal_multi_match_v69209": True,
-                "multi_match_authorities_v69209": authorities,
-                "current_source_v69210": True,
-            }
-
-    return build_authority_v69210(eligible[0])
-
+    semantic_json, relevant_webpage_excerpt = _workspace_atp_compact_context_v69181(package, prompt)
+    context = (
+        "\n\nAUTOTECPRO ATP METADATA-FIRST AUTHORITY (v69205)\n"
+        f"Destination: {destination}\nSource URL: {package.get('source_url') or ''}\n"
+        "This exact learned AutoTecPro product page was selected by deterministic current-product identity. "
+        "Its fitment branches, trim/body-style rules, product facts, and workspace-native image policy are first authority. "
+        "Do not broaden to another product or workspace unless this exact contract cannot answer the requested fact. "
+        "The established workspace file_search remains available only as the unchanged supporting fallback. "
+        "If a requested fact is absent, say it is not stated instead of guessing.\n"
+        f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json}\n\n"
+        f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n{relevant_webpage_excerpt}\n"
+    )
+    row = {
+        "file_id": str(package.get("file_id") or ""),
+        "filename": str(package.get("filename") or ""),
+        "score": 1.0,
+        "text": str(package.get("package_text") or ""),
+        "workspace_atp_metadata_first_v69180": True,
+        "workspace_atp_product_fast_v69205": True,
+    }
+    return {
+        "status": "recovered",
+        "destination": destination,
+        "context": context,
+        "row": row,
+        "package": package,
+        "score": top[0],
+        "source_url": str(package.get("source_url") or ""),
+        "product_contract_v69205": _workspace_atp_product_contract_v69205(package),
+    }
 
 
 
@@ -58917,38 +58046,6 @@ def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, 
     if not destination or is_graphic_workspace(workspace):
         return []
     authority = dict(authority or {})
-    multi_v69209 = [
-        dict(x)
-        for x in (authority.get("multi_match_authorities_v69209") or [])
-        if isinstance(x, dict)
-        and str(x.get("status") or "") == "recovered"
-    ]
-    if len(multi_v69209) > 1:
-        combined_v69209 = []
-        seen_v69209 = set()
-        for sub_v69209 in multi_v69209:
-            for record_v69209 in _workspace_atp_exact_images_v69180(
-                workspace_label, prompt_text, sub_v69209, max_images=1
-            ):
-                ident_v69209 = str(
-                    record_v69209.get("website_image_sha256")
-                    or record_v69209.get("data_url")
-                    or record_v69209.get("archive_web_url")
-                    or ""
-                )
-                if ident_v69209 and ident_v69209 not in seen_v69209:
-                    seen_v69209.add(ident_v69209)
-                    record_v69209["workspace_multi_match_image_v69209"] = True
-                    combined_v69209.append(record_v69209)
-        # v69210 universal rule: one primary first-response photo per matched
-        # current product. The caller's historical cap cannot truncate a valid
-        # multi-product set.
-        effective_limit_v69210 = max(
-            max(1, int(max_images or 3)),
-            len(multi_v69209),
-        )
-        return combined_v69209[:effective_limit_v69210]
-
     package = dict(authority.get("package") or {})
     if str(authority.get("status") or "") != "recovered" or str(authority.get("destination") or "") != destination:
         return []
@@ -64581,128 +63678,6 @@ def _technical_menu_path_from_authority_v69158(authority):
 def _technical_verified_configuration_answer_v69158(prompt_text, authority):
     """Build the entire visible Technical configuration answer from verified authority."""
     authority = dict(authority or {})
-
-    multi_authorities_v69208 = [
-        dict(x)
-        for x in (
-            authority.get("multi_match_authorities_v69208") or []
-        )
-        if isinstance(x, dict)
-        and str(x.get("status") or "") == "recovered"
-    ]
-    if len(multi_authorities_v69208) > 1:
-        title_v69208 = _technical_request_display_label_v69158(
-            prompt_text,
-            authority,
-        )
-        lines_v69208 = [
-            f"## {title_v69208 or 'Vehicle'} — Multiple Current AutoTecPro Configurations",
-            "",
-            (
-                "More than one current AutoTecPro configuration matches "
-                "this vehicle model and year. All verified current matches "
-                "are shown below."
-            ),
-        ]
-
-        def system_label_v69208(values):
-            labels = []
-            for value in values or []:
-                cf = str(value or "").casefold()
-                if cf == "no_sync":
-                    labels.append("NON-SYNC")
-                elif cf in {"sync_2", "sync2"}:
-                    labels.append("SYNC 2")
-                else:
-                    labels.append(
-                        str(value).replace("_", " ").upper()
-                    )
-            return " / ".join(labels)
-
-        for index_v69208, item_v69208 in enumerate(
-            multi_authorities_v69208,
-            start=1,
-        ):
-            systems_v69208 = list(
-                item_v69208.get("systems_v69208") or []
-            )
-            codes_v69208 = [
-                str(x).strip().upper()
-                for x in (
-                    item_v69208.get("product_codes_v69208") or []
-                )
-                if str(x).strip()
-            ]
-            system_text_v69208 = system_label_v69208(
-                systems_v69208
-            )
-            option_bits_v69208 = []
-            if codes_v69208:
-                option_bits_v69208.append(
-                    " / ".join(codes_v69208)
-                )
-            if system_text_v69208:
-                option_bits_v69208.append(system_text_v69208)
-            option_label_v69208 = (
-                " — ".join(option_bits_v69208)
-                or f"Current Match {index_v69208}"
-            )
-
-            structured_v69208 = dict(
-                item_v69208.get("structured")
-                or item_v69208.get(
-                    "literal_structured_v69156"
-                )
-                or {}
-            )
-            rows_v69208 = (
-                _technical_table_rows_from_structured_v69156(
-                    structured_v69208
-                )
-            )
-            if not rows_v69208:
-                continue
-
-            lines_v69208.extend([
-                "",
-                f"### Option {index_v69208} — {option_label_v69208}",
-                "",
-                "| Setting Field | Select |",
-                "|---|---|",
-            ])
-            if codes_v69208:
-                lines_v69208.append(
-                    "| Product / Series | "
-                    + " / ".join(codes_v69208)
-                    + " |"
-                )
-            if system_text_v69208:
-                lines_v69208.append(
-                    f"| Factory System | {system_text_v69208} |"
-                )
-            for field_v69208, value_v69208 in rows_v69208:
-                clean_field_v69208 = str(
-                    field_v69208 or ""
-                ).replace("|", "/").strip()
-                clean_value_v69208 = str(
-                    value_v69208 or ""
-                ).replace("|", "/").strip()
-                if clean_field_v69208 and clean_value_v69208:
-                    lines_v69208.append(
-                        f"| {clean_field_v69208} | {clean_value_v69208} |"
-                    )
-
-            menu_v69208 = _technical_menu_path_from_authority_v69158(
-                item_v69208
-            )
-            if menu_v69208:
-                lines_v69208.extend([
-                    "",
-                    "**Menu Path:** " + menu_v69208,
-                ])
-
-        return "\n".join(lines_v69208).strip()
-
     structured = dict(authority.get("structured") or {})
     rows = _technical_table_rows_from_structured_v69156(structured)
     if not rows:
@@ -64717,39 +63692,6 @@ def _technical_verified_configuration_answer_v69158(prompt_text, authority):
         "| Setting Field | Select |",
         "|---|---|",
     ]
-
-    codes_v69208 = [
-        str(x).strip().upper()
-        for x in (authority.get("product_codes_v69208") or [])
-        if str(x).strip()
-    ]
-    if codes_v69208:
-        lines.append(
-            "| Product / Series | "
-            + " / ".join(codes_v69208)
-            + " |"
-        )
-
-    systems_v69208 = []
-    for value_v69208 in (
-        authority.get("systems_v69208") or []
-    ):
-        cf_v69208 = str(value_v69208 or "").casefold()
-        if cf_v69208 == "no_sync":
-            systems_v69208.append("NON-SYNC")
-        elif cf_v69208 in {"sync_2", "sync2"}:
-            systems_v69208.append("SYNC 2")
-        elif str(value_v69208 or "").strip():
-            systems_v69208.append(
-                str(value_v69208).replace("_", " ").upper()
-            )
-    if systems_v69208:
-        lines.append(
-            "| Factory System | "
-            + " / ".join(systems_v69208)
-            + " |"
-        )
-
     for field, value in rows:
         clean_field = str(field or "").replace("|", "/").strip()
         clean_value = str(value or "").replace("|", "/").strip()
@@ -64831,28 +63773,6 @@ def _technical_final_factual_qa_v69158(
 def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_images=16):
     """v69161: auto-display exact subtitle images plus strictly inquiry-related images."""
     authority = dict(authority or {})
-
-    multi_v69208 = [
-        dict(x)
-        for x in (
-            authority.get("multi_match_authorities_v69208") or []
-        )
-        if isinstance(x, dict)
-    ]
-    if multi_v69208:
-        selected_v69208 = []
-        seen_v69208 = set()
-        for sub_v69208 in multi_v69208:
-            for url_v69208 in _technical_inquiry_relevant_image_urls_v69158(
-                sub_v69208,
-                prompt_text,
-                max_images=1,
-            ):
-                if url_v69208 not in seen_v69208:
-                    seen_v69208.add(url_v69208)
-                    selected_v69208.append(url_v69208)
-        return selected_v69208[:max(1, int(max_images or 16))]
-
     selected = []
     seen = set()
 
@@ -67057,35 +65977,6 @@ def _technical_exact_authority_chat_images_v69170(prompt_text, authority, max_im
     if str(authority.get("status") or "") != "recovered":
         return []
 
-    multi_v69208 = [
-        dict(x)
-        for x in (
-            authority.get("multi_match_authorities_v69208") or []
-        )
-        if isinstance(x, dict)
-    ]
-    if multi_v69208:
-        out_v69208 = []
-        seen_v69208 = set()
-        for sub_v69208 in multi_v69208:
-            for rec_v69208 in _technical_exact_authority_chat_images_v69170(
-                prompt_text,
-                sub_v69208,
-                max_images=1,
-            ):
-                key_v69208 = str(
-                    rec_v69208.get("archive_web_url")
-                    or rec_v69208.get("data_url")
-                    or ""
-                ).strip()
-                if key_v69208 and key_v69208 not in seen_v69208:
-                    seen_v69208.add(key_v69208)
-                    rec_v69208[
-                        "technical_multi_match_image_v69208"
-                    ] = True
-                    out_v69208.append(rec_v69208)
-        return out_v69208[:max(1, int(max_images or 8))]
-
     source_url = str(authority.get("source_url") or "").strip()
     file_id = str(authority.get("file_id") or "").strip()
     filename = str(authority.get("filename") or "").strip()
@@ -67823,36 +66714,6 @@ def _technical_section_bound_chat_images_v69143(section_evidence, max_images=40)
     if not isinstance(section_evidence, dict):
         return []
 
-    multi_v69208 = [
-        dict(x)
-        for x in (
-            section_evidence.get(
-                "multi_match_authorities_v69208"
-            ) or []
-        )
-        if isinstance(x, dict)
-    ]
-    if multi_v69208:
-        out_v69208 = []
-        seen_v69208 = set()
-        for sub_v69208 in multi_v69208:
-            for rec_v69208 in _technical_section_bound_chat_images_v69143(
-                sub_v69208,
-                max_images=1,
-            ):
-                key_v69208 = str(
-                    rec_v69208.get("archive_web_url")
-                    or rec_v69208.get("data_url")
-                    or ""
-                ).strip()
-                if key_v69208 and key_v69208 not in seen_v69208:
-                    seen_v69208.add(key_v69208)
-                    rec_v69208[
-                        "technical_multi_match_image_v69208"
-                    ] = True
-                    out_v69208.append(rec_v69208)
-        return out_v69208[:max(1, int(max_images or 40))]
-
     urls = [
         str(u).strip()
         for u in (section_evidence.get("selected_image_urls_v69143") or [])
@@ -68516,120 +67377,65 @@ def _technical_package_page_identity_v69113(package_text):
 
 @st.cache_data(ttl=120, max_entries=8, show_spinner=False)
 def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_revision):
-    """Build the complete current Technical website-package catalogue.
+    """Build a cached catalogue of current Technical Admin website packages.
 
-    v69212 keeps the existing catalogue semantics but makes file-content hydration
-    concurrent and atomic. The function returns a package list only after every
-    website package candidate in the vector-store file catalogue has completed its
-    bounded exact-file read. If a candidate cannot be read inside the bounded
-    operation, the catalogue build fails closed instead of returning a partial set.
+    This reads only files already attached to the configured Technical vector store.
+    It does not mutate OpenAI, Supabase, image indexes, or any Graphic state.
     """
-    del learning_revision
+    del learning_revision  # revision is part of the cache key only.
     store = str(vector_store_id or "").strip()
     if not store.startswith("vs_"):
         return []
 
-    rows = [
-        dict(row)
-        for row in (_website_vector_store_file_rows_v68892(store) or [])
-        if isinstance(row, dict)
-        and str(row.get("file_id") or "").strip()
-        and str(row.get("filename") or "").strip().startswith("website_")
-    ]
-    if not rows:
-        return []
-
-    def hydrate(row):
+    packages = []
+    for row in _website_vector_store_file_rows_v68892(store):
+        if not isinstance(row, dict):
+            continue
         file_id = str(row.get("file_id") or "").strip()
         filename = str(row.get("filename") or "").strip()
+        if not file_id or not filename.startswith("website_"):
+            continue
+
         package_text = str(
             _technical_exact_file_text_v69182(
                 file_id,
-                timeout_seconds=3.0,
+                timeout_seconds=2.5,
             )
             or ""
         )
-        if not package_text:
-            # One bounded retry handles transient OpenAI file-content timing
-            # without weakening the atomic full-catalogue requirement.
-            time.sleep(0.05)
-            package_text = str(
-                _technical_exact_file_text_v69182(
-                    file_id,
-                    timeout_seconds=3.0,
-                )
-                or ""
-            )
-        if not package_text:
-            return {
-                "status": "unavailable",
-                "file_id": file_id,
-                "filename": filename,
-            }
         if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text:
-            return {"status": "skip"}
+            continue
         if (
-            _technical_package_header_value_v69113(
-                package_text,
-                "Destination",
-            )
+            _technical_package_header_value_v69113(package_text, "Destination")
             != "Technical Support Database"
         ):
-            return {"status": "skip"}
+            continue
 
-        webpage_text = _technical_package_webpage_text_v69113(
-            package_text
-        )
+        webpage_text = _technical_package_webpage_text_v69113(package_text)
         if not webpage_text:
-            return {
-                "status": "unavailable",
-                "file_id": file_id,
-                "filename": filename,
-            }
+            continue
 
-        page_identity = _technical_package_page_identity_v69113(
-            package_text
-        )
+        page_identity = _technical_package_page_identity_v69113(package_text)
         source_url = (
-            _technical_package_header_value_v69113(
-                package_text,
-                "Final source URL",
-            )
-            or _technical_package_header_value_v69113(
-                package_text,
-                "Requested URL",
-            )
+            _technical_package_header_value_v69113(package_text, "Final source URL")
+            or _technical_package_header_value_v69113(package_text, "Requested URL")
         )
         extracted_at = _technical_package_header_value_v69113(
-            package_text,
-            "Extracted at (UTC)",
+            package_text, "Extracted at (UTC)"
         )
-        title = _technical_package_header_value_v69113(
-            package_text,
-            "Page title",
-        )
+        title = _technical_package_header_value_v69113(package_text, "Page title")
 
         identity_text = " ".join(
             (
                 title,
                 source_url,
                 webpage_text[:24000],
-                json.dumps(
-                    page_identity,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                ),
+                json.dumps(page_identity, ensure_ascii=False, sort_keys=True),
             )
         )
-        families = set(
-            page_identity.get("vehicle_families") or []
-        )
+        families = set(page_identity.get("vehicle_families") or [])
         if not families:
-            families = set(
-                _website_identity_vehicle_families_v69022(
-                    identity_text
-                )
-            )
+            families = set(_website_identity_vehicle_families_v69022(identity_text))
         years = set()
         for value in page_identity.get("years") or []:
             try:
@@ -68637,100 +67443,35 @@ def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_re
             except Exception:
                 pass
         if not years:
-            years = set(
-                _website_identity_years_v69022(identity_text)
-            )
-        systems = {
-            str(x)
-            for x in (page_identity.get("systems") or [])
-            if str(x)
-        }
+            years = set(_website_identity_years_v69022(identity_text))
+        systems = set(str(x) for x in (page_identity.get("systems") or []) if str(x))
         if not systems:
-            systems = set(
-                _website_identity_systems_v69022(identity_text)
-            )
-        product_codes = set(
-            _website_image_product_codes_v69020(identity_text)
-        )
+            systems = set(_website_identity_systems_v69022(identity_text))
+        product_codes = set(_website_image_product_codes_v69020(identity_text))
 
-        return {
-            "status": "package",
-            "package": {
-                "file_id": file_id,
-                "filename": filename,
-                "source_url": source_url,
-                "title": title,
-                "extracted_at": extracted_at,
-                "webpage_text": webpage_text,
-                "package_text": package_text,
-                "page_identity": page_identity,
-                "vehicle_families": sorted(families),
-                "years": sorted(years),
-                "systems": sorted(systems),
-                "product_codes": sorted(product_codes),
-            },
-        }
+        packages.append({
+            "file_id": file_id,
+            "filename": filename,
+            "source_url": source_url,
+            "title": title,
+            "extracted_at": extracted_at,
+            "webpage_text": webpage_text,
+            "package_text": package_text,
+            "page_identity": page_identity,
+            "vehicle_families": sorted(families),
+            "years": sorted(years),
+            "systems": sorted(systems),
+            "product_codes": sorted(product_codes),
+        })
 
-    results = []
-    unavailable = []
-    try:
-        from concurrent.futures import (
-            ThreadPoolExecutor,
-            as_completed,
-        )
-        max_workers = min(16, max(1, len(rows)))
-        with ThreadPoolExecutor(
-            max_workers=max_workers,
-            thread_name_prefix="atp-tech-full-catalog-v69212",
-        ) as executor:
-            futures = [
-                executor.submit(hydrate, row)
-                for row in rows
-            ]
-            for future in as_completed(futures):
-                try:
-                    item = future.result()
-                except Exception as error:
-                    unavailable.append(
-                        type(error).__name__
-                    )
-                    continue
-                if not isinstance(item, dict):
-                    continue
-                if item.get("status") == "package":
-                    package = item.get("package")
-                    if isinstance(package, dict):
-                        results.append(package)
-                elif item.get("status") == "unavailable":
-                    unavailable.append(
-                        str(item.get("file_id") or "unknown")
-                    )
-    except Exception as error:
-        diagnostic_log(
-            "technical_full_catalog_concurrent_failed_v69212",
-            error_type=type(error).__name__,
-            error=str(error)[:500],
-        )
-        return []
-
-    if unavailable:
-        diagnostic_log(
-            "technical_full_catalog_incomplete_v69212",
-            candidate_files=len(rows),
-            recovered_packages=len(results),
-            unavailable_count=len(unavailable),
-        )
-        return []
-
-    results.sort(
+    packages.sort(
         key=lambda item: (
             str((item or {}).get("extracted_at") or ""),
             str((item or {}).get("filename") or ""),
         ),
         reverse=True,
     )
-    return results
-
+    return packages
 
 
 
@@ -70087,56 +68828,6 @@ def _technical_metadata_fast_contract_v69178(prompt_text, store):
     return {}
 
 
-
-def _technical_current_series_correction_v69225(families, years, systems):
-    """Confirmed current series for exact Ford Super Duty branches only."""
-    family_tokens = {
-        re.sub(r"[^a-z0-9]+", "", str(x or "").casefold())
-        for x in (families or [])
-        if str(x or "").strip()
-    }
-    if not (
-        family_tokens
-        & {"f250", "f350", "f450", "fordf250", "fordf350", "fordf450"}
-    ):
-        return set()
-
-    year_values = set()
-    for raw in years or []:
-        try:
-            year_values.add(int(raw))
-        except Exception:
-            pass
-
-    system_tokens = {
-        re.sub(r"[\s-]+", "_", str(x or "").strip().casefold())
-        for x in (systems or [])
-        if str(x or "").strip()
-    }
-
-    if (
-        year_values
-        and min(year_values) <= 2016
-        and max(year_values) >= 2013
-        and ("sync_2" in system_tokens or "sync2" in system_tokens)
-    ):
-        return {"722"}
-
-    if (
-        year_values
-        and min(year_values) <= 2016
-        and max(year_values) >= 2009
-        and (
-            "no_sync" in system_tokens
-            or "non_sync" in system_tokens
-            or "nosync" in system_tokens
-        )
-    ):
-        return {"726"}
-
-    return set()
-
-
 def _technical_package_from_text_v69121(file_id, filename, package_text):
     """Parse one already-reviewed Technical website package without network I/O."""
     text = str(package_text or "")
@@ -70188,14 +68879,6 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
         systems = set(_website_identity_systems_v69022(identity_text))
 
     product_codes = set(_website_image_product_codes_v69020(identity_text))
-    corrected_series_v69225 = _technical_current_series_correction_v69225(
-        families,
-        years,
-        systems,
-    )
-    if corrected_series_v69225:
-        product_codes = set(corrected_series_v69225)
-
     return {
         "file_id": str(file_id or ""),
         "filename": str(filename or ""),
@@ -70400,86 +69083,82 @@ def _technical_compile_one_package_v69199(package):
 
 
 def _technical_compiled_runtime_merge_package_v69199(package, store, revision):
-    """Merge one verified package without deleting distinct overlapping current branches.
-
-    v69211 fixes the remaining destructive incremental-merge path.  A newly learned
-    source replaces only the same source/file identity.  Every other already-compiled
-    current package is rebuilt with it through the universal v69208 index builder, so
-    overlapping make/model/year branches remain parallel instead of being wiped.
-    """
+    """Merge one verified current package into the in-process index without wiping warm peers."""
     package = dict(package or {})
     clean_store = str(store or "").strip()
     clean_revision = int(revision or 0)
-    if not package or not clean_store:
+    contracts = list(_technical_compile_one_package_v69199(package) or [])
+    if not contracts:
         return False
 
     state = _technical_compiled_contract_state_v69198()
-    existing_packages = []
     with state["lock"]:
         if (
-            str(state.get("store") or "") == clean_store
-            and int(state.get("revision") or -1) == clean_revision
+            str(state.get("store") or "") != clean_store
+            or int(state.get("revision") or -1) != clean_revision
         ):
-            for cached in (state.get("packages") or {}).values():
-                if not isinstance(cached, dict):
-                    continue
-                package_text = str(cached.get("package_text") or "")
-                parsed = _technical_package_from_text_v69121(
-                    cached.get("file_id"),
-                    cached.get("filename"),
-                    package_text,
-                )
-                if isinstance(parsed, dict):
-                    existing_packages.append(parsed)
+            state.update({
+                "store": clean_store,
+                "revision": clean_revision,
+                "packages": {},
+                "contracts": {},
+                "buckets": {},
+                "built_at": time.monotonic(),
+            })
 
-    new_source = str(package.get("source_url") or "").strip()
-    try:
-        new_source_key = (
-            canonical_website_url_identity(new_source)
-            if new_source else ""
-        )
-    except Exception:
-        new_source_key = new_source.casefold()
-    new_file = str(package.get("file_id") or "").strip()
+        package_id = str(package.get("file_id") or package.get("filename") or "")
+        if not package_id:
+            return False
 
-    kept = []
-    for item in existing_packages:
-        item_source = str(item.get("source_url") or "").strip()
-        try:
-            item_source_key = (
-                canonical_website_url_identity(item_source)
-                if item_source else ""
-            )
-        except Exception:
-            item_source_key = item_source.casefold()
-        same_source = bool(
-            new_source_key
-            and item_source_key
-            and new_source_key == item_source_key
-        )
-        same_file = bool(
-            new_file
-            and str(item.get("file_id") or "").strip() == new_file
-        )
-        if not (same_source or same_file):
-            kept.append(item)
+        # Remove older compiled entries for the exact family/year scopes carried by
+        # this verified current package, while preserving unrelated warm packages.
+        target_scopes = {
+            (str(f).casefold(), int(y))
+            for contract in contracts
+            for f in (contract.get("families") or [])
+            for y in (contract.get("years") or [])
+            if str(f).strip()
+        }
+        remove_ids = set()
+        for bucket_key, ids in list((state.get("buckets") or {}).items()):
+            try:
+                _, fam, year_text = bucket_key.rsplit("|", 2)
+                scope = (str(fam).casefold(), int(year_text))
+            except Exception:
+                scope = None
+            if scope in target_scopes:
+                remove_ids.update(ids or [])
+                state["buckets"].pop(bucket_key, None)
+        for cid in remove_ids:
+            state["contracts"].pop(cid, None)
 
-    kept.append(package)
-    ok = _technical_compiled_runtime_publish_v69198(
-        kept,
-        clean_store,
-        clean_revision,
+        state["packages"][package_id] = {
+            "package_text": str(package.get("package_text") or ""),
+            "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
+            "source_url": str(package.get("source_url") or ""),
+            "file_id": str(package.get("file_id") or ""),
+            "filename": str(package.get("filename") or ""),
+            "title": str(package.get("title") or ""),
+            "extracted_at": str(package.get("extracted_at") or ""),
+        }
+        for contract in contracts:
+            cid = str(contract.get("contract_id") or "")
+            if not cid:
+                continue
+            state["contracts"][cid] = contract
+            for family in contract.get("families") or []:
+                for year in contract.get("years") or []:
+                    bucket_key = f"{clean_store}|{str(family).casefold()}|{int(year)}"
+                    state["buckets"].setdefault(bucket_key, []).append(cid)
+        state["built_at"] = time.monotonic()
+
+    diagnostic_log(
+        "technical_compiled_runtime_merge_package_v69199",
+        file_id=str(package.get("file_id") or "")[:160],
+        contracts=len(contracts),
+        revision=clean_revision,
     )
-    if ok:
-        diagnostic_log(
-            "technical_compiled_runtime_merge_preserved_peers_v69211",
-            file_id=new_file[:160],
-            source_url=new_source[:700],
-            package_count=len(kept),
-            revision=clean_revision,
-        )
-    return bool(ok)
-
+    return True
 
 
 
@@ -70565,1285 +69244,9 @@ def _technical_resolve_family_year_v69199(prompt_text, store="", allow_registry=
     return "", None
 
 
-
-@st.cache_data(ttl=2, max_entries=256, show_spinner=False)
-def _technical_durable_snapshot_scope_v69213(vector_store_id, family, year):
-    """Enumerate the complete durable Technical snapshot set for one family/year.
-
-    This is the cold-query authority in v69213. It reads compact snapshot metadata
-    from Supabase and decompresses only packages that match the requested vehicle
-    family/year. It does not wait for global Technical prewarm and does not use the
-    OpenAI image index or files.content endpoint as package-completeness authority.
-    """
-    store = str(vector_store_id or "").strip()
-    family = re.sub(r"[^a-z0-9]+", "", str(family or "").casefold())
-    try:
-        year = int(year)
-    except Exception:
-        return {"complete": False, "rows": [], "reason": "INVALID_SCOPE"}
-    if not family or year < 1980 or year > 2100:
-        return {"complete": False, "rows": [], "reason": "INVALID_SCOPE"}
-
-    try:
-        mode, columns, key_col, value_col, time_col = (
-            _technical_active_authority_schema_v69164()
-        )
-        wanted = [
-            x
-            for x in (
-                "id",
-                key_col,
-                value_col,
-                "solution",
-                "approved_answer",
-                "source_type",
-                "openai_file_id",
-                "vector_store_id",
-                "updated_at",
-                "created_at",
-            )
-            if x and (not columns or x in columns)
-        ]
-        query = supabase.table("learned_knowledge").select(
-            ",".join(dict.fromkeys(wanted))
-        )
-        if "source_type" in columns:
-            query = query.eq(
-                "source_type",
-                "technical_durable_snapshot_v69171",
-            )
-        rows = list(
-            query.like(
-                key_col,
-                TECHNICAL_DURABLE_SNAPSHOT_PREFIX_V69171 + "%",
-            )
-            .order(time_col, desc=True)
-            .limit(4000)
-            .execute().data
-            or []
-        )
-    except Exception as error:
-        diagnostic_log(
-            "technical_scoped_snapshot_index_read_failed_v69213",
-            family=family,
-            year=year,
-            error_type=type(error).__name__,
-            error=str(error)[:500],
-        )
-        return {
-            "complete": False,
-            "rows": [],
-            "reason": "SNAPSHOT_INDEX_READ_FAILED",
-        }
-
-    matches = []
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        raw = str(
-            row.get(value_col)
-            or row.get("solution")
-            or row.get("approved_answer")
-            or ""
-        ).strip()
-        try:
-            payload = json.loads(raw)
-        except Exception:
-            continue
-        if (
-            not isinstance(payload, dict)
-            or int(payload.get("schema_version") or 0) != 69171
-        ):
-            continue
-
-        payload_store = str(
-            payload.get("vector_store_id")
-            or row.get("vector_store_id")
-            or ""
-        ).strip()
-        if store and payload_store and payload_store != store:
-            continue
-
-        families = {
-            re.sub(
-                r"[^a-z0-9]+",
-                "",
-                str(x or "").casefold(),
-            )
-            for x in (payload.get("vehicle_families") or [])
-            if str(x or "").strip()
-        }
-        years = set()
-        for raw_year in payload.get("years") or []:
-            try:
-                years.add(int(raw_year))
-            except Exception:
-                pass
-        if family not in families or year not in years:
-            continue
-
-        payload = dict(payload)
-        payload["_row_id_v69213"] = row.get("id")
-        payload["_row_time_v69213"] = str(
-            row.get("updated_at")
-            or row.get("created_at")
-            or ""
-        )
-        matches.append(payload)
-
-    # Same source URL is one durable package identity. Keep the newest verified
-    # snapshot row for that source while preserving different overlapping pages.
-    best = {}
-    for payload in matches:
-        source_url = str(payload.get("source_url") or "").strip()
-        try:
-            key = canonical_website_url_identity(source_url)
-        except Exception:
-            key = source_url.casefold()
-        if not key:
-            continue
-        rank = (
-            str(payload.get("extracted_at") or ""),
-            str(payload.get("_row_time_v69213") or ""),
-            str(payload.get("file_id") or ""),
-        )
-        old = best.get(key)
-        if old is None or rank > old[0]:
-            best[key] = (rank, payload)
-
-    output = [value[1] for value in best.values()]
-    output.sort(
-        key=lambda payload: (
-            str(payload.get("extracted_at") or ""),
-            str(payload.get("_row_time_v69213") or ""),
-            str(payload.get("file_id") or ""),
-        ),
-        reverse=True,
-    )
-    diagnostic_log(
-        "technical_scoped_snapshot_index_ready_v69213",
-        family=family,
-        year=year,
-        rows=len(output),
-    )
-    return {"complete": True, "rows": output, "reason": "READY"}
-
-
-
-def _technical_scoped_source_candidates_v69214(
-    prompt_text,
-    vector_store_id,
-    family,
-    year,
-    existing_source_urls=None,
-):
-    """Discover only exact-scope Technical source URLs for legacy migration.
-
-    Sources:
-    - durable Technical package registry rows;
-    - the legacy active family/year pointer;
-    - durable Technical image-index rows already learned from the exact page.
-
-    The image index is discovery evidence only. No image-index row becomes factual
-    authority until the exact source page is re-fetched and independently proves
-    current-source + vehicle/year compatibility.
-    """
-    store = str(vector_store_id or "").strip()
-    family = re.sub(r"[^a-z0-9]+", "", str(family or "").casefold())
-    try:
-        year = int(year)
-    except Exception:
-        return []
-
-    existing = set()
-    for raw_url in existing_source_urls or []:
-        raw_url = str(raw_url or "").strip()
-        if not raw_url:
-            continue
-        try:
-            existing.add(canonical_website_url_identity(raw_url))
-        except Exception:
-            existing.add(raw_url.rstrip("/").casefold())
-
-    prompt_systems = {
-        str(x).strip()
-        for x in _website_identity_systems_v69022(prompt_text)
-        if str(x).strip()
-    }
-    prompt_codes = {
-        str(x).strip().casefold()
-        for x in _website_image_product_codes_v69020(prompt_text)
-        if str(x).strip()
-    }
-
-    candidates = {}
-
-    def add_candidate(
-        source_url,
-        origin,
-        *,
-        file_id="",
-        filename="",
-        systems=None,
-        product_codes=None,
-        indexed_at="",
-        mandatory=False,
-    ):
-        source_url = str(source_url or "").strip()
-        if not source_url.startswith(("http://", "https://")):
-            return
-        try:
-            key = canonical_website_url_identity(source_url)
-        except Exception:
-            key = source_url.rstrip("/").casefold()
-        if not key or key in existing:
-            return
-
-        systems = {
-            str(x).strip()
-            for x in (systems or [])
-            if str(x).strip()
-        }
-        codes = {
-            str(x).strip().casefold()
-            for x in (product_codes or [])
-            if str(x).strip()
-        }
-        if prompt_systems and systems and not prompt_systems.issubset(systems):
-            return
-        if prompt_codes and codes and not (prompt_codes & codes):
-            return
-
-        rank = (
-            3 if origin == "registry" else 2 if origin == "active_pointer" else 1,
-            str(indexed_at or ""),
-        )
-        old = candidates.get(key)
-        record = {
-            "source_url": source_url,
-            "origin": str(origin or ""),
-            "file_id": str(file_id or ""),
-            "filename": str(filename or ""),
-            "systems": sorted(systems),
-            "product_codes": sorted(codes),
-            "indexed_at": str(indexed_at or ""),
-            "mandatory": bool(mandatory),
-            "_rank": rank,
-        }
-        if old is None or rank > old.get("_rank", (0, "")):
-            candidates[key] = record
-        elif mandatory:
-            old["mandatory"] = True
-
-    # 1) Durable registry: strongest legacy-discovery evidence.
-    try:
-        for row in _technical_registry_rows_v69162(store) or []:
-            if not isinstance(row, dict):
-                continue
-            families = {
-                re.sub(r"[^a-z0-9]+", "", str(x or "").casefold())
-                for x in (row.get("vehicle_families") or [])
-                if str(x or "").strip()
-            }
-            years = set()
-            for raw_year in row.get("years") or []:
-                try:
-                    years.add(int(raw_year))
-                except Exception:
-                    pass
-            if family not in families or year not in years:
-                continue
-            add_candidate(
-                row.get("source_url"),
-                "registry",
-                file_id=row.get("file_id"),
-                filename=row.get("filename"),
-                systems=row.get("systems"),
-                product_codes=row.get("product_codes"),
-                indexed_at=(
-                    row.get("extracted_at")
-                    or row.get("registry_created_at_v69162")
-                    or ""
-                ),
-                mandatory=True,
-            )
-    except Exception as error:
-        diagnostic_log(
-            "technical_scoped_registry_discovery_failed_v69214",
-            family=family,
-            year=year,
-            error_type=type(error).__name__,
-        )
-
-    # 2) Legacy family/year pointer: it proves at least that one reviewed source
-    # was current for this scope, but it cannot enumerate overlapping peers.
-    try:
-        pointer = dict(
-            _technical_active_authority_row_v69164(
-                family,
-                year,
-                store,
-            )
-            or {}
-        )
-    except Exception:
-        pointer = {}
-    if pointer:
-        add_candidate(
-            pointer.get("source_url"),
-            "active_pointer",
-            file_id=pointer.get("file_id"),
-            filename=pointer.get("filename"),
-            systems=pointer.get("systems"),
-            product_codes=pointer.get("product_codes"),
-            indexed_at=pointer.get("extracted_at"),
-            mandatory=True,
-        )
-
-    # 3) Durable image index: migration discovery only.
-    #
-    # Unlike the older broad helper, v69214 requires POSITIVE family + year proof
-    # from the durable row before the page can enter the mandatory source set.
-    # Sparse/unidentified image rows are ignored and therefore cannot poison an
-    # unrelated vehicle query.
-    generic_scope = not prompt_systems and not prompt_codes
-    try:
-        image_rows = [
-            dict(x)
-            for x in (_website_image_index_rows_v68883() or [])
-            if isinstance(x, dict)
-            and str(x.get("database_choice") or "")
-            == "Technical Support Database"
-        ]
-    except Exception:
-        image_rows = []
-
-    for row in image_rows:
-        source_url = str(row.get("source_page") or "").strip()
-        if not source_url:
-            continue
-
-        identity = dict(row.get("page_identity_v69024") or {})
-        row_families = {
-            re.sub(r"[^a-z0-9]+", "", str(x or "").casefold())
-            for x in (
-                identity.get("vehicle_families")
-                or identity.get("families")
-                or []
-            )
-            if str(x or "").strip()
-        }
-        row_years = set()
-        for raw_year in (
-            identity.get("years")
-            or identity.get("vehicle_years")
-            or []
-        ):
-            try:
-                row_years.add(int(raw_year))
-            except Exception:
-                pass
-        row_systems = {
-            str(x).strip()
-            for x in (
-                identity.get("systems")
-                or identity.get("factory_systems")
-                or []
-            )
-            if str(x).strip()
-        }
-
-        context = " ".join(
-            (
-                str(row.get("page_title") or ""),
-                source_url,
-                str(row.get("section_heading") or ""),
-                str(row.get("nearby_instruction_text") or ""),
-                str(row.get("caption") or ""),
-                str(row.get("visual_analysis") or ""),
-            )
-        )
-        if not row_families:
-            try:
-                row_families = {
-                    re.sub(r"[^a-z0-9]+", "", str(x or "").casefold())
-                    for x in _website_identity_vehicle_families_v69022(context)
-                    if str(x or "").strip()
-                }
-            except Exception:
-                row_families = set()
-        if not row_years:
-            try:
-                row_years = {
-                    int(x)
-                    for x in _website_identity_years_v69022(context)
-                }
-            except Exception:
-                row_years = set()
-        if not row_systems:
-            try:
-                row_systems = {
-                    str(x).strip()
-                    for x in _website_identity_systems_v69022(context)
-                    if str(x).strip()
-                }
-            except Exception:
-                row_systems = set()
-
-        # Positive exact-scope evidence is mandatory. Empty/unknown identity rows
-        # are not allowed to enter completeness authority.
-        if family not in row_families or year not in row_years:
-            continue
-
-        add_candidate(
-            source_url,
-            "image_index",
-            systems=row_systems,
-            indexed_at=row.get("indexed_at"),
-            mandatory=bool(generic_scope),
-        )
-
-    output = []
-    for record in candidates.values():
-        record = dict(record)
-        record.pop("_rank", None)
-        output.append(record)
-    output.sort(
-        key=lambda record: (
-            1 if record.get("mandatory") else 0,
-            str(record.get("indexed_at") or ""),
-            str(record.get("source_url") or ""),
-        ),
-        reverse=True,
-    )
-
-    diagnostic_log(
-        "technical_scoped_source_candidates_v69214",
-        family=family,
-        year=year,
-        candidates=len(output),
-        mandatory=sum(1 for x in output if x.get("mandatory")),
-        registry=sum(1 for x in output if x.get("origin") == "registry"),
-        image_index=sum(1 for x in output if x.get("origin") == "image_index"),
-    )
-    return output
-
-
-
-
-@st.cache_resource(show_spinner=False)
-def _technical_scoped_disproven_state_v69214():
-    """Short-lived process cache for exact-refetched historical/out-of-scope pages."""
-    return {
-        "lock": threading.Lock(),
-        "rows": {},
-    }
-
-
-def _technical_scoped_source_is_disproven_v69214(source_url):
-    state = _technical_scoped_disproven_state_v69214()
-    try:
-        key = canonical_website_url_identity(str(source_url or "").strip())
-    except Exception:
-        key = str(source_url or "").strip().rstrip("/").casefold()
-    if not key:
-        return False
-    now = time.monotonic()
-    with state["lock"]:
-        expires = float(state["rows"].get(key) or 0.0)
-        if expires > now:
-            return True
-        state["rows"].pop(key, None)
-    return False
-
-
-def _technical_scoped_mark_disproven_v69214(source_url, ttl_seconds=120):
-    state = _technical_scoped_disproven_state_v69214()
-    try:
-        key = canonical_website_url_identity(str(source_url or "").strip())
-    except Exception:
-        key = str(source_url or "").strip().rstrip("/").casefold()
-    if not key:
-        return
-    with state["lock"]:
-        state["rows"][key] = time.monotonic() + max(
-            5.0,
-            float(ttl_seconds or 120),
-        )
-        if len(state["rows"]) > 2048:
-            now = time.monotonic()
-            for old_key, expires in list(state["rows"].items()):
-                if float(expires or 0.0) <= now:
-                    state["rows"].pop(old_key, None)
-
-
-def _technical_scoped_clear_disproven_v69214(source_url=""):
-    state = _technical_scoped_disproven_state_v69214()
-    if source_url:
-        try:
-            key = canonical_website_url_identity(str(source_url or "").strip())
-        except Exception:
-            key = str(source_url or "").strip().rstrip("/").casefold()
-        with state["lock"]:
-            state["rows"].pop(key, None)
-        return
-    with state["lock"]:
-        state["rows"].clear()
-
-
-@st.cache_resource(show_spinner=False)
-def _technical_scoped_migration_locks_v69214():
-    """Process-wide per-source locks for one-time legacy source migration."""
-    return {
-        "guard": threading.Lock(),
-        "locks": {},
-    }
-
-
-def _technical_scoped_migration_lock_for_v69214(source_url):
-    state = _technical_scoped_migration_locks_v69214()
-    try:
-        key = canonical_website_url_identity(
-            str(source_url or "").strip()
-        )
-    except Exception:
-        key = str(source_url or "").strip().rstrip("/").casefold()
-    key = key or "unknown"
-    with state["guard"]:
-        lock = state["locks"].get(key)
-        if lock is None:
-            lock = threading.RLock()
-            state["locks"][key] = lock
-        # Keep this tiny process cache bounded.
-        if len(state["locks"]) > 512:
-            for old_key in list(state["locks"])[:128]:
-                if old_key != key:
-                    state["locks"].pop(old_key, None)
-    return lock
-
-
-def _technical_exact_source_fast_migrate_v69214(
-    prompt_text,
-    candidate,
-    vector_store_id,
-):
-    """Re-fetch one exact reviewed source URL without OpenAI file download.
-
-    This is a one-time migration path for sources learned before durable v69171
-    snapshots were available. It never performs semantic vector search and never
-    switches URLs. The live page must independently prove the exact source identity,
-    current-source metadata, and requested vehicle/year scope before the package is
-    committed to the durable snapshot + package registry.
-
-    Existing durable website-image metadata remains the image authority, so the
-    migration does not perform expensive AI image analysis.
-    """
-    candidate = dict(candidate or {})
-    source_url = str(candidate.get("source_url") or "").strip()
-    if not source_url:
-        return {"status": "unavailable", "reason_code": "NO_SOURCE_URL"}
-
-    password = _technical_source_password_v69172(source_url)
-    try:
-        extraction = extract_public_webpage(
-            source_url,
-            page_password=password,
-        )
-    except Exception as error:
-        text = str(error or "").casefold()
-        reason = (
-            "PROTECTED_SOURCE_CREDENTIAL_REQUIRED"
-            if "password protected" in text
-            or "password was not accepted" in text
-            else "EXACT_SOURCE_REFETCH_FAILED"
-        )
-        diagnostic_log(
-            "technical_scoped_source_refetch_failed_v69214",
-            source_url=source_url[:700],
-            origin=str(candidate.get("origin") or ""),
-            reason=reason,
-            error_type=type(error).__name__,
-        )
-        return {
-            "status": "unavailable",
-            "reason_code": reason,
-            "source_url": source_url,
-        }
-
-    actual_url = str(
-        extraction.get("source_url")
-        or extraction.get("requested_url")
-        or ""
-    ).strip()
-    try:
-        same_source = (
-            canonical_website_url_identity(actual_url)
-            == canonical_website_url_identity(source_url)
-        )
-    except Exception:
-        same_source = bool(
-            actual_url
-            and actual_url.rstrip("/") == source_url.rstrip("/")
-        )
-    if not same_source:
-        return {
-            "status": "unavailable",
-            "reason_code": "REFETCH_SOURCE_IDENTITY_MISMATCH",
-            "source_url": source_url,
-        }
-
-    reviewed = clean_extracted_website_text(
-        extraction.get("content") or ""
-    )
-    if len(reviewed) < 120:
-        return {
-            "status": "unavailable",
-            "reason_code": "REFETCH_CONTENT_TOO_SHORT",
-            "source_url": source_url,
-        }
-
-    # No AI image-analysis round trip here. Existing durable image-index rows for
-    # this already-learned source remain eligible at final exact-source publication.
-    package_text = build_website_knowledge_package_document(
-        extraction,
-        "Technical Support Database",
-        reviewed_content=reviewed,
-        image_analysis={
-            "images": [],
-            "attempted": 0,
-            "skipped": 0,
-            "failures": 0,
-        },
-    )
-    file_id = str(candidate.get("file_id") or "").strip()
-    if not file_id:
-        file_id = (
-            "legacy-refetch-v69214-"
-            + hashlib.sha256(
-                canonical_website_url_identity(
-                    source_url
-                ).encode("utf-8")
-            ).hexdigest()[:24]
-        )
-    filename = (
-        str(candidate.get("filename") or "").strip()
-        or website_knowledge_filename(extraction)
-    )
-    package = _technical_package_from_text_v69121(
-        file_id,
-        filename,
-        package_text,
-    )
-    if not isinstance(package, dict):
-        return {
-            "status": "unavailable",
-            "reason_code": "REFETCH_PACKAGE_PARSE_FAILED",
-            "source_url": source_url,
-        }
-
-    if not _technical_package_candidate_score_v69157(
-        prompt_text,
-        package,
-    ):
-        return {
-            "status": "unavailable",
-            "reason_code": "REFETCH_PACKAGE_IDENTITY_REJECTED",
-            "source_url": source_url,
-        }
-    if not _technical_package_has_current_structure_v69165(
-        package_text
-    ):
-        return {
-            "status": "unavailable",
-            "reason_code": "REFETCH_HIERARCHY_INVALID",
-            "source_url": source_url,
-        }
-
-    # A successful exact refetch may prove that an old discovery row is now
-    # historical/superseded. Return that proof to the caller without committing
-    # the obsolete page as a new durable current snapshot.
-    try:
-        semantics_v69214 = _technical_package_atp_semantics_v69178(
-            package_text
-        )
-    except Exception:
-        semantics_v69214 = {}
-    root_v69214 = dict(
-        (semantics_v69214 or {}).get("root") or {}
-    )
-    current_flag_v69214 = str(
-        root_v69214.get("data-atp-current-source") or ""
-    ).strip().casefold()
-    source_status_v69214 = str(
-        root_v69214.get("data-atp-source-status") or ""
-    ).strip().casefold()
-
-    if (
-        current_flag_v69214 in {"false", "0", "no"}
-        or source_status_v69214
-        in {
-            "historical",
-            "superseded",
-            "deprecated",
-            "inactive",
-            "non-current",
-        }
-    ):
-        _technical_scoped_mark_disproven_v69214(
-            source_url,
-            ttl_seconds=120,
-        )
-        diagnostic_log(
-            "technical_scoped_source_refetch_historical_v69214",
-            source_url=source_url[:700],
-            origin=str(candidate.get("origin") or ""),
-        )
-        return {
-            "status": "recovered",
-            "source_url": source_url,
-            "file_id": file_id,
-            "filename": filename,
-            "package_text": package_text,
-            "package": package,
-            "current_disproven_v69214": True,
-        }
-
-    if not (
-        current_flag_v69214 in {"true", "1", "yes"}
-        or source_status_v69214
-        in {"current", "current-authoritative"}
-    ):
-        return {
-            "status": "unavailable",
-            "reason_code": "REFETCH_CURRENT_SOURCE_UNPROVEN",
-            "source_url": source_url,
-        }
-
-    # Persist package bytes independently from OpenAI's assistant-file lifecycle.
-    snapshot = _technical_durable_snapshot_commit_verified_v69171(
-        package,
-        vector_store_id,
-    )
-    _technical_registry_upsert_package_v69162(
-        package,
-        vector_store_id,
-    )
-    try:
-        _technical_package_prewarm_inject_v69121(
-            file_id,
-            filename,
-            package_text,
-        )
-    except Exception:
-        pass
-    try:
-        _technical_durable_snapshot_scope_v69213.clear()
-    except Exception:
-        pass
-
-    diagnostic_log(
-        "technical_scoped_source_migrated_v69214",
-        source_url=source_url[:700],
-        origin=str(candidate.get("origin") or ""),
-        file_id=file_id[:160],
-        snapshot_sha256=str(
-            snapshot.get("content_sha256") or ""
-        )[:64],
-    )
-    return {
-        "status": "recovered",
-        "source_url": source_url,
-        "file_id": file_id,
-        "filename": filename,
-        "package_text": package_text,
-        "package": package,
-        "snapshot_sha256_v69171": str(
-            snapshot.get("content_sha256") or ""
-        ),
-        "legacy_scoped_migration_v69214": True,
-    }
-
-
-
-def _technical_overlap_attrs_from_snippets_v69225(text):
-    attrs = {}
-    for key, quote, value in re.findall(
-        r"(data-atp-[a-z0-9-]+)\s*=\s*([\"'])(.*?)\2",
-        str(text or ""),
-        flags=re.I | re.S,
-    ):
-        key = str(key).casefold()
-        value = html.unescape(str(value or "")).strip()
-        if value and key not in attrs:
-            attrs[key] = value
-    return attrs
-
-
-def _technical_overlap_canonical_family_v69225(value):
-    return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
-
-
-def _technical_overlap_synthetic_package_v69225(
-    family,
-    year,
-    row,
-    snippets,
-):
-    """Build one verified current Technical package from file_search snippets."""
-    text = "\n".join(
-        str(x or "") for x in (snippets or []) if str(x or "").strip()
-    )
-    attrs = _technical_overlap_attrs_from_snippets_v69225(text)
-    family = _technical_overlap_canonical_family_v69225(family)
-    try:
-        year = int(year)
-    except Exception:
-        return None
-
-    identity_text = " ".join(
-        (
-            str(attrs.get("data-atp-model") or ""),
-            str(attrs.get("data-atp-query-key") or ""),
-            str(row.get("filename") or ""),
-            text[:18000],
-        )
-    )
-    family_norm = re.sub(r"[^a-z0-9]+", "", identity_text.casefold())
-    if family and family not in family_norm:
-        return None
-
-    try:
-        y0 = int(attrs.get("data-atp-year-start"))
-        y1 = int(attrs.get("data-atp-year-end"))
-        years = list(range(min(y0, y1), max(y0, y1) + 1))
-    except Exception:
-        years = sorted(_website_identity_years_v69022(identity_text))
-    if year not in years:
-        return None
-
-    current_flag = str(attrs.get("data-atp-current-source") or "").casefold()
-    source_status = str(attrs.get("data-atp-source-status") or "").casefold()
-    if not (
-        current_flag in {"true", "1", "yes"}
-        or source_status in {"current", "current-authoritative"}
-    ):
-        return None
-    if current_flag in {"false", "0", "no"} or source_status in {
-        "historical",
-        "superseded",
-        "deprecated",
-        "inactive",
-        "non-current",
-    }:
-        return None
-
-    profiles = {
-        key: value
-        for key, value in attrs.items()
-        if key.startswith("data-atp-profile-")
-        and key != "data-atp-profile-corroboration"
-        and str(value).strip()
-    }
-
-    # v69225: bind the image to the exact Car Model / A-C section.
-    # Never let an earlier wiring/video/navigation image become the branch image
-    # just because it appears first in the HTML/file_search snippet.
-    image_urls = []
-    image_candidates_v69225 = []
-    for image_tag_v69225 in re.findall(
-        r"<img\b[^>]*>",
-        text,
-        flags=re.I | re.S,
-    ):
-        image_attrs_v69225 = _technical_overlap_attrs_from_snippets_v69225(
-            image_tag_v69225
-        )
-        section_v69225 = str(
-            image_attrs_v69225.get("data-atp-section") or ""
-        ).strip().casefold()
-        heading_v69225 = str(
-            image_attrs_v69225.get("data-atp-heading-title") or ""
-        ).strip().casefold()
-        topic_v69225 = str(
-            image_attrs_v69225.get("data-atp-topic") or ""
-        ).strip().casefold()
-        role_v69225 = str(
-            image_attrs_v69225.get("data-atp-image-role") or ""
-        ).strip().casefold()
-        current_v69225 = str(
-            image_attrs_v69225.get("data-atp-current-source") or ""
-        ).strip().casefold()
-        eligible_v69225 = str(
-            image_attrs_v69225.get("data-atp-first-response-eligible") or ""
-        ).strip().casefold()
-        content_type_v69225 = str(
-            image_attrs_v69225.get("data-atp-content-type") or ""
-        ).strip().casefold()
-
-        exact_section_v69225 = bool(
-            section_v69225 == "protocol-settings"
-            or "car model" in heading_v69225
-            or "car-model-ac" in topic_v69225
-            or "car-model" in topic_v69225
-            or "protocol" in role_v69225
-        )
-        if not exact_section_v69225:
-            continue
-        if current_v69225 in {"false", "0", "no"}:
-            continue
-        if eligible_v69225 in {"false", "0", "no"}:
-            continue
-        if content_type_v69225 in {"navigation-icon", "video-icon"}:
-            continue
-
-        url_v69225 = str(
-            image_attrs_v69225.get("data-atp-canonical-image-url")
-            or image_attrs_v69225.get("data-atp-full-resolution-url")
-            or image_attrs_v69225.get("src")
-            or ""
-        ).strip()
-        if not url_v69225.startswith("https://"):
-            continue
-
-        priority_v69225 = 0
-        try:
-            priority_v69225 = int(
-                image_attrs_v69225.get("data-atp-first-response-priority")
-                or image_attrs_v69225.get("data-atp-priority")
-                or 0
-            )
-        except Exception:
-            priority_v69225 = 0
-        image_candidates_v69225.append(
-            (
-                priority_v69225,
-                url_v69225,
-            )
-        )
-
-    image_candidates_v69225.sort(
-        key=lambda item_v69225: item_v69225[0],
-        reverse=True,
-    )
-    for _priority_v69225, url_v69225 in image_candidates_v69225:
-        if url_v69225 not in image_urls:
-            image_urls.append(url_v69225)
-        if len(image_urls) >= 2:
-            break
-
-    root = {
-        "tag": "div",
-        "data-atp-model": str(attrs.get("data-atp-model") or family),
-        "data-atp-year-start": str(min(years)),
-        "data-atp-year-end": str(max(years)),
-        "data-atp-current-source": "true",
-        "data-atp-source-status": "current-authoritative",
-    }
-    for key in (
-        "data-atp-factory-system",
-        "data-atp-climate",
-        "data-atp-protocol",
-        "data-atp-product-series",
-        "data-atp-product-code",
-        "data-atp-product-id",
-        "data-atp-query-key",
-    ):
-        if attrs.get(key):
-            root[key] = attrs[key]
-
-    section_id = "protocol-settings"
-    section_title = "Car Model / A/C Protocol Settings — Required Before Testing"
-    heading = {
-        "tag": "h2",
-        "id": section_id,
-        "text": section_title,
-        "data-atp-current-source": "true",
-        "data-atp-source-status": "current-authoritative",
-    }
-    heading.update(profiles)
-    if attrs.get("data-atp-protocol"):
-        heading["data-atp-protocol"] = attrs["data-atp-protocol"]
-    if attrs.get("data-atp-query-key"):
-        heading["data-atp-query-key"] = attrs["data-atp-query-key"]
-
-    images = []
-    for index, url in enumerate(image_urls):
-        images.append(
-            {
-                "tag": "img",
-                "src": url,
-                "data-atp-canonical-image-url": url,
-                "data-atp-current-source": "true",
-                "data-atp-source-status": "current-authoritative",
-                "data-atp-first-response-eligible": "true",
-                "data-atp-section": section_id,
-                "data-atp-image-index": str(index + 1),
-                "data-atp-priority": "1000",
-            }
-        )
-
-    semantics = {
-        "root": root,
-        "headings": [heading],
-        "elements": [],
-        "images": images,
-        "scripts": {},
-    }
-    section_text = "\n".join(
-        (
-            ["Protocol: " + str(attrs.get("data-atp-protocol") or "")]
-            if attrs.get("data-atp-protocol")
-            else []
-        )
-        + [f"{key}: {value}" for key, value in profiles.items()]
-    )
-    hierarchy = {
-        "sections": [
-            {
-                "title": section_title,
-                "target_id": section_id,
-                "section_id": section_id,
-                "text": section_text,
-                "segments": [],
-            }
-        ]
-    }
-    filename = str(row.get("filename") or "website_overlap_branch.txt")
-    file_id = str(row.get("file_id") or "")
-    source_url_match = re.search(
-        r"(?im)^Final source URL:\s*(https?://\S+)",
-        text,
-    )
-    source_url = str(
-        source_url_match.group(1) if source_url_match else ""
-    ).strip()
-    package_text = (
-        "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE\n"
-        "Destination: Technical Support Database\n"
-        f"Final source URL: {source_url}\n"
-        f"Requested URL: {source_url}\n"
-        f"Extracted at (UTC): {now_iso()}\n"
-        f"Page title: {filename.replace('_', ' ')[:180]}\n"
-        "ATP_SEMANTIC_METADATA_JSON_V69178: "
-        + json.dumps(semantics, ensure_ascii=False, separators=(",", ":"))
-        + "\nHIERARCHY_JSON_V69143: "
-        + json.dumps(hierarchy, ensure_ascii=False, separators=(",", ":"))
-        + "\nWEBPAGE_TEXT_BEGIN\n"
-        + text[:26000]
-        + "\nWEBPAGE_TEXT_END\n"
-    )
-    package = _technical_package_from_text_v69121(
-        file_id,
-        filename,
-        package_text,
-    )
-    return package if isinstance(package, dict) else None
-
-
-@st.cache_data(show_spinner=False, ttl=120)
-def _technical_live_overlap_discovery_v69225(
-    prompt_text,
-    family,
-    year,
-    vector_store_id,
-    destination_revision,
-):
-    """Bounded read-only current-source overlap discovery for generic queries."""
-    family = _technical_overlap_canonical_family_v69225(family)
-    try:
-        year = int(year)
-    except Exception:
-        return []
-
-    # Two small complementary searches are much safer than global catalogue work.
-    queries = [
-        (
-            f"{family} {year} data-atp-current-source "
-            "data-atp-source-status data-atp-model data-atp-year-start "
-            "data-atp-year-end data-atp-factory-system data-atp-protocol "
-            "data-atp-profile data-atp-canonical-image-url "
-            + str(prompt_text or "")[:800]
-        ),
-        (
-            f"{family} {year} current-authoritative factory-system "
-            "\"No SYNC\" \"SYNC 1\" \"SYNC 2\" \"SYNC 3\" "
-            "\"Manual Climate\" \"Automatic Climate\" "
-            "Car Model A/C Protocol"
-        ),
-    ]
-
-    merged_rows = []
-    seen_rows = set()
-    for query in queries:
-        request = {
-            "tools": [
-                {
-                    "type": "file_search",
-                    "vector_store_ids": [vector_store_id],
-                }
-            ],
-            "input": query,
-        }
-        try:
-            rows = _website_request_vector_search_rows_v69047(
-                request,
-                max_results=30,
-            )
-        except Exception as error:
-            diagnostic_log(
-                "technical_overlap_search_failed_v69225",
-                family=str(family),
-                year=int(year),
-                error_type=type(error).__name__,
-                error=str(error)[:500],
-            )
-            rows = []
-        for row in rows or []:
-            if not isinstance(row, dict):
-                continue
-            key = (
-                str(row.get("file_id") or ""),
-                str(row.get("text") or "")[:300],
-            )
-            if key in seen_rows:
-                continue
-            seen_rows.add(key)
-            merged_rows.append(dict(row))
-
-    grouped = {}
-    for row in merged_rows:
-        file_id = str(row.get("file_id") or "").strip()
-        if not file_id:
-            continue
-        bucket = grouped.setdefault(
-            file_id,
-            {
-                "file_id": file_id,
-                "filename": str(row.get("filename") or ""),
-                "snippets": [],
-            },
-        )
-        if row.get("filename") and not bucket.get("filename"):
-            bucket["filename"] = str(row.get("filename") or "")
-        text = str(row.get("text") or "").strip()
-        if text and text not in bucket["snippets"]:
-            bucket["snippets"].append(text)
-
-    packages = []
-    seen_packages = set()
-    for group in grouped.values():
-        package = _technical_overlap_synthetic_package_v69225(
-            family,
-            year,
-            {
-                "file_id": group.get("file_id"),
-                "filename": group.get("filename"),
-            },
-            group.get("snippets"),
-        )
-        if not isinstance(package, dict):
-            continue
-        dedupe_key = (
-            str(package.get("source_url") or "").strip().casefold()
-            or str(package.get("file_id") or "").strip()
-            or str(package.get("filename") or "").strip().casefold()
-        )
-        if not dedupe_key or dedupe_key in seen_packages:
-            continue
-        seen_packages.add(dedupe_key)
-        packages.append(package)
-
-    diagnostic_log(
-        "technical_live_overlap_discovery_v69225",
-        family=str(family),
-        year=int(year),
-        rows=len(merged_rows),
-        grouped_files=len(grouped),
-        recovered_packages=len(packages),
-        revision=int(destination_revision or 0),
-    )
-    return packages
-
-
-def _technical_live_overlap_preflight_v69225(
-    prompt_text,
-    vector_store_id,
-):
-    """Return deterministic multi-current-source authority or no direct answer."""
-    if not _technical_configuration_query_v69155(prompt_text):
-        return {}
-    if set(_website_identity_systems_v69022(prompt_text)):
-        return {}
-    if set(_website_image_product_codes_v69020(prompt_text)):
-        return {}
-
-    family, year = _technical_resolve_family_year_v69199(
-        prompt_text,
-        vector_store_id,
-        allow_registry=True,
-    )
-    if not family or year is None:
-        return {}
-
-    revision = _website_destination_revision_v69109(
-        "Technical Support Database"
-    )
-    packages = _technical_live_overlap_discovery_v69225(
-        prompt_text,
-        family,
-        int(year),
-        vector_store_id,
-        int(revision),
-    )
-    if len(packages) < 2:
-        diagnostic_log(
-            "technical_live_overlap_incomplete_v69225",
-            family=str(family),
-            year=int(year),
-            packages=len(packages),
-        )
-        return {}
-
-    if not _technical_compiled_runtime_publish_v69198(
-        packages,
-        vector_store_id,
-        int(revision),
-    ):
-        return {}
-
-    result = _technical_compiled_contract_lookup_v69198(
-        prompt_text,
-        vector_store_id,
-    )
-    if not (
-        str(result.get("status") or "") == "recovered"
-        and bool(result.get("universal_multi_match_v69208"))
-    ):
-        diagnostic_log(
-            "technical_live_overlap_collapsed_v69225",
-            family=str(family),
-            year=int(year),
-            status=str(result.get("status") or ""),
-            multi=bool(result.get("universal_multi_match_v69208")),
-        )
-        return {}
-
-    result["live_overlap_v69225"] = True
-    return result
-
-
 def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
-    """Query-scoped current Technical authority with legacy auto-migration.
-
-    v69214 keeps the v69213 fast durable-snapshot path, but closes its production
-    migration gap: when older learned sources have no v69171 snapshot, exact source
-    URLs are discovered from durable local metadata and re-fetched directly from the
-    original AutoTecPro page. OpenAI assistant-file downloads and global Technical
-    prewarm are never required for direct model/year completeness.
-    """
-    prompt = _technical_settings_routing_prompt_v69117(
-        prompt_text
-    )
+    """Cold-path hydrate from the verified durable snapshot, not OpenAI/vector search."""
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
     clean_store = str(store or "").strip()
     family, year = _technical_resolve_family_year_v69199(
         prompt,
@@ -71852,469 +69255,74 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     )
     if not family or year is None:
         return {}
-
-    prompt_systems = {
-        str(x).strip()
-        for x in _website_identity_systems_v69022(prompt)
-        if str(x).strip()
-    }
-    prompt_codes = {
-        str(x).strip().casefold()
-        for x in _website_image_product_codes_v69020(prompt)
-        if str(x).strip()
-    }
-    generic_scope = not prompt_systems and not prompt_codes
-
-    def safe_incomplete(reason, attempted=0, recovered=0):
-        message = (
-            "The current reviewed AutoTecPro Technical source set for this vehicle "
-            "and year could not be completely verified. No single configuration was "
-            "published as though it were the only valid branch. Please refresh or "
-            "retry shortly before relying on a setting."
-        )
-        diagnostic_log(
-            "technical_current_source_set_incomplete_v69214",
-            family=family,
-            year=int(year),
-            reason=str(reason or "")[:180],
-            attempted=int(attempted or 0),
-            recovered=int(recovered or 0),
-        )
-        return {
-            "status": "recovered",
-            "kind": "section",
-            "authority": {
-                "status": "recovered",
-                "file_id": "",
-                "filename": "",
-                "source_url": "",
-                "page_title": "",
-                "package_text": "",
-                "section_title": (
-                    "Current Technical Source Set Temporarily Unavailable"
-                ),
-                "section_id": (
-                    "current-source-set-incomplete-v69214"
-                ),
-                "section_text": message,
-                "branch_paths": [],
-                "selected_image_urls_v69143": [],
-                "selected_segments_v69158": [],
-                "compiled_runtime_contract_v69198": True,
-                "current_source_set_incomplete_v69214": True,
-            },
-            "context": "",
-            "rows": [],
-            "exact_images": [],
-            "compiled_contract_v69198": True,
-            "direct_answer_meta_v69199": {
-                "eligible": True,
-                "current_source_set_incomplete_v69214": True,
-            },
-        }
-
-    def package_matches(package):
-        if not isinstance(package, dict):
-            return False
-
-        package_families = {
-            re.sub(
-                r"[^a-z0-9]+",
-                "",
-                str(x or "").casefold(),
-            )
-            for x in (
-                package.get("vehicle_families") or []
-            )
-            if str(x or "").strip()
-        }
-        package_years = set()
-        for raw_year in package.get("years") or []:
-            try:
-                package_years.add(int(raw_year))
-            except Exception:
-                pass
-
-        if family not in package_families:
-            return False
-        if int(year) not in package_years:
-            return False
-
-        package_systems = {
-            str(x).strip()
-            for x in (package.get("systems") or [])
-            if str(x).strip()
-        }
-        package_codes = {
-            str(x).strip().casefold()
-            for x in (
-                package.get("product_codes") or []
-            )
-            if str(x).strip()
-        }
-        if (
-            prompt_systems
-            and package_systems
-            and not prompt_systems.issubset(
-                package_systems
-            )
-        ):
-            return False
-        if (
-            prompt_codes
-            and package_codes
-            and not (prompt_codes & package_codes)
-        ):
-            return False
-        return True
-
-    def source_current(package):
-        semantics = dict(
-            package.get("atp_semantics_v69178") or {}
-        )
-        if not semantics:
-            try:
-                semantics = (
-                    _technical_package_atp_semantics_v69178(
-                        package.get("package_text") or ""
-                    )
-                )
-            except Exception:
-                semantics = {}
-        root = dict(semantics.get("root") or {})
-        current = str(
-            root.get("data-atp-current-source") or ""
-        ).strip().casefold()
-        status = str(
-            root.get("data-atp-source-status") or ""
-        ).strip().casefold()
-
-        if current in {"false", "0", "no"}:
-            return False
-        if status in {
-            "historical",
-            "superseded",
-            "deprecated",
-            "inactive",
-            "non-current",
-        }:
-            return False
-        return bool(
-            current in {"true", "1", "yes"}
-            or status in {
-                "current",
-                "current-authoritative",
-            }
-        )
-
-    # --------------------------------------------------------------
-    # Tier 1: current durable snapshots — fastest steady-state path.
-    # --------------------------------------------------------------
-    scope = dict(
-        _technical_durable_snapshot_scope_v69213(
-            clean_store,
+    pointer = dict(
+        _technical_active_authority_row_v69164(
             family,
-            int(year),
-        )
-        or {}
+            year,
+            clean_store,
+        ) or {}
     )
-    if not bool(scope.get("complete")):
-        return safe_incomplete(
-            str(
-                scope.get("reason")
-                or "SCOPED_INDEX_UNAVAILABLE"
-            )
-        )
+    if not pointer:
+        return {}
 
-    payloads = [
-        dict(x)
-        for x in (scope.get("rows") or [])
-        if isinstance(x, dict)
-    ]
-    recovered = []
-    failed_mandatory = []
+    source_url = str(pointer.get("source_url") or "").strip()
+    file_id = str(pointer.get("file_id") or "").strip()
+    filename = str(pointer.get("filename") or "").strip()
+    expected_sha = str(pointer.get("snapshot_sha256_v69171") or "").strip()
+    if not source_url or not file_id:
+        return {}
 
-    for payload in payloads:
-        decoded = _technical_durable_snapshot_decode_v69171(
-            payload,
-            expected_source_url=str(
-                payload.get("source_url") or ""
-            ),
-        )
-        if not decoded:
-            failed_mandatory.append(
-                (
-                    str(
-                        payload.get("source_url") or ""
-                    ),
-                    "SNAPSHOT_DECODE_FAILED",
-                )
-            )
-            continue
-
-        package = _technical_package_from_text_v69121(
-            str(decoded.get("file_id") or ""),
-            str(decoded.get("filename") or ""),
-            str(decoded.get("package_text") or ""),
-        )
-        if not isinstance(package, dict):
-            failed_mandatory.append(
-                (
-                    str(
-                        decoded.get("source_url") or ""
-                    ),
-                    "PACKAGE_PARSE_FAILED",
-                )
-            )
-            continue
-
-        # A durable snapshot is authoritative only if its exact package still
-        # satisfies the requested scope and current-source metadata.
-        if not package_matches(package):
-            continue
-        if not source_current(package):
-            continue
-        recovered.append(package)
-
-    if failed_mandatory:
-        return safe_incomplete(
-            "SCOPED_DURABLE_SOURCE_CORRUPT",
-            attempted=len(payloads),
-            recovered=len(recovered),
-        )
-
-    # --------------------------------------------------------------
-    # Tier 2: legacy exact-source migration.
-    #
-    # This is the production repair for sources learned before v69171.
-    # Candidate URLs come only from durable metadata already owned by
-    # AutoTecPro. Missing candidates are re-fetched from the exact source URL,
-    # never from OpenAI files.content or semantic vector search.
-    # --------------------------------------------------------------
-    existing_urls = [
-        str(package.get("source_url") or "")
-        for package in recovered
-        if str(package.get("source_url") or "").strip()
-    ]
-    candidates = _technical_scoped_source_candidates_v69214(
-        prompt,
-        clean_store,
-        family,
-        int(year),
-        existing_source_urls=existing_urls,
+    snapshot = dict(
+        _technical_durable_snapshot_recover_v69171(
+            source_url,
+            clean_store,
+            expected_sha256=expected_sha,
+        ) or {}
     )
+    if not snapshot:
+        return {}
+    if str(snapshot.get("file_id") or "").strip() not in {"", file_id}:
+        return {}
 
-    migration_attempted = 0
-    migration_recovered = 0
-    mandatory_failures = []
+    package_text = str(snapshot.get("package_text") or "")
+    package = _technical_package_from_text_v69121(
+        file_id,
+        filename or str(snapshot.get("filename") or ""),
+        package_text,
+    )
+    if not isinstance(package, dict):
+        return {}
 
-    for candidate in candidates:
-        source_url = str(
-            candidate.get("source_url") or ""
-        ).strip()
-        if not source_url:
-            continue
-
-        if _technical_scoped_source_is_disproven_v69214(
-            source_url
-        ):
-            continue
-
-        # Same-source migration is process-wide serialized. A concurrent first
-        # request can migrate the source once; later requests re-check the newly
-        # committed snapshot or disproven-current state instead of repeating the
-        # live webpage fetch.
-        with _technical_scoped_migration_lock_for_v69214(
-            source_url
-        ):
-            if _technical_scoped_source_is_disproven_v69214(
-                source_url
-            ):
-                continue
-
-            snapshot = _technical_durable_snapshot_recover_v69171(
-                source_url,
-                clean_store,
-            )
-            if snapshot:
-                package = _technical_package_from_text_v69121(
-                    str(
-                        snapshot.get("file_id")
-                        or candidate.get("file_id")
-                        or ""
-                    ),
-                    str(
-                        snapshot.get("filename")
-                        or candidate.get("filename")
-                        or ""
-                    ),
-                    str(snapshot.get("package_text") or ""),
-                )
-                if (
-                    isinstance(package, dict)
-                    and package_matches(package)
-                    and source_current(package)
-                ):
-                    recovered.append(package)
-                    continue
-
-            migration_attempted += 1
-            repair = _technical_exact_source_fast_migrate_v69214(
-                prompt,
-                candidate,
-                clean_store,
-            )
-        if str(repair.get("status") or "") == "recovered":
-            package = dict(repair.get("package") or {})
-            if (
-                package_matches(package)
-                and source_current(package)
-            ):
-                recovered.append(package)
-                migration_recovered += 1
-                continue
-
-            # A successful exact refetch that proves the page is historical,
-            # superseded, or outside the requested scope is positive evidence
-            # that this discovery hint is NOT a required current branch.
-            diagnostic_log(
-                "technical_scoped_candidate_disproven_current_v69214",
-                source_url=source_url[:700],
-                origin=str(candidate.get("origin") or ""),
-                scope_match=bool(package_matches(package)),
-                current=bool(source_current(package)),
-            )
-            continue
-
-        # Only an unresolved exact-scope candidate can block a generic result.
-        # Successfully disproven historical/out-of-scope pages are ignored above.
-        if bool(candidate.get("mandatory")):
-            mandatory_failures.append(
-                (
-                    source_url,
-                    str(
-                        repair.get("reason_code")
-                        or "MIGRATION_FAILED"
-                    ),
-                )
-            )
-
-    if mandatory_failures:
-        return safe_incomplete(
-            "KNOWN_SCOPED_SOURCE_MIGRATION_FAILED",
-            attempted=migration_attempted,
-            recovered=len(recovered),
-        )
-
-    # Deduplicate same source URL after snapshot + migration convergence.
-    by_source = {}
-    for package in recovered:
-        if not isinstance(package, dict):
-            continue
-        source_url = str(
-            package.get("source_url") or ""
-        ).strip()
-        try:
-            key = (
-                canonical_website_url_identity(
-                    source_url
-                )
-                if source_url
-                else ""
-            )
-        except Exception:
-            key = source_url.rstrip("/").casefold()
-
-        key = key or (
-            "file:"
-            + str(
-                package.get("file_id")
-                or package.get("filename")
-                or ""
-            )
-        )
-        rank = (
-            str(package.get("extracted_at") or ""),
-            str(package.get("filename") or ""),
-            str(package.get("file_id") or ""),
-        )
-        old = by_source.get(key)
-        if old is None or rank > old[0]:
-            by_source[key] = (rank, package)
-
-    publish_packages = [
-        value[1]
-        for value in by_source.values()
-    ]
-
-    if not publish_packages:
-        return safe_incomplete(
-            "NO_SCOPED_CURRENT_PACKAGE",
-            attempted=(
-                len(payloads)
-                + migration_attempted
-            ),
-            recovered=0,
-        )
+    if family not in {
+        str(x).casefold() for x in (package.get("vehicle_families") or [])
+    }:
+        return {}
+    if year not in {
+        int(x) for x in (package.get("years") or []) if str(x).strip().isdigit()
+    }:
+        return {}
 
     revision = _website_destination_revision_v69109(
         "Technical Support Database"
     )
-    if not _technical_compiled_runtime_publish_v69198(
-        publish_packages,
+    if not _technical_compiled_runtime_merge_package_v69199(
+        package,
         clean_store,
         revision,
     ):
-        return safe_incomplete(
-            "COMPILED_PUBLISH_FAILED",
-            attempted=len(publish_packages),
-            recovered=0,
-        )
-
-    result = _technical_compiled_contract_lookup_v69198(
-        prompt_text,
-        clean_store,
-    )
-    if str(result.get("status") or "") != "recovered":
-        return safe_incomplete(
-            "POST_PUBLISH_LOOKUP_FAILED",
-            attempted=len(publish_packages),
-            recovered=0,
-        )
-
-    if generic_scope and len(publish_packages) > 1:
-        if not bool(
-            result.get(
-                "universal_multi_match_v69208"
-            )
-            or dict(
-                result.get("authority") or {}
-            ).get(
-                "universal_multi_match_v69208"
-            )
-        ):
-            return safe_incomplete(
-                "POST_PUBLISH_MULTI_MATCH_COLLAPSED",
-                attempted=len(publish_packages),
-                recovered=len(publish_packages),
-            )
+        return {}
 
     diagnostic_log(
-        "technical_scoped_authority_ready_v69214",
+        "technical_compiled_on_demand_hydrated_v69199",
         family=family,
-        year=int(year),
-        durable_packages=len(payloads),
-        migration_candidates=len(candidates),
-        migration_attempted=migration_attempted,
-        migration_recovered=migration_recovered,
-        current_packages=len(publish_packages),
-        generic=bool(generic_scope),
+        year=year,
+        file_id=file_id[:160],
+        source_url=source_url[:700],
+        embedded_payload=bool(
+            _technical_compiled_payload_from_text_v69199(package_text)
+        ),
     )
-    return result
-
-
-
-
+    return _technical_compiled_contract_lookup_v69198(prompt_text, clean_store)
 
 
 def _technical_direct_section_answer_v69199(prompt_text, compiled_result):
@@ -72844,20 +69852,14 @@ def _technical_compile_one_package_v69198(package):
 
 
 def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
-    """Build direct index while preserving every distinct current compatible branch.
-
-    v69208 generalizes v69207: multiple current products/configurations may share
-    the same make/model/year and even the same factory-system label. Newest-wins
-    applies only within one exact reviewed source identity; separate current
-    product/source branches remain parallel candidates.
-    """
+    """Build direct index while preserving parallel current factory-system variants."""
     clean_store = str(store or "").strip()
     clean_revision = int(revision or 0)
     package_rows = [
         dict(x) for x in (packages or []) if isinstance(x, dict)
     ]
 
-    def package_scope_v69208(package):
+    def package_scope_v69207(package):
         package = dict(package or {})
         semantics = dict(package.get("atp_semantics_v69178") or {})
         if not semantics:
@@ -72868,7 +69870,6 @@ def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
             except Exception:
                 semantics = {}
         root = dict(semantics.get("root") or {})
-
         systems = {
             str(x).strip()
             for x in (package.get("systems") or [])
@@ -72885,49 +69886,15 @@ def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
                     )
                 except Exception:
                     fs_cf = factory_system.casefold()
-                    if re.search(r"\b(?:no|non)[-\s]?sync\b", fs_cf):
+                    if re.search(
+                        r"\b(?:no|non)[-\s]?sync\b", fs_cf
+                    ):
                         systems.add("no_sync")
-                    elif "sync 2" in fs_cf or "sync2" in fs_cf:
+                    elif (
+                        "sync 2" in fs_cf
+                        or "sync2" in fs_cf
+                    ):
                         systems.add("sync_2")
-
-        product_codes = {
-            str(x).strip().casefold()
-            for x in (package.get("product_codes") or [])
-            if str(x).strip()
-        }
-        for key in (
-            "data-atp-product-series",
-            "data-atp-product-code",
-            "data-atp-product-id",
-        ):
-            raw = str(root.get(key) or "").strip()
-            if raw:
-                product_codes.update(
-                    str(x).strip().casefold()
-                    for x in re.split(r"[|,;/]+", raw)
-                    if str(x).strip()
-                )
-
-        branch_attrs = []
-        for key in (
-            "data-atp-product-identity-key",
-            "data-atp-product-family",
-            "data-atp-factory-system",
-            "data-atp-trim",
-            "data-atp-body-style",
-            "data-atp-climate",
-            "data-atp-audio-architecture",
-            "data-atp-radio-architecture",
-            "data-atp-no-sync-only",
-            "data-atp-sync2-only",
-            "data-atp-sync3-only",
-        ):
-            value = str(root.get(key) or "").strip()
-            if value:
-                branch_attrs.append(
-                    key + "=" + re.sub(r"\s+", " ", value).casefold()
-                )
-
         current = str(
             root.get("data-atp-current-source") or ""
         ).strip().casefold() in {"true", "1", "yes"}
@@ -72935,78 +69902,17 @@ def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
             root.get("data-atp-source-status") or ""
         ).strip().casefold()
         structured_current = bool(
-            current and status in {"current-authoritative", "current", ""}
+            current
+            and status in {
+                "current-authoritative",
+                "current",
+                "",
+            }
         )
+        return tuple(sorted(systems)), structured_current
 
-        source_url = str(package.get("source_url") or "").strip()
-        try:
-            source_identity = (
-                canonical_website_url_identity(source_url)
-                if source_url else ""
-            )
-        except Exception:
-            source_identity = source_url.casefold()
-
-        branch_signature = (
-            tuple(sorted(systems)),
-            tuple(sorted(product_codes)),
-            tuple(sorted(branch_attrs)),
-            source_identity,
-        )
-        return (
-            tuple(sorted(systems)),
-            tuple(sorted(product_codes)),
-            tuple(sorted(branch_attrs)),
-            source_identity,
-            branch_signature,
-            structured_current,
-        )
-
-    # Collapse repeated learning of the exact same source URL.
-    newest_by_source = {}
-    for package in package_rows:
-        scope = package_scope_v69208(package)
-        (
-            systems,
-            product_codes,
-            branch_attrs,
-            source_identity,
-            branch_signature,
-            structured_current,
-        ) = scope
-        source_key = source_identity or str(
-            package.get("file_id") or package.get("filename") or ""
-        ).casefold()
-        rank = (
-            1 if structured_current else 0,
-            str(package.get("extracted_at") or ""),
-            str(package.get("filename") or ""),
-            str(package.get("file_id") or ""),
-        )
-        old = newest_by_source.get(source_key)
-        if old is None or rank > old[0]:
-            newest_by_source[source_key] = (
-                rank,
-                package,
-                systems,
-                product_codes,
-                branch_attrs,
-                branch_signature,
-                structured_current,
-            )
-
-    # Preserve separate current source identities even if compatibility axes overlap.
     newest_by_exact_branch = {}
-    for value in newest_by_source.values():
-        (
-            rank,
-            package,
-            systems,
-            product_codes,
-            branch_attrs,
-            branch_signature,
-            structured_current,
-        ) = value
+    for package in package_rows:
         families = [
             str(x).casefold()
             for x in (package.get("vehicle_families") or [])
@@ -73018,55 +69924,64 @@ def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
                 years.append(int(raw_year))
             except Exception:
                 pass
+        system_signature, structured_current = package_scope_v69207(
+            package
+        )
         for family in families:
             for year in years:
-                key = (family, year, branch_signature)
+                key = (family, year, system_signature)
+                rank = (
+                    1 if structured_current else 0,
+                    str(package.get("extracted_at") or ""),
+                    str(package.get("filename") or ""),
+                    str(package.get("file_id") or ""),
+                )
                 old = newest_by_exact_branch.get(key)
                 if old is None or rank > old[0]:
-                    newest_by_exact_branch[key] = value
+                    newest_by_exact_branch[key] = (
+                        rank,
+                        package,
+                        system_signature,
+                        structured_current,
+                    )
 
     grouped = {}
-    for (family, year, _), value in newest_by_exact_branch.items():
-        grouped.setdefault((family, year), []).append(value)
+    for (
+        family,
+        year,
+        system_signature,
+    ), value in newest_by_exact_branch.items():
+        grouped.setdefault((family, year), []).append(
+            (system_signature, value)
+        )
 
     selected_rows = []
     for _, items in grouped.items():
-        has_current = any(bool(value[6]) for value in items)
-        for value in items:
-            if has_current and not bool(value[6]):
+        has_scoped_current = any(
+            bool(signature) and bool(value[3])
+            for signature, value in items
+        )
+        for signature, value in items:
+            # Legacy packages with no system scope must not compete with a
+            # structured current package for the same family/year.
+            if has_scoped_current and not signature:
                 continue
             selected_rows.append(value)
 
     unique_packages = {}
-    package_meta_v69208 = {}
-    for value in selected_rows:
-        (
-            _,
-            package,
-            systems,
-            product_codes,
-            branch_attrs,
-            _,
-            structured_current,
-        ) = value
+    for _, package, _, _ in selected_rows:
         pid = str(
-            package.get("file_id") or package.get("filename") or ""
+            package.get("file_id")
+            or package.get("filename")
+            or ""
         )
-        if not pid:
-            continue
-        unique_packages[pid] = package
-        package_meta_v69208[pid] = {
-            "systems": list(systems),
-            "product_codes": list(product_codes),
-            "branch_attrs": list(branch_attrs),
-            "structured_current": bool(structured_current),
-        }
+        if pid:
+            unique_packages[pid] = package
 
     contracts = {}
     buckets = {}
     package_cache = {}
     for pid, package in unique_packages.items():
-        meta = dict(package_meta_v69208.get(pid) or {})
         package_cache[pid] = {
             "package_text": str(package.get("package_text") or ""),
             "atp_semantics_v69178": dict(
@@ -73077,22 +69992,13 @@ def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
             "filename": str(package.get("filename") or ""),
             "title": str(package.get("title") or ""),
             "extracted_at": str(package.get("extracted_at") or ""),
-            "systems": list(meta.get("systems") or []),
-            "product_codes": list(meta.get("product_codes") or []),
-            "technical_branch_meta_v69208": meta,
         }
-        for raw_contract in _technical_compile_one_package_v69199(package):
-            contract = dict(raw_contract)
+        for contract in _technical_compile_one_package_v69199(
+            package
+        ):
             cid = str(contract.get("contract_id") or "")
             if not cid:
                 continue
-            if not contract.get("systems"):
-                contract["systems"] = list(meta.get("systems") or [])
-            if not contract.get("product_codes"):
-                contract["product_codes"] = list(
-                    meta.get("product_codes") or []
-                )
-            contract["technical_branch_meta_v69208"] = meta
             contracts[cid] = contract
             for family in contract.get("families") or []:
                 for year in contract.get("years") or []:
@@ -73111,9 +70017,7 @@ def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
         "buckets": buckets,
         "built_at": time.monotonic(),
         "overlapping_variant_authority_v69207": True,
-        "universal_multi_match_authority_v69208": True,
     }
-
 
 
 
@@ -73242,213 +70146,63 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
             flags=re.I,
         ))
 
-    # v69208 universal rule: model + year can match multiple CURRENT database
-    # branches. If the prompt does not narrow by factory system or series, return
-    # every exact current configuration together.
-    if config_query and not prompt_systems and not prompt_codes:
-        candidates_v69208 = [
-            dict(contract)
+    # v69207: overlapping model-years are valid. When more than one current
+    # factory-system branch survives and the user did not identify the system,
+    # stop before ranking and ask for the missing discriminator.
+    if config_query and not prompt_systems:
+        system_variants_v69207 = sorted({
+            tuple(sorted(
+                str(x)
+                for x in (contract.get("systems") or [])
+                if str(x)
+            ))
             for contract in contracts
             if bool(contract.get("config_ready"))
+        })
+        system_variants_v69207 = [
+            item for item in system_variants_v69207 if item
         ]
+        if len(system_variants_v69207) > 1:
+            def system_label_v69207(values):
+                labels = []
+                for value in values:
+                    cf = str(value or "").casefold()
+                    if cf == "no_sync":
+                        labels.append("No SYNC")
+                    elif cf in {"sync_2", "sync2"}:
+                        labels.append("SYNC 2")
+                    else:
+                        labels.append(
+                            str(value).replace("_", " ").upper()
+                        )
+                return " / ".join(labels)
 
-        unique_v69208 = {}
-        for contract_v69208 in candidates_v69208:
-            pid_v69208 = str(
-                contract_v69208.get("file_id")
-                or contract_v69208.get("filename")
-                or ""
+            labels_v69207 = [
+                system_label_v69207(values)
+                for values in system_variants_v69207
+            ]
+            family_raw_v69207 = str(families[0]).upper()
+            family_label_v69207 = (
+                "F-" + family_raw_v69207[1:]
+                if family_raw_v69207.startswith("F")
+                and family_raw_v69207[1:].isdigit()
+                else family_raw_v69207
             )
-            key_v69208 = (
-                pid_v69208,
-                tuple(sorted(
-                    str(x)
-                    for x in (
-                        contract_v69208.get("systems") or []
-                    )
-                    if str(x)
-                )),
-                tuple(sorted(
-                    str(x).casefold()
-                    for x in (
-                        contract_v69208.get("product_codes") or []
-                    )
-                    if str(x)
-                )),
+            clarification_v69207 = (
+                f"This {int(years[0])} {family_label_v69207} has "
+                "more than one current AutoTecPro Technical "
+                "configuration. Please confirm the original "
+                "factory system: "
+                + " or ".join(
+                    f"**{label}**"
+                    for label in labels_v69207
+                )
+                + "."
             )
-            section_id_v69208 = str(
-                contract_v69208.get("section_id") or ""
-            ).casefold()
-            preferred_v69208 = bool(
-                section_id_v69208 in {
-                    "protocol-settings",
-                    "car-model-ac",
-                    "car-model-ac-protocol",
-                }
-                or "car model" in str(
-                    contract_v69208.get("section_title") or ""
-                ).casefold()
-            )
-            old_v69208 = unique_v69208.get(key_v69208)
-            if old_v69208 is None or (
-                preferred_v69208 and not old_v69208[1]
-            ):
-                unique_v69208[key_v69208] = (
-                    contract_v69208,
-                    preferred_v69208,
-                )
-
-        candidates_v69208 = [
-            value[0] for value in unique_v69208.values()
-        ]
-
-        if len(candidates_v69208) > 1:
-            authorities_v69208 = []
-            images_v69208 = []
-            for contract_v69208 in candidates_v69208:
-                pid_v69208 = str(
-                    contract_v69208.get("file_id")
-                    or contract_v69208.get("filename")
-                    or ""
-                )
-                package_v69208 = dict(
-                    package_cache.get(pid_v69208) or {}
-                )
-                authority_v69208 = {
-                    "status": "recovered",
-                    "file_id": str(
-                        contract_v69208.get("file_id") or ""
-                    ),
-                    "filename": str(
-                        contract_v69208.get("filename") or ""
-                    ),
-                    "source_url": str(
-                        contract_v69208.get("source_url") or ""
-                    ),
-                    "page_title": str(
-                        contract_v69208.get("page_title") or ""
-                    ),
-                    "package_text": str(
-                        package_v69208.get("package_text") or ""
-                    ),
-                    "section_title": str(
-                        contract_v69208.get("section_title") or ""
-                    ),
-                    "section_id": str(
-                        contract_v69208.get("section_id") or ""
-                    ),
-                    "branch_paths": [
-                        " > ".join(
-                            str(y).strip()
-                            for y in (seg.get("path") or [])
-                            if str(y).strip()
-                        )
-                        for seg in (
-                            contract_v69208.get("segments") or []
-                        )
-                    ],
-                    "section_text": str(
-                        contract_v69208.get("section_text") or ""
-                    ),
-                    # Exactly one primary first-response photo per matched branch.
-                    "selected_image_urls_v69143": list(
-                        contract_v69208.get("exact_images") or []
-                    )[:1],
-                    "selected_section_title_v69143": str(
-                        contract_v69208.get("section_title") or ""
-                    ),
-                    "selected_branch_paths_v69143": [
-                        " > ".join(
-                            str(y).strip()
-                            for y in (seg.get("path") or [])
-                            if str(y).strip()
-                        )
-                        for seg in (
-                            contract_v69208.get("segments") or []
-                        )
-                    ],
-                    "selected_segments_v69158": list(
-                        contract_v69208.get("segments") or []
-                    ),
-                    "image_evidence": list(
-                        contract_v69208.get(
-                            "config_image_evidence_v69204"
-                        ) or []
-                    ),
-                    "atp_semantics_v69178": dict(
-                        package_v69208.get(
-                            "atp_semantics_v69178"
-                        ) or {}
-                    ),
-                    "selector_version": 69208,
-                    "compiled_runtime_contract_v69198": True,
-                    "multi_match_branch_v69208": True,
-                    "systems_v69208": list(
-                        contract_v69208.get("systems") or []
-                    ),
-                    "product_codes_v69208": list(
-                        contract_v69208.get("product_codes") or []
-                    ),
-                }
-
-                literal_v69208 = (
-                    _technical_metadata_literal_configuration_v69178(
-                        prompt,
-                        authority_v69208,
-                    )
-                )
-                if not _technical_literal_is_sufficient_v69156(
-                    prompt,
-                    literal_v69208,
-                ):
-                    literal_v69208 = dict(
-                        contract_v69208.get("config_literal") or {}
-                    )
-                if not _technical_literal_is_sufficient_v69156(
-                    prompt,
-                    literal_v69208,
-                ):
-                    continue
-
-                authority_v69208["literal_structured_v69156"] = (
-                    literal_v69208
-                )
-                authority_v69208["structured"] = (
-                    _technical_merge_structured_v69156(
-                        literal_v69208,
-                        {
-                            "fields": [],
-                            "branches": [],
-                            "status": "not_needed",
-                        },
-                    )
-                )
-                authority_v69208[
-                    "deterministic_literal_authority_v69156"
-                ] = True
-                authority_v69208["context"] = (
-                    _technical_authority_context_v69155(
-                        authority_v69208
-                    )
-                )
-                authority_v69208["rows"] = [{
-                    "file_id": authority_v69208["file_id"],
-                    "filename": authority_v69208["filename"],
-                    "score": 1.0,
-                    "text": authority_v69208[
-                        "section_text"
-                    ][:14000],
-                    "technical_compiled_contract_v69198": True,
-                }]
-                authorities_v69208.append(authority_v69208)
-                images_v69208.extend(
-                    authority_v69208.get(
-                        "selected_image_urls_v69143"
-                    ) or []
-                )
-
-            if len(authorities_v69208) > 1:
-                combined_v69208 = {
+            return {
+                "status": "recovered",
+                "kind": "section",
+                "authority": {
                     "status": "recovered",
                     "file_id": "",
                     "filename": "",
@@ -73456,38 +70210,29 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
                     "page_title": "",
                     "package_text": "",
                     "section_title": (
-                        "Multiple Current AutoTecPro Configurations"
+                        "Factory System Confirmation Required"
                     ),
-                    "section_id": "technical-multi-match-v69208",
-                    "section_text": "",
+                    "section_id": (
+                        "factory-system-clarification-v69207"
+                    ),
+                    "section_text": clarification_v69207,
                     "branch_paths": [],
-                    "selected_image_urls_v69143": list(
-                        dict.fromkeys(images_v69208)
-                    ),
-                    "selected_section_title_v69143": (
-                        "Multiple Current AutoTecPro Configurations"
-                    ),
-                    "selected_branch_paths_v69143": [],
+                    "selected_image_urls_v69143": [],
                     "selected_segments_v69158": [],
-                    "selector_version": 69208,
                     "compiled_runtime_contract_v69198": True,
-                    "universal_multi_match_v69208": True,
-                    "multi_match_authorities_v69208": (
-                        authorities_v69208
+                    "overlapping_factory_systems_v69207": (
+                        labels_v69207
                     ),
-                }
-                return {
-                    "status": "recovered",
-                    "kind": "configuration",
-                    "authority": combined_v69208,
-                    "exact_images": list(
-                        combined_v69208.get(
-                            "selected_image_urls_v69143"
-                        ) or []
-                    ),
-                    "compiled_contract_v69198": True,
-                    "universal_multi_match_v69208": True,
-                }
+                },
+                "context": "",
+                "rows": [],
+                "exact_images": [],
+                "compiled_contract_v69198": True,
+                "direct_answer_meta_v69199": {
+                    "eligible": True,
+                    "ambiguity_clarification_v69207": True,
+                },
+            }
 
     ranked = []
     for contract in contracts:
@@ -73621,8 +70366,6 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         "selector_version": 69198,
         "compiled_runtime_contract_v69198": True,
         "compiled_contract_score_v69198": int(best[0]),
-        "systems_v69208": list(contract.get("systems") or []),
-        "product_codes_v69208": list(contract.get("product_codes") or []),
     }
 
     if config_query:
@@ -73802,41 +70545,6 @@ def _technical_package_prewarm_inject_v69121(file_id, filename, package_text):
         state["packages"] = kept
         state["status"] = "stale_ready"
         state["completed_at"] = time.monotonic()
-
-    # v69212: immediately persist the newly learned Technical package into the
-    # durable registry as well. Future process cold starts no longer need to wait
-    # for a full migration/backfill before this source is discoverable.
-    try:
-        stores_v69212 = _configured_vector_store_ids(
-            TECHNICAL_VECTOR_STORE_ID
-        )
-        store_v69212 = (
-            str(stores_v69212[0] or "").strip()
-            if stores_v69212
-            else ""
-        )
-        if store_v69212:
-            _technical_registry_upsert_package_v69162(
-                package,
-                store_v69212,
-            )
-    except Exception as registry_error_v69212:
-        diagnostic_log(
-            "technical_injected_registry_upsert_failed_v69212",
-            error_type=type(registry_error_v69212).__name__,
-            error=str(registry_error_v69212)[:500],
-        )
-
-    try:
-        _technical_durable_snapshot_scope_v69213.clear()
-    except Exception:
-        pass
-    try:
-        _technical_scoped_clear_disproven_v69214(
-            new_source
-        )
-    except Exception:
-        pass
 
     diagnostic_log(
         "technical_package_injected_v69121",
@@ -84466,32 +81174,6 @@ else:
             })
             render_chat_message("user", user_display, uploaded_image_previews)
 
-            early_loading_status_placeholder_v69225 = None
-            try:
-                early_loading_status_placeholder_v69225 = st.empty()
-                early_loading_status_placeholder_v69225.markdown(
-                    _loading_status_html(
-                        "Analyzing current Technical sources..."
-                        if assistant == "🔧 Technical Support"
-                        else (
-                            "Checking current Sales sources..."
-                            if is_sales_workspace(assistant)
-                            else (
-                                "Checking current Marketing sources..."
-                                if is_marketing_workspace(assistant)
-                                else "Preparing your request..."
-                            )
-                        )
-                    ),
-                    unsafe_allow_html=True,
-                )
-                diagnostic_log(
-                    "command_status_published_early_v69225",
-                    workspace=str(assistant),
-                )
-            except Exception:
-                early_loading_status_placeholder_v69225 = None
-
             deferred_new_conversation_v68872 = False
             user_message_persisted_preflight_v69026 = False
 
@@ -84678,112 +81360,14 @@ else:
                             compiled_store_v69199,
                         )
                     )
-                    # v69211: a generic configuration query that recovered only one
-                    # branch is not completeness proof.  Force the durable multi-source
-                    # hydrator before allowing that single branch to bypass the provider.
-                    prompt_systems_v69211 = set(
-                        _website_identity_systems_v69022(
-                            technical_request_prompt_v68879
-                        )
-                    )
-                    prompt_codes_v69211 = set(
-                        _website_image_product_codes_v69020(
-                            technical_request_prompt_v68879
-                        )
-                    )
-                    generic_config_probe_v69211 = bool(
-                        _technical_configuration_query_v69155(
-                            technical_request_prompt_v68879
-                        )
-                        and not prompt_systems_v69211
-                        and not prompt_codes_v69211
-                        and str(
-                            technical_compiled_preflight_v69198.get("kind") or ""
-                        ) == "configuration"
-                        and not bool(
-                            technical_compiled_preflight_v69198.get(
-                                "universal_multi_match_v69208"
-                            )
-                        )
-                    )
-                    if generic_config_probe_v69211 or (
-                        _technical_configuration_query_v69155(
-                            technical_request_prompt_v68879
-                        )
-                        and not prompt_systems_v69211
-                        and not prompt_codes_v69211
-                    ):
-                        live_overlap_v69225 = (
-                            _technical_live_overlap_preflight_v69225(
+                    if str(technical_compiled_preflight_v69198.get("status") or "") != "recovered":
+                        technical_compiled_preflight_v69198 = (
+                            _technical_compiled_on_demand_hydrate_v69199(
                                 technical_request_prompt_v68879,
                                 compiled_store_v69199,
                             )
+                            or technical_compiled_preflight_v69198
                         )
-                        if (
-                            str(live_overlap_v69225.get("status") or "")
-                            == "recovered"
-                            and bool(
-                                live_overlap_v69225.get(
-                                    "universal_multi_match_v69208"
-                                )
-                            )
-                        ):
-                            technical_compiled_preflight_v69198 = (
-                                live_overlap_v69225
-                            )
-                        elif generic_config_probe_v69211:
-                            # Never keep a generic single branch as completeness proof.
-                            technical_compiled_preflight_v69198 = {}
-                            use_file_search = True
-                            diagnostic_log(
-                                "technical_generic_single_discarded_v69225",
-                                reason="OVERLAP_NOT_PROVEN",
-                            )
-                    elif (
-                        str(technical_compiled_preflight_v69198.get("status") or "")
-                        != "recovered"
-                    ):
-                        # Preserve v69217/v69050 provider file_search fallback.
-                        use_file_search = True
-                    if (
-                        str(technical_compiled_preflight_v69198.get("status") or "") == "recovered"
-                        and bool(
-                            (
-                                technical_compiled_preflight_v69198.get("authority")
-                                or {}
-                            ).get("current_source_set_incomplete_v69214")
-                            or (
-                                technical_compiled_preflight_v69198.get("authority")
-                                or {}
-                            ).get("current_source_set_incomplete_v69213")
-                            or (
-                                technical_compiled_preflight_v69198.get("authority")
-                                or {}
-                            ).get("current_source_set_incomplete_v69212")
-                        )
-                    ):
-                        diagnostic_log(
-                            "technical_compiled_incomplete_demoted_to_v69050_provider_v69216",
-                            family=str(
-                                (
-                                    technical_compiled_preflight_v69198.get("authority")
-                                    or {}
-                                ).get("vehicle_family")
-                                or ""
-                            )[:120],
-                            section=str(
-                                (
-                                    technical_compiled_preflight_v69198.get("authority")
-                                    or {}
-                                ).get("section_title")
-                                or ""
-                            )[:300],
-                        )
-                        technical_compiled_preflight_v69198 = {}
-                        # The proven v69050 path is file_search-grounded. Never let a
-                        # synthetic compiled miss disable retrieval for this turn.
-                        use_file_search = True
-
                     if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered":
                         diagnostic_log(
                             "technical_compiled_preflight_hit_v69198",
@@ -85601,10 +82185,7 @@ else:
                         )
 
                 stream_placeholder = st.empty()
-                loading_status_placeholder = (
-                    locals().get("early_loading_status_placeholder_v69225")
-                    or st.empty()
-                )
+                loading_status_placeholder = st.empty()
                 streamed_answer = ""
                 last_stream_update = 0.0
                 last_stream_render_chars_v69026 = 0
@@ -87121,45 +83702,6 @@ else:
                             use_file_search=bool(use_file_search),
                             upload_count=len(graphic_generation_files or []),
                         )
-                        if (
-                            assistant == "🔧 Technical Support"
-                            and str(
-                                (locals().get("technical_compiled_preflight_v69198") or {}).get("status")
-                                or ""
-                            ) == "recovered"
-                            and bool(
-                                (locals().get("technical_compiled_preflight_v69198") or {}).get(
-                                    "universal_multi_match_v69208"
-                                )
-                            )
-                        ):
-                            multi_authority_v69225 = dict(
-                                (locals().get("technical_compiled_preflight_v69198") or {}).get(
-                                    "authority"
-                                )
-                                or {}
-                            )
-                            multi_authority_v69225["status"] = "recovered"
-                            technical_full_package_authority_v69155 = (
-                                multi_authority_v69225
-                            )
-                            use_file_search = False
-                            diagnostic_log(
-                                "technical_live_overlap_final_authority_v69225",
-                                branches=len(
-                                    multi_authority_v69225.get(
-                                        "multi_match_authorities_v69208"
-                                    )
-                                    or []
-                                ),
-                                images=len(
-                                    multi_authority_v69225.get(
-                                        "selected_image_urls_v69143"
-                                    )
-                                    or []
-                                ),
-                            )
-
                         technical_direct_answer_v69158 = ""
                         if (
                             assistant == "🔧 Technical Support"
@@ -87196,50 +83738,6 @@ else:
                                     )[:300],
                                 )
 
-                        technical_provider_prompt_v69216 = ai_request_prompt
-                        if (
-                            assistant == "🔧 Technical Support"
-                            and not technical_direct_answer_v69158
-                            and not technical_current_source_safe_answer_v69164
-                            and bool(use_file_search)
-                            and _technical_configuration_query_v69155(
-                                technical_request_prompt_v68879
-                            )
-                            and not set(
-                                _website_identity_systems_v69022(
-                                    technical_request_prompt_v68879
-                                )
-                            )
-                            and not set(
-                                _website_image_product_codes_v69020(
-                                    technical_request_prompt_v68879
-                                )
-                            )
-                        ):
-                            technical_provider_prompt_v69216 = (
-                                str(ai_request_prompt or "")
-                                + "\n\n"
-                                + """
-AUTOTECPRO TECHNICAL GENERIC MULTI-SOURCE RECOVERY — LIVE FILE_SEARCH AUTHORITY:
-- Search the Technical Support Vector Store for ALL current AutoTecPro source documents matching the user's exact vehicle family/model and requested year.
-- Do not stop after the first matching file.
-- Treat each distinct current factory-system / product-series / configuration branch as a valid parallel match when its applicability includes the exact requested year.
-- Prefer sources explicitly marked current/current-authoritative/current-source=true.
-- Exclude historical, superseded, deprecated, inactive, non-current, wrong-year, wrong-vehicle, and wrong-system sources.
-- Never infer that one configuration is the only valid branch merely because it appears first in retrieval.
-- For a generic model/year request, publish every verified current matching branch in the same answer.
-- Preserve exact configuration values from the retrieved source. Do not merge settings across branches.
-- If retrieval cannot establish the complete current matching set, say that completeness could not be verified instead of presenting one branch as complete.
-- Do not invent an image URL. Related images are published later only by AutoTecPro's deterministic image authority.
-"""
-                            )
-                            diagnostic_log(
-                                "technical_v69050_generic_multisource_provider_enabled_v69216",
-                                prompt=str(
-                                    technical_request_prompt_v68879 or ""
-                                )[:300],
-                            )
-
                         stream_source_v69158 = (
                             [technical_current_source_safe_answer_v69164]
                             if technical_current_source_safe_answer_v69164
@@ -87253,7 +83751,7 @@ AUTOTECPRO TECHNICAL GENERIC MULTI-SOURCE RECOVERY — LIVE FILE_SEARCH AUTHORIT
                                         and str(locals().get("workspace_atp_direct_answer_v69205") or "").strip()
                                     )
                                     else ask_ai_stream(
-                                        technical_provider_prompt_v69216,
+                                        ai_request_prompt,
                                         graphic_generation_files,
                                         detected_live_request=detected_request,
                                         detected_technical_tool=detected_technical_tool,
