@@ -1,4 +1,4 @@
-# AutoTecPro AI v69222 FINAL PRODUCTION — vector-discovered overlapping branch recovery + generic single-package publication block\n# AutoTecPro AI v69221 FINAL PRODUCTION — workspace callback NameError fix; early Technical photo-context key binding\n# AutoTecPro AI v69220 FINAL PRODUCTION — F250 SYNC2 series 722 + generic completeness retention fix + safe cache guard\n# AutoTecPro AI v69219 FINAL PRODUCTION — fast safe cached branch-result authority with revision/payload-key invalidation
+# AutoTecPro AI v69223 FINAL PRODUCTION — nonblocking live branch preflight, immediate command status, safe auth connection reuse\n# AutoTecPro AI v69222 FINAL PRODUCTION — vector-discovered overlapping branch recovery + generic single-package publication block\n# AutoTecPro AI v69221 FINAL PRODUCTION — workspace callback NameError fix; early Technical photo-context key binding\n# AutoTecPro AI v69220 FINAL PRODUCTION — F250 SYNC2 series 722 + generic completeness retention fix + safe cache guard\n# AutoTecPro AI v69219 FINAL PRODUCTION — fast safe cached branch-result authority with revision/payload-key invalidation
 # AutoTecPro AI v69218 FINAL PRODUCTION — universal indexed overlapping-year branch authority
 # AutoTecPro AI v69217 FINAL PRODUCTION — restore v69050 file_search answer authority and remove impossible assistant-file image download fallback\n# AutoTecPro AI v69216 FINAL PRODUCTION — demote synthetic compiled incompleteness and restore v69050 file_search provider authority for generic Technical multi-source recovery\n# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
 # AutoTecPro AI v69214 FINAL PRODUCTION — query-scoped legacy Technical source migration; hosted assistant-file download failure removed from direct authority path.\n# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
@@ -6325,6 +6325,29 @@ def _auth_credential_fingerprint(stored_password):
 
 
 
+
+@st.cache_resource(show_spinner=False)
+def _auth_http_session_v69223():
+    """Reuse HTTPS connections for bounded auth lookups.
+
+    This changes transport efficiency only. Every login/session restore still
+    performs the same server-side active-user and credential-fingerprint checks.
+    """
+    session = requests.Session()
+    try:
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=8,
+            pool_maxsize=16,
+            max_retries=0,
+            pool_block=False,
+        )
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+    except Exception:
+        pass
+    return session
+
+
 def _login_user_lookup_v69186(username, timeout_seconds=6.0):
     """Bounded server-side user lookup used only by login/session restoration.
 
@@ -6361,7 +6384,8 @@ def _login_user_lookup_v69186(username, timeout_seconds=6.0):
         )
 
     timeout_value = max(1.0, float(timeout_seconds or 6.0))
-    response = requests.get(
+    auth_http_session_v69223 = _auth_http_session_v69223()
+    response = auth_http_session_v69223.get(
         f"{supabase_url}/rest/v1/users",
         headers={
             "apikey": server_key,
@@ -6519,6 +6543,7 @@ def _load_authenticated_user(username, expected_credential_fingerprint=None):
 
 
 def restore_login_session():
+    login_restore_started_v69223 = time.perf_counter()
     """
     Restore a valid signed login after Streamlit creates a new Python session.
 
@@ -6618,6 +6643,10 @@ def restore_login_session():
             username=username,
             workspace=restored_workspace,
             prior_conversation_present=bool(restored_conversation_v69026),
+            elapsed_seconds=round(
+                time.perf_counter() - login_restore_started_v69223,
+                3,
+            ),
         )
         return True
     except Exception as error:
@@ -71733,7 +71762,7 @@ def _workspace_branch_cached_result_v69219(destination, prompt_text, payload_blo
     return result
 
 
-def _technical_branch_index_lookup_v69218(prompt_text, vector_store_id):
+def _technical_branch_index_lookup_v69218(prompt_text, vector_store_id, allow_bootstrap_v69223=False):
     prompt = _technical_settings_routing_prompt_v69117(prompt_text)
     family, year = _technical_resolve_family_year_v69199(
         prompt, vector_store_id, allow_registry=True
@@ -71755,15 +71784,24 @@ def _technical_branch_index_lookup_v69218(prompt_text, vector_store_id):
         for x in _website_image_product_codes_v69020(prompt)
         if str(x).strip()
     }
-    payloads = _atp_branch_coverage_bootstrap_v69218(
-        "Technical Support Database",
-        prompt,
-        family,
-        int(year),
-        vector_store_id,
-        payloads,
-        generic_scope=(not prompt_systems and not prompt_codes),
-    )
+    if bool(allow_bootstrap_v69223):
+        payloads = _atp_branch_coverage_bootstrap_v69218(
+            "Technical Support Database",
+            prompt,
+            family,
+            int(year),
+            vector_store_id,
+            payloads,
+            generic_scope=(not prompt_systems and not prompt_codes),
+        )
+    else:
+        diagnostic_log(
+            "technical_branch_live_read_only_v69223",
+            family=str(family),
+            year=int(year),
+            indexed_payloads=len(payloads),
+            generic=bool(not prompt_systems and not prompt_codes),
+        )
     if not payloads:
         return {}
     revision = _website_destination_revision_v69109("Technical Support Database")
@@ -71785,7 +71823,7 @@ def _technical_branch_index_lookup_v69218(prompt_text, vector_store_id):
     return result
 
 
-def _workspace_branch_index_authority_v69218(workspace_label, prompt_text):
+def _workspace_branch_index_authority_v69218(workspace_label, prompt_text, allow_bootstrap_v69223=False):
     workspace = str(workspace_label or "")
     destination = (
         "Sales Database"
@@ -71824,15 +71862,25 @@ def _workspace_branch_index_authority_v69218(workspace_label, prompt_text):
         for x in _website_image_product_codes_v69020(prompt_text)
         if str(x).strip()
     }
-    payloads = _atp_branch_coverage_bootstrap_v69218(
-        destination,
-        prompt_text,
-        family,
-        int(year),
-        store,
-        payloads,
-        generic_scope=(not prompt_systems and not prompt_codes),
-    )
+    if bool(allow_bootstrap_v69223):
+        payloads = _atp_branch_coverage_bootstrap_v69218(
+            destination,
+            prompt_text,
+            family,
+            int(year),
+            store,
+            payloads,
+            generic_scope=(not prompt_systems and not prompt_codes),
+        )
+    else:
+        diagnostic_log(
+            "workspace_branch_live_read_only_v69223",
+            destination=str(destination),
+            family=str(family),
+            year=int(year),
+            indexed_payloads=len(payloads),
+            generic=bool(not prompt_systems and not prompt_codes),
+        )
     if not payloads:
         return {}
     payload_blob = _atp_branch_cache_blob_v69219(payloads)
@@ -85120,6 +85168,45 @@ else:
             })
             render_chat_message("user", user_display, uploaded_image_previews)
 
+            # v69223: publish visible acknowledgement immediately after the local
+            # user turn renders. Network persistence, Technical source checks, and
+            # provider work must never leave a submitted command with no status.
+            early_loading_status_placeholder_v69223 = None
+            try:
+                early_loading_status_placeholder_v69223 = st.empty()
+                early_status_text_v69223 = (
+                    "Analyzing current Technical sources..."
+                    if assistant == "🔧 Technical Support"
+                    else (
+                        "Checking current Sales sources..."
+                        if is_sales_workspace(assistant)
+                        else (
+                            "Checking current Marketing sources..."
+                            if is_marketing_workspace(assistant)
+                            else "Preparing your request..."
+                        )
+                    )
+                )
+                early_loading_status_placeholder_v69223.markdown(
+                    _loading_status_html(early_status_text_v69223),
+                    unsafe_allow_html=True,
+                )
+                diagnostic_log(
+                    "command_status_published_early_v69223",
+                    workspace=str(assistant),
+                    elapsed_seconds=round(
+                        time.perf_counter() - command_preflight_started_v68864,
+                        3,
+                    ),
+                )
+            except Exception as early_status_error_v69223:
+                early_loading_status_placeholder_v69223 = None
+                diagnostic_log(
+                    "command_status_publish_failed_v69223",
+                    workspace=str(assistant),
+                    error_type=type(early_status_error_v69223).__name__,
+                )
+
             deferred_new_conversation_v68872 = False
             user_message_persisted_preflight_v69026 = False
 
@@ -85337,57 +85424,62 @@ else:
                             )
                         )
                     )
-                    if (
+                    generic_configuration_request_v69223 = bool(
+                        _technical_configuration_query_v69155(
+                            technical_request_prompt_v68879
+                        )
+                        and not prompt_systems_v69211
+                        and not prompt_codes_v69211
+                    )
+                    complete_generic_multi_v69223 = bool(
                         str(technical_compiled_preflight_v69198.get("status") or "")
-                        != "recovered"
-                        or generic_config_probe_v69211
-                    ):
-                        hydrated_preflight_v69211 = (
-                            _technical_compiled_on_demand_hydrate_v69199(
-                                technical_request_prompt_v68879,
-                                compiled_store_v69199,
+                        == "recovered"
+                        and bool(
+                            technical_compiled_preflight_v69198.get(
+                                "universal_multi_match_v69208"
                             )
                         )
-                        if generic_config_probe_v69211:
-                            hydrated_is_complete_multi_v69220 = bool(
-                                str(
-                                    (hydrated_preflight_v69211 or {}).get("status")
-                                    or ""
-                                ) == "recovered"
-                                and bool(
-                                    (hydrated_preflight_v69211 or {}).get(
-                                        "universal_multi_match_v69208"
-                                    )
+                    )
+
+                    # v69223: live user requests are never allowed to run durable
+                    # catalogue hydration/migration synchronously. Existing indexed
+                    # authority may answer immediately. Otherwise preserve the proven
+                    # protected file_search path. For a generic configuration query,
+                    # a single branch is never completeness proof.
+                    if (
+                        generic_configuration_request_v69223
+                        and not complete_generic_multi_v69223
+                    ):
+                        diagnostic_log(
+                            "technical_generic_incomplete_live_fallback_v69223",
+                            prior_status=str(
+                                technical_compiled_preflight_v69198.get("status")
+                                or ""
+                            ),
+                            prior_kind=str(
+                                technical_compiled_preflight_v69198.get("kind")
+                                or ""
+                            ),
+                            prior_multi=bool(
+                                technical_compiled_preflight_v69198.get(
+                                    "universal_multi_match_v69208"
                                 )
-                            )
-                            if hydrated_is_complete_multi_v69220:
-                                technical_compiled_preflight_v69198 = (
-                                    hydrated_preflight_v69211
-                                )
-                            else:
-                                diagnostic_log(
-                                    "technical_generic_single_branch_discarded_v69220",
-                                    prior_kind=str(
-                                        technical_compiled_preflight_v69198.get("kind")
-                                        or ""
-                                    ),
-                                    hydrated_status=str(
-                                        (hydrated_preflight_v69211 or {}).get("status")
-                                        or ""
-                                    ),
-                                    hydrated_multi=bool(
-                                        (hydrated_preflight_v69211 or {}).get(
-                                            "universal_multi_match_v69208"
-                                        )
-                                    ),
-                                )
-                                technical_compiled_preflight_v69198 = {}
-                                technical_generic_branch_completeness_unproven_v69222 = True
-                                use_file_search = True
-                        elif hydrated_preflight_v69211:
-                            technical_compiled_preflight_v69198 = (
-                                hydrated_preflight_v69211
-                            )
+                            ),
+                        )
+                        technical_compiled_preflight_v69198 = {}
+                        technical_generic_branch_completeness_unproven_v69222 = True
+                        use_file_search = True
+                    elif (
+                        str(technical_compiled_preflight_v69198.get("status") or "")
+                        != "recovered"
+                    ):
+                        # Explicit/non-generic misses fall through to the existing
+                        # search/provider path without live maintenance.
+                        use_file_search = True
+                        diagnostic_log(
+                            "technical_live_hydration_skipped_v69223",
+                            reason="NO_RECOVERED_INDEXED_AUTHORITY",
+                        )
                     if (
                         str(technical_compiled_preflight_v69198.get("status") or "") == "recovered"
                         and bool(
@@ -86244,7 +86336,10 @@ else:
                         )
 
                 stream_placeholder = st.empty()
-                loading_status_placeholder = st.empty()
+                loading_status_placeholder = (
+                    locals().get("early_loading_status_placeholder_v69223")
+                    or st.empty()
+                )
                 streamed_answer = ""
                 last_stream_update = 0.0
                 last_stream_render_chars_v69026 = 0
