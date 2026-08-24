@@ -7,7 +7,7 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 
-# AutoTecPro AI v69232 — stability-first immutable Technical cold-cache optimization over v69231
+# AutoTecPro AI v69233 — exact current-source recovery + verified multi-package registry over v69232
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
 from openai import OpenAI
@@ -63027,6 +63027,11 @@ def _technical_registry_payload_v69162(package, vector_store_id=""):
             str(x) for x in (package.get("product_codes") or [])
             if str(x).strip()
         ][:32],
+        # v69233: carry the immutable durable snapshot identity into the
+        # multi-package registry.  This lets cold recovery validate the exact
+        # source bytes without touching OpenAI file-content APIs.
+        "snapshot_key_v69171": str(package.get("snapshot_key_v69171") or "")[:300],
+        "snapshot_sha256_v69171": str(package.get("snapshot_sha256_v69171") or "")[:128],
         "vector_store_id": str(vector_store_id or "")[:300],
     }
 
@@ -64939,6 +64944,101 @@ def _technical_durable_snapshot_recover_v69171(source_url, vector_store_id="", e
     return snapshot
 
 
+def _technical_durable_snapshot_candidates_v69233(prompt_text, vector_store_id):
+    """Recover pre-registry current packages by exact known source URL only.
+
+    v69233 intentionally does *not* enumerate the full durable-snapshot table.
+    The already durable image/source index supplies at most six exact source URLs
+    for the query; each URL maps deterministically to one v69171 snapshot key.
+    This keeps cold recovery bounded and avoids semantic/vector fallback.
+    """
+    try:
+        source_urls = list(_technical_image_index_source_urls_v69162(prompt_text, max_sources=6) or [])
+    except Exception:
+        source_urls = []
+    output = []
+    seen = set()
+    for source_url in source_urls[:6]:
+        source_url = str(source_url or "").strip()
+        if not source_url:
+            continue
+        try:
+            canonical = canonical_website_url_identity(source_url)
+        except Exception:
+            canonical = source_url.casefold()
+        if not canonical or canonical in seen:
+            continue
+        seen.add(canonical)
+        try:
+            decoded = dict(_technical_durable_snapshot_recover_v69171(source_url, vector_store_id) or {})
+        except Exception:
+            decoded = {}
+        if not decoded:
+            continue
+        file_id = str(decoded.get("file_id") or "").strip()
+        if not file_id:
+            continue
+        output.append({
+            "file_id": file_id,
+            "filename": str(decoded.get("filename") or ""),
+            "source_url": str(decoded.get("source_url") or source_url),
+            "title": str(decoded.get("title") or ""),
+            "extracted_at": str(decoded.get("extracted_at") or ""),
+            "vehicle_families": list(decoded.get("vehicle_families") or []),
+            "years": list(decoded.get("years") or []),
+            "systems": list(decoded.get("systems") or []),
+            "product_codes": list(decoded.get("product_codes") or []),
+            "snapshot_key_v69171": str(decoded.get("snapshot_key") or ""),
+            "snapshot_sha256_v69171": str(decoded.get("content_sha256") or ""),
+            "vector_store_id": str(decoded.get("vector_store_id") or vector_store_id or ""),
+            "durable_snapshot_candidate_v69233": True,
+        })
+    if output:
+        diagnostic_log(
+            "technical_exact_snapshot_candidates_v69233",
+            source_urls=len(source_urls[:6]),
+            recovered=len(output),
+        )
+    return output
+
+
+def _technical_registry_verify_exact_package_v69233(package, vector_store_id=""):
+    """Read back the registry row for the exact URL/file/SHA just committed."""
+    package = dict(package or {})
+    source_url = str(package.get("source_url") or "").strip()
+    file_id = str(package.get("file_id") or "").strip()
+    expected_sha = str(package.get("snapshot_sha256_v69171") or "").strip()
+    if not source_url or not file_id or not expected_sha:
+        return False
+    try:
+        _technical_registry_rows_v69162.clear()
+    except Exception:
+        pass
+    try:
+        rows = list(_technical_registry_rows_v69162(vector_store_id) or [])
+    except Exception:
+        return False
+    try:
+        target = canonical_website_url_identity(source_url)
+    except Exception:
+        target = source_url.casefold()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        row_source = str(row.get("source_url") or "").strip()
+        try:
+            row_identity = canonical_website_url_identity(row_source)
+        except Exception:
+            row_identity = row_source.casefold()
+        if row_identity != target:
+            continue
+        if str(row.get("file_id") or "").strip() != file_id:
+            return False
+        if str(row.get("snapshot_sha256_v69171") or "").strip() != expected_sha:
+            return False
+        return True
+    return False
+
 
 TECHNICAL_ACTIVE_AUTHORITY_PREFIX_V69164 = "__ATP_TECH_ACTIVE_AUTHORITY_V69164__:"
 
@@ -65214,6 +65314,15 @@ def _technical_active_authority_commit_verified_v69167(
     package = dict(package)
     package["snapshot_key_v69171"] = str(durable_snapshot_v69171.get("snapshot_key") or "")
     package["snapshot_sha256_v69171"] = str(durable_snapshot_v69171.get("content_sha256") or "")
+
+    # v69233: the multi-package registry is part of the Technical authority
+    # transaction.  Overlapping family/year sources (for example No-SYNC and
+    # SYNC2) must both survive; a single family/year pointer cannot represent
+    # that authority safely.
+    if not _technical_registry_upsert_package_v69162(package, vector_store_id):
+        raise RuntimeError("The Technical multi-package registry commit failed.")
+    if not _technical_registry_verify_exact_package_v69233(package, vector_store_id):
+        raise RuntimeError("The Technical multi-package registry read-back verification failed.")
 
     stats = _technical_active_authority_upsert_package_v69164(
         package,
@@ -67601,6 +67710,16 @@ def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_re
     store = str(vector_store_id or "").strip()
     if not store.startswith("vs_"):
         return []
+    # v69233: once OpenAI has proven assistants-purpose file content is not
+    # downloadable, do not enumerate the full vector-store corpus merely to
+    # skip every file.  Current Technical authority is recovered from verified
+    # durable snapshots/registry instead.
+    if _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228:
+        diagnostic_log(
+            "technical_admin_catalog_short_circuit_v69233",
+            reason="ASSISTANTS_FILE_CONTENT_UNSUPPORTED",
+        )
+        return []
 
     packages = []
     for row in _website_vector_store_file_rows_v68892(store):
@@ -69677,6 +69796,13 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         row_systems_v69228 = {
             str(x) for x in (registry_row_v69228.get("systems") or []) if str(x).strip()
         }
+        # v69233: identity parser tokens use no_sync/sync_2 while registry
+        # metadata stores human labels such as "No SYNC" / "SYNC 2".
+        # Compare normalized token spaces; raw-string subset checks wrongly
+        # rejected the exact current package.
+        row_identity_systems_v69233 = set(
+            _website_identity_systems_v69022(" ".join(row_systems_v69228))
+        )
         row_factory_system_v69228 = _technical_single_factory_system_v69230(
             " ".join((
                 str(registry_row_v69228.get("source_url") or ""),
@@ -69697,9 +69823,66 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             and explicit_factory_system_v69228 not in row_system_tokens_v69231
         ):
             continue
-        if prompt_systems_v69228 and row_systems_v69228 and not prompt_systems_v69228.issubset(row_systems_v69228):
+        if (
+            prompt_systems_v69228
+            and row_identity_systems_v69233
+            and not prompt_systems_v69228.issubset(row_identity_systems_v69233)
+        ):
             continue
         candidate_payloads_v69228.append(dict(registry_row_v69228))
+
+    # v69233 migration-safe exact-current fallback: old learned packages can
+    # already have verified durable snapshots even when the v69162 registry was
+    # never populated.  Enumerate those exact snapshots before any semantic or
+    # vector fallback and apply the identical family/year/system hard gates.
+    try:
+        snapshot_rows_v69233 = list(_technical_durable_snapshot_candidates_v69233(prompt, clean_store) or [])
+    except Exception:
+        snapshot_rows_v69233 = []
+    snapshot_candidates_v69233 = 0
+    for snapshot_row_v69233 in snapshot_rows_v69233:
+        if not isinstance(snapshot_row_v69233, dict):
+            continue
+        row_families_v69233 = {
+            str(x).casefold().strip()
+            for x in (snapshot_row_v69233.get("vehicle_families") or [])
+            if str(x).strip()
+        }
+        row_years_v69233 = set()
+        for raw_year_v69233 in snapshot_row_v69233.get("years") or []:
+            try:
+                row_years_v69233.add(int(raw_year_v69233))
+            except Exception:
+                pass
+        if family not in row_families_v69233 or int(year) not in row_years_v69233:
+            continue
+        row_systems_v69233 = {
+            str(x) for x in (snapshot_row_v69233.get("systems") or []) if str(x).strip()
+        }
+        row_identity_systems_snapshot_v69233 = set(
+            _website_identity_systems_v69022(" ".join(row_systems_v69233))
+        )
+        row_system_tokens_v69233 = _technical_factory_system_tokens_v69231(
+            " ".join((
+                str(snapshot_row_v69233.get("source_url") or ""),
+                str(snapshot_row_v69233.get("title") or ""),
+            )),
+            row_systems_v69233,
+        )
+        if (
+            explicit_factory_system_v69228
+            and row_system_tokens_v69233
+            and explicit_factory_system_v69228 not in row_system_tokens_v69233
+        ):
+            continue
+        if (
+            prompt_systems_v69228
+            and row_identity_systems_snapshot_v69233
+            and not prompt_systems_v69228.issubset(row_identity_systems_snapshot_v69233)
+        ):
+            continue
+        candidate_payloads_v69228.append(dict(snapshot_row_v69233))
+        snapshot_candidates_v69233 += 1
 
     hydrated_v69228 = 0
     rejected_v69228 = 0
@@ -69794,6 +69977,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         rejected=rejected_v69228,
         immutable_cache_hits_v69232=immutable_cache_hits_v69232,
         already_compiled_hits_v69232=already_compiled_hits_v69232,
+        durable_snapshot_candidates_v69233=snapshot_candidates_v69233,
     )
     if hydrated_v69228 <= 0:
         return {}
