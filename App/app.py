@@ -64944,21 +64944,104 @@ def _technical_durable_snapshot_recover_v69171(source_url, vector_store_id="", e
     return snapshot
 
 
+def _technical_exact_snapshot_source_urls_v69235(prompt_text, max_sources=8):
+    """Return a bounded, factory-system-aware exact source URL set.
+
+    Accuracy-first rule: when the user explicitly says No SYNC/SYNC1/SYNC2/SYNC3,
+    a URL that itself explicitly declares a different factory system is rejected
+    before any snapshot read. Ambiguous URLs are retained only behind exact-system
+    URLs and are still required to pass parsed-package hard gates later.
+    """
+    try:
+        raw_urls = list(
+            _technical_image_index_source_urls_v69162(
+                prompt_text, max_sources=max(12, int(max_sources or 8) * 2)
+            )
+            or []
+        )
+    except Exception:
+        raw_urls = []
+    explicit = _technical_explicit_factory_system_v69228(prompt_text)
+    exact = []
+    ambiguous = []
+    seen = set()
+    for source_url in raw_urls:
+        source_url = str(source_url or "").strip()
+        if not source_url:
+            continue
+        try:
+            canonical = canonical_website_url_identity(source_url)
+        except Exception:
+            canonical = source_url.casefold()
+        if not canonical or canonical in seen:
+            continue
+        seen.add(canonical)
+        tokens = _technical_factory_system_tokens_v69231(source_url, [])
+        if explicit and tokens:
+            if explicit in tokens:
+                exact.append(source_url)
+            continue
+        ambiguous.append(source_url)
+    ordered = exact + ambiguous
+    return ordered[: max(1, int(max_sources or 8))]
+
+
+def _technical_verified_snapshot_scope_v69235(payload, clean_store):
+    """Derive hard routing scope from the SHA-verified parsed package itself.
+
+    This deliberately ignores legacy snapshot-envelope family/year/system fields.
+    Those fields are advisory only; the immutable package parser is authoritative.
+    """
+    recovered = dict(_technical_verified_snapshot_package_v69232(payload, clean_store) or {})
+    package = dict(recovered.get("package") or {})
+    if not package:
+        return {}
+    families = {
+        str(x).casefold().strip()
+        for x in (package.get("vehicle_families") or [])
+        if str(x).strip()
+    }
+    years = set()
+    for raw_year in package.get("years") or []:
+        try:
+            years.add(int(raw_year))
+        except Exception:
+            pass
+    systems = {
+        str(x) for x in (package.get("systems") or []) if str(x).strip()
+    }
+    source_text = " ".join((
+        str(package.get("source_url") or payload.get("source_url") or ""),
+        str(package.get("title") or payload.get("title") or ""),
+    ))
+    system_tokens = _technical_factory_system_tokens_v69231(source_text, systems)
+    identity_systems = set(_website_identity_systems_v69022(" ".join(systems)))
+    return {
+        "recovered": recovered,
+        "package": package,
+        "families": families,
+        "years": years,
+        "systems": systems,
+        "system_tokens": set(system_tokens or []),
+        "identity_systems": identity_systems,
+    }
+
+
 def _technical_durable_snapshot_candidates_v69233(prompt_text, vector_store_id):
     """Recover pre-registry current packages by exact known source URL only.
 
-    v69233 intentionally does *not* enumerate the full durable-snapshot table.
-    The already durable image/source index supplies at most six exact source URLs
-    for the query; each URL maps deterministically to one v69171 snapshot key.
-    This keeps cold recovery bounded and avoids semantic/vector fallback.
+    v69235 strengthens v69234 in two ways: source URLs are ordered by explicit
+    factory-system compatibility before reads, and every recovered snapshot is
+    re-scoped from its SHA-verified parsed package rather than envelope metadata.
+    No semantic/vector/provider lookup is introduced here.
     """
     try:
-        source_urls = list(_technical_image_index_source_urls_v69162(prompt_text, max_sources=6) or [])
+        source_urls = list(_technical_exact_snapshot_source_urls_v69235(prompt_text, max_sources=8) or [])
     except Exception:
         source_urls = []
     output = []
     seen = set()
-    for source_url in source_urls[:6]:
+    for source_url in source_urls[:8]:
         source_url = str(source_url or "").strip()
         if not source_url:
             continue
@@ -64978,7 +65061,7 @@ def _technical_durable_snapshot_candidates_v69233(prompt_text, vector_store_id):
         file_id = str(decoded.get("file_id") or "").strip()
         if not file_id:
             continue
-        output.append({
+        candidate_v69234 = {
             "file_id": file_id,
             "filename": str(decoded.get("filename") or ""),
             "source_url": str(decoded.get("source_url") or source_url),
@@ -64992,7 +65075,44 @@ def _technical_durable_snapshot_candidates_v69233(prompt_text, vector_store_id):
             "snapshot_sha256_v69171": str(decoded.get("content_sha256") or ""),
             "vector_store_id": str(decoded.get("vector_store_id") or vector_store_id or ""),
             "durable_snapshot_candidate_v69233": True,
-        })
+        }
+
+        # v69234: legacy v69171 snapshots can contain the exact immutable
+        # package_text while their envelope metadata (families/years/systems)
+        # is empty or stale.  v69233 recovered those snapshots successfully,
+        # then rejected all six *before parsing their package_text*, producing
+        # durable_snapshot_candidates=0 in the hosted runtime.  Rehydrate the
+        # identity metadata from the same SHA-verified package parser that is
+        # already authoritative for normal Technical hydration.  The parsed
+        # package is cached by URL+file+store+SHA, so the later hydration pass
+        # reuses it instead of parsing a second time.
+        try:
+            scope_v69235 = dict(
+                _technical_verified_snapshot_scope_v69235(
+                    candidate_v69234, str(vector_store_id or "").strip()
+                ) or {}
+            )
+        except Exception:
+            scope_v69235 = {}
+        package_v69235 = dict(scope_v69235.get("package") or {})
+        if package_v69235:
+            candidate_v69234["vehicle_families"] = sorted(scope_v69235.get("families") or [])
+            candidate_v69234["years"] = sorted(scope_v69235.get("years") or [])
+            candidate_v69234["systems"] = sorted(scope_v69235.get("systems") or [])
+            candidate_v69234["product_codes"] = list(
+                package_v69235.get("product_codes") or candidate_v69234.get("product_codes") or []
+            )
+            candidate_v69234["title"] = str(
+                package_v69235.get("title") or candidate_v69234.get("title") or ""
+            )
+            candidate_v69234["legacy_metadata_rehydrated_v69234"] = True
+            candidate_v69234["verified_system_tokens_v69235"] = sorted(
+                scope_v69235.get("system_tokens") or []
+            )
+            candidate_v69234["verified_identity_systems_v69235"] = sorted(
+                scope_v69235.get("identity_systems") or []
+            )
+        output.append(candidate_v69234)
     if output:
         diagnostic_log(
             "technical_exact_snapshot_candidates_v69233",
@@ -67737,6 +67857,17 @@ def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_re
             )
             or ""
         )
+        # v69234: the v69233 entry short-circuit only helped requests *after*
+        # the capability flag had already been set.  When the first 400 occurs
+        # inside this loop, stop the catalogue immediately instead of walking
+        # every remaining file just to emit CAPABILITY_ALREADY_PROVEN_UNSUPPORTED.
+        if _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228 and not package_text:
+            diagnostic_log(
+                "technical_admin_catalog_abort_v69234",
+                file_id=file_id[:160],
+                reason="ASSISTANTS_FILE_CONTENT_BECAME_UNSUPPORTED",
+            )
+            break
         if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text:
             continue
         if (
@@ -69766,11 +69897,17 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             )),
             pointer_v69228.get("systems") or [],
         )
-        if not (
-            explicit_factory_system_v69228
-            and pointer_system_tokens_v69231
-            and explicit_factory_system_v69228 not in pointer_system_tokens_v69231
-        ):
+        # v69235 accuracy guard: an explicit factory-system request may never be
+        # satisfied by the legacy family/year pointer unless that pointer itself
+        # positively proves the same system.  Ambiguous pointers are hints only
+        # for generic requests; they cannot override exact No-SYNC/SYNC routing.
+        pointer_allowed_v69235 = True
+        if explicit_factory_system_v69228:
+            pointer_allowed_v69235 = bool(
+                pointer_system_tokens_v69231
+                and explicit_factory_system_v69228 in pointer_system_tokens_v69231
+            )
+        if pointer_allowed_v69235:
             candidate_payloads_v69228.append(pointer_v69228)
 
     try:
@@ -69840,46 +69977,49 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     except Exception:
         snapshot_rows_v69233 = []
     snapshot_candidates_v69233 = 0
+    snapshot_scope_rejected_v69235 = 0
+    snapshot_exact_system_matches_v69235 = 0
     for snapshot_row_v69233 in snapshot_rows_v69233:
         if not isinstance(snapshot_row_v69233, dict):
             continue
-        row_families_v69233 = {
-            str(x).casefold().strip()
-            for x in (snapshot_row_v69233.get("vehicle_families") or [])
-            if str(x).strip()
-        }
-        row_years_v69233 = set()
-        for raw_year_v69233 in snapshot_row_v69233.get("years") or []:
-            try:
-                row_years_v69233.add(int(raw_year_v69233))
-            except Exception:
-                pass
-        if family not in row_families_v69233 or int(year) not in row_years_v69233:
+        # v69235: gate from the parsed immutable package itself.  A second call
+        # is an in-process SHA-keyed cache hit because v69234/v69235 already
+        # reparsed the candidate during recovery.  This removes the last
+        # dependency on legacy envelope metadata at the candidate handoff.
+        try:
+            scope_v69235 = dict(
+                _technical_verified_snapshot_scope_v69235(
+                    snapshot_row_v69233, clean_store
+                ) or {}
+            )
+        except Exception:
+            scope_v69235 = {}
+        if not scope_v69235:
+            snapshot_scope_rejected_v69235 += 1
             continue
-        row_systems_v69233 = {
-            str(x) for x in (snapshot_row_v69233.get("systems") or []) if str(x).strip()
-        }
-        row_identity_systems_snapshot_v69233 = set(
-            _website_identity_systems_v69022(" ".join(row_systems_v69233))
-        )
-        row_system_tokens_v69233 = _technical_factory_system_tokens_v69231(
-            " ".join((
-                str(snapshot_row_v69233.get("source_url") or ""),
-                str(snapshot_row_v69233.get("title") or ""),
-            )),
-            row_systems_v69233,
-        )
-        if (
-            explicit_factory_system_v69228
-            and row_system_tokens_v69233
-            and explicit_factory_system_v69228 not in row_system_tokens_v69233
-        ):
+        row_families_v69235 = set(scope_v69235.get("families") or [])
+        row_years_v69235 = set(scope_v69235.get("years") or [])
+        if family not in row_families_v69235 or int(year) not in row_years_v69235:
+            snapshot_scope_rejected_v69235 += 1
             continue
+        row_system_tokens_v69235 = set(scope_v69235.get("system_tokens") or [])
+        row_identity_systems_v69235 = set(scope_v69235.get("identity_systems") or [])
+        # Explicit factory system is a hard positive gate.  Empty/ambiguous
+        # package system evidence is not permitted to satisfy an explicit query.
+        if explicit_factory_system_v69228:
+            if (
+                not row_system_tokens_v69235
+                or explicit_factory_system_v69228 not in row_system_tokens_v69235
+            ):
+                snapshot_scope_rejected_v69235 += 1
+                continue
+            snapshot_exact_system_matches_v69235 += 1
         if (
             prompt_systems_v69228
-            and row_identity_systems_snapshot_v69233
-            and not prompt_systems_v69228.issubset(row_identity_systems_snapshot_v69233)
+            and row_identity_systems_v69235
+            and not prompt_systems_v69228.issubset(row_identity_systems_v69235)
         ):
+            snapshot_scope_rejected_v69235 += 1
             continue
         candidate_payloads_v69228.append(dict(snapshot_row_v69233))
         snapshot_candidates_v69233 += 1
@@ -69978,6 +70118,8 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         immutable_cache_hits_v69232=immutable_cache_hits_v69232,
         already_compiled_hits_v69232=already_compiled_hits_v69232,
         durable_snapshot_candidates_v69233=snapshot_candidates_v69233,
+        snapshot_scope_rejected_v69235=snapshot_scope_rejected_v69235,
+        snapshot_exact_system_matches_v69235=snapshot_exact_system_matches_v69235,
     )
     if hydrated_v69228 <= 0:
         return {}
