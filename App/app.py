@@ -1,4 +1,4 @@
-# AutoTecPro AI v69223 FINAL PRODUCTION — nonblocking live branch preflight, immediate command status, safe auth connection reuse\n# AutoTecPro AI v69222 FINAL PRODUCTION — vector-discovered overlapping branch recovery + generic single-package publication block\n# AutoTecPro AI v69221 FINAL PRODUCTION — workspace callback NameError fix; early Technical photo-context key binding\n# AutoTecPro AI v69220 FINAL PRODUCTION — F250 SYNC2 series 722 + generic completeness retention fix + safe cache guard\n# AutoTecPro AI v69219 FINAL PRODUCTION — fast safe cached branch-result authority with revision/payload-key invalidation
+# AutoTecPro AI v69224 FINAL PRODUCTION — fix login docstring Streamlit-magic leak; preserve nonblocking live preflight and immediate status\n# AutoTecPro AI v69223 FINAL PRODUCTION — nonblocking live branch preflight, immediate command status, safe auth connection reuse\n# AutoTecPro AI v69222 FINAL PRODUCTION — vector-discovered overlapping branch recovery + generic single-package publication block\n# AutoTecPro AI v69221 FINAL PRODUCTION — workspace callback NameError fix; early Technical photo-context key binding\n# AutoTecPro AI v69220 FINAL PRODUCTION — F250 SYNC2 series 722 + generic completeness retention fix + safe cache guard\n# AutoTecPro AI v69219 FINAL PRODUCTION — fast safe cached branch-result authority with revision/payload-key invalidation
 # AutoTecPro AI v69218 FINAL PRODUCTION — universal indexed overlapping-year branch authority
 # AutoTecPro AI v69217 FINAL PRODUCTION — restore v69050 file_search answer authority and remove impossible assistant-file image download fallback\n# AutoTecPro AI v69216 FINAL PRODUCTION — demote synthetic compiled incompleteness and restore v69050 file_search provider authority for generic Technical multi-source recovery\n# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
 # AutoTecPro AI v69214 FINAL PRODUCTION — query-scoped legacy Technical source migration; hosted assistant-file download failure removed from direct authority path.\n# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
@@ -6543,13 +6543,13 @@ def _load_authenticated_user(username, expected_credential_fingerprint=None):
 
 
 def restore_login_session():
-    login_restore_started_v69223 = time.perf_counter()
     """
     Restore a valid signed login after Streamlit creates a new Python session.
 
     This specifically protects mobile Safari and long uploads, where a websocket
     reconnect can otherwise clear session_state and incorrectly show Login.
     """
+    login_restore_started_v69223 = time.perf_counter()
     try:
         raw_value = auth_cookie_controller.get(AUTH_SESSION_COOKIE)
     except Exception as error:
@@ -6997,7 +6997,15 @@ if not bool(st.session_state.get("logged_in")):
 # render. Do not rerun immediately after this call.
 process_pending_login_cookie_action()
 
+authenticated_layout_started_v69224 = time.perf_counter()
 apply_app_layout_css()
+diagnostic_log(
+    "authenticated_layout_ready_v69224",
+    elapsed_seconds=round(
+        time.perf_counter() - authenticated_layout_started_v69224,
+        3,
+    ),
+)
 
 # ============================================================
 # Header After Login
