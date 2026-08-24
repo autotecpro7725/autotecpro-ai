@@ -57470,6 +57470,10 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
     Creative/campaign writing, pricing, comparisons, and any unsupported facts continue
     through the unchanged provider/file_search path. This function never reads Technical
     or Graphic evidence and never invents absent product facts.
+
+    v69206 hardening: compatibility questions evaluate the complete requested year set
+    and can publish the product's full source-defined compatibility branches when the
+    user asks which years fit. No other Sales/Marketing behavior is changed.
     """
     workspace = str(workspace_label or "")
     if not (is_sales_workspace(workspace) or is_marketing_workspace(workspace)) or is_graphic_workspace(workspace):
@@ -57517,48 +57521,121 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
     installation_intent = "installation video" in p or "install video" in p
     climate_guide_intent = "climate" in p and ("guide" in p or "identify" in p or "version" in p)
 
-    if fitment_intent and requested_years:
-        year = requested_years[0]
+    if fitment_intent:
         branches = list(contract.get("compatibility_branches") or [])
-        matching = [
-            b for b in branches
-            if year in set(b.get("years") or [])
-            and (
-                not requested_models
-                or any(m in set(b.get("models") or []) for m in requested_models)
-            )
-        ]
-        if matching:
-            branch = matching[0]
-            trim = str(branch.get("trim") or "").strip()
-            product_label = " ".join(
-                x for x in (
-                    str(contract.get("screen_size") or "").strip(),
-                    "Dodge RAM infotainment system",
-                ) if x
-            ).strip()
-            model_label = requested_models[0] if requested_models else "Dodge RAM"
-            if trim:
-                if "new body" in p or "new-body" in p:
+
+        def _branch_applies_to_models(branch):
+            if not requested_models:
+                return True
+            branch_models = set(branch.get("models") or [])
+            return any(model in branch_models for model in requested_models)
+
+        def _year_span(year_values):
+            years = sorted({int(y) for y in (year_values or []) if str(y).isdigit()})
+            if not years:
+                return ""
+            ranges = []
+            run_start = run_end = years[0]
+            for year_value in years[1:]:
+                if year_value == run_end + 1:
+                    run_end = year_value
+                    continue
+                ranges.append(str(run_start) if run_start == run_end else f"{run_start}–{run_end}")
+                run_start = run_end = year_value
+            ranges.append(str(run_start) if run_start == run_end else f"{run_start}–{run_end}")
+            return ", ".join(ranges)
+
+        relevant_branches = [b for b in branches if _branch_applies_to_models(b)]
+        product_label = " ".join(
+            x for x in (
+                str(contract.get("screen_size") or "").strip(),
+                "Dodge RAM infotainment system",
+            ) if x
+        ).strip()
+        model_label = requested_models[0] if len(requested_models) == 1 else ("Dodge RAM" if not requested_models else " / ".join(requested_models))
+
+        # No explicit year: answer directly from the exact current product's compatibility branches.
+        if not requested_years and relevant_branches:
+            branch_parts = []
+            for branch in relevant_branches:
+                span = _year_span(branch.get("years") or [])
+                if not span:
+                    continue
+                trim = str(branch.get("trim") or "").strip()
+                branch_parts.append(f"**{span} {model_label}**" + (f" — **{trim} only**" if trim else ""))
+            if branch_parts:
+                return (
+                    f"This {product_label} is compatible with: "
+                    + "; ".join(branch_parts)
+                    + "."
+                )
+
+        if requested_years:
+            requested_set = set(requested_years)
+            covered_by_branch = {}
+            uncovered = set(requested_years)
+
+            for branch in relevant_branches:
+                branch_years = requested_set & set(branch.get("years") or [])
+                if not branch_years:
+                    continue
+                trim = str(branch.get("trim") or "").strip()
+                key = trim or "__no_trim__"
+                covered_by_branch.setdefault(key, set()).update(branch_years)
+                uncovered -= branch_years
+
+            # New-body wording must never bind years whose exact current branch is Classic-only.
+            if "new body" in p or "new-body" in p:
+                classic_years = set()
+                for trim_key, years_for_trim in covered_by_branch.items():
+                    if trim_key != "__no_trim__":
+                        classic_years.update(years_for_trim)
+                if classic_years:
+                    span = _year_span(classic_years)
                     return (
-                        f"No. This {product_label} is the **{trim}** product for {year} {model_label}. "
+                        f"No. This {product_label} is the **Classic Trim** product for **{span} {model_label}**. "
                         "The current product source explicitly routes the newer body style to a different product."
                     )
-                if "classic" in p:
-                    return (
-                        f"Yes. This {product_label} is compatible with the **{year} {model_label} {trim}**."
-                    )
-                return (
-                    f"This {product_label} is compatible with the **{year} {model_label} only when it is {trim}**. "
-                    "It is not the current product authority for the newer body style."
-                )
-            return f"Yes. This {product_label} is compatible with the **{year} {model_label}**."
 
-        # Exact product page scope is authoritative only for listed branches.
-        if requested_models:
-            return (
-                f"The current product source does **not list {year} {requested_models[0]}** in this product's compatible fitment branches."
-            )
+            if covered_by_branch:
+                parts = []
+                non_trim_years = covered_by_branch.get("__no_trim__", set())
+                if non_trim_years:
+                    parts.append(f"**{_year_span(non_trim_years)} {model_label}**")
+
+                for trim_key, years_for_trim in covered_by_branch.items():
+                    if trim_key == "__no_trim__":
+                        continue
+                    parts.append(f"**{_year_span(years_for_trim)} {model_label} — {trim_key} only**")
+
+                if uncovered:
+                    parts.append(f"**not listed for {_year_span(uncovered)} {model_label}**")
+
+                if len(parts) == 1 and not uncovered:
+                    only_key = next(iter(covered_by_branch))
+                    only_years = covered_by_branch[only_key]
+                    span = _year_span(only_years)
+                    if only_key == "__no_trim__":
+                        return f"Yes. This {product_label} is compatible with **{span} {model_label}**."
+                    if "classic" in p:
+                        return f"Yes. This {product_label} is compatible with **{span} {model_label} {only_key}**."
+                    return (
+                        f"This {product_label} is compatible with **{span} {model_label} only when it is {only_key}**. "
+                        "It is not the current product authority for the newer body style."
+                    )
+
+                return (
+                    f"For the requested years, this {product_label} has the following current-source compatibility: "
+                    + "; ".join(parts)
+                    + "."
+                )
+
+            # Exact product page scope is authoritative only for listed branches.
+            if requested_models:
+                return (
+                    f"The current product source does **not list {_year_span(requested_years)} {model_label}** "
+                    "in this product's compatible fitment branches."
+                )
 
     if visual_intent and contract.get("primary_images"):
         return "Here is the **primary current-source product image** for this exact product."
@@ -57628,7 +57705,6 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
         return "Yes. The current product source includes an **authoritative climate-control identification guide** to confirm the correct vehicle version before ordering."
 
     return ""
-
 
 def _workspace_atp_compact_context_v69181(package, prompt_text):
     """Compact exact Sales/Marketing ATP authority with workspace-native image policy.
@@ -68173,67 +68249,121 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
         r"\s+", " ", str(authority.get("section_text") or "")
     ).strip()
     profile_section_cf_v69201 = profile_section_text_v69201.casefold()
-    if root and profile_section_cf_v69201 and not route_rows_v69196:
+    if profile_section_cf_v69201 and not route_rows_v69196:
         profile_rows_v69201 = []
-        for key_v69201, raw_profile_v69201 in root.items():
-            key_cf_v69201 = str(key_v69201 or "").strip().casefold()
-            match_v69201 = re.match(r"^data-atp-profile-(.+)$", key_cf_v69201)
-            if not match_v69201:
-                continue
-            suffix_v69201 = str(match_v69201.group(1) or "").strip()
-            # Profile-matrix attributes must carry an explicit branch dimension.
-            if not re.search(
-                r"(?:^|[-_])(?:sync\d+|manual|auto|automatic|climate|screen|onstar|type|option)(?:$|[-_])",
-                suffix_v69201,
-                flags=re.I,
-            ):
-                continue
-            profile_literal_v69201 = html.unescape(
-                str(raw_profile_v69201 or "")
-            ).strip()
-            parts_v69201 = [
-                re.sub(r"\s+", " ", part).strip()
-                for part in re.split(r"\s*\|\s*", profile_literal_v69201)
-                if re.sub(r"\s+", " ", part).strip()
-            ]
-            if len(parts_v69201) < 2:
-                continue
-            # Same-section corroboration is mandatory.  Do not let root metadata
-            # alone establish a setting on a neighboring section.
-            if not all(part.casefold() in profile_section_cf_v69201 for part in parts_v69201):
-                continue
+        # v69207: rich profile matrices are section-level authority. Scan the
+        # exact configuration carriers selected above, not only the document root.
+        profile_carriers_v69207 = list(carriers_v69196 or [])
+        prompt_cf_v69207 = re.sub(
+            r"\s+", " ", str(prompt_text or "")
+        ).strip().casefold()
+        requested_manual_v69207 = bool(re.search(r"\bmanual\b", prompt_cf_v69207))
+        requested_auto_v69207 = bool(
+            re.search(r"\b(?:auto|automatic)\b", prompt_cf_v69207)
+        )
 
-            label_tokens_v69201 = []
-            for token_v69201 in re.split(r"[-]+", suffix_v69201):
-                token_v69201 = token_v69201.strip()
-                if not token_v69201:
+        for profile_carrier_v69207 in profile_carriers_v69207:
+            for key_v69201, raw_profile_v69201 in dict(
+                profile_carrier_v69207 or {}
+            ).items():
+                key_cf_v69201 = str(key_v69201 or "").strip().casefold()
+                match_v69201 = re.match(
+                    r"^data-atp-profile-(.+)$", key_cf_v69201
+                )
+                if not match_v69201:
                     continue
-                sync_match_v69201 = re.fullmatch(r"sync(\d+)", token_v69201, flags=re.I)
-                if sync_match_v69201:
-                    label_tokens_v69201.append("SYNC " + sync_match_v69201.group(1))
-                elif re.fullmatch(r"\d+_\d+", token_v69201):
-                    label_tokens_v69201.append(token_v69201.replace("_", ".") + "-inch")
-                elif token_v69201.isdigit():
-                    label_tokens_v69201.append(token_v69201 + "-inch")
-                elif token_v69201.casefold() == "manual":
-                    label_tokens_v69201.append("Manual A/C")
-                elif token_v69201.casefold() in {"auto", "automatic"}:
-                    label_tokens_v69201.append("Automatic A/C")
-                else:
-                    label_tokens_v69201.append(token_v69201.replace("_", " ").title())
-            label_v69201 = " ".join(label_tokens_v69201).strip() or suffix_v69201
-            profile_rows_v69201.append((label_v69201, parts_v69201))
+                suffix_v69201 = str(match_v69201.group(1) or "").strip()
+                if not re.search(
+                    r"(?:^|[-_])(?:sync\d+|manual|auto|automatic|climate|screen|onstar|type|option)(?:$|[-_])",
+                    suffix_v69201,
+                    flags=re.I,
+                ):
+                    continue
+                profile_literal_v69201 = html.unescape(
+                    str(raw_profile_v69201 or "")
+                ).strip()
+                parts_v69201 = [
+                    re.sub(r"\s+", " ", part).strip()
+                    for part in re.split(r"\s*\|\s*", profile_literal_v69201)
+                    if re.sub(r"\s+", " ", part).strip()
+                ]
+                if len(parts_v69201) < 2:
+                    continue
+                if not all(
+                    part.casefold() in profile_section_cf_v69201
+                    for part in parts_v69201
+                ):
+                    continue
 
+                label_tokens_v69201 = []
+                for token_v69201 in re.split(r"[-]+", suffix_v69201):
+                    token_v69201 = token_v69201.strip()
+                    if not token_v69201:
+                        continue
+                    sync_match_v69201 = re.fullmatch(
+                        r"sync(\d+)", token_v69201, flags=re.I
+                    )
+                    if sync_match_v69201:
+                        label_tokens_v69201.append(
+                            "SYNC " + sync_match_v69201.group(1)
+                        )
+                    elif re.fullmatch(r"\d+_\d+", token_v69201):
+                        label_tokens_v69201.append(
+                            token_v69201.replace("_", ".") + "-inch"
+                        )
+                    elif token_v69201.isdigit():
+                        label_tokens_v69201.append(token_v69201 + "-inch")
+                    elif token_v69201.casefold() == "manual":
+                        label_tokens_v69201.append("Manual A/C")
+                    elif token_v69201.casefold() in {"auto", "automatic"}:
+                        label_tokens_v69201.append("Automatic A/C")
+                    else:
+                        label_tokens_v69201.append(
+                            token_v69201.replace("_", " ").title()
+                        )
+                label_v69201 = (
+                    " ".join(label_tokens_v69201).strip() or suffix_v69201
+                )
+
+                label_cf_v69207 = label_v69201.casefold()
+                if requested_manual_v69207 and "manual" not in label_cf_v69207:
+                    continue
+                if (
+                    requested_auto_v69207
+                    and "automatic" not in label_cf_v69207
+                    and not re.search(r"\bauto\b", label_cf_v69207)
+                ):
+                    continue
+
+                profile_rows_v69201.append(
+                    (label_v69201, parts_v69201)
+                )
+
+        seen_profile_rows_v69207 = set()
         for label_v69201, parts_v69201 in profile_rows_v69201:
-            # ATP v12 profile matrices encode the menu's Car Model first and the
-            # branch-specific A/C/profile leaf second.  Both are corroborated by
-            # the exact selected section before publication.
-            add_branch(label_v69201, "Car Model", parts_v69201[0])
-            add_branch(
-                label_v69201,
-                "A/C Type",
-                " > ".join(parts_v69201[1:]),
+            row_key_v69207 = (
+                label_v69201.casefold(),
+                tuple(part.casefold() for part in parts_v69201),
             )
+            if row_key_v69207 in seen_profile_rows_v69207:
+                continue
+            seen_profile_rows_v69207.add(row_key_v69207)
+
+            if len(parts_v69201) >= 3:
+                add_branch(label_v69201, "Make", parts_v69201[0])
+                add_branch(label_v69201, "Car Model", parts_v69201[1])
+                add_branch(
+                    label_v69201,
+                    "A/C Type",
+                    " > ".join(parts_v69201[2:]),
+                )
+            else:
+                add_branch(label_v69201, "Car Model", parts_v69201[0])
+                add_branch(
+                    label_v69201,
+                    "A/C Type",
+                    " > ".join(parts_v69201[1:]),
+                )
 
     # Root fallback profiles are also generic ATP v12 element metadata. They use
     # Make|Car Model or Make|Car Model|A/C Type and are consulted only when a
@@ -68876,28 +69006,63 @@ def _technical_embed_compiled_contract_v69199(package_text, filename=""):
 
 
 def _technical_compile_one_package_v69199(package):
-    """Use the durable precompiled payload when present; otherwise keep v69198 compatibility."""
+    """Keep durable section contracts but refresh current configuration authority."""
     package = dict(package or {})
     package_text = str(package.get("package_text") or "")
     payload = _technical_compiled_payload_from_text_v69199(package_text)
     templates = list(payload.get("contracts") or []) if payload else []
+
+    # v69207: protocol/config contracts must always be rebuilt by the current
+    # parser. This prevents an old embedded payload from freezing a stale or
+    # pre-v69207 configuration interpretation after the app is upgraded.
+    fresh_contracts_v69207 = _technical_compile_one_package_v69198(package)
     if not templates:
-        return _technical_compile_one_package_v69198(package)
+        return fresh_contracts_v69207
 
     file_id = str(package.get("file_id") or "")
     filename = str(package.get("filename") or "")
     source_url = str(package.get("source_url") or "")
     page_title = str(package.get("title") or "")
     extracted_at = str(package.get("extracted_at") or "")
+
+    def is_config_v69207(contract):
+        contract = dict(contract or {})
+        section_id = str(
+            contract.get("section_id") or ""
+        ).strip().casefold()
+        title = str(
+            contract.get("section_title") or ""
+        ).strip().casefold()
+        return bool(
+            section_id in {
+                "protocol-settings",
+                "car-model-ac",
+                "car-model-ac-protocol",
+            }
+            or "car model" in title
+            or "a/c protocol" in title
+            or "ac protocol" in title
+        )
+
     output = []
     for index, template in enumerate(templates):
         if not isinstance(template, dict):
             continue
         contract = dict(template)
+        if is_config_v69207(contract):
+            continue
         section_id = str(contract.get("section_id") or "")
         contract["contract_id"] = hashlib.sha256(
             (
-                file_id + "|" + filename + "|" + source_url + "|" + section_id + "|" + str(index)
+                file_id
+                + "|"
+                + filename
+                + "|"
+                + source_url
+                + "|"
+                + section_id
+                + "|"
+                + str(index)
             ).encode("utf-8")
         ).hexdigest()[:24]
         contract["file_id"] = file_id
@@ -68907,7 +69072,14 @@ def _technical_compile_one_package_v69199(package):
         contract["extracted_at"] = extracted_at
         contract["embedded_compiled_contract_v69199"] = True
         output.append(contract)
+
+    output.extend(
+        dict(contract)
+        for contract in fresh_contracts_v69207
+        if isinstance(contract, dict) and is_config_v69207(contract)
+    )
     return output
+
 
 
 def _technical_compiled_runtime_merge_package_v69199(package, store, revision):
@@ -69171,6 +69343,23 @@ def _technical_direct_section_answer_v69199(prompt_text, compiled_result):
     if not bool(meta.get("eligible")):
         return ""
 
+    # v69207: a multi-current-source factory-system collision is a deterministic
+    # clarification, not an instruction extracted from one source. Keep the
+    # publication wording precise and do not imply a single source won.
+    if bool(meta.get("ambiguity_clarification_v69207")):
+        text_value_v69207 = str(
+            authority.get("section_text") or ""
+        ).strip()
+        if not text_value_v69207:
+            return ""
+        display_title_v69207 = _technical_request_display_label_v69158(
+            prompt_text, authority
+        )
+        return (
+            f"## {display_title_v69207 or 'Factory System Confirmation Required'}\n\n"
+            + text_value_v69207
+        ).strip()
+
     text_value = str(authority.get("section_text") or "").strip()
     title = str(authority.get("section_title") or "Technical Instructions").strip()
     if not text_value or len(text_value) > 9000:
@@ -69349,6 +69538,34 @@ def _technical_compile_one_package_v69198(package):
 
     root = dict(semantics.get("root") or {})
     all_images = [dict(x) for x in (semantics.get("images") or []) if isinstance(x, dict)]
+
+    # v69207: preserve the factory-system branch in the compiled contract even
+    # when an older package wrapper omitted package["systems"].
+    compiled_systems_v69207 = {
+        str(x).strip()
+        for x in (package.get("systems") or [])
+        if str(x).strip()
+    }
+    if not compiled_systems_v69207:
+        factory_system_v69207 = str(
+            root.get("data-atp-factory-system") or ""
+        ).strip()
+        if factory_system_v69207:
+            try:
+                compiled_systems_v69207.update(
+                    _website_identity_systems_v69022(
+                        factory_system_v69207
+                    )
+                )
+            except Exception:
+                fs_cf_v69207 = factory_system_v69207.casefold()
+                if re.search(r"\b(?:no|non)[-\s]?sync\b", fs_cf_v69207):
+                    compiled_systems_v69207.add("no_sync")
+                elif (
+                    "sync 2" in fs_cf_v69207
+                    or "sync2" in fs_cf_v69207
+                ):
+                    compiled_systems_v69207.add("sync_2")
     contracts = []
 
     for index, section in enumerate(sections):
@@ -69606,7 +69823,7 @@ def _technical_compile_one_package_v69198(package):
             "extracted_at": str(package.get("extracted_at") or ""),
             "families": list(families),
             "years": list(years),
-            "systems": [str(x) for x in (package.get("systems") or []) if str(x)],
+            "systems": sorted(compiled_systems_v69207),
             "product_codes": [str(x) for x in (package.get("product_codes") or []) if str(x)],
             "section_title": title,
             "section_id": target_id or str(section.get("section_id") or ""),
@@ -69635,37 +69852,129 @@ def _technical_compile_one_package_v69198(package):
 
 
 def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
-    """Build a compact direct index from reviewed packages; no network I/O."""
+    """Build direct index while preserving parallel current factory-system variants."""
     clean_store = str(store or "").strip()
     clean_revision = int(revision or 0)
-    package_rows = [dict(x) for x in (packages or []) if isinstance(x, dict)]
+    package_rows = [
+        dict(x) for x in (packages or []) if isinstance(x, dict)
+    ]
 
-    # The current Technical architecture owns one active package per family/year.
-    # Keep only the newest package for each family/year in this direct tier.
-    newest_by_family_year = {}
+    def package_scope_v69207(package):
+        package = dict(package or {})
+        semantics = dict(package.get("atp_semantics_v69178") or {})
+        if not semantics:
+            try:
+                semantics = _technical_package_atp_semantics_v69178(
+                    package.get("package_text") or ""
+                )
+            except Exception:
+                semantics = {}
+        root = dict(semantics.get("root") or {})
+        systems = {
+            str(x).strip()
+            for x in (package.get("systems") or [])
+            if str(x).strip()
+        }
+        if not systems:
+            factory_system = str(
+                root.get("data-atp-factory-system") or ""
+            ).strip()
+            if factory_system:
+                try:
+                    systems.update(
+                        _website_identity_systems_v69022(factory_system)
+                    )
+                except Exception:
+                    fs_cf = factory_system.casefold()
+                    if re.search(
+                        r"\b(?:no|non)[-\s]?sync\b", fs_cf
+                    ):
+                        systems.add("no_sync")
+                    elif (
+                        "sync 2" in fs_cf
+                        or "sync2" in fs_cf
+                    ):
+                        systems.add("sync_2")
+        current = str(
+            root.get("data-atp-current-source") or ""
+        ).strip().casefold() in {"true", "1", "yes"}
+        status = str(
+            root.get("data-atp-source-status") or ""
+        ).strip().casefold()
+        structured_current = bool(
+            current
+            and status in {
+                "current-authoritative",
+                "current",
+                "",
+            }
+        )
+        return tuple(sorted(systems)), structured_current
+
+    newest_by_exact_branch = {}
     for package in package_rows:
-        families = [str(x).casefold() for x in (package.get("vehicle_families") or []) if str(x)]
+        families = [
+            str(x).casefold()
+            for x in (package.get("vehicle_families") or [])
+            if str(x)
+        ]
         years = []
         for raw_year in package.get("years") or []:
             try:
                 years.append(int(raw_year))
             except Exception:
                 pass
+        system_signature, structured_current = package_scope_v69207(
+            package
+        )
         for family in families:
             for year in years:
-                key = (family, year)
+                key = (family, year, system_signature)
                 rank = (
+                    1 if structured_current else 0,
                     str(package.get("extracted_at") or ""),
                     str(package.get("filename") or ""),
                     str(package.get("file_id") or ""),
                 )
-                old = newest_by_family_year.get(key)
+                old = newest_by_exact_branch.get(key)
                 if old is None or rank > old[0]:
-                    newest_by_family_year[key] = (rank, package)
+                    newest_by_exact_branch[key] = (
+                        rank,
+                        package,
+                        system_signature,
+                        structured_current,
+                    )
+
+    grouped = {}
+    for (
+        family,
+        year,
+        system_signature,
+    ), value in newest_by_exact_branch.items():
+        grouped.setdefault((family, year), []).append(
+            (system_signature, value)
+        )
+
+    selected_rows = []
+    for _, items in grouped.items():
+        has_scoped_current = any(
+            bool(signature) and bool(value[3])
+            for signature, value in items
+        )
+        for signature, value in items:
+            # Legacy packages with no system scope must not compete with a
+            # structured current package for the same family/year.
+            if has_scoped_current and not signature:
+                continue
+            selected_rows.append(value)
 
     unique_packages = {}
-    for _, package in newest_by_family_year.values():
-        pid = str(package.get("file_id") or package.get("filename") or "")
+    for _, package, _, _ in selected_rows:
+        pid = str(
+            package.get("file_id")
+            or package.get("filename")
+            or ""
+        )
         if pid:
             unique_packages[pid] = package
 
@@ -69675,21 +69984,29 @@ def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
     for pid, package in unique_packages.items():
         package_cache[pid] = {
             "package_text": str(package.get("package_text") or ""),
-            "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
+            "atp_semantics_v69178": dict(
+                package.get("atp_semantics_v69178") or {}
+            ),
             "source_url": str(package.get("source_url") or ""),
             "file_id": str(package.get("file_id") or ""),
             "filename": str(package.get("filename") or ""),
             "title": str(package.get("title") or ""),
             "extracted_at": str(package.get("extracted_at") or ""),
         }
-        for contract in _technical_compile_one_package_v69199(package):
+        for contract in _technical_compile_one_package_v69199(
+            package
+        ):
             cid = str(contract.get("contract_id") or "")
             if not cid:
                 continue
             contracts[cid] = contract
             for family in contract.get("families") or []:
                 for year in contract.get("years") or []:
-                    bucket = f"{clean_store}|{str(family).casefold()}|{int(year)}"
+                    bucket = (
+                        f"{clean_store}|"
+                        f"{str(family).casefold()}|"
+                        f"{int(year)}"
+                    )
                     buckets.setdefault(bucket, []).append(cid)
 
     return {
@@ -69699,7 +70016,9 @@ def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
         "contracts": contracts,
         "buckets": buckets,
         "built_at": time.monotonic(),
+        "overlapping_variant_authority_v69207": True,
     }
+
 
 
 def _technical_compiled_runtime_publish_v69198(packages, store, revision):
@@ -69826,6 +70145,94 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
             str(prompt or ""),
             flags=re.I,
         ))
+
+    # v69207: overlapping model-years are valid. When more than one current
+    # factory-system branch survives and the user did not identify the system,
+    # stop before ranking and ask for the missing discriminator.
+    if config_query and not prompt_systems:
+        system_variants_v69207 = sorted({
+            tuple(sorted(
+                str(x)
+                for x in (contract.get("systems") or [])
+                if str(x)
+            ))
+            for contract in contracts
+            if bool(contract.get("config_ready"))
+        })
+        system_variants_v69207 = [
+            item for item in system_variants_v69207 if item
+        ]
+        if len(system_variants_v69207) > 1:
+            def system_label_v69207(values):
+                labels = []
+                for value in values:
+                    cf = str(value or "").casefold()
+                    if cf == "no_sync":
+                        labels.append("No SYNC")
+                    elif cf in {"sync_2", "sync2"}:
+                        labels.append("SYNC 2")
+                    else:
+                        labels.append(
+                            str(value).replace("_", " ").upper()
+                        )
+                return " / ".join(labels)
+
+            labels_v69207 = [
+                system_label_v69207(values)
+                for values in system_variants_v69207
+            ]
+            family_raw_v69207 = str(families[0]).upper()
+            family_label_v69207 = (
+                "F-" + family_raw_v69207[1:]
+                if family_raw_v69207.startswith("F")
+                and family_raw_v69207[1:].isdigit()
+                else family_raw_v69207
+            )
+            clarification_v69207 = (
+                f"This {int(years[0])} {family_label_v69207} has "
+                "more than one current AutoTecPro Technical "
+                "configuration. Please confirm the original "
+                "factory system: "
+                + " or ".join(
+                    f"**{label}**"
+                    for label in labels_v69207
+                )
+                + "."
+            )
+            return {
+                "status": "recovered",
+                "kind": "section",
+                "authority": {
+                    "status": "recovered",
+                    "file_id": "",
+                    "filename": "",
+                    "source_url": "",
+                    "page_title": "",
+                    "package_text": "",
+                    "section_title": (
+                        "Factory System Confirmation Required"
+                    ),
+                    "section_id": (
+                        "factory-system-clarification-v69207"
+                    ),
+                    "section_text": clarification_v69207,
+                    "branch_paths": [],
+                    "selected_image_urls_v69143": [],
+                    "selected_segments_v69158": [],
+                    "compiled_runtime_contract_v69198": True,
+                    "overlapping_factory_systems_v69207": (
+                        labels_v69207
+                    ),
+                },
+                "context": "",
+                "rows": [],
+                "exact_images": [],
+                "compiled_contract_v69198": True,
+                "direct_answer_meta_v69199": {
+                    "eligible": True,
+                    "ambiguity_clarification_v69207": True,
+                },
+            }
 
     ranked = []
     for contract in contracts:
@@ -69962,25 +70369,26 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
     }
 
     if config_query:
-        # v69204: when this compiled contract carries approved exact-section image
-        # evidence, re-run only the deterministic literal parser with the ACTUAL
-        # user prompt. This applies year/screen/climate/system filters at query
-        # time instead of publishing a package-wide precompiled image menu. No
-        # provider call, OCR, vector search, or semantic fallback is introduced.
-        if authority.get("image_evidence"):
-            literal = _technical_metadata_literal_configuration_v69178(prompt, authority)
-            if not _technical_literal_is_sufficient_v69156(prompt, literal):
-                return {}
-            structured = _technical_merge_structured_v69156(
-                literal, {"fields": [], "branches": [], "status": "not_needed"}
-            )
-            authority["compiled_image_literal_reparsed_v69204"] = True
-        else:
+        # v69207: always re-run the deterministic literal parser with the ACTUAL
+        # user prompt. This keeps Manual/Automatic, SYNC/No-SYNC, year, screen and
+        # other branch filters query-specific even when the contract was prewarmed
+        # without image evidence. The precompiled literal remains only a legacy
+        # fallback when the package no longer carries usable current semantics.
+        literal = _technical_metadata_literal_configuration_v69178(
+            prompt, authority
+        )
+        if not _technical_literal_is_sufficient_v69156(prompt, literal):
             literal = dict(contract.get("config_literal") or {})
-            if not _technical_literal_is_sufficient_v69156(prompt, literal):
-                return {}
-            structured = dict(contract.get("config_structured") or {})
-            authority["compiled_image_literal_reparsed_v69204"] = False
+        if not _technical_literal_is_sufficient_v69156(prompt, literal):
+            return {}
+        structured = _technical_merge_structured_v69156(
+            literal,
+            {"fields": [], "branches": [], "status": "not_needed"},
+        )
+        authority["compiled_query_literal_reparsed_v69207"] = True
+        authority["compiled_image_literal_reparsed_v69204"] = bool(
+            authority.get("image_evidence")
+        )
         authority["literal_structured_v69156"] = literal
         authority["structured"] = structured
         authority["deterministic_literal_authority_v69156"] = True
