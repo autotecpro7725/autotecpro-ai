@@ -64986,45 +64986,107 @@ def _technical_exact_snapshot_source_urls_v69235(prompt_text, max_sources=8):
     return ordered[: max(1, int(max_sources or 8))]
 
 
-def _technical_verified_snapshot_scope_v69235(payload, clean_store):
-    """Derive hard routing scope from the SHA-verified parsed package itself.
+def _technical_scope_from_package_and_source_v69236(package, payload=None):
+    """Build exact routing scope from parsed package + its verified source identity.
 
-    This deliberately ignores legacy snapshot-envelope family/year/system fields.
-    Those fields are advisory only; the immutable package parser is authoritative.
+    v69235 hosted proof showed 8 SHA-verified snapshots were recovered but all 8
+    were rejected before the system gate.  Legacy package identity can carry stale
+    or generic family/year arrays even while the exact source URL/title still
+    positively identify F250/F350/F450 and the supported year range.
+
+    Accuracy rule: source identity may only ADD positive family/year/system evidence
+    from the exact snapshot's own canonical source URL/title.  It never removes a
+    parsed-package constraint and never reads semantic/vector/provider evidence.
     """
-    recovered = dict(_technical_verified_snapshot_package_v69232(payload, clean_store) or {})
-    package = dict(recovered.get("package") or {})
-    if not package:
-        return {}
+    package = dict(package or {})
+    payload = dict(payload or {})
+    source_url = str(package.get("source_url") or payload.get("source_url") or "").strip()
+    title = str(package.get("title") or payload.get("title") or "").strip()
+    source_identity_text = " ".join((title, source_url)).strip()
+
     families = {
         str(x).casefold().strip()
         for x in (package.get("vehicle_families") or [])
         if str(x).strip()
     }
+    try:
+        families.update(
+            str(x).casefold().strip()
+            for x in (_website_identity_vehicle_families_v69022(source_identity_text) or set())
+            if str(x).strip()
+        )
+    except Exception:
+        pass
+
     years = set()
     for raw_year in package.get("years") or []:
         try:
             years.add(int(raw_year))
         except Exception:
             pass
-    systems = {
-        str(x) for x in (package.get("systems") or []) if str(x).strip()
-    }
-    source_text = " ".join((
-        str(package.get("source_url") or payload.get("source_url") or ""),
-        str(package.get("title") or payload.get("title") or ""),
-    ))
-    system_tokens = _technical_factory_system_tokens_v69231(source_text, systems)
+    try:
+        years.update(int(x) for x in (_website_identity_years_v69022(source_identity_text) or set()))
+    except Exception:
+        pass
+
+    systems = {str(x) for x in (package.get("systems") or []) if str(x).strip()}
+    system_tokens = set(_technical_factory_system_tokens_v69231(source_identity_text, systems) or [])
     identity_systems = set(_website_identity_systems_v69022(" ".join(systems)))
+    try:
+        identity_systems.update(_website_identity_systems_v69022(source_identity_text) or set())
+    except Exception:
+        pass
     return {
-        "recovered": recovered,
-        "package": package,
         "families": families,
         "years": years,
         "systems": systems,
-        "system_tokens": set(system_tokens or []),
+        "system_tokens": system_tokens,
         "identity_systems": identity_systems,
+        "source_url": source_url,
+        "title": title,
     }
+
+
+def _technical_package_apply_verified_scope_v69237(package, payload=None):
+    """Return a package copy whose routing identity is rebuilt from verified scope.
+
+    This is used only after the exact package has been recovered from the durable
+    SHA-bound snapshot.  It repairs legacy/stale routing fields for family/year/
+    factory-system without changing package_text, visible Technical facts, section
+    metadata, images, product codes, or any non-Technical pipeline.
+    """
+    package = dict(package or {})
+    if not package:
+        return {}
+    scope = dict(_technical_scope_from_package_and_source_v69236(package, payload) or {})
+    families = sorted({str(x).casefold().strip() for x in (scope.get("families") or []) if str(x).strip()})
+    years = sorted({int(x) for x in (scope.get("years") or []) if str(x).strip()})
+    identity_systems = sorted({str(x).strip() for x in (scope.get("identity_systems") or []) if str(x).strip()})
+    if families:
+        package["vehicle_families"] = families
+    if years:
+        package["years"] = years
+    if identity_systems:
+        package["systems"] = identity_systems
+    package["verified_scope_v69237"] = {
+        "families": families,
+        "years": years,
+        "systems": identity_systems,
+        "source_url": str(scope.get("source_url") or package.get("source_url") or ""),
+    }
+    return package
+
+
+def _technical_verified_snapshot_scope_v69235(payload, clean_store):
+    """Derive hard routing scope from SHA-verified package + exact source identity."""
+    recovered = dict(_technical_verified_snapshot_package_v69232(payload, clean_store) or {})
+    package = dict(recovered.get("package") or {})
+    if not package:
+        return {}
+    scope = dict(_technical_scope_from_package_and_source_v69236(package, payload) or {})
+    scope["recovered"] = recovered
+    scope["package"] = package
+    return scope
 
 
 def _technical_durable_snapshot_candidates_v69233(prompt_text, vector_store_id):
@@ -69497,7 +69559,14 @@ def _technical_embed_compiled_contract_v69199(package_text, filename=""):
 
 
 def _technical_compile_one_package_v69199(package):
-    """Use the durable precompiled payload when present; otherwise keep v69198 compatibility."""
+    """Use durable precompiled contracts, but refresh routing identity at runtime.
+
+    v69237: legacy embedded v69199 contract templates may carry stale family/year/
+    system arrays from an older compiler.  File/source/section facts remain immutable,
+    but routing identity is overwritten from the already verified current package
+    before contracts enter live buckets.  This prevents a corrected snapshot package
+    from being re-corrupted by stale embedded routing metadata.
+    """
     package = dict(package or {})
     package_text = str(package.get("package_text") or "")
     payload = _technical_compiled_payload_from_text_v69199(package_text)
@@ -69510,6 +69579,18 @@ def _technical_compile_one_package_v69199(package):
     source_url = str(package.get("source_url") or "")
     page_title = str(package.get("title") or "")
     extracted_at = str(package.get("extracted_at") or "")
+    runtime_families = [str(x).casefold() for x in (package.get("vehicle_families") or []) if str(x).strip()]
+    runtime_years = []
+    for raw_year in package.get("years") or []:
+        try:
+            runtime_years.append(int(raw_year))
+        except Exception:
+            pass
+    runtime_systems = [str(x) for x in (package.get("systems") or []) if str(x).strip()]
+    runtime_codes = [str(x) for x in (package.get("product_codes") or []) if str(x).strip()]
+    if not runtime_families or not runtime_years:
+        return []
+
     output = []
     for index, template in enumerate(templates):
         if not isinstance(template, dict):
@@ -69517,18 +69598,23 @@ def _technical_compile_one_package_v69199(package):
         contract = dict(template)
         section_id = str(contract.get("section_id") or "")
         contract["contract_id"] = hashlib.sha256(
-            (
-                file_id + "|" + filename + "|" + source_url + "|" + section_id + "|" + str(index)
-            ).encode("utf-8")
+            (file_id + "|" + filename + "|" + source_url + "|" + section_id + "|" + str(index)).encode("utf-8")
         ).hexdigest()[:24]
         contract["file_id"] = file_id
         contract["filename"] = filename
         contract["source_url"] = source_url
         contract["page_title"] = page_title
         contract["extracted_at"] = extracted_at
+        contract["families"] = list(runtime_families)
+        contract["years"] = list(sorted(set(runtime_years)))
+        contract["systems"] = list(runtime_systems)
+        if runtime_codes:
+            contract["product_codes"] = list(runtime_codes)
         contract["embedded_compiled_contract_v69199"] = True
+        contract["runtime_scope_refreshed_v69237"] = True
         output.append(contract)
     return output
+
 
 
 def _technical_compiled_runtime_merge_package_v69199(package, store, revision):
@@ -69978,6 +70064,10 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         snapshot_rows_v69233 = []
     snapshot_candidates_v69233 = 0
     snapshot_scope_rejected_v69235 = 0
+    snapshot_scope_family_rejected_v69236 = 0
+    snapshot_scope_year_rejected_v69236 = 0
+    snapshot_scope_system_rejected_v69236 = 0
+    snapshot_scope_identity_rejected_v69236 = 0
     snapshot_exact_system_matches_v69235 = 0
     for snapshot_row_v69233 in snapshot_rows_v69233:
         if not isinstance(snapshot_row_v69233, dict):
@@ -69999,8 +70089,13 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             continue
         row_families_v69235 = set(scope_v69235.get("families") or [])
         row_years_v69235 = set(scope_v69235.get("years") or [])
-        if family not in row_families_v69235 or int(year) not in row_years_v69235:
+        if family not in row_families_v69235:
             snapshot_scope_rejected_v69235 += 1
+            snapshot_scope_family_rejected_v69236 += 1
+            continue
+        if int(year) not in row_years_v69235:
+            snapshot_scope_rejected_v69235 += 1
+            snapshot_scope_year_rejected_v69236 += 1
             continue
         row_system_tokens_v69235 = set(scope_v69235.get("system_tokens") or [])
         row_identity_systems_v69235 = set(scope_v69235.get("identity_systems") or [])
@@ -70012,6 +70107,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                 or explicit_factory_system_v69228 not in row_system_tokens_v69235
             ):
                 snapshot_scope_rejected_v69235 += 1
+                snapshot_scope_system_rejected_v69236 += 1
                 continue
             snapshot_exact_system_matches_v69235 += 1
         if (
@@ -70020,6 +70116,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             and not prompt_systems_v69228.issubset(row_identity_systems_v69235)
         ):
             snapshot_scope_rejected_v69235 += 1
+            snapshot_scope_identity_rejected_v69236 += 1
             continue
         candidate_payloads_v69228.append(dict(snapshot_row_v69233))
         snapshot_candidates_v69233 += 1
@@ -70073,6 +70170,15 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             rejected_v69228 += 1
             continue
 
+        # v69237: re-apply the exact verified routing scope at the final hydration
+        # handoff.  Earlier builds repaired candidate admission but then reverted
+        # to stale legacy package arrays here, allowing the same snapshot to be
+        # rejected a second time before scoring/compile.
+        if bool(payload_v69228.get("durable_snapshot_candidate_v69233")):
+            package_v69228 = _technical_package_apply_verified_scope_v69237(
+                package_v69228, payload_v69228
+            )
+
         # Hard family/year check prevents cache/registry corruption such as an
         # F-150 key hydrating a Mercedes Sprinter package.
         package_families_v69228 = {
@@ -70119,6 +70225,10 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         already_compiled_hits_v69232=already_compiled_hits_v69232,
         durable_snapshot_candidates_v69233=snapshot_candidates_v69233,
         snapshot_scope_rejected_v69235=snapshot_scope_rejected_v69235,
+        snapshot_scope_family_rejected_v69236=snapshot_scope_family_rejected_v69236,
+        snapshot_scope_year_rejected_v69236=snapshot_scope_year_rejected_v69236,
+        snapshot_scope_system_rejected_v69236=snapshot_scope_system_rejected_v69236,
+        snapshot_scope_identity_rejected_v69236=snapshot_scope_identity_rejected_v69236,
         snapshot_exact_system_matches_v69235=snapshot_exact_system_matches_v69235,
     )
     if hydrated_v69228 <= 0:
@@ -70608,44 +70718,44 @@ def _technical_compile_one_package_v69198(package):
 
 
 def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
-    """Build a compact direct index from reviewed packages; no network I/O."""
+    """Build a compact direct index from all distinct reviewed current packages.
+
+    v69237 removes the legacy one-package-per-(family,year) collapse.  Overlapping
+    current packages such as 2015 F250 No-SYNC and 2015 F250 SYNC2 are both valid
+    authorities and must coexist in the same direct bucket; later hard system/
+    climate/screen routing decides which contract is eligible.
+    """
     clean_store = str(store or "").strip()
     clean_revision = int(revision or 0)
     package_rows = [dict(x) for x in (packages or []) if isinstance(x, dict)]
 
-    # The current Technical architecture owns one active package per family/year.
-    # Keep only the newest package for each family/year in this direct tier.
-    newest_by_family_year = {}
-    for package in package_rows:
-        families = [str(x).casefold() for x in (package.get("vehicle_families") or []) if str(x)]
-        years = []
-        for raw_year in package.get("years") or []:
-            try:
-                years.append(int(raw_year))
-            except Exception:
-                pass
-        for family in families:
-            for year in years:
-                key = (family, year)
-                rank = (
-                    str(package.get("extracted_at") or ""),
-                    str(package.get("filename") or ""),
-                    str(package.get("file_id") or ""),
-                )
-                old = newest_by_family_year.get(key)
-                if old is None or rank > old[0]:
-                    newest_by_family_year[key] = (rank, package)
-
     unique_packages = {}
-    for _, package in newest_by_family_year.values():
-        pid = str(package.get("file_id") or package.get("filename") or "")
-        if pid:
-            unique_packages[pid] = package
+    for package in package_rows:
+        file_id = str(package.get("file_id") or "").strip()
+        source_url = str(package.get("source_url") or "").strip()
+        try:
+            canonical = canonical_website_url_identity(source_url) if source_url else ""
+        except Exception:
+            canonical = source_url.casefold()
+        identity = ("url:" + canonical) if canonical else ("file:" + file_id if file_id else "")
+        if not identity:
+            continue
+        old = unique_packages.get(identity)
+        rank = (
+            str(package.get("extracted_at") or ""),
+            str(package.get("filename") or ""),
+            file_id,
+        )
+        if old is None or rank > old[0]:
+            unique_packages[identity] = (rank, package)
 
     contracts = {}
     buckets = {}
     package_cache = {}
-    for pid, package in unique_packages.items():
+    for _, package in unique_packages.values():
+        pid = str(package.get("file_id") or package.get("filename") or "")
+        if not pid:
+            continue
         package_cache[pid] = {
             "package_text": str(package.get("package_text") or ""),
             "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
@@ -70673,6 +70783,7 @@ def _technical_compiled_runtime_index_build_v69198(packages, store, revision):
         "buckets": buckets,
         "built_at": time.monotonic(),
     }
+
 
 
 def _technical_compiled_runtime_publish_v69198(packages, store, revision):
