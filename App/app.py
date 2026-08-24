@@ -1,4 +1,4 @@
-# AutoTecPro AI v69217 FINAL PRODUCTION — restore v69050 file_search answer authority and remove impossible assistant-file image download fallback\n# AutoTecPro AI v69216 FINAL PRODUCTION — demote synthetic compiled incompleteness and restore v69050 file_search provider authority for generic Technical multi-source recovery\n# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
+# AutoTecPro AI v69225 FINAL PRODUCTION — rebuilt directly from v69217 with bounded read-only overlap discovery, 722/726 correction, exact multi-image authority, and early status\n# AutoTecPro AI v69217 FINAL PRODUCTION — restore v69050 file_search answer authority and remove impossible assistant-file image download fallback\n# AutoTecPro AI v69216 FINAL PRODUCTION — demote synthetic compiled incompleteness and restore v69050 file_search provider authority for generic Technical multi-source recovery\n# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
 # AutoTecPro AI v69214 FINAL PRODUCTION — query-scoped legacy Technical source migration; hosted assistant-file download failure removed from direct authority path.\n# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
 # AutoTecPro AI v69170 FINAL PRODUCTION — exact current-source image publication bridge; v69169 factual authority preserved.
@@ -7918,6 +7918,10 @@ st.sidebar.markdown(
     '<div class="workspace-title">AutoTecPro AI</div>',
     unsafe_allow_html=True,
 )
+
+
+# v69225: bind before any Streamlit workspace callback can execute.
+TECHNICAL_PHOTO_CONTEXT_KEY_V68879 = "_technical_photo_context_v68879"
 
 
 def _workspace_slug_from_assistant_v69023(assistant_name):
@@ -70083,6 +70087,56 @@ def _technical_metadata_fast_contract_v69178(prompt_text, store):
     return {}
 
 
+
+def _technical_current_series_correction_v69225(families, years, systems):
+    """Confirmed current series for exact Ford Super Duty branches only."""
+    family_tokens = {
+        re.sub(r"[^a-z0-9]+", "", str(x or "").casefold())
+        for x in (families or [])
+        if str(x or "").strip()
+    }
+    if not (
+        family_tokens
+        & {"f250", "f350", "f450", "fordf250", "fordf350", "fordf450"}
+    ):
+        return set()
+
+    year_values = set()
+    for raw in years or []:
+        try:
+            year_values.add(int(raw))
+        except Exception:
+            pass
+
+    system_tokens = {
+        re.sub(r"[\s-]+", "_", str(x or "").strip().casefold())
+        for x in (systems or [])
+        if str(x or "").strip()
+    }
+
+    if (
+        year_values
+        and min(year_values) <= 2016
+        and max(year_values) >= 2013
+        and ("sync_2" in system_tokens or "sync2" in system_tokens)
+    ):
+        return {"722"}
+
+    if (
+        year_values
+        and min(year_values) <= 2016
+        and max(year_values) >= 2009
+        and (
+            "no_sync" in system_tokens
+            or "non_sync" in system_tokens
+            or "nosync" in system_tokens
+        )
+    ):
+        return {"726"}
+
+    return set()
+
+
 def _technical_package_from_text_v69121(file_id, filename, package_text):
     """Parse one already-reviewed Technical website package without network I/O."""
     text = str(package_text or "")
@@ -70134,6 +70188,14 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
         systems = set(_website_identity_systems_v69022(identity_text))
 
     product_codes = set(_website_image_product_codes_v69020(identity_text))
+    corrected_series_v69225 = _technical_current_series_correction_v69225(
+        families,
+        years,
+        systems,
+    )
+    if corrected_series_v69225:
+        product_codes = set(corrected_series_v69225)
+
     return {
         "file_id": str(file_id or ""),
         "filename": str(filename or ""),
@@ -71300,6 +71362,474 @@ def _technical_exact_source_fast_migrate_v69214(
         ),
         "legacy_scoped_migration_v69214": True,
     }
+
+
+
+def _technical_overlap_attrs_from_snippets_v69225(text):
+    attrs = {}
+    for key, quote, value in re.findall(
+        r"(data-atp-[a-z0-9-]+)\s*=\s*([\"'])(.*?)\2",
+        str(text or ""),
+        flags=re.I | re.S,
+    ):
+        key = str(key).casefold()
+        value = html.unescape(str(value or "")).strip()
+        if value and key not in attrs:
+            attrs[key] = value
+    return attrs
+
+
+def _technical_overlap_canonical_family_v69225(value):
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+
+
+def _technical_overlap_synthetic_package_v69225(
+    family,
+    year,
+    row,
+    snippets,
+):
+    """Build one verified current Technical package from file_search snippets."""
+    text = "\n".join(
+        str(x or "") for x in (snippets or []) if str(x or "").strip()
+    )
+    attrs = _technical_overlap_attrs_from_snippets_v69225(text)
+    family = _technical_overlap_canonical_family_v69225(family)
+    try:
+        year = int(year)
+    except Exception:
+        return None
+
+    identity_text = " ".join(
+        (
+            str(attrs.get("data-atp-model") or ""),
+            str(attrs.get("data-atp-query-key") or ""),
+            str(row.get("filename") or ""),
+            text[:18000],
+        )
+    )
+    family_norm = re.sub(r"[^a-z0-9]+", "", identity_text.casefold())
+    if family and family not in family_norm:
+        return None
+
+    try:
+        y0 = int(attrs.get("data-atp-year-start"))
+        y1 = int(attrs.get("data-atp-year-end"))
+        years = list(range(min(y0, y1), max(y0, y1) + 1))
+    except Exception:
+        years = sorted(_website_identity_years_v69022(identity_text))
+    if year not in years:
+        return None
+
+    current_flag = str(attrs.get("data-atp-current-source") or "").casefold()
+    source_status = str(attrs.get("data-atp-source-status") or "").casefold()
+    if not (
+        current_flag in {"true", "1", "yes"}
+        or source_status in {"current", "current-authoritative"}
+    ):
+        return None
+    if current_flag in {"false", "0", "no"} or source_status in {
+        "historical",
+        "superseded",
+        "deprecated",
+        "inactive",
+        "non-current",
+    }:
+        return None
+
+    profiles = {
+        key: value
+        for key, value in attrs.items()
+        if key.startswith("data-atp-profile-")
+        and key != "data-atp-profile-corroboration"
+        and str(value).strip()
+    }
+
+    # v69225: bind the image to the exact Car Model / A-C section.
+    # Never let an earlier wiring/video/navigation image become the branch image
+    # just because it appears first in the HTML/file_search snippet.
+    image_urls = []
+    image_candidates_v69225 = []
+    for image_tag_v69225 in re.findall(
+        r"<img\b[^>]*>",
+        text,
+        flags=re.I | re.S,
+    ):
+        image_attrs_v69225 = _technical_overlap_attrs_from_snippets_v69225(
+            image_tag_v69225
+        )
+        section_v69225 = str(
+            image_attrs_v69225.get("data-atp-section") or ""
+        ).strip().casefold()
+        heading_v69225 = str(
+            image_attrs_v69225.get("data-atp-heading-title") or ""
+        ).strip().casefold()
+        topic_v69225 = str(
+            image_attrs_v69225.get("data-atp-topic") or ""
+        ).strip().casefold()
+        role_v69225 = str(
+            image_attrs_v69225.get("data-atp-image-role") or ""
+        ).strip().casefold()
+        current_v69225 = str(
+            image_attrs_v69225.get("data-atp-current-source") or ""
+        ).strip().casefold()
+        eligible_v69225 = str(
+            image_attrs_v69225.get("data-atp-first-response-eligible") or ""
+        ).strip().casefold()
+        content_type_v69225 = str(
+            image_attrs_v69225.get("data-atp-content-type") or ""
+        ).strip().casefold()
+
+        exact_section_v69225 = bool(
+            section_v69225 == "protocol-settings"
+            or "car model" in heading_v69225
+            or "car-model-ac" in topic_v69225
+            or "car-model" in topic_v69225
+            or "protocol" in role_v69225
+        )
+        if not exact_section_v69225:
+            continue
+        if current_v69225 in {"false", "0", "no"}:
+            continue
+        if eligible_v69225 in {"false", "0", "no"}:
+            continue
+        if content_type_v69225 in {"navigation-icon", "video-icon"}:
+            continue
+
+        url_v69225 = str(
+            image_attrs_v69225.get("data-atp-canonical-image-url")
+            or image_attrs_v69225.get("data-atp-full-resolution-url")
+            or image_attrs_v69225.get("src")
+            or ""
+        ).strip()
+        if not url_v69225.startswith("https://"):
+            continue
+
+        priority_v69225 = 0
+        try:
+            priority_v69225 = int(
+                image_attrs_v69225.get("data-atp-first-response-priority")
+                or image_attrs_v69225.get("data-atp-priority")
+                or 0
+            )
+        except Exception:
+            priority_v69225 = 0
+        image_candidates_v69225.append(
+            (
+                priority_v69225,
+                url_v69225,
+            )
+        )
+
+    image_candidates_v69225.sort(
+        key=lambda item_v69225: item_v69225[0],
+        reverse=True,
+    )
+    for _priority_v69225, url_v69225 in image_candidates_v69225:
+        if url_v69225 not in image_urls:
+            image_urls.append(url_v69225)
+        if len(image_urls) >= 2:
+            break
+
+    root = {
+        "tag": "div",
+        "data-atp-model": str(attrs.get("data-atp-model") or family),
+        "data-atp-year-start": str(min(years)),
+        "data-atp-year-end": str(max(years)),
+        "data-atp-current-source": "true",
+        "data-atp-source-status": "current-authoritative",
+    }
+    for key in (
+        "data-atp-factory-system",
+        "data-atp-climate",
+        "data-atp-protocol",
+        "data-atp-product-series",
+        "data-atp-product-code",
+        "data-atp-product-id",
+        "data-atp-query-key",
+    ):
+        if attrs.get(key):
+            root[key] = attrs[key]
+
+    section_id = "protocol-settings"
+    section_title = "Car Model / A/C Protocol Settings — Required Before Testing"
+    heading = {
+        "tag": "h2",
+        "id": section_id,
+        "text": section_title,
+        "data-atp-current-source": "true",
+        "data-atp-source-status": "current-authoritative",
+    }
+    heading.update(profiles)
+    if attrs.get("data-atp-protocol"):
+        heading["data-atp-protocol"] = attrs["data-atp-protocol"]
+    if attrs.get("data-atp-query-key"):
+        heading["data-atp-query-key"] = attrs["data-atp-query-key"]
+
+    images = []
+    for index, url in enumerate(image_urls):
+        images.append(
+            {
+                "tag": "img",
+                "src": url,
+                "data-atp-canonical-image-url": url,
+                "data-atp-current-source": "true",
+                "data-atp-source-status": "current-authoritative",
+                "data-atp-first-response-eligible": "true",
+                "data-atp-section": section_id,
+                "data-atp-image-index": str(index + 1),
+                "data-atp-priority": "1000",
+            }
+        )
+
+    semantics = {
+        "root": root,
+        "headings": [heading],
+        "elements": [],
+        "images": images,
+        "scripts": {},
+    }
+    section_text = "\n".join(
+        (
+            ["Protocol: " + str(attrs.get("data-atp-protocol") or "")]
+            if attrs.get("data-atp-protocol")
+            else []
+        )
+        + [f"{key}: {value}" for key, value in profiles.items()]
+    )
+    hierarchy = {
+        "sections": [
+            {
+                "title": section_title,
+                "target_id": section_id,
+                "section_id": section_id,
+                "text": section_text,
+                "segments": [],
+            }
+        ]
+    }
+    filename = str(row.get("filename") or "website_overlap_branch.txt")
+    file_id = str(row.get("file_id") or "")
+    source_url_match = re.search(
+        r"(?im)^Final source URL:\s*(https?://\S+)",
+        text,
+    )
+    source_url = str(
+        source_url_match.group(1) if source_url_match else ""
+    ).strip()
+    package_text = (
+        "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE\n"
+        "Destination: Technical Support Database\n"
+        f"Final source URL: {source_url}\n"
+        f"Requested URL: {source_url}\n"
+        f"Extracted at (UTC): {now_iso()}\n"
+        f"Page title: {filename.replace('_', ' ')[:180]}\n"
+        "ATP_SEMANTIC_METADATA_JSON_V69178: "
+        + json.dumps(semantics, ensure_ascii=False, separators=(",", ":"))
+        + "\nHIERARCHY_JSON_V69143: "
+        + json.dumps(hierarchy, ensure_ascii=False, separators=(",", ":"))
+        + "\nWEBPAGE_TEXT_BEGIN\n"
+        + text[:26000]
+        + "\nWEBPAGE_TEXT_END\n"
+    )
+    package = _technical_package_from_text_v69121(
+        file_id,
+        filename,
+        package_text,
+    )
+    return package if isinstance(package, dict) else None
+
+
+@st.cache_data(show_spinner=False, ttl=120)
+def _technical_live_overlap_discovery_v69225(
+    prompt_text,
+    family,
+    year,
+    vector_store_id,
+    destination_revision,
+):
+    """Bounded read-only current-source overlap discovery for generic queries."""
+    family = _technical_overlap_canonical_family_v69225(family)
+    try:
+        year = int(year)
+    except Exception:
+        return []
+
+    # Two small complementary searches are much safer than global catalogue work.
+    queries = [
+        (
+            f"{family} {year} data-atp-current-source "
+            "data-atp-source-status data-atp-model data-atp-year-start "
+            "data-atp-year-end data-atp-factory-system data-atp-protocol "
+            "data-atp-profile data-atp-canonical-image-url "
+            + str(prompt_text or "")[:800]
+        ),
+        (
+            f"{family} {year} current-authoritative factory-system "
+            "\"No SYNC\" \"SYNC 1\" \"SYNC 2\" \"SYNC 3\" "
+            "\"Manual Climate\" \"Automatic Climate\" "
+            "Car Model A/C Protocol"
+        ),
+    ]
+
+    merged_rows = []
+    seen_rows = set()
+    for query in queries:
+        request = {
+            "tools": [
+                {
+                    "type": "file_search",
+                    "vector_store_ids": [vector_store_id],
+                }
+            ],
+            "input": query,
+        }
+        try:
+            rows = _website_request_vector_search_rows_v69047(
+                request,
+                max_results=30,
+            )
+        except Exception as error:
+            diagnostic_log(
+                "technical_overlap_search_failed_v69225",
+                family=str(family),
+                year=int(year),
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+            rows = []
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            key = (
+                str(row.get("file_id") or ""),
+                str(row.get("text") or "")[:300],
+            )
+            if key in seen_rows:
+                continue
+            seen_rows.add(key)
+            merged_rows.append(dict(row))
+
+    grouped = {}
+    for row in merged_rows:
+        file_id = str(row.get("file_id") or "").strip()
+        if not file_id:
+            continue
+        bucket = grouped.setdefault(
+            file_id,
+            {
+                "file_id": file_id,
+                "filename": str(row.get("filename") or ""),
+                "snippets": [],
+            },
+        )
+        if row.get("filename") and not bucket.get("filename"):
+            bucket["filename"] = str(row.get("filename") or "")
+        text = str(row.get("text") or "").strip()
+        if text and text not in bucket["snippets"]:
+            bucket["snippets"].append(text)
+
+    packages = []
+    seen_packages = set()
+    for group in grouped.values():
+        package = _technical_overlap_synthetic_package_v69225(
+            family,
+            year,
+            {
+                "file_id": group.get("file_id"),
+                "filename": group.get("filename"),
+            },
+            group.get("snippets"),
+        )
+        if not isinstance(package, dict):
+            continue
+        dedupe_key = (
+            str(package.get("source_url") or "").strip().casefold()
+            or str(package.get("file_id") or "").strip()
+            or str(package.get("filename") or "").strip().casefold()
+        )
+        if not dedupe_key or dedupe_key in seen_packages:
+            continue
+        seen_packages.add(dedupe_key)
+        packages.append(package)
+
+    diagnostic_log(
+        "technical_live_overlap_discovery_v69225",
+        family=str(family),
+        year=int(year),
+        rows=len(merged_rows),
+        grouped_files=len(grouped),
+        recovered_packages=len(packages),
+        revision=int(destination_revision or 0),
+    )
+    return packages
+
+
+def _technical_live_overlap_preflight_v69225(
+    prompt_text,
+    vector_store_id,
+):
+    """Return deterministic multi-current-source authority or no direct answer."""
+    if not _technical_configuration_query_v69155(prompt_text):
+        return {}
+    if set(_website_identity_systems_v69022(prompt_text)):
+        return {}
+    if set(_website_image_product_codes_v69020(prompt_text)):
+        return {}
+
+    family, year = _technical_resolve_family_year_v69199(
+        prompt_text,
+        vector_store_id,
+        allow_registry=True,
+    )
+    if not family or year is None:
+        return {}
+
+    revision = _website_destination_revision_v69109(
+        "Technical Support Database"
+    )
+    packages = _technical_live_overlap_discovery_v69225(
+        prompt_text,
+        family,
+        int(year),
+        vector_store_id,
+        int(revision),
+    )
+    if len(packages) < 2:
+        diagnostic_log(
+            "technical_live_overlap_incomplete_v69225",
+            family=str(family),
+            year=int(year),
+            packages=len(packages),
+        )
+        return {}
+
+    if not _technical_compiled_runtime_publish_v69198(
+        packages,
+        vector_store_id,
+        int(revision),
+    ):
+        return {}
+
+    result = _technical_compiled_contract_lookup_v69198(
+        prompt_text,
+        vector_store_id,
+    )
+    if not (
+        str(result.get("status") or "") == "recovered"
+        and bool(result.get("universal_multi_match_v69208"))
+    ):
+        diagnostic_log(
+            "technical_live_overlap_collapsed_v69225",
+            family=str(family),
+            year=int(year),
+            status=str(result.get("status") or ""),
+            multi=bool(result.get("universal_multi_match_v69208")),
+        )
+        return {}
+
+    result["live_overlap_v69225"] = True
+    return result
 
 
 def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
@@ -83936,6 +84466,32 @@ else:
             })
             render_chat_message("user", user_display, uploaded_image_previews)
 
+            early_loading_status_placeholder_v69225 = None
+            try:
+                early_loading_status_placeholder_v69225 = st.empty()
+                early_loading_status_placeholder_v69225.markdown(
+                    _loading_status_html(
+                        "Analyzing current Technical sources..."
+                        if assistant == "🔧 Technical Support"
+                        else (
+                            "Checking current Sales sources..."
+                            if is_sales_workspace(assistant)
+                            else (
+                                "Checking current Marketing sources..."
+                                if is_marketing_workspace(assistant)
+                                else "Preparing your request..."
+                            )
+                        )
+                    ),
+                    unsafe_allow_html=True,
+                )
+                diagnostic_log(
+                    "command_status_published_early_v69225",
+                    workspace=str(assistant),
+                )
+            except Exception:
+                early_loading_status_placeholder_v69225 = None
+
             deferred_new_conversation_v68872 = False
             user_message_persisted_preflight_v69026 = False
 
@@ -84150,21 +84706,45 @@ else:
                             )
                         )
                     )
-                    if (
-                        str(technical_compiled_preflight_v69198.get("status") or "")
-                        != "recovered"
-                        or generic_config_probe_v69211
+                    if generic_config_probe_v69211 or (
+                        _technical_configuration_query_v69155(
+                            technical_request_prompt_v68879
+                        )
+                        and not prompt_systems_v69211
+                        and not prompt_codes_v69211
                     ):
-                        hydrated_preflight_v69211 = (
-                            _technical_compiled_on_demand_hydrate_v69199(
+                        live_overlap_v69225 = (
+                            _technical_live_overlap_preflight_v69225(
                                 technical_request_prompt_v68879,
                                 compiled_store_v69199,
                             )
                         )
-                        if hydrated_preflight_v69211:
-                            technical_compiled_preflight_v69198 = (
-                                hydrated_preflight_v69211
+                        if (
+                            str(live_overlap_v69225.get("status") or "")
+                            == "recovered"
+                            and bool(
+                                live_overlap_v69225.get(
+                                    "universal_multi_match_v69208"
+                                )
                             )
+                        ):
+                            technical_compiled_preflight_v69198 = (
+                                live_overlap_v69225
+                            )
+                        elif generic_config_probe_v69211:
+                            # Never keep a generic single branch as completeness proof.
+                            technical_compiled_preflight_v69198 = {}
+                            use_file_search = True
+                            diagnostic_log(
+                                "technical_generic_single_discarded_v69225",
+                                reason="OVERLAP_NOT_PROVEN",
+                            )
+                    elif (
+                        str(technical_compiled_preflight_v69198.get("status") or "")
+                        != "recovered"
+                    ):
+                        # Preserve v69217/v69050 provider file_search fallback.
+                        use_file_search = True
                     if (
                         str(technical_compiled_preflight_v69198.get("status") or "") == "recovered"
                         and bool(
@@ -85021,7 +85601,10 @@ else:
                         )
 
                 stream_placeholder = st.empty()
-                loading_status_placeholder = st.empty()
+                loading_status_placeholder = (
+                    locals().get("early_loading_status_placeholder_v69225")
+                    or st.empty()
+                )
                 streamed_answer = ""
                 last_stream_update = 0.0
                 last_stream_render_chars_v69026 = 0
@@ -86538,6 +87121,45 @@ else:
                             use_file_search=bool(use_file_search),
                             upload_count=len(graphic_generation_files or []),
                         )
+                        if (
+                            assistant == "🔧 Technical Support"
+                            and str(
+                                (locals().get("technical_compiled_preflight_v69198") or {}).get("status")
+                                or ""
+                            ) == "recovered"
+                            and bool(
+                                (locals().get("technical_compiled_preflight_v69198") or {}).get(
+                                    "universal_multi_match_v69208"
+                                )
+                            )
+                        ):
+                            multi_authority_v69225 = dict(
+                                (locals().get("technical_compiled_preflight_v69198") or {}).get(
+                                    "authority"
+                                )
+                                or {}
+                            )
+                            multi_authority_v69225["status"] = "recovered"
+                            technical_full_package_authority_v69155 = (
+                                multi_authority_v69225
+                            )
+                            use_file_search = False
+                            diagnostic_log(
+                                "technical_live_overlap_final_authority_v69225",
+                                branches=len(
+                                    multi_authority_v69225.get(
+                                        "multi_match_authorities_v69208"
+                                    )
+                                    or []
+                                ),
+                                images=len(
+                                    multi_authority_v69225.get(
+                                        "selected_image_urls_v69143"
+                                    )
+                                    or []
+                                ),
+                            )
+
                         technical_direct_answer_v69158 = ""
                         if (
                             assistant == "🔧 Technical Support"
