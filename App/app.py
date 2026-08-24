@@ -1,3 +1,5 @@
+# AutoTecPro AI v69219 FINAL PRODUCTION — fast safe cached branch-result authority with revision/payload-key invalidation
+# AutoTecPro AI v69218 FINAL PRODUCTION — universal indexed overlapping-year branch authority
 # AutoTecPro AI v69217 FINAL PRODUCTION — restore v69050 file_search answer authority and remove impossible assistant-file image download fallback\n# AutoTecPro AI v69216 FINAL PRODUCTION — demote synthetic compiled incompleteness and restore v69050 file_search provider authority for generic Technical multi-source recovery\n# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
 # AutoTecPro AI v69214 FINAL PRODUCTION — query-scoped legacy Technical source migration; hosted assistant-file download failure removed from direct authority path.\n# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
@@ -61064,6 +61066,27 @@ def save_website_knowledge_package(
                     "safely; no stale authority was retired."
                 ) from technical_commit_error_v69192
 
+    # v69218 universal branch-index publication barrier. Every structured vehicle
+    # package is persisted by family + exact source before stale same-URL authority
+    # can be retired. Technical, Sales and Marketing share this index.
+    branch_index_commit_v69218 = {"complete": True, "written": 0, "reason": "NOT_APPLICABLE"}
+    try:
+        if database_choice == "Technical Support Database":
+            branch_package_v69218 = locals().get("technical_package_v69192")
+            if not isinstance(branch_package_v69218, dict):
+                branch_package_v69218 = _technical_package_from_text_v69121(file_id, filename, package_text)
+        elif database_choice in {"Sales Database", "Marketing Database"}:
+            branch_package_v69218 = _workspace_atp_package_from_text_v69180(file_id, filename, package_text, database_choice)
+        else:
+            branch_package_v69218 = None
+        if isinstance(branch_package_v69218, dict):
+            branch_index_commit_v69218 = _atp_branch_index_commit_package_v69218(branch_package_v69218, database_choice, selected_vector_store_id)
+            if not bool(branch_index_commit_v69218.get("complete")):
+                raise RuntimeError("ATP branch index commit did not verify completely.")
+    except Exception as branch_index_error_v69218:
+        diagnostic_log("atp_branch_index_commit_failed_v69218", destination=str(database_choice), file_id=str(file_id or "")[:160], error_type=type(branch_index_error_v69218).__name__, error=str(branch_index_error_v69218)[:700])
+        raise RuntimeError("Website knowledge indexed, but universal branch-index publication failed. Prior production authority was preserved; retry the save.") from branch_index_error_v69218
+
     # COMMIT: replacement vector + images + required Technical active source are proven.
     # Only now retire stale authority.
     replaced_file_count = _website_remove_superseded_vectors_v69109(
@@ -61229,6 +61252,7 @@ def save_website_knowledge_package(
         "technical_active_authority_commit_v69192": (
             technical_active_authority_commit_v69192
         ),
+        "branch_index_commit_v69218": branch_index_commit_v69218,
         "conflicting_learned_supersession_v69123": conflicting_learned,
         "conflicting_website_supersession_v69174": conflicting_website,
         "transactional_learning_v69177": True,
@@ -70666,6 +70690,945 @@ def _technical_durable_snapshot_scope_v69213(vector_store_id, family, year):
     )
     return {"complete": True, "rows": output, "reason": "READY"}
 
+
+
+ATP_BRANCH_INDEX_PREFIX_V69218 = "ATP_BRANCH_INDEX_V69218|"
+
+
+def _atp_branch_destination_token_v69218(destination):
+    return {
+        "Technical Support Database": "technical",
+        "Sales Database": "sales",
+        "Marketing Database": "marketing",
+    }.get(str(destination or "").strip(), "")
+
+
+def _atp_branch_destination_store_v69218(destination):
+    return {
+        "Technical Support Database": TECHNICAL_VECTOR_STORE_ID,
+        "Sales Database": SALES_VECTOR_STORE_ID,
+        "Marketing Database": MARKETING_VECTOR_STORE_ID,
+    }.get(str(destination or "").strip(), "")
+
+
+def _atp_branch_canonical_family_v69218(value):
+    return re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+
+
+def _atp_branch_payload_from_package_v69218(package, destination):
+    package = dict(package or {})
+    target = str(destination or "").strip()
+    token = _atp_branch_destination_token_v69218(target)
+    package_text = str(package.get("package_text") or "")
+    if not token or not package_text:
+        return {}
+    semantics = dict(
+        package.get("atp_semantics_v69178")
+        or _technical_package_atp_semantics_v69178(package_text)
+        or {}
+    )
+    root = dict(semantics.get("root") or {})
+    current_flag = str(root.get("data-atp-current-source") or "").strip().casefold()
+    status = str(root.get("data-atp-source-status") or "").strip().casefold()
+    current = bool(
+        current_flag in {"true", "1", "yes"}
+        or status in {"current", "current-authoritative"}
+    ) and current_flag not in {"false", "0", "no"} and status not in {
+        "historical", "superseded", "deprecated", "inactive", "non-current"
+    }
+    families = []
+    for value in package.get("vehicle_families") or []:
+        family = _atp_branch_canonical_family_v69218(value)
+        if family and family not in families:
+            families.append(family)
+    years = []
+    for raw in package.get("years") or []:
+        try:
+            value = int(raw)
+        except Exception:
+            continue
+        if value not in years:
+            years.append(value)
+    systems = list(dict.fromkeys(
+        str(x).strip() for x in (package.get("systems") or []) if str(x).strip()
+    ))
+    codes = list(dict.fromkeys(
+        str(x).strip() for x in (package.get("product_codes") or []) if str(x).strip()
+    ))
+
+    profiles = {}
+    for row in [root] + list(semantics.get("headings") or []) + list(semantics.get("elements") or []):
+        if not isinstance(row, dict):
+            continue
+        for key, value in row.items():
+            key = str(key or "")
+            if key.startswith("data-atp-profile-") and key != "data-atp-profile-corroboration":
+                value = str(value or "").strip()
+                if value:
+                    profiles[key] = value
+
+    image_urls = []
+    for image in semantics.get("images") or []:
+        if not isinstance(image, dict):
+            continue
+        image_current = str(image.get("data-atp-current-source") or "").strip().casefold()
+        image_status = str(image.get("data-atp-source-status") or "").strip().casefold()
+        if image_current in {"false", "0", "no"} or image_status in {
+            "historical", "superseded", "deprecated", "inactive", "non-current"
+        }:
+            continue
+        for key in (
+            "data-atp-canonical-image-url",
+            "data-atp-full-resolution-url",
+            "src",
+            "data-atp-source-url",
+        ):
+            url = str(image.get(key) or "").strip()
+            if url.startswith("https://") and url not in image_urls:
+                image_urls.append(url)
+                break
+
+    source_url = str(package.get("source_url") or "").strip()
+    source_key = source_url
+    if source_key:
+        try:
+            source_key = canonical_website_url_identity(source_key)
+        except Exception:
+            source_key = source_key.rstrip("/").casefold()
+    if not source_key:
+        source_key = "file:" + str(package.get("file_id") or package.get("filename") or "")
+    if not source_key:
+        return {}
+
+    raw = package_text.encode("utf-8")
+    return {
+        "schema_version": 69218,
+        "destination": target,
+        "destination_token": token,
+        "source_key": source_key,
+        "source_url": source_url,
+        "file_id": str(package.get("file_id") or ""),
+        "filename": str(package.get("filename") or ""),
+        "title": str(package.get("title") or ""),
+        "extracted_at": str(package.get("extracted_at") or ""),
+        "vehicle_families": sorted(families),
+        "years": sorted(years),
+        "systems": sorted(systems),
+        "product_codes": sorted(codes),
+        "factory_system": str(root.get("data-atp-factory-system") or "").strip(),
+        "climate": str(root.get("data-atp-climate") or "").strip(),
+        "protocol": str(root.get("data-atp-protocol") or "").strip(),
+        "current": bool(current),
+        "source_status": status,
+        "profiles": profiles,
+        "image_urls": image_urls,
+        "content_sha256": hashlib.sha256(raw).hexdigest(),
+        "package_b64": base64.b64encode(zlib.compress(raw, 9)).decode("ascii"),
+    }
+
+
+def _atp_branch_index_key_v69218(destination, family, source_key):
+    token = _atp_branch_destination_token_v69218(destination)
+    family = _atp_branch_canonical_family_v69218(family)
+    source_key = str(source_key or "").strip()
+    if not token or not family or not source_key:
+        return ""
+    digest = hashlib.sha256(source_key.encode("utf-8")).hexdigest()[:32]
+    return f"{ATP_BRANCH_INDEX_PREFIX_V69218}{token}|{family}|{digest}"
+
+
+def _atp_branch_index_commit_package_v69218(package, destination, vector_store_id=""):
+    payload = _atp_branch_payload_from_package_v69218(package, destination)
+    if not payload or not payload.get("vehicle_families"):
+        return {"complete": True, "written": 0, "reason": "NOT_APPLICABLE"}
+    mode, columns, key_col, value_col, time_col = _technical_active_authority_schema_v69164()
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    written = 0
+    for family in payload.get("vehicle_families") or []:
+        key = _atp_branch_index_key_v69218(destination, family, payload.get("source_key"))
+        if not key:
+            continue
+        existing_id = None
+        try:
+            rows = list(
+                supabase.table("learned_knowledge")
+                .select(f"id,{key_col}")
+                .eq(key_col, key)
+                .order(time_col, desc=True)
+                .limit(1)
+                .execute().data or []
+            )
+            if rows and isinstance(rows[0], dict):
+                existing_id = rows[0].get("id")
+        except Exception:
+            existing_id = None
+        if mode == "modern":
+            row_payload = {
+                "issue": key,
+                "solution": encoded,
+                "approved_answer": encoded,
+                "source_type": "atp_branch_index_v69218",
+                "updated_at": now_iso(),
+                "staff_confirmed": True,
+                "record_type": "atp_branch_index",
+                "assistant": str(destination or ""),
+                "department": str(payload.get("destination_token") or ""),
+                "openai_file_id": str(payload.get("file_id") or ""),
+                "vector_store_id": str(vector_store_id or ""),
+            }
+        else:
+            row_payload = {
+                "question": key,
+                "approved_answer": encoded,
+                "keywords": (
+                    "atp_branch_index_v69218 "
+                    + " ".join(payload.get("vehicle_families") or [])
+                    + " "
+                    + " ".join(str(x) for x in (payload.get("years") or []))
+                )[:2000],
+                "source_type": "atp_branch_index_v69218",
+                "created_at": now_iso(),
+                "staff_confirmed": True,
+                "record_type": "atp_branch_index",
+                "assistant": str(destination or ""),
+                "department": str(payload.get("destination_token") or ""),
+                "openai_file_id": str(payload.get("file_id") or ""),
+                "vector_store_id": str(vector_store_id or ""),
+            }
+        row_payload = filter_payload_for_table("learned_knowledge", row_payload)
+        if key_col not in row_payload or value_col not in row_payload:
+            raise RuntimeError("ATP branch index schema cannot persist key/value")
+        if existing_id is not None:
+            update_payload = dict(row_payload)
+            update_payload.pop("created_at", None)
+            safe_update_row("learned_knowledge", update_payload, existing_id)
+        else:
+            safe_insert_row("learned_knowledge", row_payload)
+        written += 1
+    try:
+        _atp_branch_index_scope_v69218.clear()
+    except Exception:
+        pass
+    diagnostic_log(
+        "atp_branch_index_commit_v69218",
+        destination=str(destination),
+        file_id=str(payload.get("file_id") or "")[:160],
+        families=len(payload.get("vehicle_families") or []),
+        written=written,
+    )
+    return {"complete": True, "written": written, "payload": payload}
+
+
+@st.cache_data(ttl=3, max_entries=512, show_spinner=False)
+def _atp_branch_index_scope_v69218(destination, family):
+    token = _atp_branch_destination_token_v69218(destination)
+    family = _atp_branch_canonical_family_v69218(family)
+    if not token or not family:
+        return []
+    mode, columns, key_col, value_col, time_col = _technical_active_authority_schema_v69164()
+    prefix = f"{ATP_BRANCH_INDEX_PREFIX_V69218}{token}|{family}|"
+    wanted = [
+        x for x in ("id", key_col, value_col, "source_type", "updated_at", "created_at")
+        if x and (not columns or x in columns)
+    ]
+    try:
+        rows = list(
+            supabase.table("learned_knowledge")
+            .select(",".join(dict.fromkeys(wanted)))
+            .like(key_col, prefix + "%")
+            .order(time_col, desc=True)
+            .limit(512)
+            .execute().data or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "atp_branch_index_scope_failed_v69218",
+            destination=str(destination),
+            family=family,
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return []
+    output = []
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        raw = str(row.get(value_col) or row.get("solution") or row.get("approved_answer") or "").strip()
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            continue
+        if not isinstance(payload, dict) or int(payload.get("schema_version") or 0) != 69218:
+            continue
+        source_key = str(payload.get("source_key") or "")
+        if not source_key or source_key in seen:
+            continue
+        seen.add(source_key)
+        output.append(payload)
+    return output
+
+
+def _atp_branch_decode_package_v69218(payload):
+    payload = dict(payload or {})
+    encoded = str(payload.get("package_b64") or "")
+    if not encoded:
+        return None
+    try:
+        raw = zlib.decompress(base64.b64decode(encoded)).decode("utf-8")
+    except Exception:
+        return None
+    if hashlib.sha256(raw.encode("utf-8")).hexdigest() != str(payload.get("content_sha256") or ""):
+        return None
+    destination = str(payload.get("destination") or "")
+    if destination == "Technical Support Database":
+        return _technical_package_from_text_v69121(
+            str(payload.get("file_id") or ""),
+            str(payload.get("filename") or ""),
+            raw,
+        )
+    if destination in {"Sales Database", "Marketing Database"}:
+        return _workspace_atp_package_from_text_v69180(
+            str(payload.get("file_id") or ""),
+            str(payload.get("filename") or ""),
+            raw,
+            destination,
+        )
+    return None
+
+
+def _atp_branch_payload_matches_v69218(payload, year, prompt_text):
+    payload = dict(payload or {})
+    try:
+        year = int(year)
+    except Exception:
+        return False
+    if not bool(payload.get("current")):
+        return False
+    years = set()
+    for raw in payload.get("years") or []:
+        try:
+            years.add(int(raw))
+        except Exception:
+            pass
+    if year not in years:
+        return False
+    prompt_systems = {
+        str(x).strip()
+        for x in _website_identity_systems_v69022(prompt_text)
+        if str(x).strip()
+    }
+    prompt_codes = {
+        str(x).strip().casefold()
+        for x in _website_image_product_codes_v69020(prompt_text)
+        if str(x).strip()
+    }
+    systems = {
+        str(x).strip()
+        for x in (payload.get("systems") or [])
+        if str(x).strip()
+    }
+    codes = {
+        str(x).strip().casefold()
+        for x in (payload.get("product_codes") or [])
+        if str(x).strip()
+    }
+    if prompt_systems and systems and not prompt_systems.issubset(systems):
+        return False
+    if prompt_codes and codes and not (prompt_codes & codes):
+        return False
+    return True
+
+
+def _atp_branch_filename_candidates_v69218(family, year, vector_store_id):
+    family = _atp_branch_canonical_family_v69218(family)
+    try:
+        year = int(year)
+    except Exception:
+        return []
+    output = []
+    for item in _website_vector_store_file_rows_v68892(vector_store_id) or []:
+        if not isinstance(item, dict):
+            continue
+        filename = str(item.get("filename") or "")
+        if not filename.startswith("website_"):
+            continue
+        norm = re.sub(r"[^a-z0-9]+", "", filename.casefold())
+        if family and family not in norm:
+            continue
+        years = [int(x) for x in re.findall(r"(?<!\d)(?:19|20)\d{2}(?!\d)", filename)]
+        if len(years) >= 2 and not (min(years) <= year <= max(years)):
+            continue
+        output.append(dict(item))
+    output.sort(key=lambda x: str(x.get("filename") or ""))
+    return output[:24]
+
+
+def _atp_branch_attrs_from_snippets_v69218(text):
+    attrs = {}
+    for key, quote, value in re.findall(
+        r"(data-atp-[a-z0-9-]+)\s*=\s*([\"'])(.*?)\2",
+        str(text or ""),
+        flags=re.I | re.S,
+    ):
+        key = str(key).casefold()
+        value = html.unescape(str(value or "")).strip()
+        if value and key not in attrs:
+            attrs[key] = value
+    return attrs
+
+
+def _atp_branch_synthetic_package_from_snippets_v69218(destination, family, year, row, snippets):
+    target = str(destination or "").strip()
+    text = "\n".join(str(x or "") for x in snippets if str(x or "").strip())
+    attrs = _atp_branch_attrs_from_snippets_v69218(text)
+    family = _atp_branch_canonical_family_v69218(family)
+    try:
+        year = int(year)
+    except Exception:
+        return None
+    model_text = str(attrs.get("data-atp-model") or "")
+    identity_text = " ".join((
+        model_text,
+        str(attrs.get("data-atp-query-key") or ""),
+        str(row.get("filename") or ""),
+        text[:16000],
+    ))
+    family_norm = re.sub(r"[^a-z0-9]+", "", identity_text.casefold())
+    if family and family not in family_norm:
+        return None
+    try:
+        y0 = int(attrs.get("data-atp-year-start"))
+        y1 = int(attrs.get("data-atp-year-end"))
+        years = list(range(min(y0, y1), max(y0, y1) + 1))
+    except Exception:
+        years = sorted(_website_identity_years_v69022(identity_text))
+    if year not in years:
+        return None
+    current_flag = str(attrs.get("data-atp-current-source") or "").casefold()
+    source_status = str(attrs.get("data-atp-source-status") or "").casefold()
+    if not (
+        current_flag in {"true", "1", "yes"}
+        or source_status in {"current", "current-authoritative"}
+    ):
+        return None
+    if current_flag in {"false", "0", "no"} or source_status in {
+        "historical", "superseded", "deprecated", "inactive", "non-current"
+    }:
+        return None
+
+    profiles = {
+        key: value
+        for key, value in attrs.items()
+        if key.startswith("data-atp-profile-")
+        and key != "data-atp-profile-corroboration"
+        and str(value).strip()
+    }
+    image_urls = []
+    for key in ("data-atp-canonical-image-url", "data-atp-full-resolution-url"):
+        url = str(attrs.get(key) or "").strip()
+        if url.startswith("https://") and url not in image_urls:
+            image_urls.append(url)
+    if not image_urls:
+        for url in re.findall(r"https://[^\s\"'<>]+", text):
+            if "/wp-content/uploads/" in url and url not in image_urls:
+                image_urls.append(url)
+                if len(image_urls) >= 2:
+                    break
+
+    root = {
+        "tag": "div",
+        "data-atp-model": model_text or family,
+        "data-atp-year-start": str(min(years)),
+        "data-atp-year-end": str(max(years)),
+        "data-atp-current-source": "true",
+        "data-atp-source-status": "current-authoritative",
+    }
+    for key in (
+        "data-atp-factory-system",
+        "data-atp-climate",
+        "data-atp-protocol",
+        "data-atp-product-series",
+        "data-atp-product-code",
+        "data-atp-product-id",
+        "data-atp-query-key",
+    ):
+        if attrs.get(key):
+            root[key] = attrs[key]
+
+    section_id = "protocol-settings" if target == "Technical Support Database" else "product-overview"
+    section_title = (
+        "Car Model / A/C Protocol Settings — Required Before Testing"
+        if target == "Technical Support Database"
+        else "Product Overview"
+    )
+    heading = {
+        "tag": "h2",
+        "id": section_id,
+        "text": section_title,
+        "data-atp-current-source": "true",
+        "data-atp-source-status": "current-authoritative",
+    }
+    heading.update(profiles)
+    if attrs.get("data-atp-protocol"):
+        heading["data-atp-protocol"] = attrs["data-atp-protocol"]
+    if attrs.get("data-atp-query-key"):
+        heading["data-atp-query-key"] = attrs["data-atp-query-key"]
+
+    images = []
+    for index, url in enumerate(image_urls):
+        images.append({
+            "tag": "img",
+            "src": url,
+            "data-atp-canonical-image-url": url,
+            "data-atp-current-source": "true",
+            "data-atp-source-status": "current-authoritative",
+            "data-atp-first-response-eligible": "true",
+            "data-atp-section": section_id,
+            "data-atp-image-index": str(index + 1),
+            "data-atp-priority": "1000",
+        })
+
+    semantics = {
+        "root": root,
+        "headings": [heading],
+        "elements": [],
+        "images": images,
+        "scripts": {},
+    }
+    section_text = "\n".join(
+        (["Protocol: " + str(attrs.get("data-atp-protocol") or "")] if attrs.get("data-atp-protocol") else [])
+        + [f"{key}: {value}" for key, value in profiles.items()]
+    )
+    hierarchy = {
+        "sections": [{
+            "title": section_title,
+            "target_id": section_id,
+            "section_id": section_id,
+            "text": section_text,
+            "segments": [],
+        }]
+    }
+    filename = str(row.get("filename") or "website_legacy_branch.txt")
+    file_id = str(row.get("file_id") or "")
+    title = filename.replace("_", " ")[:180]
+    source_url_match = re.search(r"(?im)^Final source URL:\s*(https?://\S+)", text)
+    source_url = str(source_url_match.group(1) if source_url_match else "").strip()
+    package_text = (
+        "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE\n"
+        f"Destination: {target}\n"
+        f"Final source URL: {source_url}\n"
+        f"Requested URL: {source_url}\n"
+        f"Extracted at (UTC): {now_iso()}\n"
+        f"Page title: {title}\n"
+        "ATP_SEMANTIC_METADATA_JSON_V69178: "
+        + json.dumps(semantics, ensure_ascii=False, separators=(",", ":"))
+        + "\nHIERARCHY_JSON_V69143: "
+        + json.dumps(hierarchy, ensure_ascii=False, separators=(",", ":"))
+        + "\nWEBPAGE_TEXT_BEGIN\n"
+        + text[:24000]
+        + "\nWEBPAGE_TEXT_END\n"
+    )
+    if target == "Technical Support Database":
+        package = _technical_package_from_text_v69121(file_id, filename, package_text)
+    else:
+        package = _workspace_atp_package_from_text_v69180(file_id, filename, package_text, target)
+    return package if isinstance(package, dict) else None
+
+
+def _atp_branch_index_bootstrap_v69218(destination, prompt_text, family, year, vector_store_id):
+    candidates = _atp_branch_filename_candidates_v69218(family, year, vector_store_id)
+    if not candidates:
+        return []
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def one(row):
+        filename = str(row.get("filename") or "")
+        file_id = str(row.get("file_id") or "")
+        query = (
+            f"{family} {year} {filename} "
+            "data-atp-current-source data-atp-source-status data-atp-model "
+            "data-atp-year-start data-atp-year-end data-atp-factory-system "
+            "data-atp-climate data-atp-protocol data-atp-profile "
+            "data-atp-product-series data-atp-product-code "
+            "data-atp-canonical-image-url"
+        )
+        request = {
+            "tools": [{"type": "file_search", "vector_store_ids": [vector_store_id]}],
+            "input": query,
+        }
+        rows = _website_request_vector_search_rows_v69047(request, max_results=50)
+        snippets = [
+            str(x.get("text") or "")
+            for x in rows
+            if isinstance(x, dict) and str(x.get("file_id") or "") == file_id
+        ]
+        if not snippets:
+            return None
+        return _atp_branch_synthetic_package_from_snippets_v69218(
+            destination, family, year, row, snippets
+        )
+
+    packages = []
+    workers = max(1, min(6, len(candidates)))
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="atp-branch-bootstrap-v69218") as pool:
+        futures = [pool.submit(one, row) for row in candidates]
+        for future in as_completed(futures):
+            try:
+                package = future.result()
+            except Exception:
+                package = None
+            if isinstance(package, dict):
+                packages.append(package)
+    for package in packages:
+        try:
+            _atp_branch_index_commit_package_v69218(package, destination, vector_store_id)
+        except Exception as error:
+            diagnostic_log(
+                "atp_branch_index_bootstrap_commit_failed_v69218",
+                destination=str(destination),
+                error_type=type(error).__name__,
+                error=str(error)[:500],
+            )
+    try:
+        _atp_branch_index_scope_v69218.clear()
+    except Exception:
+        pass
+    diagnostic_log(
+        "atp_branch_index_bootstrap_complete_v69218",
+        destination=str(destination),
+        family=str(family),
+        year=int(year),
+        candidates=len(candidates),
+        recovered=len(packages),
+    )
+    return packages
+
+
+
+@st.cache_resource(show_spinner=False)
+def _atp_branch_bootstrap_attempt_state_v69218():
+    return {"lock": threading.RLock(), "attempts": {}}
+
+
+def _atp_branch_catalog_fingerprint_v69218(candidates):
+    rows = sorted(
+        (
+            str(x.get("file_id") or ""),
+            str(x.get("filename") or ""),
+        )
+        for x in (candidates or [])
+        if isinstance(x, dict)
+    )
+    raw = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+
+def _atp_branch_file_keys_v69218(rows):
+    keys = set()
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        file_id = str(row.get("file_id") or "").strip()
+        filename = str(row.get("filename") or "").strip()
+        if file_id:
+            keys.add("id:" + file_id)
+        if filename:
+            keys.add("name:" + filename.casefold())
+    return keys
+
+
+def _atp_branch_coverage_bootstrap_v69218(
+    destination,
+    prompt_text,
+    family,
+    year,
+    vector_store_id,
+    payloads,
+    *,
+    generic_scope,
+):
+    """Repair partial legacy branch coverage once per vector catalogue fingerprint."""
+    current = [dict(x) for x in (payloads or []) if isinstance(x, dict)]
+    if current and not generic_scope:
+        return current
+
+    candidates = _atp_branch_filename_candidates_v69218(
+        family, year, vector_store_id
+    )
+    if not candidates:
+        return current
+
+    uncovered = (
+        _atp_branch_file_keys_v69218(candidates)
+        - _atp_branch_file_keys_v69218(current)
+    )
+    if generic_scope:
+        should_attempt = bool(uncovered)
+    else:
+        should_attempt = not current
+    if not should_attempt:
+        return current
+
+    fingerprint = _atp_branch_catalog_fingerprint_v69218(candidates)
+    state = _atp_branch_bootstrap_attempt_state_v69218()
+    key = "|".join((
+        _atp_branch_destination_token_v69218(destination),
+        _atp_branch_canonical_family_v69218(family),
+        str(int(year)),
+        str(vector_store_id or ""),
+        fingerprint,
+    ))
+    now = time.monotonic()
+    with state["lock"]:
+        last = float(state["attempts"].get(key) or 0.0)
+        if last and now - last < 300.0:
+            return current
+        state["attempts"][key] = now
+        if len(state["attempts"]) > 1024:
+            cutoff = now - 900.0
+            for old_key, old_time in list(state["attempts"].items()):
+                if float(old_time or 0.0) < cutoff:
+                    state["attempts"].pop(old_key, None)
+
+    diagnostic_log(
+        "atp_branch_coverage_bootstrap_started_v69218",
+        destination=str(destination),
+        family=str(family),
+        year=int(year),
+        indexed_payloads=len(current),
+        catalogue_candidates=len(candidates),
+        uncovered_keys=len(uncovered),
+        generic=bool(generic_scope),
+        fingerprint=fingerprint,
+    )
+    _atp_branch_index_bootstrap_v69218(
+        destination, prompt_text, family, int(year), vector_store_id
+    )
+    try:
+        _atp_branch_index_scope_v69218.clear()
+    except Exception:
+        pass
+    refreshed = [
+        dict(x)
+        for x in _atp_branch_index_scope_v69218(destination, family)
+        if _atp_branch_payload_matches_v69218(x, year, prompt_text)
+    ]
+    diagnostic_log(
+        "atp_branch_coverage_bootstrap_finished_v69218",
+        destination=str(destination),
+        family=str(family),
+        year=int(year),
+        before=len(current),
+        after=len(refreshed),
+        generic=bool(generic_scope),
+        fingerprint=fingerprint,
+    )
+    return refreshed
+
+
+
+def _atp_branch_cache_blob_v69219(payloads):
+    rows = []
+    for payload in payloads or []:
+        if isinstance(payload, dict):
+            rows.append(dict(payload))
+    rows.sort(
+        key=lambda row: (
+            str(row.get("source_key") or ""),
+            str(row.get("file_id") or ""),
+            str(row.get("filename") or ""),
+            str(row.get("content_sha256") or ""),
+        )
+    )
+    return json.dumps(rows, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _technical_branch_cached_result_v69219(
+    prompt_text,
+    vector_store_id,
+    revision,
+    payload_blob,
+):
+    payloads = []
+    try:
+        payloads = list(json.loads(str(payload_blob or "[]")) or [])
+    except Exception:
+        payloads = []
+    packages = []
+    for payload in payloads:
+        package = _atp_branch_decode_package_v69218(payload)
+        if isinstance(package, dict):
+            packages.append(package)
+    if not packages:
+        return {}
+    if not _technical_compiled_runtime_publish_v69198(packages, vector_store_id, revision):
+        return {}
+    result = _technical_compiled_contract_lookup_v69198(prompt_text, vector_store_id)
+    if str(result.get("status") or "") == "recovered":
+        result = dict(result)
+        result["branch_index_v69218"] = True
+        if isinstance(result.get("authority"), dict):
+            result["authority"] = dict(result.get("authority") or {})
+            result["authority"]["branch_index_v69218"] = True
+        result["branch_result_cache_v69219"] = True
+    return result
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _workspace_branch_cached_result_v69219(destination, prompt_text, payload_blob):
+    payloads = []
+    try:
+        payloads = list(json.loads(str(payload_blob or "[]")) or [])
+    except Exception:
+        payloads = []
+    authorities = []
+    for payload in payloads:
+        package = _atp_branch_decode_package_v69218(payload)
+        if not isinstance(package, dict):
+            continue
+        authorities.append({
+            "status": "recovered",
+            "destination": destination,
+            "source_url": str(package.get("source_url") or ""),
+            "file_id": str(package.get("file_id") or ""),
+            "filename": str(package.get("filename") or ""),
+            "package": package,
+            "product_codes_v69209": list(package.get("product_codes") or []),
+        })
+    if not authorities:
+        return {}
+    if len(authorities) > 1:
+        return {
+            "status": "recovered",
+            "destination": destination,
+            "multi_match_authorities_v69209": authorities,
+            "branch_index_v69218": True,
+            "branch_result_cache_v69219": True,
+        }
+    result = dict(authorities[0])
+    result["branch_index_v69218"] = True
+    result["branch_result_cache_v69219"] = True
+    return result
+
+
+def _technical_branch_index_lookup_v69218(prompt_text, vector_store_id):
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    family, year = _technical_resolve_family_year_v69199(
+        prompt, vector_store_id, allow_registry=True
+    )
+    if not family or year is None:
+        return {}
+    payloads = [
+        dict(x)
+        for x in _atp_branch_index_scope_v69218("Technical Support Database", family)
+        if _atp_branch_payload_matches_v69218(x, year, prompt)
+    ]
+    prompt_systems = {
+        str(x).strip()
+        for x in _website_identity_systems_v69022(prompt)
+        if str(x).strip()
+    }
+    prompt_codes = {
+        str(x).strip().casefold()
+        for x in _website_image_product_codes_v69020(prompt)
+        if str(x).strip()
+    }
+    payloads = _atp_branch_coverage_bootstrap_v69218(
+        "Technical Support Database",
+        prompt,
+        family,
+        int(year),
+        vector_store_id,
+        payloads,
+        generic_scope=(not prompt_systems and not prompt_codes),
+    )
+    if not payloads:
+        return {}
+    revision = _website_destination_revision_v69109("Technical Support Database")
+    payload_blob = _atp_branch_cache_blob_v69219(payloads)
+    result = _technical_branch_cached_result_v69219(
+        prompt_text,
+        str(vector_store_id or ""),
+        int(revision),
+        payload_blob,
+    )
+    if str(result.get("status") or "") == "recovered":
+        diagnostic_log(
+            "technical_branch_cached_result_hit_v69219",
+            payloads=len(payloads),
+            revision=int(revision),
+            cached=bool(result.get("branch_result_cache_v69219")),
+        )
+    return result
+
+
+def _workspace_branch_index_authority_v69218(workspace_label, prompt_text):
+    workspace = str(workspace_label or "")
+    destination = (
+        "Sales Database"
+        if is_sales_workspace(workspace)
+        else ("Marketing Database" if is_marketing_workspace(workspace) else "")
+    )
+    if not destination:
+        return {}
+    store_ids = _configured_vector_store_ids(
+        _atp_branch_destination_store_v69218(destination)
+    )
+    if not store_ids:
+        return {}
+    store = str(store_ids[0] or "").strip()
+    families = [
+        _atp_branch_canonical_family_v69218(x)
+        for x in _website_identity_vehicle_families_v69022(prompt_text)
+        if _atp_branch_canonical_family_v69218(x)
+    ]
+    years = sorted(_website_identity_years_v69022(prompt_text))
+    if not families or not years:
+        return {}
+    family, year = families[0], int(years[0])
+    payloads = [
+        dict(x)
+        for x in _atp_branch_index_scope_v69218(destination, family)
+        if _atp_branch_payload_matches_v69218(x, year, prompt_text)
+    ]
+    prompt_systems = {
+        str(x).strip()
+        for x in _website_identity_systems_v69022(prompt_text)
+        if str(x).strip()
+    }
+    prompt_codes = {
+        str(x).strip().casefold()
+        for x in _website_image_product_codes_v69020(prompt_text)
+        if str(x).strip()
+    }
+    payloads = _atp_branch_coverage_bootstrap_v69218(
+        destination,
+        prompt_text,
+        family,
+        int(year),
+        store,
+        payloads,
+        generic_scope=(not prompt_systems and not prompt_codes),
+    )
+    if not payloads:
+        return {}
+    payload_blob = _atp_branch_cache_blob_v69219(payloads)
+    result = _workspace_branch_cached_result_v69219(
+        destination,
+        prompt_text,
+        payload_blob,
+    )
+    if str(result.get("status") or "") == "recovered":
+        diagnostic_log(
+            "workspace_branch_cached_result_hit_v69219",
+            destination=str(destination),
+            payloads=len(payloads),
+            multi=bool(result.get("multi_match_authorities_v69209")),
+            cached=bool(result.get("branch_result_cache_v69219")),
+        )
+    return result
 
 
 def _technical_scoped_source_candidates_v69214(
@@ -84116,12 +85079,15 @@ else:
                     compiled_store_v69199 = str(
                         compiled_store_ids_v69198[0] or ""
                     ).strip()
-                    technical_compiled_preflight_v69198 = (
-                        _technical_compiled_contract_lookup_v69198(
-                            technical_request_prompt_v68879,
-                            compiled_store_v69199,
-                        )
+                    technical_compiled_preflight_v69198 = _technical_branch_index_lookup_v69218(
+                        technical_request_prompt_v68879, compiled_store_v69199
                     )
+                    if str(technical_compiled_preflight_v69198.get("status") or "") != "recovered":
+                        technical_compiled_preflight_v69198 = _technical_compiled_contract_lookup_v69198(
+                            technical_request_prompt_v68879, compiled_store_v69199
+                        )
+                    else:
+                        diagnostic_log("technical_branch_index_preflight_hit_v69218", kind=str(technical_compiled_preflight_v69198.get("kind") or ""), multi=bool(technical_compiled_preflight_v69198.get("universal_multi_match_v69208")))
                     # v69211: a generic configuration query that recovered only one
                     # branch is not completeness proof.  Force the durable multi-source
                     # hydrator before allowing that single branch to bypass the provider.
@@ -86500,6 +87466,14 @@ else:
                             )
 
                     workspace_atp_direct_answer_v69205 = ""
+                    if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
+                        try:
+                            branch_workspace_authority_v69218 = _workspace_branch_index_authority_v69218(assistant, interaction_prompt)
+                            if str((branch_workspace_authority_v69218 or {}).get("status") or "") == "recovered":
+                                workspace_atp_authority_v69180 = branch_workspace_authority_v69218
+                                diagnostic_log("workspace_branch_index_preflight_hit_v69218", workspace=str(assistant), multi=len(branch_workspace_authority_v69218.get("multi_match_authorities_v69209") or []))
+                        except Exception as branch_workspace_error_v69218:
+                            diagnostic_log("workspace_branch_index_preflight_failed_v69218", workspace=str(assistant), error_type=type(branch_workspace_error_v69218).__name__, error=str(branch_workspace_error_v69218)[:500])
                     if (
                         (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
                         and str((workspace_atp_authority_v69180 or {}).get("status") or "") == "recovered"
