@@ -1,4 +1,4 @@
-# AutoTecPro AI v69219 FINAL PRODUCTION — fast safe cached branch-result authority with revision/payload-key invalidation
+# AutoTecPro AI v69221 FINAL PRODUCTION — workspace callback NameError fix; early Technical photo-context key binding\n# AutoTecPro AI v69220 FINAL PRODUCTION — F250 SYNC2 series 722 + generic completeness retention fix + safe cache guard\n# AutoTecPro AI v69219 FINAL PRODUCTION — fast safe cached branch-result authority with revision/payload-key invalidation
 # AutoTecPro AI v69218 FINAL PRODUCTION — universal indexed overlapping-year branch authority
 # AutoTecPro AI v69217 FINAL PRODUCTION — restore v69050 file_search answer authority and remove impossible assistant-file image download fallback\n# AutoTecPro AI v69216 FINAL PRODUCTION — demote synthetic compiled incompleteness and restore v69050 file_search provider authority for generic Technical multi-source recovery\n# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
 # AutoTecPro AI v69214 FINAL PRODUCTION — query-scoped legacy Technical source migration; hosted assistant-file download failure removed from direct authority path.\n# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
@@ -7920,6 +7920,11 @@ st.sidebar.markdown(
     '<div class="workspace-title">AutoTecPro AI</div>',
     unsafe_allow_html=True,
 )
+
+
+# v69221: this constant must exist before Streamlit can invoke workspace
+# navigation callbacks during the top-to-bottom script execution.
+TECHNICAL_PHOTO_CONTEXT_KEY_V68879 = "_technical_photo_context_v68879"
 
 
 def _workspace_slug_from_assistant_v69023(assistant_name):
@@ -70107,6 +70112,56 @@ def _technical_metadata_fast_contract_v69178(prompt_text, store):
     return {}
 
 
+
+def _technical_current_series_correction_v69220(families, years, systems):
+    """Confirmed current series mapping for the exact Ford Super Duty branches only."""
+    family_tokens = {
+        re.sub(r"[^a-z0-9]+", "", str(x or "").casefold())
+        for x in (families or [])
+        if str(x or "").strip()
+    }
+    if not (
+        family_tokens
+        & {"f250", "f350", "f450", "fordf250", "fordf350", "fordf450"}
+    ):
+        return set()
+
+    year_values = set()
+    for raw in years or []:
+        try:
+            year_values.add(int(raw))
+        except Exception:
+            pass
+
+    system_tokens = {
+        re.sub(r"[\s-]+", "_", str(x or "").strip().casefold())
+        for x in (systems or [])
+        if str(x or "").strip()
+    }
+
+    if (
+        year_values
+        and min(year_values) <= 2016
+        and max(year_values) >= 2013
+        and ("sync_2" in system_tokens or "sync2" in system_tokens)
+    ):
+        return {"722"}
+
+    if (
+        year_values
+        and min(year_values) <= 2016
+        and max(year_values) >= 2009
+        and (
+            "no_sync" in system_tokens
+            or "non_sync" in system_tokens
+            or "nosync" in system_tokens
+        )
+    ):
+        return {"726"}
+
+    return set()
+
+
 def _technical_package_from_text_v69121(file_id, filename, package_text):
     """Parse one already-reviewed Technical website package without network I/O."""
     text = str(package_text or "")
@@ -70158,6 +70213,14 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
         systems = set(_website_identity_systems_v69022(identity_text))
 
     product_codes = set(_website_image_product_codes_v69020(identity_text))
+    corrected_series_v69220 = _technical_current_series_correction_v69220(
+        families,
+        years,
+        systems,
+    )
+    if corrected_series_v69220:
+        product_codes = set(corrected_series_v69220)
+
     return {
         "file_id": str(file_id or ""),
         "filename": str(filename or ""),
@@ -71450,6 +71513,7 @@ def _technical_branch_cached_result_v69219(
     vector_store_id,
     revision,
     payload_blob,
+    require_multi_v69220=False,
 ):
     payloads = []
     try:
@@ -71466,6 +71530,18 @@ def _technical_branch_cached_result_v69219(
     if not _technical_compiled_runtime_publish_v69198(packages, vector_store_id, revision):
         return {}
     result = _technical_compiled_contract_lookup_v69198(prompt_text, vector_store_id)
+    if (
+        bool(require_multi_v69220)
+        and str(result.get("status") or "") == "recovered"
+        and not bool(result.get("universal_multi_match_v69208"))
+    ):
+        diagnostic_log(
+            "technical_branch_cache_single_generic_rejected_v69220",
+            revision=int(revision or 0),
+            payloads=len(payloads),
+        )
+        return {}
+
     if str(result.get("status") or "") == "recovered":
         result = dict(result)
         result["branch_index_v69218"] = True
@@ -71553,6 +71629,7 @@ def _technical_branch_index_lookup_v69218(prompt_text, vector_store_id):
         str(vector_store_id or ""),
         int(revision),
         payload_blob,
+        require_multi_v69220=(not prompt_systems and not prompt_codes),
     )
     if str(result.get("status") or "") == "recovered":
         diagnostic_log(
@@ -85127,7 +85204,42 @@ else:
                                 compiled_store_v69199,
                             )
                         )
-                        if hydrated_preflight_v69211:
+                        if generic_config_probe_v69211:
+                            hydrated_is_complete_multi_v69220 = bool(
+                                str(
+                                    (hydrated_preflight_v69211 or {}).get("status")
+                                    or ""
+                                ) == "recovered"
+                                and bool(
+                                    (hydrated_preflight_v69211 or {}).get(
+                                        "universal_multi_match_v69208"
+                                    )
+                                )
+                            )
+                            if hydrated_is_complete_multi_v69220:
+                                technical_compiled_preflight_v69198 = (
+                                    hydrated_preflight_v69211
+                                )
+                            else:
+                                diagnostic_log(
+                                    "technical_generic_single_branch_discarded_v69220",
+                                    prior_kind=str(
+                                        technical_compiled_preflight_v69198.get("kind")
+                                        or ""
+                                    ),
+                                    hydrated_status=str(
+                                        (hydrated_preflight_v69211 or {}).get("status")
+                                        or ""
+                                    ),
+                                    hydrated_multi=bool(
+                                        (hydrated_preflight_v69211 or {}).get(
+                                            "universal_multi_match_v69208"
+                                        )
+                                    ),
+                                )
+                                technical_compiled_preflight_v69198 = {}
+                                use_file_search = True
+                        elif hydrated_preflight_v69211:
                             technical_compiled_preflight_v69198 = (
                                 hydrated_preflight_v69211
                             )
