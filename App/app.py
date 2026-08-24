@@ -1,4 +1,4 @@
-# AutoTecPro AI v69221 FINAL PRODUCTION — workspace callback NameError fix; early Technical photo-context key binding\n# AutoTecPro AI v69220 FINAL PRODUCTION — F250 SYNC2 series 722 + generic completeness retention fix + safe cache guard\n# AutoTecPro AI v69219 FINAL PRODUCTION — fast safe cached branch-result authority with revision/payload-key invalidation
+# AutoTecPro AI v69222 FINAL PRODUCTION — vector-discovered overlapping branch recovery + generic single-package publication block\n# AutoTecPro AI v69221 FINAL PRODUCTION — workspace callback NameError fix; early Technical photo-context key binding\n# AutoTecPro AI v69220 FINAL PRODUCTION — F250 SYNC2 series 722 + generic completeness retention fix + safe cache guard\n# AutoTecPro AI v69219 FINAL PRODUCTION — fast safe cached branch-result authority with revision/payload-key invalidation
 # AutoTecPro AI v69218 FINAL PRODUCTION — universal indexed overlapping-year branch authority
 # AutoTecPro AI v69217 FINAL PRODUCTION — restore v69050 file_search answer authority and remove impossible assistant-file image download fallback\n# AutoTecPro AI v69216 FINAL PRODUCTION — demote synthetic compiled incompleteness and restore v69050 file_search provider authority for generic Technical multi-source recovery\n# AutoTecPro AI v69215 FINAL PRODUCTION — exact legacy Technical source migration fix confirmed against current running baseline
 # AutoTecPro AI v69214 FINAL PRODUCTION — query-scoped legacy Technical source migration; hosted assistant-file download failure removed from direct authority path.\n# AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
@@ -71299,6 +71299,110 @@ def _atp_branch_synthetic_package_from_snippets_v69218(destination, family, year
     return package if isinstance(package, dict) else None
 
 
+
+def _atp_branch_vector_discovered_packages_v69222(
+    destination,
+    prompt_text,
+    family,
+    year,
+    vector_store_id,
+    *,
+    max_results=50,
+):
+    """Discover current overlapping branch sources directly from file_search rows.
+
+    Legacy website filenames are not a completeness authority. Some older learned
+    sources do not carry the normalized vehicle family/year in the filename, so a
+    filename-only catalogue can expose just one branch even when multiple current
+    source files exist in the vector store.
+
+    This helper searches the destination vector store once, groups evidence by
+    file_id, and accepts a source only if the existing synthetic-package validator
+    proves exact family + year + current-source metadata.
+    """
+    family = _atp_branch_canonical_family_v69218(family)
+    try:
+        year = int(year)
+    except Exception:
+        return []
+
+    query = (
+        f"{family} {year} "
+        "data-atp-current-source data-atp-source-status data-atp-model "
+        "data-atp-year-start data-atp-year-end data-atp-factory-system "
+        "data-atp-climate data-atp-protocol data-atp-profile "
+        "data-atp-product-series data-atp-product-code "
+        "data-atp-canonical-image-url "
+        + str(prompt_text or "")[:1200]
+    )
+    request = {
+        "tools": [{"type": "file_search", "vector_store_ids": [vector_store_id]}],
+        "input": query,
+    }
+    rows = _website_request_vector_search_rows_v69047(
+        request,
+        max_results=max(10, min(int(max_results or 50), 50)),
+    )
+    grouped = {}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        file_id = str(row.get("file_id") or "").strip()
+        if not file_id:
+            continue
+        bucket = grouped.setdefault(
+            file_id,
+            {
+                "file_id": file_id,
+                "filename": str(row.get("filename") or ""),
+                "snippets": [],
+            },
+        )
+        filename = str(row.get("filename") or "").strip()
+        if filename and not bucket.get("filename"):
+            bucket["filename"] = filename
+        text = str(row.get("text") or "").strip()
+        if text and text not in bucket["snippets"]:
+            bucket["snippets"].append(text)
+
+    packages = []
+    seen = set()
+    for group in grouped.values():
+        synthetic_row = {
+            "file_id": str(group.get("file_id") or ""),
+            "filename": str(group.get("filename") or ""),
+        }
+        package = _atp_branch_synthetic_package_from_snippets_v69218(
+            destination,
+            family,
+            year,
+            synthetic_row,
+            list(group.get("snippets") or []),
+        )
+        if not isinstance(package, dict):
+            continue
+        dedupe_key = (
+            str(package.get("source_url") or "").strip().casefold()
+            or str(package.get("file_id") or "").strip()
+            or str(package.get("filename") or "").strip().casefold()
+        )
+        if not dedupe_key or dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        packages.append(package)
+
+    diagnostic_log(
+        "atp_branch_vector_discovery_complete_v69222",
+        destination=str(destination),
+        family=str(family),
+        year=int(year),
+        search_rows=len(rows or []),
+        grouped_files=len(grouped),
+        recovered=len(packages),
+    )
+    return packages
+
+
 def _atp_branch_index_bootstrap_v69218(destination, prompt_text, family, year, vector_store_id):
     candidates = _atp_branch_filename_candidates_v69218(family, year, vector_store_id)
     if not candidates:
@@ -71343,6 +71447,46 @@ def _atp_branch_index_bootstrap_v69218(destination, prompt_text, family, year, v
                 package = None
             if isinstance(package, dict):
                 packages.append(package)
+
+    # v69222: filename discovery is only an optimization, never completeness
+    # authority. Search the vector store itself and validate every discovered file
+    # through the same exact family/year/current-source package validator.
+    try:
+        discovered_v69222 = _atp_branch_vector_discovered_packages_v69222(
+            destination,
+            prompt_text,
+            family,
+            year,
+            vector_store_id,
+            max_results=50,
+        )
+    except Exception as error_v69222:
+        discovered_v69222 = []
+        diagnostic_log(
+            "atp_branch_vector_discovery_failed_v69222",
+            destination=str(destination),
+            family=str(family),
+            year=int(year),
+            error_type=type(error_v69222).__name__,
+            error=str(error_v69222)[:600],
+        )
+
+    merged_packages_v69222 = []
+    seen_packages_v69222 = set()
+    for package in list(packages) + list(discovered_v69222 or []):
+        if not isinstance(package, dict):
+            continue
+        key_v69222 = (
+            str(package.get("source_url") or "").strip().casefold()
+            or str(package.get("file_id") or "").strip()
+            or str(package.get("filename") or "").strip().casefold()
+        )
+        if not key_v69222 or key_v69222 in seen_packages_v69222:
+            continue
+        seen_packages_v69222.add(key_v69222)
+        merged_packages_v69222.append(package)
+    packages = merged_packages_v69222
+
     for package in packages:
         try:
             _atp_branch_index_commit_package_v69218(package, destination, vector_store_id)
@@ -85238,6 +85382,7 @@ else:
                                     ),
                                 )
                                 technical_compiled_preflight_v69198 = {}
+                                technical_generic_branch_completeness_unproven_v69222 = True
                                 use_file_search = True
                         elif hydrated_preflight_v69211:
                             technical_compiled_preflight_v69198 = (
@@ -86979,6 +87124,41 @@ else:
                     # v69158: source/structure resolution already ran before v69124.
                     # This block only binds the recovered authority or applies fallback safety.
                     if technical_v69156_configuration_required:
+                        if (
+                            bool(
+                                locals().get(
+                                    "technical_generic_branch_completeness_unproven_v69222"
+                                )
+                            )
+                            and str(
+                                technical_full_package_authority_v69155.get("status")
+                                or ""
+                            ) == "recovered"
+                        ):
+                            diagnostic_log(
+                                "technical_single_package_blocked_after_generic_incomplete_v69222",
+                                file_id=str(
+                                    technical_full_package_authority_v69155.get(
+                                        "file_id"
+                                    )
+                                    or ""
+                                )[:160],
+                                source_url=str(
+                                    technical_full_package_authority_v69155.get(
+                                        "source_url"
+                                    )
+                                    or ""
+                                )[:700],
+                                section=str(
+                                    technical_full_package_authority_v69155.get(
+                                        "section_title"
+                                    )
+                                    or ""
+                                )[:300],
+                            )
+                            technical_full_package_authority_v69155 = {}
+                            use_file_search = True
+
                         if str(
                             technical_full_package_authority_v69155.get("status") or ""
                         ) == "recovered":
