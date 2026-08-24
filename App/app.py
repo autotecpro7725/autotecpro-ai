@@ -64962,6 +64962,17 @@ def _technical_exact_snapshot_source_urls_v69235(prompt_text, max_sources=8):
     except Exception:
         raw_urls = []
     explicit = _technical_explicit_factory_system_v69228(prompt_text)
+    # v69241 speed gate: reject only source URLs that positively contradict the
+    # requested vehicle family or year. Ambiguous URLs stay eligible and still
+    # pass the full SHA/package hard gates later, so accuracy is not weakened.
+    try:
+        requested_families_v69241 = {str(x).casefold().strip() for x in (_website_identity_vehicle_families_v69022(prompt_text) or set()) if str(x).strip()}
+    except Exception:
+        requested_families_v69241 = set()
+    try:
+        requested_years_v69241 = {int(x) for x in (_website_identity_years_v69022(prompt_text) or set())}
+    except Exception:
+        requested_years_v69241 = set()
     exact = []
     ambiguous = []
     seen = set()
@@ -64976,6 +64987,18 @@ def _technical_exact_snapshot_source_urls_v69235(prompt_text, max_sources=8):
         if not canonical or canonical in seen:
             continue
         seen.add(canonical)
+        try:
+            source_families_v69241 = {str(x).casefold().strip() for x in (_website_identity_vehicle_families_v69022(source_url) or set()) if str(x).strip()}
+        except Exception:
+            source_families_v69241 = set()
+        if requested_families_v69241 and source_families_v69241 and requested_families_v69241.isdisjoint(source_families_v69241):
+            continue
+        try:
+            source_years_v69241 = {int(x) for x in (_website_identity_years_v69022(source_url) or set())}
+        except Exception:
+            source_years_v69241 = set()
+        if requested_years_v69241 and source_years_v69241 and requested_years_v69241.isdisjoint(source_years_v69241):
+            continue
         tokens = _technical_factory_system_tokens_v69231(source_url, [])
         if explicit and tokens:
             if explicit in tokens:
@@ -70031,6 +70054,114 @@ def _technical_exact_verified_package_result_v69238(prompt_text, package):
 
 
 # ============================================================
+# v69241 — revision-safe verified configuration-set cache
+# ============================================================
+_TECHNICAL_CONFIGURATION_SET_CACHE_V69241 = {}
+_TECHNICAL_CONFIGURATION_SET_CACHE_LOCK_V69241 = threading.RLock()
+_TECHNICAL_CONFIGURATION_SET_CACHE_MAX_V69241 = 64
+
+def _technical_configuration_set_cache_key_v69241(store, revision, family, year):
+    try:
+        clean_year = int(year)
+    except Exception:
+        return ""
+    return "|".join((str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
+
+def _technical_configuration_set_cache_get_v69241(store, revision, family, year):
+    key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
+    if not key:
+        return {}
+    with _TECHNICAL_CONFIGURATION_SET_CACHE_LOCK_V69241:
+        value = _TECHNICAL_CONFIGURATION_SET_CACHE_V69241.get(key)
+        return dict(value or {}) if isinstance(value, dict) else {}
+
+def _technical_configuration_set_cache_put_v69241(store, revision, family, year, result):
+    value = dict(result or {})
+    if str(value.get("status") or "") != "recovered" or str(value.get("kind") or "") != "configuration_set":
+        return False
+    key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
+    if not key:
+        return False
+    with _TECHNICAL_CONFIGURATION_SET_CACHE_LOCK_V69241:
+        _TECHNICAL_CONFIGURATION_SET_CACHE_V69241[key] = value
+        while len(_TECHNICAL_CONFIGURATION_SET_CACHE_V69241) > _TECHNICAL_CONFIGURATION_SET_CACHE_MAX_V69241:
+            try:
+                oldest = next(iter(_TECHNICAL_CONFIGURATION_SET_CACHE_V69241))
+                _TECHNICAL_CONFIGURATION_SET_CACHE_V69241.pop(oldest, None)
+            except Exception:
+                break
+    return True
+
+def _technical_configuration_set_from_verified_packages_v69241(prompt_text, packages, family, year):
+    """Build all current model/year configuration results from already-verified packages.
+
+    No DB/vector/provider/network work is allowed here.  Packages have already passed
+    durable snapshot SHA, family/year scope and current-source hydration gates.  The
+    helper deliberately does not require a one-system package label: a current source
+    may legitimately contain several internal configuration branches.
+    """
+    rows = []
+    exact_images = []
+    seen = set()
+    for raw_package in packages or []:
+        package = dict(raw_package or {})
+        if not package or not str(package.get("package_text") or ""):
+            continue
+        source_url = str(package.get("source_url") or "").strip()
+        file_id = str(package.get("file_id") or "").strip()
+        try:
+            source_identity = canonical_website_url_identity(source_url) if source_url else file_id
+        except Exception:
+            source_identity = source_url.casefold() if source_url else file_id
+        identity = source_identity or file_id
+        if not identity or identity in seen:
+            continue
+        seen.add(identity)
+
+        system_tokens = set(_technical_factory_system_tokens_v69231(
+            " ".join((source_url, str(package.get("title") or package.get("page_title") or ""))),
+            package.get("systems") or [],
+        ) or [])
+        if len(system_tokens) == 1:
+            token = next(iter(system_tokens))
+            system_label = {"no_sync": "No SYNC", "sync1": "SYNC 1", "sync2": "SYNC 2", "sync3": "SYNC 3"}.get(token, token.replace("_", " "))
+            scoped_prompt = f"{prompt_text} {system_label}".strip()
+        else:
+            system_label = str(package.get("title") or package.get("page_title") or "Current Configuration").strip() or "Current Configuration"
+            scoped_prompt = str(prompt_text or "")
+
+        result = _technical_exact_verified_package_result_v69238(scoped_prompt, package)
+        if str((result or {}).get("status") or "") != "recovered":
+            # Generic current sources with multiple internal systems may not select
+            # one structural branch from an unqualified prompt.  Fall back only to
+            # their already-compiled current contract below; never provider/vector.
+            continue
+        authority = dict(result.get("authority") or {})
+        images = list(result.get("exact_images") or [])[:1]
+        rows.append({
+            "system_label": system_label,
+            "authority": authority,
+            "source_url": str(authority.get("source_url") or source_url),
+            "file_id": str(authority.get("file_id") or file_id),
+            "exact_images": images,
+        })
+        for url in images:
+            if url and url not in exact_images:
+                exact_images.append(url)
+
+    if len(rows) < 2:
+        return {}
+    order = {"No SYNC": 0, "SYNC 1": 1, "SYNC 2": 2, "SYNC 3": 3}
+    rows.sort(key=lambda row: (order.get(row.get("system_label"), 99), row.get("system_label") or "", row.get("source_url") or row.get("file_id") or ""))
+    return {
+        "status": "recovered", "kind": "configuration_set",
+        "family": str(family or ""), "year": int(year),
+        "authorities": rows, "exact_images": exact_images,
+        "multi_package_authority_v69239": True,
+        "verified_hydrated_set_v69241": True,
+    }
+
+# ============================================================
 # v69239 — model/year multi-package Technical authority
 # ============================================================
 def _technical_package_factory_system_label_v69239(package):
@@ -70404,6 +70535,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     immutable_cache_hits_v69232 = 0
     already_compiled_hits_v69232 = 0
     exact_hydrated_packages_v69238 = []
+    verified_hydrated_packages_v69241 = []
     revision_v69228 = _website_destination_revision_v69109(
         "Technical Support Database"
     )
@@ -70433,6 +70565,19 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         ):
             already_compiled_hits_v69232 += 1
             hydrated_v69228 += 1
+            if bool(payload_v69228.get("durable_snapshot_candidate_v69233")):
+                state_v69241 = _technical_compiled_contract_state_v69198()
+                with state_v69241["lock"]:
+                    cached_package_v69241 = dict((state_v69241.get("packages") or {}).get(file_id_v69228) or {})
+                if cached_package_v69241:
+                    cached_package_v69241.update({
+                        "file_id": file_id_v69228,
+                        "filename": filename_v69228 or str(cached_package_v69241.get("filename") or ""),
+                        "source_url": source_url_v69228 or str(cached_package_v69241.get("source_url") or ""),
+                        "title": str(cached_package_v69241.get("title") or payload_v69228.get("title") or ""),
+                        "systems": list(payload_v69228.get("systems") or cached_package_v69241.get("systems") or []),
+                    })
+                    verified_hydrated_packages_v69241.append(cached_package_v69241)
             continue
 
         recovered_v69232 = _technical_verified_snapshot_package_v69232(
@@ -70492,6 +70637,8 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             rejected_v69228 += 1
             continue
         hydrated_v69228 += 1
+        if bool(payload_v69228.get("durable_snapshot_candidate_v69233")):
+            verified_hydrated_packages_v69241.append(dict(package_v69228))
         if (
             explicit_factory_system_v69228
             and bool(payload_v69228.get("durable_snapshot_candidate_v69233"))
@@ -70523,10 +70670,27 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     # executes entirely in memory after hydration and therefore avoids the old
     # single-source pointer + vector fallback path for legitimate overlaps.
     if not explicit_factory_system_v69228:
+        multi_result_v69241 = _technical_configuration_set_from_verified_packages_v69241(
+            prompt_text, verified_hydrated_packages_v69241, family, year
+        )
+        if str((multi_result_v69241 or {}).get("status") or "") == "recovered":
+            _technical_configuration_set_cache_put_v69241(
+                clean_store, revision_v69228, family, year, multi_result_v69241
+            )
+            diagnostic_log(
+                "technical_verified_hydrated_multi_match_bound_v69241",
+                family=family, year=int(year),
+                packages=len(multi_result_v69241.get("authorities") or []),
+                systems=[str(row.get("system_label") or "") for row in (multi_result_v69241.get("authorities") or []) if isinstance(row, dict)],
+            )
+            return multi_result_v69241
         multi_result_v69239 = _technical_multi_package_configuration_result_v69239(
             prompt_text, clean_store, family, year
         )
         if str((multi_result_v69239 or {}).get("status") or "") == "recovered":
+            _technical_configuration_set_cache_put_v69241(
+                clean_store, revision_v69228, family, year, multi_result_v69239
+            )
             diagnostic_log(
                 "technical_multi_package_configuration_bound_v69239",
                 family=family,
@@ -71234,6 +71398,28 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
     current_revision = _website_destination_revision_v69109(
         "Technical Support Database"
     )
+    # v69241 warm fast path: reuse only a revision-bound result previously built
+    # from SHA-verified current packages. Generic requests return the full set; an
+    # explicit factory-system request may reuse exactly one matching branch.
+    cached_set_v69241 = _technical_configuration_set_cache_get_v69241(
+        clean_store, current_revision, families[0], years[0]
+    )
+    if str((cached_set_v69241 or {}).get("status") or "") == "recovered":
+        cached_explicit_system_v69241 = _technical_explicit_factory_system_v69228(prompt)
+        cached_prompt_systems_v69241 = set(_website_identity_systems_v69022(prompt))
+        cached_prompt_codes_v69241 = {str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
+        if not cached_explicit_system_v69241 and not cached_prompt_systems_v69241 and not cached_prompt_codes_v69241:
+            diagnostic_log("technical_configuration_set_cache_hit_v69241", family=str(families[0]), year=int(years[0]), packages=len(cached_set_v69241.get("authorities") or []))
+            return cached_set_v69241
+        if cached_explicit_system_v69241:
+            label_map_v69241 = {"no_sync": "no sync", "sync1": "sync 1", "sync2": "sync 2", "sync3": "sync 3"}
+            wanted_v69241 = label_map_v69241.get(cached_explicit_system_v69241, str(cached_explicit_system_v69241).replace("_", " "))
+            matched_v69241 = [row for row in (cached_set_v69241.get("authorities") or []) if isinstance(row, dict) and str(row.get("system_label") or "").casefold() == wanted_v69241]
+            if len(matched_v69241) == 1:
+                authority_v69241 = dict(matched_v69241[0].get("authority") or {})
+                if str(authority_v69241.get("status") or "") == "recovered":
+                    diagnostic_log("technical_configuration_branch_cache_hit_v69241", family=str(families[0]), year=int(years[0]), system=wanted_v69241)
+                    return {"status": "recovered", "kind": "configuration", "authority": authority_v69241, "exact_images": list(matched_v69241[0].get("exact_images") or []), "configuration_set_cache_branch_v69241": True}
     state = _technical_compiled_contract_state_v69198()
     with state["lock"]:
         if (
@@ -71324,15 +71510,15 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
                 )),
                 contract_v69240.get("systems") or [],
             )
-            if len(system_tokens_v69240) != 1:
-                continue
-            system_token_v69240 = next(iter(system_tokens_v69240))
-            system_label_v69240 = {
-                "no_sync": "No SYNC",
-                "sync1": "SYNC 1",
-                "sync2": "SYNC 2",
-                "sync3": "SYNC 3",
-            }.get(system_token_v69240, system_token_v69240.replace("_", " "))
+            system_label_v69240 = ""
+            if len(system_tokens_v69240) == 1:
+                system_token_v69240 = next(iter(system_tokens_v69240))
+                system_label_v69240 = {
+                    "no_sync": "No SYNC", "sync1": "SYNC 1",
+                    "sync2": "SYNC 2", "sync3": "SYNC 3",
+                }.get(system_token_v69240, system_token_v69240.replace("_", " "))
+            if not system_label_v69240:
+                system_label_v69240 = str(contract_v69240.get("page_title") or contract_v69240.get("source_url") or pid_v69240).strip()
             section_id_v69240 = str(contract_v69240.get("section_id") or "").casefold()
             section_title_v69240 = str(contract_v69240.get("section_title") or "").casefold()
             preferred_v69240 = bool(
@@ -71369,15 +71555,15 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
                     )),
                     contract_v69240.get("systems") or [],
                 )
-                if len(system_tokens_v69240) != 1:
-                    continue
-                system_token_v69240 = next(iter(system_tokens_v69240))
-                system_label_v69240 = {
-                    "no_sync": "No SYNC",
-                    "sync1": "SYNC 1",
-                    "sync2": "SYNC 2",
-                    "sync3": "SYNC 3",
-                }.get(system_token_v69240, system_token_v69240.replace("_", " "))
+                system_label_v69240 = ""
+                if len(system_tokens_v69240) == 1:
+                    system_token_v69240 = next(iter(system_tokens_v69240))
+                    system_label_v69240 = {
+                        "no_sync": "No SYNC", "sync1": "SYNC 1",
+                        "sync2": "SYNC 2", "sync3": "SYNC 3",
+                    }.get(system_token_v69240, system_token_v69240.replace("_", " "))
+                if not system_label_v69240:
+                    system_label_v69240 = str(contract_v69240.get("page_title") or contract_v69240.get("source_url") or pid_v69240).strip()
                 source_url_v69240 = str(contract_v69240.get("source_url") or "").strip()
                 try:
                     source_identity_v69240 = canonical_website_url_identity(source_url_v69240) if source_url_v69240 else pid_v69240
@@ -71412,7 +71598,7 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
                     "selected_segments_v69158": list(contract_v69240.get("segments") or []),
                     "image_evidence": list(contract_v69240.get("config_image_evidence_v69204") or []),
                     "atp_semantics_v69178": dict(package_v69240.get("atp_semantics_v69178") or {}),
-                    "selector_version": 69240,
+                    "selector_version": 69241,
                     "compiled_runtime_contract_v69198": True,
                     "multi_match_branch_v69240": True,
                 }
@@ -82629,6 +82815,10 @@ else:
             )
 
         technical_compiled_preflight_v69198 = {}
+        # v69241: every Technical execution route owns a defined evidence mapping.
+        # This is initialization only; later authoritative paths overwrite it.
+        if assistant == "🔧 Technical Support":
+            technical_variant_evidence_v69124 = {}
         if (
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
@@ -85292,12 +85482,18 @@ else:
                                     answer_body,
                                     technical_variant_evidence_v69124,
                                 )
-                            answer_body = _technical_final_factual_qa_v69158(
-                                technical_request_prompt_v68879,
-                                answer_body,
-                                locals().get("technical_full_package_authority_v69155") or {},
-                                technical_variant_evidence_v69124,
-                            )
+                            if str((locals().get("technical_multi_package_configuration_v69239") or {}).get("status") or "") != "recovered":
+                                answer_body = _technical_final_factual_qa_v69158(
+                                    technical_request_prompt_v68879,
+                                    answer_body,
+                                    locals().get("technical_full_package_authority_v69155") or {},
+                                    technical_variant_evidence_v69124,
+                                )
+                            else:
+                                diagnostic_log(
+                                    "technical_multi_package_single_authority_qa_bypassed_v69241",
+                                    packages=len((locals().get("technical_multi_package_configuration_v69239") or {}).get("authorities") or []),
+                                )
                             # v69139: exact v69125 Technical-output authority restored.
                             # Do not run the later v69126/v69127 generic row split/expansion
                             # after the v69125 contract.  v69137 durability/persistence and
@@ -86144,7 +86340,39 @@ else:
             current_final_authority_v69184 = dict(
                 locals().get("technical_full_package_authority_v69155") or {}
             )
-            if exact_final_authority_v69176:
+            multi_final_authority_v69241 = dict(
+                locals().get("technical_multi_package_configuration_v69239") or {}
+            )
+            if str(multi_final_authority_v69241.get("status") or "") == "recovered":
+                multi_exact_images_v69241 = []
+                for multi_row_v69241 in multi_final_authority_v69241.get("authorities") or []:
+                    if not isinstance(multi_row_v69241, dict):
+                        continue
+                    branch_authority_v69241 = dict(multi_row_v69241.get("authority") or {})
+                    if str(branch_authority_v69241.get("status") or "") != "recovered":
+                        continue
+                    branch_images_v69241 = _technical_exact_authority_chat_images_v69170(
+                        technical_request_prompt_v68879, branch_authority_v69241, max_images=1
+                    )
+                    branch_images_v69241 = _technical_verify_published_images_v69158(
+                        _dedupe_website_chat_images_v68883(branch_images_v69241 or []),
+                        branch_authority_v69241, technical_request_prompt_v68879,
+                    )
+                    for image_v69241 in branch_images_v69241 or []:
+                        multi_exact_images_v69241.append(image_v69241)
+                non_website_images_v69241 = [
+                    x for x in assistant_images_to_save
+                    if not (isinstance(x, dict) and str(x.get("source") or "") == "website_knowledge")
+                ]
+                assistant_images_to_save = _dedupe_website_chat_images_v68883(
+                    non_website_images_v69241 + multi_exact_images_v69241
+                )
+                diagnostic_log(
+                    "technical_multi_package_final_images_bound_v69241",
+                    packages=len(multi_final_authority_v69241.get("authorities") or []),
+                    published=len(multi_exact_images_v69241),
+                )
+            elif exact_final_authority_v69176:
                 exact_final_images_v69176 = _technical_v69125_exact_images_v69175(
                     technical_request_prompt_v68879,
                     exact_final_authority_v69176,
