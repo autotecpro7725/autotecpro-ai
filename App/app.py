@@ -6,6 +6,8 @@
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
+
+# AutoTecPro AI v69232 — stability-first immutable Technical cold-cache optimization over v69231
 import streamlit.components.v1 as components
 from streamlit_cookies_controller import CookieController
 from openai import OpenAI
@@ -65284,6 +65286,9 @@ def _technical_active_authority_commit_verified_v69167(
 
 
 
+_TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228 = False
+
+
 def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
     """Bounded exact-file read for current Technical authority.
 
@@ -65293,8 +65298,16 @@ def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
     the existing fail-closed/fallback path. This prevents one file-content request
     from holding the Streamlit request for minutes.
     """
+    global _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228
     clean_id = str(file_id or "").strip()
     if not clean_id:
+        return ""
+    if _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228:
+        diagnostic_log(
+            "technical_assistants_file_content_skip_v69230",
+            file_id=clean_id[:160],
+            reason="CAPABILITY_ALREADY_PROVEN_UNSUPPORTED",
+        )
         return ""
     try:
         fast_client = client.with_options(
@@ -65303,12 +65316,23 @@ def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
         )
         response = fast_client.files.content(clean_id)
     except Exception as error:
+        error_text_v69228 = str(error or "")
+        if (
+            "Not allowed to download files of purpose: assistants"
+            in error_text_v69228
+        ):
+            _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228 = True
+            diagnostic_log(
+                "technical_assistants_file_content_disabled_v69228",
+                file_id=clean_id[:160],
+                reason="NON_RETRYABLE_ASSISTANTS_FILE_PURPOSE",
+            )
         diagnostic_log(
             "technical_exact_file_read_bounded_failed_v69182",
             file_id=clean_id[:160],
             timeout_seconds=float(timeout_seconds or 3.5),
             error_type=type(error).__name__,
-            error=str(error)[:300],
+            error=error_text_v69228[:300],
         )
         return ""
 
@@ -68452,6 +68476,25 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
         requested_auto_v69207 = bool(
             re.search(r"\b(?:auto|automatic)\b", prompt_cf_v69207)
         )
+        # v69228: explicit configuration axes are hard filters, not soft score
+        # terms.  This closes the v69227 defect where SYNC 1/2/3 Manual queries
+        # could retain several Manual profiles and where SYNC 3 4.3 vs 8-inch
+        # could remain ambiguous.
+        requested_sync_v69228 = ""
+        sync_match_v69228 = re.search(r"\bsync\s*([123])\b", prompt_cf_v69207)
+        if sync_match_v69228:
+            requested_sync_v69228 = "sync " + sync_match_v69228.group(1)
+        requested_screen_v69228 = ""
+        screen_match_v69228 = re.search(
+            r"\b(4(?:[._ ]3)?|8)(?:\s*(?:-| )?inch|[\"”])?\b",
+            prompt_cf_v69207,
+        )
+        if screen_match_v69228:
+            raw_screen_v69228 = str(screen_match_v69228.group(1) or "").replace("_", ".").replace(" ", ".")
+            if raw_screen_v69228 in {"4.3", "43"}:
+                requested_screen_v69228 = "4.3-inch"
+            elif raw_screen_v69228 == "8":
+                requested_screen_v69228 = "8-inch"
 
         for profile_carrier_v69207 in profile_carriers_v69207:
             for key_v69201, raw_profile_v69201 in dict(
@@ -68517,6 +68560,13 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
                 )
 
                 label_cf_v69207 = label_v69201.casefold()
+                if requested_sync_v69228 and requested_sync_v69228 not in label_cf_v69207:
+                    continue
+                if requested_screen_v69228:
+                    if requested_screen_v69228 not in label_cf_v69207:
+                        # Profiles whose suffix carries no screen token are not an
+                        # exact match when the user explicitly supplied one.
+                        continue
                 if requested_manual_v69207 and "manual" not in label_cf_v69207:
                     continue
                 if (
@@ -69259,27 +69309,49 @@ def _technical_compiled_runtime_merge_package_v69199(package, store, revision):
         if not package_id:
             return False
 
-        # Remove older compiled entries for the exact family/year scopes carried by
-        # this verified current package, while preserving unrelated warm packages.
-        target_scopes = {
-            (str(f).casefold(), int(y))
-            for contract in contracts
-            for f in (contract.get("families") or [])
-            for y in (contract.get("years") or [])
-            if str(f).strip()
-        }
+        # v69228: preserve legitimate peer current packages that overlap on the
+        # same family/year.  v69227 removed the whole family/year bucket whenever
+        # one package was merged, which made e.g. 2015 F-250 SYNC 2 overwrite the
+        # equally-current 2015 F-250 No-SYNC package.  Only replace contracts that
+        # belong to this exact file/source identity; hard system/climate routing is
+        # applied later at query time.
+        incoming_source_v69228 = str(package.get("source_url") or "").strip()
+        try:
+            incoming_canonical_v69228 = (
+                canonical_website_url_identity(incoming_source_v69228)
+                if incoming_source_v69228 else ""
+            )
+        except Exception:
+            incoming_canonical_v69228 = ""
         remove_ids = set()
-        for bucket_key, ids in list((state.get("buckets") or {}).items()):
-            try:
-                _, fam, year_text = bucket_key.rsplit("|", 2)
-                scope = (str(fam).casefold(), int(year_text))
-            except Exception:
-                scope = None
-            if scope in target_scopes:
-                remove_ids.update(ids or [])
-                state["buckets"].pop(bucket_key, None)
-        for cid in remove_ids:
-            state["contracts"].pop(cid, None)
+        for cid_v69228, existing_contract_v69228 in list((state.get("contracts") or {}).items()):
+            if not isinstance(existing_contract_v69228, dict):
+                continue
+            same_file_v69228 = bool(
+                str(existing_contract_v69228.get("file_id") or "").strip()
+                and str(existing_contract_v69228.get("file_id") or "").strip() == package_id
+            )
+            same_source_v69228 = False
+            existing_source_v69228 = str(existing_contract_v69228.get("source_url") or "").strip()
+            if incoming_canonical_v69228 and existing_source_v69228:
+                try:
+                    same_source_v69228 = (
+                        canonical_website_url_identity(existing_source_v69228)
+                        == incoming_canonical_v69228
+                    )
+                except Exception:
+                    same_source_v69228 = False
+            if same_file_v69228 or same_source_v69228:
+                remove_ids.add(cid_v69228)
+        if remove_ids:
+            for bucket_key_v69228, ids_v69228 in list((state.get("buckets") or {}).items()):
+                kept_ids_v69228 = [cid for cid in (ids_v69228 or []) if cid not in remove_ids]
+                if kept_ids_v69228:
+                    state["buckets"][bucket_key_v69228] = kept_ids_v69228
+                else:
+                    state["buckets"].pop(bucket_key_v69228, None)
+            for cid_v69228 in remove_ids:
+                state["contracts"].pop(cid_v69228, None)
 
         state["packages"][package_id] = {
             "package_text": str(package.get("package_text") or ""),
@@ -69393,33 +69465,57 @@ def _technical_resolve_family_year_v69199(prompt_text, store="", allow_registry=
     return "", None
 
 
-def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
-    """Cold-path hydrate from the verified durable snapshot, not OpenAI/vector search."""
-    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
-    clean_store = str(store or "").strip()
-    family, year = _technical_resolve_family_year_v69199(
-        prompt,
-        clean_store,
-        allow_registry=True,
-    )
-    if not family or year is None:
-        return {}
-    pointer = dict(
-        _technical_active_authority_row_v69164(
-            family,
-            year,
-            clean_store,
-        ) or {}
-    )
-    if not pointer:
-        return {}
 
-    source_url = str(pointer.get("source_url") or "").strip()
-    file_id = str(pointer.get("file_id") or "").strip()
-    filename = str(pointer.get("filename") or "").strip()
-    expected_sha = str(pointer.get("snapshot_sha256_v69171") or "").strip()
-    if not source_url or not file_id:
-        return {}
+# ============================================================
+# v69232 — stability-first immutable Technical cold-path reuse
+# ============================================================
+# These caches are deliberately narrow.  They are keyed by the durable source
+# SHA-256, so a new learned revision/content hash can never reuse an old package.
+# They do not alter routing, ranking, provider behavior, QA, images, or any
+# non-Technical workspace.
+_TECHNICAL_IMMUTABLE_PACKAGE_CACHE_V69232 = {}
+_TECHNICAL_IMMUTABLE_PACKAGE_CACHE_LOCK_V69232 = threading.RLock()
+_TECHNICAL_IMMUTABLE_PACKAGE_CACHE_MAX_V69232 = 32
+
+
+def _technical_immutable_package_cache_key_v69232(source_url, file_id, store, expected_sha256):
+    sha = str(expected_sha256 or "").strip().casefold()
+    if not sha:
+        return ""
+    source = str(source_url or "").strip()
+    try:
+        source = canonical_website_url_identity(source) if source else ""
+    except Exception:
+        source = source.casefold()
+    return "|".join((str(store or "").strip(), source, str(file_id or "").strip(), sha))
+
+
+def _technical_verified_snapshot_package_v69232(payload, clean_store):
+    """Recover + parse one immutable durable package, with SHA-keyed reuse only.
+
+    Safety properties:
+    - cache is disabled when the durable row has no expected SHA;
+    - source/store/file/SHA all participate in the cache identity;
+    - the original v69171 recovery and v69121 parser remain the source of truth;
+    - returned mappings are shallow copies so callers cannot mutate cache state.
+    """
+    payload = dict(payload or {})
+    source_url = str(payload.get("source_url") or "").strip()
+    file_id = str(payload.get("file_id") or "").strip()
+    filename = str(payload.get("filename") or "").strip()
+    expected_sha = str(payload.get("snapshot_sha256_v69171") or "").strip()
+    key = _technical_immutable_package_cache_key_v69232(
+        source_url, file_id, clean_store, expected_sha
+    )
+    if key:
+        with _TECHNICAL_IMMUTABLE_PACKAGE_CACHE_LOCK_V69232:
+            cached = _TECHNICAL_IMMUTABLE_PACKAGE_CACHE_V69232.get(key)
+            if isinstance(cached, dict):
+                return {
+                    "snapshot": dict(cached.get("snapshot") or {}),
+                    "package": dict(cached.get("package") or {}),
+                    "cache_hit_v69232": True,
+                }
 
     snapshot = dict(
         _technical_durable_snapshot_recover_v69171(
@@ -69430,9 +69526,9 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     )
     if not snapshot:
         return {}
-    if str(snapshot.get("file_id") or "").strip() not in {"", file_id}:
+    snapshot_file = str(snapshot.get("file_id") or "").strip()
+    if snapshot_file and snapshot_file != file_id:
         return {}
-
     package_text = str(snapshot.get("package_text") or "")
     package = _technical_package_from_text_v69121(
         file_id,
@@ -69442,35 +69538,265 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     if not isinstance(package, dict):
         return {}
 
-    if family not in {
-        str(x).casefold() for x in (package.get("vehicle_families") or [])
-    }:
-        return {}
-    if year not in {
-        int(x) for x in (package.get("years") or []) if str(x).strip().isdigit()
-    }:
+    result = {"snapshot": snapshot, "package": package, "cache_hit_v69232": False}
+    if key:
+        with _TECHNICAL_IMMUTABLE_PACKAGE_CACHE_LOCK_V69232:
+            _TECHNICAL_IMMUTABLE_PACKAGE_CACHE_V69232[key] = {
+                "snapshot": dict(snapshot), "package": dict(package)
+            }
+            while len(_TECHNICAL_IMMUTABLE_PACKAGE_CACHE_V69232) > _TECHNICAL_IMMUTABLE_PACKAGE_CACHE_MAX_V69232:
+                try:
+                    oldest = next(iter(_TECHNICAL_IMMUTABLE_PACKAGE_CACHE_V69232))
+                    _TECHNICAL_IMMUTABLE_PACKAGE_CACHE_V69232.pop(oldest, None)
+                except Exception:
+                    break
+    return result
+
+
+def _technical_compiled_package_present_v69232(file_id, source_url, store, revision):
+    """Return True only for an already-verified package in the current revision."""
+    clean_file = str(file_id or "").strip()
+    clean_source = str(source_url or "").strip()
+    try:
+        clean_source = canonical_website_url_identity(clean_source) if clean_source else ""
+    except Exception:
+        clean_source = clean_source.casefold()
+    state = _technical_compiled_contract_state_v69198()
+    with state["lock"]:
+        if (
+            str(state.get("store") or "") != str(store or "").strip()
+            or int(state.get("revision") or -1) != int(revision or 0)
+        ):
+            return False
+        packages = state.get("packages") or {}
+        # Exact file lookup first keeps the warm check O(1) for the normal path.
+        candidate_items = []
+        if clean_file and isinstance(packages.get(clean_file), dict):
+            candidate_items.append((clean_file, packages.get(clean_file)))
+        else:
+            candidate_items.extend(packages.items())
+        for package_id, package in candidate_items:
+            if not isinstance(package, dict):
+                continue
+            file_match = bool(
+                clean_file
+                and str(package.get("file_id") or package_id).strip() == clean_file
+            )
+            existing_source = str(package.get("source_url") or "").strip()
+            source_match = False
+            if clean_source and existing_source:
+                try:
+                    existing_source = canonical_website_url_identity(existing_source)
+                except Exception:
+                    existing_source = existing_source.casefold()
+                source_match = bool(existing_source == clean_source)
+            # When both identities are supplied, require both. This prevents a
+            # stale/corrupt registry row from being accepted merely because it
+            # happens to reuse a file id or URL independently.
+            if clean_file and clean_source:
+                if file_match and source_match:
+                    return True
+            elif clean_file and file_match:
+                return True
+            elif clean_source and source_match:
+                return True
+    return False
+
+
+def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
+    """Cold-path hydrate all compatible current packages for one family/year.
+
+    v69228 fixes the v69227 single-pointer authority defect.  The legacy durable
+    pointer is retained as a fast hint, but it is never sufficient by itself for
+    an overlapping family/year.  Compatible durable registry rows are enumerated,
+    each recovered snapshot is re-parsed and identity-scored against the actual
+    prompt, and only verified packages are merged into the compiled index.
+    """
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    clean_store = str(store or "").strip()
+    family, year = _technical_resolve_family_year_v69199(
+        prompt,
+        clean_store,
+        allow_registry=True,
+    )
+    if not family or year is None:
         return {}
 
-    revision = _website_destination_revision_v69109(
+    prompt_systems_v69228 = set(_website_identity_systems_v69022(prompt))
+    explicit_factory_system_v69228 = _technical_explicit_factory_system_v69228(prompt)
+    candidate_payloads_v69228 = []
+    seen_source_v69228 = set()
+
+    # Keep the active pointer as a latency hint only.  It must pass the same
+    # package identity validation as every registry candidate below.
+    pointer_v69228 = dict(
+        _technical_active_authority_row_v69164(family, year, clean_store) or {}
+    )
+    if pointer_v69228:
+        pointer_factory_system_v69228 = _technical_single_factory_system_v69230(
+            " ".join((
+                str(pointer_v69228.get("source_url") or ""),
+                str(pointer_v69228.get("title") or ""),
+            )),
+            pointer_v69228.get("systems") or [],
+        )
+        pointer_system_tokens_v69231 = _technical_factory_system_tokens_v69231(
+            " ".join((
+                str(pointer_v69228.get("source_url") or ""),
+                str(pointer_v69228.get("title") or ""),
+            )),
+            pointer_v69228.get("systems") or [],
+        )
+        if not (
+            explicit_factory_system_v69228
+            and pointer_system_tokens_v69231
+            and explicit_factory_system_v69228 not in pointer_system_tokens_v69231
+        ):
+            candidate_payloads_v69228.append(pointer_v69228)
+
+    try:
+        registry_rows_v69228 = list(_technical_registry_rows_v69162(clean_store) or [])
+    except Exception:
+        registry_rows_v69228 = []
+    for registry_row_v69228 in registry_rows_v69228:
+        if not isinstance(registry_row_v69228, dict):
+            continue
+        row_families_v69228 = {
+            str(x).casefold().strip()
+            for x in (registry_row_v69228.get("vehicle_families") or [])
+            if str(x).strip()
+        }
+        row_years_v69228 = set()
+        for raw_year_v69228 in registry_row_v69228.get("years") or []:
+            try:
+                row_years_v69228.add(int(raw_year_v69228))
+            except Exception:
+                pass
+        if family not in row_families_v69228 or int(year) not in row_years_v69228:
+            continue
+        row_systems_v69228 = {
+            str(x) for x in (registry_row_v69228.get("systems") or []) if str(x).strip()
+        }
+        row_factory_system_v69228 = _technical_single_factory_system_v69230(
+            " ".join((
+                str(registry_row_v69228.get("source_url") or ""),
+                str(registry_row_v69228.get("title") or ""),
+            )),
+            row_systems_v69228,
+        )
+        row_system_tokens_v69231 = _technical_factory_system_tokens_v69231(
+            " ".join((
+                str(registry_row_v69228.get("source_url") or ""),
+                str(registry_row_v69228.get("title") or ""),
+            )),
+            row_systems_v69228,
+        )
+        if (
+            explicit_factory_system_v69228
+            and row_system_tokens_v69231
+            and explicit_factory_system_v69228 not in row_system_tokens_v69231
+        ):
+            continue
+        if prompt_systems_v69228 and row_systems_v69228 and not prompt_systems_v69228.issubset(row_systems_v69228):
+            continue
+        candidate_payloads_v69228.append(dict(registry_row_v69228))
+
+    hydrated_v69228 = 0
+    rejected_v69228 = 0
+    immutable_cache_hits_v69232 = 0
+    already_compiled_hits_v69232 = 0
+    revision_v69228 = _website_destination_revision_v69109(
         "Technical Support Database"
     )
-    if not _technical_compiled_runtime_merge_package_v69199(
-        package,
-        clean_store,
-        revision,
-    ):
-        return {}
+    for payload_v69228 in candidate_payloads_v69228:
+        source_url_v69228 = str(payload_v69228.get("source_url") or "").strip()
+        file_id_v69228 = str(payload_v69228.get("file_id") or "").strip()
+        filename_v69228 = str(payload_v69228.get("filename") or "").strip()
+        expected_sha_v69228 = str(payload_v69228.get("snapshot_sha256_v69171") or "").strip()
+        if not source_url_v69228 or not file_id_v69228:
+            continue
+        try:
+            canonical_v69228 = canonical_website_url_identity(source_url_v69228)
+        except Exception:
+            canonical_v69228 = source_url_v69228.casefold()
+        identity_key_v69228 = canonical_v69228 or file_id_v69228
+        if identity_key_v69228 in seen_source_v69228:
+            continue
+        seen_source_v69228.add(identity_key_v69228)
+
+        # v69232: if this exact verified package is already merged for the
+        # current Technical revision, do not touch Supabase or reparse it.
+        if _technical_compiled_package_present_v69232(
+            file_id_v69228,
+            source_url_v69228,
+            clean_store,
+            revision_v69228,
+        ):
+            already_compiled_hits_v69232 += 1
+            hydrated_v69228 += 1
+            continue
+
+        recovered_v69232 = _technical_verified_snapshot_package_v69232(
+            payload_v69228, clean_store
+        )
+        if not recovered_v69232:
+            rejected_v69228 += 1
+            continue
+        if recovered_v69232.get("cache_hit_v69232"):
+            immutable_cache_hits_v69232 += 1
+        snapshot_v69228 = dict(recovered_v69232.get("snapshot") or {})
+        package_v69228 = dict(recovered_v69232.get("package") or {})
+        if not package_v69228:
+            rejected_v69228 += 1
+            continue
+
+        # Hard family/year check prevents cache/registry corruption such as an
+        # F-150 key hydrating a Mercedes Sprinter package.
+        package_families_v69228 = {
+            str(x).casefold() for x in (package_v69228.get("vehicle_families") or [])
+        }
+        package_years_v69228 = set()
+        for raw_year_v69228 in package_v69228.get("years") or []:
+            try:
+                package_years_v69228.add(int(raw_year_v69228))
+            except Exception:
+                pass
+        if family not in package_families_v69228 or int(year) not in package_years_v69228:
+            rejected_v69228 += 1
+            diagnostic_log(
+                "technical_compiled_identity_rejected_v69228",
+                requested_family=family,
+                requested_year=int(year),
+                file_id=file_id_v69228[:160],
+                source_url=source_url_v69228[:700],
+            )
+            continue
+
+        scored_v69228 = _technical_package_candidate_score_v69157(prompt, package_v69228)
+        if not scored_v69228:
+            rejected_v69228 += 1
+            continue
+        if not _technical_compiled_runtime_merge_package_v69199(
+            package_v69228,
+            clean_store,
+            revision_v69228,
+        ):
+            rejected_v69228 += 1
+            continue
+        hydrated_v69228 += 1
 
     diagnostic_log(
-        "technical_compiled_on_demand_hydrated_v69199",
+        "technical_compiled_on_demand_hydrated_v69228",
         family=family,
-        year=year,
-        file_id=file_id[:160],
-        source_url=source_url[:700],
-        embedded_payload=bool(
-            _technical_compiled_payload_from_text_v69199(package_text)
-        ),
+        year=int(year),
+        candidates=len(candidate_payloads_v69228),
+        hydrated=hydrated_v69228,
+        rejected=rejected_v69228,
+        immutable_cache_hits_v69232=immutable_cache_hits_v69232,
+        already_compiled_hits_v69232=already_compiled_hits_v69232,
     )
+    if hydrated_v69228 <= 0:
+        return {}
     return _technical_compiled_contract_lookup_v69198(prompt_text, clean_store)
 
 
@@ -70070,6 +70396,49 @@ def _technical_compiled_runtime_inject_v69198(package, store, revision):
     )
 
 
+def _technical_explicit_factory_system_v69228(value):
+    """Return an explicit factory-system constraint from a user/source string."""
+    norm = _technical_contract_norm_v69198(value)
+    if re.search(r"\b(?:no|non)\s+sync\b|\bnosync\b", norm, flags=re.I):
+        return "no_sync"
+    match = re.search(r"\bsync\s*([123])\b", norm, flags=re.I)
+    if match:
+        return "sync" + match.group(1)
+    return ""
+
+
+def _technical_factory_system_tokens_v69231(value, systems=None):
+    """Return all explicit factory-system tokens carried by source/contract evidence."""
+    tokens = set()
+    norm = _technical_contract_norm_v69198(value)
+    if re.search(r"\b(?:no|non)\s+sync\b|\bnosync\b", norm, flags=re.I):
+        tokens.add("no_sync")
+    for match in re.finditer(r"\bsync\s*([123])\b", norm, flags=re.I):
+        tokens.add("sync" + match.group(1))
+    for raw_system in (systems or []):
+        token = _technical_explicit_factory_system_v69228(str(raw_system or ""))
+        if token:
+            tokens.add(token)
+    return tokens
+
+
+def _technical_single_factory_system_v69230(value, systems=None):
+    """Return one hard factory-system constraint only when evidence is unambiguous."""
+    detected = _technical_factory_system_tokens_v69231(value, systems)
+    return next(iter(detected)) if len(detected) == 1 else ""
+
+
+def _technical_contract_factory_system_v69228(contract):
+    values = [
+        str(contract.get("source_url") or ""),
+        str(contract.get("page_title") or ""),
+        str(contract.get("section_title") or ""),
+    ]
+    return _technical_single_factory_system_v69230(
+        " ".join(values), contract.get("systems") or []
+    )
+
+
 def _technical_compiled_contract_lookup_v69198(prompt_text, store):
     """O(1)-bucket + tiny local section match; no DB/vector/provider calls."""
     prompt = _technical_settings_routing_prompt_v69117(prompt_text)
@@ -70134,6 +70503,7 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         scoring_prompt_tokens_v69198 = set(prompt_tokens)
 
     prompt_systems = set(_website_identity_systems_v69022(prompt))
+    explicit_factory_system_v69228 = _technical_explicit_factory_system_v69228(prompt)
     prompt_codes = {
         str(x).casefold() for x in _website_image_product_codes_v69020(prompt)
     }
@@ -70152,6 +70522,21 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
     for contract in contracts:
         systems = set(contract.get("systems") or [])
         codes = {str(x).casefold() for x in (contract.get("product_codes") or [])}
+        contract_factory_system_v69228 = _technical_contract_factory_system_v69228(contract)
+        contract_system_tokens_v69231 = _technical_factory_system_tokens_v69231(
+            " ".join((
+                str(contract.get("source_url") or ""),
+                str(contract.get("page_title") or ""),
+                str(contract.get("section_title") or ""),
+            )),
+            contract.get("systems") or [],
+        )
+        if (
+            explicit_factory_system_v69228
+            and contract_system_tokens_v69231
+            and explicit_factory_system_v69228 not in contract_system_tokens_v69231
+        ):
+            continue
         if prompt_systems and systems and not prompt_systems.issubset(systems):
             continue
         if prompt_codes and codes and not (prompt_codes & codes):
