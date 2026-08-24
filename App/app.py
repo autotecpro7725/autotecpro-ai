@@ -69939,6 +69939,284 @@ def _technical_compiled_package_present_v69232(file_id, source_url, store, revis
     return False
 
 
+
+def _technical_exact_verified_package_result_v69238(prompt_text, package):
+    """Build configuration authority directly from one exact verified package.
+
+    This is a narrow fail-safe bridge for the case where a SHA-verified, exact
+    family/year/factory-system package has been hydrated successfully but the
+    generic compiled section scorer cannot select a unique configuration
+    contract.  It uses only the existing deterministic structural and literal
+    parsers; it performs no vector search, provider call, network read, semantic
+    promotion, or cross-source fallback.
+    """
+    package = dict(package or {})
+    package_text = str(package.get("package_text") or "")
+    if not package_text:
+        return {}
+    try:
+        structural = dict(_technical_exact_package_structure_v69156(package_text, prompt_text) or {})
+    except Exception:
+        structural = {}
+    if str(structural.get("status") or "") != "selected":
+        return {}
+
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    if not semantics:
+        try:
+            semantics = dict(_technical_package_atp_semantics_v69178(package_text) or {})
+        except Exception:
+            semantics = {}
+
+    authority = {
+        "status": "selected",
+        "file_id": str(package.get("file_id") or ""),
+        "filename": str(package.get("filename") or ""),
+        "source_url": str(package.get("source_url") or ""),
+        "page_title": str(package.get("title") or package.get("page_title") or ""),
+        "package_text": package_text,
+        "section_title": str(structural.get("section_title") or ""),
+        "section_id": str(structural.get("section_id") or ""),
+        "branch_paths": list(structural.get("branch_paths") or []),
+        "section_text": str(structural.get("section_text") or ""),
+        "selected_image_urls_v69143": list(structural.get("image_urls") or []),
+        "selected_section_title_v69143": str(structural.get("section_title") or ""),
+        "selected_branch_paths_v69143": list(structural.get("branch_paths") or []),
+        "selected_segments_v69158": list(structural.get("segments") or []),
+        "atp_semantics_v69178": semantics,
+        "selector_version": 69238,
+        "exact_verified_package_bind_v69238": True,
+    }
+    try:
+        semantic_images = list(_technical_atp_semantic_image_urls_v69179(prompt_text, authority, max_images=8) or [])
+    except Exception:
+        semantic_images = []
+    if semantic_images:
+        authority["selected_image_urls_v69143"] = list(dict.fromkeys(
+            list(authority.get("selected_image_urls_v69143") or []) + semantic_images
+        ))
+        authority["atp_semantic_exact_images_v69179"] = semantic_images
+
+    try:
+        literal = dict(_technical_metadata_literal_configuration_v69178(prompt_text, authority) or {})
+    except Exception:
+        literal = {}
+    if not _technical_literal_is_sufficient_v69156(prompt_text, literal):
+        return {}
+    structured = _technical_merge_structured_v69156(
+        literal, {"fields": [], "branches": [], "status": "not_needed"}
+    )
+    if not _technical_table_rows_from_structured_v69155(structured):
+        return {}
+    authority["literal_structured_v69156"] = literal
+    authority["structured"] = structured
+    authority["deterministic_literal_authority_v69156"] = True
+    authority["model_structured_v69156"] = {"status": "not_needed", "fields": [], "branches": []}
+    authority["status"] = "recovered"
+    authority["context"] = _technical_authority_context_v69155(authority)
+    authority["rows"] = [{
+        "file_id": authority["file_id"],
+        "filename": authority["filename"],
+        "score": 1.0,
+        "text": authority["section_text"][:14000],
+        "technical_exact_verified_package_v69238": True,
+    }]
+    return {
+        "status": "recovered",
+        "kind": "configuration",
+        "authority": authority,
+        "exact_images": list(authority.get("selected_image_urls_v69143") or []),
+        "exact_verified_package_bind_v69238": True,
+    }
+
+
+# ============================================================
+# v69239 — model/year multi-package Technical authority
+# ============================================================
+def _technical_package_factory_system_label_v69239(package):
+    """Return one user-facing factory-system label only when package evidence is exact."""
+    package = dict(package or {})
+    tokens = _technical_factory_system_tokens_v69231(
+        " ".join((
+            str(package.get("source_url") or ""),
+            str(package.get("title") or package.get("page_title") or ""),
+        )),
+        package.get("systems") or [],
+    )
+    if len(tokens) != 1:
+        return ""
+    token = next(iter(tokens))
+    return {
+        "no_sync": "No SYNC",
+        "sync1": "SYNC 1",
+        "sync2": "SYNC 2",
+        "sync3": "SYNC 3",
+    }.get(token, token.replace("_", " "))
+
+
+def _technical_compiled_packages_for_family_year_v69239(store, family, year):
+    """O(1)-bucket-backed unique packages for one exact family/year.
+
+    No DB/vector/provider/network work is performed.  The function reads only the
+    already-current compiled runtime state and preserves every overlapping package.
+    """
+    clean_store = str(store or "").strip()
+    clean_family = str(family or "").casefold().strip()
+    try:
+        clean_year = int(year)
+    except Exception:
+        return []
+    current_revision = _website_destination_revision_v69109(
+        "Technical Support Database"
+    )
+    state = _technical_compiled_contract_state_v69198()
+    with state["lock"]:
+        if (
+            str(state.get("store") or "") != clean_store
+            or int(state.get("revision") or -1) != int(current_revision or 0)
+        ):
+            return []
+        bucket_key = f"{clean_store}|{clean_family}|{clean_year}"
+        contract_ids = list((state.get("buckets") or {}).get(bucket_key) or [])
+        package_ids = []
+        seen = set()
+        for cid in contract_ids:
+            contract = (state.get("contracts") or {}).get(cid)
+            if not isinstance(contract, dict):
+                continue
+            pid = str(contract.get("file_id") or contract.get("filename") or "").strip()
+            if pid and pid not in seen:
+                seen.add(pid)
+                package_ids.append(pid)
+        packages = []
+        for pid in package_ids:
+            package = (state.get("packages") or {}).get(pid)
+            if isinstance(package, dict):
+                packages.append(dict(package))
+    return packages
+
+
+def _technical_multi_package_configuration_result_v69239(prompt_text, store, family, year):
+    """Return all exact current configuration packages for a generic model/year query.
+
+    The set fast path is intentionally enabled only when the user did NOT specify
+    a factory system. Each package remains independently authoritative and is
+    parsed with the existing deterministic v69156/v69178 logic.  This prevents
+    one overlapping package from replacing another while avoiding all broad
+    vector/provider fallback on a successful exact model/year match.
+    """
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    if _technical_explicit_factory_system_v69228(prompt):
+        return {}
+    try:
+        if not _technical_configuration_query_v69155(prompt):
+            return {}
+    except Exception:
+        return {}
+
+    packages = _technical_compiled_packages_for_family_year_v69239(
+        store, family, year
+    )
+    if len(packages) < 2:
+        return {}
+
+    recovered = []
+    seen_identity = set()
+    for package in packages:
+        if not isinstance(package, dict):
+            continue
+        system_label = _technical_package_factory_system_label_v69239(package)
+        # Generic/ambiguous package system identity cannot participate in a
+        # multi-source answer because the sections could not be labeled safely.
+        if not system_label:
+            continue
+        source_url = str(package.get("source_url") or "").strip()
+        file_id = str(package.get("file_id") or "").strip()
+        identity = source_url or file_id
+        if not identity or identity in seen_identity:
+            continue
+        seen_identity.add(identity)
+
+        # Add the package's own exact system only to the deterministic parser
+        # prompt. This does not change user intent or source authority; it merely
+        # selects the correct branch within that independently verified package.
+        scoped_prompt = f"{prompt_text} {system_label}".strip()
+        item = _technical_exact_verified_package_result_v69238(
+            scoped_prompt, package
+        )
+        if str((item or {}).get("status") or "") != "recovered":
+            continue
+        authority = dict(item.get("authority") or {})
+        if str(authority.get("status") or "") != "recovered":
+            continue
+        recovered.append({
+            "system_label": system_label,
+            "authority": authority,
+            "source_url": str(authority.get("source_url") or source_url),
+            "file_id": str(authority.get("file_id") or file_id),
+            "exact_images": list(item.get("exact_images") or []),
+        })
+
+    # A multi-package answer is useful only when at least two independently
+    # verified current packages survive. One package continues through the
+    # existing v69238 single-source path; zero remains fail-closed.
+    if len(recovered) < 2:
+        return {}
+
+    # Stable presentation order: No SYNC, SYNC 1, SYNC 2, SYNC 3, then others.
+    order = {"No SYNC": 0, "SYNC 1": 1, "SYNC 2": 2, "SYNC 3": 3}
+    recovered.sort(key=lambda row: (order.get(row.get("system_label"), 99), row.get("system_label") or ""))
+
+    exact_images = []
+    for row in recovered:
+        for url in row.get("exact_images") or []:
+            if url not in exact_images:
+                exact_images.append(url)
+
+    return {
+        "status": "recovered",
+        "kind": "configuration_set",
+        "family": str(family or ""),
+        "year": int(year),
+        "authorities": recovered,
+        "exact_images": exact_images,
+        "multi_package_authority_v69239": True,
+    }
+
+
+def _technical_verified_configuration_set_answer_v69239(prompt_text, result):
+    """Render each overlapping current package separately without merging facts."""
+    result = dict(result or {})
+    if str(result.get("status") or "") != "recovered" or str(result.get("kind") or "") != "configuration_set":
+        return ""
+    rows = [dict(x) for x in (result.get("authorities") or []) if isinstance(x, dict)]
+    if len(rows) < 2:
+        return ""
+    family = str(result.get("family") or "").upper().replace("-", "")
+    year = str(result.get("year") or "")
+    title = " ".join(x for x in (year, family) if x).strip() or "Verified Technical Configurations"
+    out = [f"## {title}", "", "Multiple current AutoTecPro configurations apply to this model/year. Use the section matching the vehicle's original factory system."]
+    for row in rows:
+        system_label = str(row.get("system_label") or "Factory System").strip()
+        authority = dict(row.get("authority") or {})
+        structured = dict(authority.get("structured") or {})
+        table_rows = _technical_table_rows_from_structured_v69156(structured)
+        if not table_rows:
+            continue
+        out.extend(["", f"### {system_label}", "", "| Setting Field | Select |", "|---|---|"])
+        for field, value in table_rows:
+            clean_field = str(field or "").replace("|", "/").strip()
+            clean_value = str(value or "").replace("|", "/").strip()
+            if clean_field and clean_value:
+                out.append(f"| {clean_field} | {clean_value} |")
+        menu_path = _technical_menu_path_from_authority_v69158(authority)
+        if menu_path:
+            out.extend(["", f"**Menu Path:** {menu_path}"])
+        source_url = str(row.get("source_url") or "").strip()
+        if source_url:
+            out.extend(["", f"**Current source:** {source_url}"])
+    return "\n".join(out).strip()
+
 def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     """Cold-path hydrate all compatible current packages for one family/year.
 
@@ -70125,6 +70403,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     rejected_v69228 = 0
     immutable_cache_hits_v69232 = 0
     already_compiled_hits_v69232 = 0
+    exact_hydrated_packages_v69238 = []
     revision_v69228 = _website_destination_revision_v69109(
         "Technical Support Database"
     )
@@ -70213,6 +70492,11 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             rejected_v69228 += 1
             continue
         hydrated_v69228 += 1
+        if (
+            explicit_factory_system_v69228
+            and bool(payload_v69228.get("durable_snapshot_candidate_v69233"))
+        ):
+            exact_hydrated_packages_v69238.append(dict(package_v69228))
 
     diagnostic_log(
         "technical_compiled_on_demand_hydrated_v69228",
@@ -70233,7 +70517,65 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     )
     if hydrated_v69228 <= 0:
         return {}
-    return _technical_compiled_contract_lookup_v69198(prompt_text, clean_store)
+
+    # v69239: generic model/year configuration queries intentionally preserve
+    # every independently verified current package in this exact bucket.  This
+    # executes entirely in memory after hydration and therefore avoids the old
+    # single-source pointer + vector fallback path for legitimate overlaps.
+    if not explicit_factory_system_v69228:
+        multi_result_v69239 = _technical_multi_package_configuration_result_v69239(
+            prompt_text, clean_store, family, year
+        )
+        if str((multi_result_v69239 or {}).get("status") or "") == "recovered":
+            diagnostic_log(
+                "technical_multi_package_configuration_bound_v69239",
+                family=family,
+                year=int(year),
+                packages=len(multi_result_v69239.get("authorities") or []),
+                systems=[
+                    str(row.get("system_label") or "")
+                    for row in (multi_result_v69239.get("authorities") or [])
+                    if isinstance(row, dict)
+                ],
+            )
+            return multi_result_v69239
+
+    compiled_result_v69238 = _technical_compiled_contract_lookup_v69198(prompt_text, clean_store)
+    if str((compiled_result_v69238 or {}).get("status") or "") == "recovered":
+        return compiled_result_v69238
+
+    # v69238: hosted v69237 proved that exact current-package hydration can
+    # succeed while the generic compiled section scorer still returns no result,
+    # causing execution to fall through to the stale single family/year pointer.
+    # For an EXPLICIT factory-system request, bind directly only when exactly one
+    # SHA-verified durable package survived all family/year/system hard gates.
+    # This preserves fail-closed behavior for ambiguity and generic requests.
+    if (
+        explicit_factory_system_v69228
+        and snapshot_exact_system_matches_v69235 == 1
+        and len(exact_hydrated_packages_v69238) == 1
+    ):
+        exact_result_v69238 = _technical_exact_verified_package_result_v69238(
+            prompt_text, exact_hydrated_packages_v69238[0]
+        )
+        if str((exact_result_v69238 or {}).get("status") or "") == "recovered":
+            diagnostic_log(
+                "technical_exact_verified_package_bound_v69238",
+                family=family,
+                year=int(year),
+                factory_system=str(explicit_factory_system_v69228),
+                file_id=str((exact_result_v69238.get("authority") or {}).get("file_id") or "")[:160],
+                source_url=str((exact_result_v69238.get("authority") or {}).get("source_url") or "")[:700],
+                section=str((exact_result_v69238.get("authority") or {}).get("section_title") or "")[:300],
+            )
+            return exact_result_v69238
+        diagnostic_log(
+            "technical_exact_verified_package_bind_failed_v69238",
+            family=family,
+            year=int(year),
+            factory_system=str(explicit_factory_system_v69228),
+        )
+    return compiled_result_v69238 or {}
 
 
 def _technical_direct_section_answer_v69199(prompt_text, compiled_result):
@@ -82131,6 +82473,16 @@ else:
                             or technical_compiled_preflight_v69198
                         )
                     if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered":
+                        if str(technical_compiled_preflight_v69198.get("kind") or "") == "configuration_set":
+                            diagnostic_log(
+                                "technical_multi_package_preflight_hit_v69239",
+                                packages=len(technical_compiled_preflight_v69198.get("authorities") or []),
+                                systems=[
+                                    str(row.get("system_label") or "")
+                                    for row in (technical_compiled_preflight_v69198.get("authorities") or [])
+                                    if isinstance(row, dict)
+                                ],
+                            )
                         diagnostic_log(
                             "technical_compiled_preflight_hit_v69198",
                             kind=str(technical_compiled_preflight_v69198.get("kind") or ""),
@@ -83559,6 +83911,7 @@ else:
                         (locals().get("technical_compiled_preflight_v69198") or {}).get("authority")
                         or {}
                     )
+                    technical_multi_package_configuration_v69239 = {}
                     if (
                         technical_v69156_configuration_required
                         and compiled_kind_v69198 == "configuration"
@@ -83572,10 +83925,24 @@ else:
                             source_url=str(compiled_authority_v69198.get("source_url") or "")[:700],
                             section=str(compiled_authority_v69198.get("section_title") or "")[:300],
                         )
+                    elif (
+                        technical_v69156_configuration_required
+                        and compiled_kind_v69198 == "configuration_set"
+                        and str((locals().get("technical_compiled_preflight_v69198") or {}).get("status") or "") == "recovered"
+                    ):
+                        technical_multi_package_configuration_v69239 = dict(
+                            locals().get("technical_compiled_preflight_v69198") or {}
+                        )
+                        use_file_search = False
+                        diagnostic_log(
+                            "technical_multi_package_configuration_preempted_legacy_v69239",
+                            packages=len(technical_multi_package_configuration_v69239.get("authorities") or []),
+                        )
 
                     if (
                         technical_v69156_configuration_required
                         and str(technical_full_package_authority_v69155.get("status") or "") != "recovered"
+                        and str((locals().get("technical_multi_package_configuration_v69239") or {}).get("status") or "") != "recovered"
                     ):
                         try:
                             store_ids_v69164 = _configured_vector_store_ids(
@@ -84469,6 +84836,21 @@ else:
                         )
                         technical_direct_answer_v69158 = ""
                         if (
+                            assistant == "🔧 Technical Support"
+                            and str((locals().get("technical_multi_package_configuration_v69239") or {}).get("status") or "") == "recovered"
+                        ):
+                            technical_direct_answer_v69158 = (
+                                _technical_verified_configuration_set_answer_v69239(
+                                    technical_request_prompt_v68879,
+                                    locals().get("technical_multi_package_configuration_v69239") or {},
+                                )
+                            )
+                            if technical_direct_answer_v69158:
+                                diagnostic_log(
+                                    "technical_multi_package_provider_bypass_v69239",
+                                    packages=len((locals().get("technical_multi_package_configuration_v69239") or {}).get("authorities") or []),
+                                )
+                        elif (
                             assistant == "🔧 Technical Support"
                             and str(
                                 (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
