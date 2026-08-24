@@ -71297,6 +71297,190 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
             flags=re.I,
         ))
 
+    # v69240: restore the proven v69208 universal multi-match rule at the
+    # actual O(1) compiled lookup call site.  v69239 successfully hydrated all
+    # overlapping current packages, but then ranked them back down to one source.
+    # For a generic configuration query, preserve every independently current
+    # config-ready package in the exact make/model/year bucket and render each
+    # source separately.  Explicit factory-system/product queries continue into
+    # the unchanged single-branch ranking below.
+    if config_query and not explicit_factory_system_v69228 and not prompt_systems and not prompt_codes:
+        unique_candidates_v69240 = {}
+        for contract_v69240 in contracts:
+            if not bool(contract_v69240.get("config_ready")):
+                continue
+            pid_v69240 = str(
+                contract_v69240.get("file_id")
+                or contract_v69240.get("filename")
+                or ""
+            ).strip()
+            if not pid_v69240:
+                continue
+            system_tokens_v69240 = _technical_factory_system_tokens_v69231(
+                " ".join((
+                    str(contract_v69240.get("source_url") or ""),
+                    str(contract_v69240.get("page_title") or ""),
+                    str(contract_v69240.get("section_title") or ""),
+                )),
+                contract_v69240.get("systems") or [],
+            )
+            if len(system_tokens_v69240) != 1:
+                continue
+            system_token_v69240 = next(iter(system_tokens_v69240))
+            system_label_v69240 = {
+                "no_sync": "No SYNC",
+                "sync1": "SYNC 1",
+                "sync2": "SYNC 2",
+                "sync3": "SYNC 3",
+            }.get(system_token_v69240, system_token_v69240.replace("_", " "))
+            section_id_v69240 = str(contract_v69240.get("section_id") or "").casefold()
+            section_title_v69240 = str(contract_v69240.get("section_title") or "").casefold()
+            preferred_v69240 = bool(
+                section_id_v69240 in {
+                    "protocol-settings", "car-model-ac", "car-model-ac-protocol"
+                }
+                or "car model" in section_title_v69240
+            )
+            key_v69240 = (pid_v69240, system_label_v69240)
+            prior_v69240 = unique_candidates_v69240.get(key_v69240)
+            if prior_v69240 is None or (preferred_v69240 and not prior_v69240[1]):
+                unique_candidates_v69240[key_v69240] = (dict(contract_v69240), preferred_v69240)
+
+        candidates_v69240 = [value[0] for value in unique_candidates_v69240.values()]
+        if len(candidates_v69240) > 1:
+            authorities_v69240 = []
+            exact_images_v69240 = []
+            seen_source_system_v69240 = set()
+            for contract_v69240 in candidates_v69240:
+                pid_v69240 = str(
+                    contract_v69240.get("file_id")
+                    or contract_v69240.get("filename")
+                    or ""
+                ).strip()
+                package_v69240 = dict(package_cache.get(pid_v69240) or {})
+                package_text_v69240 = str(package_v69240.get("package_text") or "")
+                if not package_text_v69240:
+                    continue
+                system_tokens_v69240 = _technical_factory_system_tokens_v69231(
+                    " ".join((
+                        str(contract_v69240.get("source_url") or ""),
+                        str(contract_v69240.get("page_title") or ""),
+                        str(contract_v69240.get("section_title") or ""),
+                    )),
+                    contract_v69240.get("systems") or [],
+                )
+                if len(system_tokens_v69240) != 1:
+                    continue
+                system_token_v69240 = next(iter(system_tokens_v69240))
+                system_label_v69240 = {
+                    "no_sync": "No SYNC",
+                    "sync1": "SYNC 1",
+                    "sync2": "SYNC 2",
+                    "sync3": "SYNC 3",
+                }.get(system_token_v69240, system_token_v69240.replace("_", " "))
+                source_url_v69240 = str(contract_v69240.get("source_url") or "").strip()
+                try:
+                    source_identity_v69240 = canonical_website_url_identity(source_url_v69240) if source_url_v69240 else pid_v69240
+                except Exception:
+                    source_identity_v69240 = source_url_v69240.casefold() if source_url_v69240 else pid_v69240
+                source_system_key_v69240 = (source_identity_v69240, system_label_v69240)
+                if source_system_key_v69240 in seen_source_system_v69240:
+                    continue
+                seen_source_system_v69240.add(source_system_key_v69240)
+
+                authority_v69240 = {
+                    "status": "recovered",
+                    "file_id": str(contract_v69240.get("file_id") or ""),
+                    "filename": str(contract_v69240.get("filename") or ""),
+                    "source_url": source_url_v69240,
+                    "page_title": str(contract_v69240.get("page_title") or ""),
+                    "package_text": package_text_v69240,
+                    "section_title": str(contract_v69240.get("section_title") or ""),
+                    "section_id": str(contract_v69240.get("section_id") or ""),
+                    "branch_paths": [
+                        " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+                        for seg in (contract_v69240.get("segments") or [])
+                    ],
+                    "section_text": str(contract_v69240.get("section_text") or ""),
+                    # One primary first-response image per matched current source.
+                    "selected_image_urls_v69143": list(contract_v69240.get("exact_images") or [])[:1],
+                    "selected_section_title_v69143": str(contract_v69240.get("section_title") or ""),
+                    "selected_branch_paths_v69143": [
+                        " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+                        for seg in (contract_v69240.get("segments") or [])
+                    ],
+                    "selected_segments_v69158": list(contract_v69240.get("segments") or []),
+                    "image_evidence": list(contract_v69240.get("config_image_evidence_v69204") or []),
+                    "atp_semantics_v69178": dict(package_v69240.get("atp_semantics_v69178") or {}),
+                    "selector_version": 69240,
+                    "compiled_runtime_contract_v69198": True,
+                    "multi_match_branch_v69240": True,
+                }
+                scoped_prompt_v69240 = f"{prompt_text} {system_label_v69240}".strip()
+                literal_v69240 = _technical_metadata_literal_configuration_v69178(
+                    scoped_prompt_v69240, authority_v69240
+                )
+                if not _technical_literal_is_sufficient_v69156(
+                    scoped_prompt_v69240, literal_v69240
+                ):
+                    literal_v69240 = dict(contract_v69240.get("config_literal") or {})
+                if not _technical_literal_is_sufficient_v69156(
+                    scoped_prompt_v69240, literal_v69240
+                ):
+                    continue
+                structured_v69240 = _technical_merge_structured_v69156(
+                    literal_v69240, {"fields": [], "branches": [], "status": "not_needed"}
+                )
+                if not _technical_table_rows_from_structured_v69155(structured_v69240):
+                    continue
+                authority_v69240["literal_structured_v69156"] = literal_v69240
+                authority_v69240["structured"] = structured_v69240
+                authority_v69240["deterministic_literal_authority_v69156"] = True
+                authority_v69240["model_structured_v69156"] = {
+                    "status": "not_needed", "fields": [], "branches": []
+                }
+                authority_v69240["context"] = _technical_authority_context_v69155(authority_v69240)
+                authority_v69240["rows"] = [{
+                    "file_id": authority_v69240["file_id"],
+                    "filename": authority_v69240["filename"],
+                    "score": 1.0,
+                    "text": authority_v69240["section_text"][:14000],
+                    "technical_multi_match_v69240": True,
+                }]
+                authorities_v69240.append({
+                    "system_label": system_label_v69240,
+                    "authority": authority_v69240,
+                    "source_url": authority_v69240["source_url"],
+                    "file_id": authority_v69240["file_id"],
+                    "exact_images": list(authority_v69240.get("selected_image_urls_v69143") or []),
+                })
+                for url_v69240 in authority_v69240.get("selected_image_urls_v69143") or []:
+                    if url_v69240 and url_v69240 not in exact_images_v69240:
+                        exact_images_v69240.append(url_v69240)
+
+            # Require at least two independently verified current source identities.
+            if len(authorities_v69240) > 1:
+                order_v69240 = {"No SYNC": 0, "SYNC 1": 1, "SYNC 2": 2, "SYNC 3": 3}
+                authorities_v69240.sort(
+                    key=lambda row: (order_v69240.get(row.get("system_label"), 99), row.get("system_label") or "", row.get("source_url") or row.get("file_id") or "")
+                )
+                diagnostic_log(
+                    "technical_universal_multi_match_bound_v69240",
+                    family=str(families[0]), year=int(years[0]),
+                    packages=len(authorities_v69240),
+                    systems=[str(row.get("system_label") or "") for row in authorities_v69240],
+                )
+                return {
+                    "status": "recovered",
+                    "kind": "configuration_set",
+                    "family": str(families[0]),
+                    "year": int(years[0]),
+                    "authorities": authorities_v69240,
+                    "exact_images": exact_images_v69240,
+                    "multi_package_authority_v69239": True,
+                    "universal_multi_match_v69240": True,
+                }
+
     ranked = []
     for contract in contracts:
         systems = set(contract.get("systems") or [])
@@ -85951,8 +86135,11 @@ else:
             assistant == "🔧 Technical Support"
             and _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
         ):
+            technical_variant_evidence_safe_v69240 = dict(
+                locals().get("technical_variant_evidence_v69124") or {}
+            )
             exact_final_authority_v69176 = dict(
-                technical_variant_evidence_v69124.get("exact_authority_v69175") or {}
+                technical_variant_evidence_safe_v69240.get("exact_authority_v69175") or {}
             )
             current_final_authority_v69184 = dict(
                 locals().get("technical_full_package_authority_v69155") or {}
