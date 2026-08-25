@@ -6,7 +6,7 @@
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
-# AutoTecPro AI v69244 — verified package-set cardinality + atomic cache + exact image dedupe
+# AutoTecPro AI v69245 — authoritative hydrated-set handoff + atomic cache + exact image dedupe
 
 # AutoTecPro AI v69233 — exact current-source recovery + verified multi-package registry over v69232
 import streamlit.components.v1 as components
@@ -70070,7 +70070,7 @@ def _technical_configuration_set_cache_key_v69241(store, revision, family, year)
         clean_year = int(year)
     except Exception:
         return ""
-    return "|".join(("v69244", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
+    return "|".join(("v69245", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
 
 def _technical_configuration_set_cache_get_v69241(store, revision, family, year):
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
@@ -70508,7 +70508,7 @@ def _technical_compiled_row_for_verified_package_v69244(prompt_text, package, st
         "structured": structured,
         "deterministic_literal_authority_v69156": True,
         "model_structured_v69156": {"status": "not_needed", "fields": [], "branches": []},
-        "selector_version": 69244,
+        "selector_version": 69245,
         "compiled_runtime_contract_v69198": True,
         "verified_package_compiled_render_v69244": True,
     }
@@ -70966,8 +70966,11 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                         "title": str(cached_package_v69241.get("title") or payload_v69228.get("title") or ""),
                         "systems": list(payload_v69228.get("systems") or cached_package_v69241.get("systems") or []),
                     })
-                    if _technical_package_model_year_eligible_v69242(cached_package_v69241, family, year):
-                        verified_hydrated_packages_v69241.append(cached_package_v69241)
+                    # v69245: this payload already passed the exact snapshot family/year/current-source
+                    # gates before entering hydration. Do not re-run a different model/year parser here,
+                    # because package normalization can omit authored composite scope fields and make the
+                    # authoritative hydrated set diverge from the successful hydration count.
+                    verified_hydrated_packages_v69241.append(cached_package_v69241)
             continue
 
         recovered_v69232 = _technical_verified_snapshot_package_v69232(
@@ -71068,21 +71071,41 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     # package cardinality BEFORE rendering; a narrower secondary parser must never
     # silently turn two verified current packages into one published package.
     if not explicit_factory_system_v69228:
+        # v69245: successful durable hydration is the single source of truth for generic
+        # package cardinality. Every entry below already passed the candidate snapshot
+        # family/year/current-source gates AND compiled merge. A later normalization/parser
+        # is not allowed to delete a package from that already-verified set.
         eligible_verified_packages_v69242 = []
         seen_verified_identity_v69244 = set()
+        handoff_identities_v69245 = []
         for pkg_v69244 in verified_hydrated_packages_v69241:
             if not isinstance(pkg_v69244, dict):
                 continue
             pkg_v69244 = dict(pkg_v69244)
-            if not _technical_package_model_year_eligible_v69242(pkg_v69244, family, year):
-                continue
             identity_v69244 = _technical_verified_package_identity_v69244(pkg_v69244)
             if not identity_v69244 or identity_v69244 in seen_verified_identity_v69244:
                 continue
             seen_verified_identity_v69244.add(identity_v69244)
             eligible_verified_packages_v69242.append(pkg_v69244)
+            handoff_identities_v69245.append({
+                "file_id": str(pkg_v69244.get("file_id") or "")[:160],
+                "source_url": str(pkg_v69244.get("source_url") or "")[:700],
+                "system": str((_technical_package_exact_discriminators_v69243(pkg_v69244) or {}).get("system_label") or "")[:120],
+            })
 
         verified_package_count_v69244 = len(eligible_verified_packages_v69242)
+        diagnostic_log(
+            "technical_authoritative_hydrated_set_handoff_v69245",
+            family=family, year=int(year), hydrated=hydrated_v69228,
+            authoritative_packages=verified_package_count_v69244,
+            packages=handoff_identities_v69245,
+        )
+        if verified_package_count_v69244 != len(verified_hydrated_packages_v69241):
+            diagnostic_log(
+                "technical_authoritative_hydrated_set_dedupe_v69245",
+                family=family, year=int(year), raw_packages=len(verified_hydrated_packages_v69241),
+                deduped_packages=verified_package_count_v69244,
+            )
 
         if verified_package_count_v69244 >= 2:
             # Use the already-built O(1) compiled contracts as the renderer. They are
@@ -71884,7 +71907,7 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         cached_prompt_codes_v69241 = {str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
         if not cached_explicit_system_v69241 and not cached_prompt_systems_v69241 and not cached_prompt_codes_v69241:
             diagnostic_log(
-                "technical_configuration_cache_hit_v69243",
+                "technical_configuration_cache_hit_v69245",
                 family=str(families[0]), year=int(years[0]),
                 kind=str(cached_set_v69241.get("kind") or ""),
                 packages=len(cached_set_v69241.get("authorities") or []) or 1,
