@@ -6,6 +6,7 @@
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
+# AutoTecPro AI v69242 — universal model-specific scope authority + rerun-persistent speed cache
 
 # AutoTecPro AI v69233 — exact current-source recovery + verified multi-package registry over v69232
 import streamlit.components.v1 as components
@@ -70054,11 +70055,15 @@ def _technical_exact_verified_package_result_v69238(prompt_text, package):
 
 
 # ============================================================
-# v69241 — revision-safe verified configuration-set cache
+# v69242 — rerun-persistent, revision-safe verified configuration cache
 # ============================================================
-_TECHNICAL_CONFIGURATION_SET_CACHE_V69241 = {}
-_TECHNICAL_CONFIGURATION_SET_CACHE_LOCK_V69241 = threading.RLock()
 _TECHNICAL_CONFIGURATION_SET_CACHE_MAX_V69241 = 64
+
+@st.cache_resource(show_spinner=False)
+def _technical_configuration_cache_state_v69242():
+    # Streamlit reruns re-execute module globals. Keep the verified result cache in
+    # cache_resource so a warm exact model/year result survives the next user turn.
+    return {"lock": threading.RLock(), "values": {}}
 
 def _technical_configuration_set_cache_key_v69241(store, revision, family, year):
     try:
@@ -70071,26 +70076,104 @@ def _technical_configuration_set_cache_get_v69241(store, revision, family, year)
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
     if not key:
         return {}
-    with _TECHNICAL_CONFIGURATION_SET_CACHE_LOCK_V69241:
-        value = _TECHNICAL_CONFIGURATION_SET_CACHE_V69241.get(key)
+    state = _technical_configuration_cache_state_v69242()
+    with state["lock"]:
+        value = (state.get("values") or {}).get(key)
         return dict(value or {}) if isinstance(value, dict) else {}
 
 def _technical_configuration_set_cache_put_v69241(store, revision, family, year, result):
     value = dict(result or {})
-    if str(value.get("status") or "") != "recovered" or str(value.get("kind") or "") != "configuration_set":
+    # Cache only deterministic recovered configuration authority.  A single current
+    # package and a multi-package set are both safe; failures/semantic/provider
+    # results are never cached.
+    if str(value.get("status") or "") != "recovered" or str(value.get("kind") or "") not in {"configuration", "configuration_set"}:
         return False
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
     if not key:
         return False
-    with _TECHNICAL_CONFIGURATION_SET_CACHE_LOCK_V69241:
-        _TECHNICAL_CONFIGURATION_SET_CACHE_V69241[key] = value
-        while len(_TECHNICAL_CONFIGURATION_SET_CACHE_V69241) > _TECHNICAL_CONFIGURATION_SET_CACHE_MAX_V69241:
+    state = _technical_configuration_cache_state_v69242()
+    with state["lock"]:
+        values = state.setdefault("values", {})
+        values[key] = value
+        while len(values) > _TECHNICAL_CONFIGURATION_SET_CACHE_MAX_V69241:
             try:
-                oldest = next(iter(_TECHNICAL_CONFIGURATION_SET_CACHE_V69241))
-                _TECHNICAL_CONFIGURATION_SET_CACHE_V69241.pop(oldest, None)
+                oldest = next(iter(values))
+                values.pop(oldest, None)
             except Exception:
                 break
     return True
+
+def _technical_model_year_scope_map_v69242(package):
+    """Return explicit per-model year ranges authored in ATP root metadata.
+
+    This is generic metadata parsing, not vehicle hard-coding.  It understands
+    values such as ``F-150:2015-2021|F-250:2017-2021`` from data-atp-years,
+    data-atp-vehicle-scope, or data-atp-model-year-scope.
+    """
+    package = dict(package or {})
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    if not semantics:
+        try:
+            semantics = dict(_technical_package_atp_semantics_v69178(package.get("package_text") or "") or {})
+        except Exception:
+            semantics = {}
+    root = dict(semantics.get("root") or {})
+    mapping = {}
+    for key in ("data-atp-years", "data-atp-vehicle-scope", "data-atp-model-year-scope"):
+        raw = str(root.get(key) or "").strip()
+        if not raw:
+            continue
+        for part in re.split(r"[|;]+", raw):
+            match = re.match(r"\s*([^:]+?)\s*:\s*(\d{4})\s*(?:[-–—]\s*(\d{4}))?\s*$", part)
+            if not match:
+                continue
+            model_text = str(match.group(1) or "").strip()
+            start = int(match.group(2))
+            end = int(match.group(3) or start)
+            if end < start or end - start > 40:
+                continue
+            try:
+                families = {str(x).casefold().strip() for x in (_website_identity_vehicle_families_v69022(model_text) or set()) if str(x).strip()}
+            except Exception:
+                families = set()
+            for family in families:
+                mapping.setdefault(family, set()).update(range(start, end + 1))
+    return mapping
+
+def _technical_package_model_year_eligible_v69242(package, family, year):
+    """Hard-positive exact-model/year gate using current package metadata.
+
+    When a source authors a per-model year map, that map outranks the broader
+    document year envelope.  Otherwise the existing verified package years remain
+    authoritative.
+    """
+    package = dict(package or {})
+    clean_family = str(family or "").casefold().strip()
+    try:
+        clean_year = int(year)
+    except Exception:
+        return False
+    mapping = _technical_model_year_scope_map_v69242(package)
+    if clean_family in mapping:
+        return clean_year in set(mapping.get(clean_family) or set())
+    years = set()
+    for raw in package.get("years") or []:
+        try:
+            years.add(int(raw))
+        except Exception:
+            pass
+    if years:
+        return clean_year in years
+    # Last exact-package fallback: root year-start/end is permitted only when no
+    # more-specific model/year mapping exists.
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    root = dict(semantics.get("root") or {})
+    try:
+        start = int(str(root.get("data-atp-year-start") or "").strip())
+        end = int(str(root.get("data-atp-year-end") or "").strip())
+        return start <= clean_year <= end
+    except Exception:
+        return False
 
 def _technical_configuration_set_from_verified_packages_v69241(prompt_text, packages, family, year):
     """Build all current model/year configuration results from already-verified packages.
@@ -70506,6 +70589,21 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             snapshot_scope_rejected_v69235 += 1
             snapshot_scope_year_rejected_v69236 += 1
             continue
+        # v69242: a broad document year range may not override an authored
+        # model-specific year map (for example one page covering different year
+        # ranges for F-150 and Super Duty).
+        if not _technical_package_model_year_eligible_v69242(
+            scope_v69235.get("package") or {}, family, year
+        ):
+            snapshot_scope_rejected_v69235 += 1
+            snapshot_scope_year_rejected_v69236 += 1
+            diagnostic_log(
+                "technical_model_specific_year_rejected_v69242",
+                requested_family=family, requested_year=int(year),
+                file_id=str(snapshot_row_v69233.get("file_id") or "")[:160],
+                source_url=str(snapshot_row_v69233.get("source_url") or "")[:700],
+            )
+            continue
         row_system_tokens_v69235 = set(scope_v69235.get("system_tokens") or [])
         row_identity_systems_v69235 = set(scope_v69235.get("identity_systems") or [])
         # Explicit factory system is a hard positive gate.  Empty/ambiguous
@@ -70577,7 +70675,8 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                         "title": str(cached_package_v69241.get("title") or payload_v69228.get("title") or ""),
                         "systems": list(payload_v69228.get("systems") or cached_package_v69241.get("systems") or []),
                     })
-                    verified_hydrated_packages_v69241.append(cached_package_v69241)
+                    if _technical_package_model_year_eligible_v69242(cached_package_v69241, family, year):
+                        verified_hydrated_packages_v69241.append(cached_package_v69241)
             continue
 
         recovered_v69232 = _technical_verified_snapshot_package_v69232(
@@ -70622,6 +70721,14 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                 requested_year=int(year),
                 file_id=file_id_v69228[:160],
                 source_url=source_url_v69228[:700],
+            )
+            continue
+        if not _technical_package_model_year_eligible_v69242(package_v69228, family, year):
+            rejected_v69228 += 1
+            diagnostic_log(
+                "technical_model_specific_year_rejected_v69242",
+                requested_family=family, requested_year=int(year),
+                file_id=file_id_v69228[:160], source_url=source_url_v69228[:700],
             )
             continue
 
@@ -70670,8 +70777,13 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     # executes entirely in memory after hydration and therefore avoids the old
     # single-source pointer + vector fallback path for legitimate overlaps.
     if not explicit_factory_system_v69228:
+        eligible_verified_packages_v69242 = [
+            dict(pkg) for pkg in verified_hydrated_packages_v69241
+            if isinstance(pkg, dict)
+            and _technical_package_model_year_eligible_v69242(pkg, family, year)
+        ]
         multi_result_v69241 = _technical_configuration_set_from_verified_packages_v69241(
-            prompt_text, verified_hydrated_packages_v69241, family, year
+            prompt_text, eligible_verified_packages_v69242, family, year
         )
         if str((multi_result_v69241 or {}).get("status") or "") == "recovered":
             _technical_configuration_set_cache_put_v69241(
@@ -70684,6 +70796,36 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                 systems=[str(row.get("system_label") or "") for row in (multi_result_v69241.get("authorities") or []) if isinstance(row, dict)],
             )
             return multi_result_v69241
+        # v69242: if exactly one current model/year package survives, bind that
+        # verified package directly and preempt the legacy family/year pointer.
+        # This closes the F150->foreign-source failure without weakening fail-closed.
+        single_results_v69242 = []
+        seen_single_v69242 = set()
+        for package_v69242 in eligible_verified_packages_v69242:
+            source_v69242 = str(package_v69242.get("source_url") or "").strip()
+            try:
+                identity_v69242 = canonical_website_url_identity(source_v69242) if source_v69242 else str(package_v69242.get("file_id") or "")
+            except Exception:
+                identity_v69242 = source_v69242.casefold() if source_v69242 else str(package_v69242.get("file_id") or "")
+            if not identity_v69242 or identity_v69242 in seen_single_v69242:
+                continue
+            seen_single_v69242.add(identity_v69242)
+            result_v69242 = _technical_exact_verified_package_result_v69238(prompt_text, package_v69242)
+            if str((result_v69242 or {}).get("status") or "") == "recovered":
+                single_results_v69242.append(result_v69242)
+        if len(single_results_v69242) == 1:
+            single_result_v69242 = dict(single_results_v69242[0])
+            single_result_v69242["verified_hydrated_single_v69242"] = True
+            _technical_configuration_set_cache_put_v69241(
+                clean_store, revision_v69228, family, year, single_result_v69242
+            )
+            diagnostic_log(
+                "technical_verified_hydrated_single_bound_v69242",
+                family=family, year=int(year),
+                file_id=str((single_result_v69242.get("authority") or {}).get("file_id") or "")[:160],
+                source_url=str((single_result_v69242.get("authority") or {}).get("source_url") or "")[:700],
+            )
+            return single_result_v69242
         multi_result_v69239 = _technical_multi_package_configuration_result_v69239(
             prompt_text, clean_store, family, year
         )
@@ -71409,7 +71551,12 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         cached_prompt_systems_v69241 = set(_website_identity_systems_v69022(prompt))
         cached_prompt_codes_v69241 = {str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
         if not cached_explicit_system_v69241 and not cached_prompt_systems_v69241 and not cached_prompt_codes_v69241:
-            diagnostic_log("technical_configuration_set_cache_hit_v69241", family=str(families[0]), year=int(years[0]), packages=len(cached_set_v69241.get("authorities") or []))
+            diagnostic_log(
+                "technical_configuration_cache_hit_v69242",
+                family=str(families[0]), year=int(years[0]),
+                kind=str(cached_set_v69241.get("kind") or ""),
+                packages=len(cached_set_v69241.get("authorities") or []) or 1,
+            )
             return cached_set_v69241
         if cached_explicit_system_v69241:
             label_map_v69241 = {"no_sync": "no sync", "sync1": "sync 1", "sync2": "sync 2", "sync3": "sync 3"}
@@ -71436,6 +71583,20 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         ]
         package_cache = dict(state.get("packages") or {})
 
+    # v69242: the compiled bucket can be broader than one model's authored year
+    # scope when a single page covers several models with different year ranges.
+    # Re-apply the exact model/year gate before any warm direct selection so a
+    # prewarmed broad source can never bypass the durable-snapshot gate.
+    eligible_contracts_v69242 = []
+    for contract_v69242 in contracts:
+        pid_v69242 = str(contract_v69242.get("file_id") or contract_v69242.get("filename") or "").strip()
+        package_v69242 = dict(package_cache.get(pid_v69242) or {})
+        if package_v69242 and not _technical_package_model_year_eligible_v69242(
+            package_v69242, families[0], years[0]
+        ):
+            continue
+        eligible_contracts_v69242.append(contract_v69242)
+    contracts = eligible_contracts_v69242
     if not contracts:
         return {}
 
@@ -86351,12 +86512,12 @@ else:
                     branch_authority_v69241 = dict(multi_row_v69241.get("authority") or {})
                     if str(branch_authority_v69241.get("status") or "") != "recovered":
                         continue
-                    branch_images_v69241 = _technical_exact_authority_chat_images_v69170(
+                    # v69242: materialize the package's already-selected exact ATP
+                    # image first.  The v69175 helper has a safe direct-URL fallback
+                    # when durable image-index rows are absent, then runs the existing
+                    # provenance verifier against the SAME branch authority.
+                    branch_images_v69241 = _technical_v69125_exact_images_v69175(
                         technical_request_prompt_v68879, branch_authority_v69241, max_images=1
-                    )
-                    branch_images_v69241 = _technical_verify_published_images_v69158(
-                        _dedupe_website_chat_images_v68883(branch_images_v69241 or []),
-                        branch_authority_v69241, technical_request_prompt_v68879,
                     )
                     for image_v69241 in branch_images_v69241 or []:
                         multi_exact_images_v69241.append(image_v69241)
