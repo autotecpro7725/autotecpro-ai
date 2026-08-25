@@ -70070,7 +70070,7 @@ def _technical_configuration_set_cache_key_v69241(store, revision, family, year)
         clean_year = int(year)
     except Exception:
         return ""
-    return "|".join(("v69247", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
+    return "|".join(("v69248", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
 
 def _technical_configuration_set_cache_get_v69241(store, revision, family, year):
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
@@ -70568,21 +70568,36 @@ def _technical_compiled_row_for_verified_package_v69247(prompt_text, package, st
         return {}
     scoped_prompt = f"{prompt_text} {system_label}".strip()
 
-    state = _technical_compiled_contract_state_v69198()
-    with state["lock"]:
-        if str(state.get("store") or "") != str(store or "").strip():
-            return {}
+    # v69248: compile directly from this already-verified package object.
+    # v69247 looked the package back up in the shared compiled-state dictionary;
+    # hosted production proved that lookup could miss even immediately after the
+    # same package had successfully compiled/merged.  Package-set rendering must
+    # never depend on rediscovering an authority that is already present here.
+    # This is pure in-memory work: no DB/vector/provider/network/file-content call.
+    try:
         contracts = [
-            dict(contract) for contract in (state.get("contracts") or {}).values()
+            dict(contract) for contract in (_technical_compile_one_package_v69199(package) or [])
             if isinstance(contract, dict)
-            and str(contract.get("file_id") or "").strip() == file_id
         ]
+    except Exception as compile_error_v69248:
+        diagnostic_log(
+            "technical_verified_package_direct_compile_failed_v69248",
+            file_id=file_id[:160], source_url=source_url[:700], system=system_label[:120],
+            error_type=type(compile_error_v69248).__name__,
+            error=str(compile_error_v69248)[:500],
+        )
+        contracts = []
     if not contracts:
         diagnostic_log(
-            "technical_verified_package_local_contract_miss_v69247",
+            "technical_verified_package_direct_compile_miss_v69248",
             file_id=file_id[:160], source_url=source_url[:700], system=system_label[:120],
         )
         return {}
+    diagnostic_log(
+        "technical_verified_package_direct_compile_hit_v69248",
+        file_id=file_id[:160], source_url=source_url[:700], system=system_label[:120],
+        contracts=len(contracts),
+    )
 
     query_tokens = _technical_contract_tokens_v69198(scoped_prompt)
     def rank(contract):
@@ -70622,7 +70637,7 @@ def _technical_compiled_row_for_verified_package_v69247(prompt_text, package, st
             "selected_segments_v69158": list(contract.get("segments") or []),
             "image_evidence": list(contract.get("config_image_evidence_v69204") or []),
             "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
-            "selector_version": 69247,
+            "selector_version": 69248,
             "compiled_runtime_contract_v69198": True,
             "verified_package_local_render_v69247": True,
         }
@@ -70652,10 +70667,10 @@ def _technical_compiled_row_for_verified_package_v69247(prompt_text, package, st
             "filename": authority["filename"],
             "score": 1.0,
             "text": authority["section_text"][:14000],
-            "technical_verified_package_local_render_v69247": True,
+            "technical_verified_package_local_render_v69248": True,
         }]
         diagnostic_log(
-            "technical_verified_package_local_render_hit_v69247",
+            "technical_verified_package_local_render_hit_v69248",
             file_id=file_id[:160], source_url=str(authority.get("source_url") or "")[:700],
             system=system_label[:120], section=str(authority.get("section_title") or "")[:300],
             rows=len(_technical_table_rows_from_structured_v69155(structured) or []),
@@ -70666,11 +70681,11 @@ def _technical_compiled_row_for_verified_package_v69247(prompt_text, package, st
             "source_url": str(authority.get("source_url") or source_url),
             "file_id": file_id,
             "exact_images": list(authority.get("selected_image_urls_v69143") or []),
-            "verified_package_row_v69247": True,
+            "verified_package_row_v69248": True,
         }
 
     diagnostic_log(
-        "technical_verified_package_local_render_miss_v69247",
+        "technical_verified_package_local_render_miss_v69248",
         file_id=file_id[:160], source_url=source_url[:700], system=system_label[:120],
         contracts=len(contracts),
     )
@@ -71383,7 +71398,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                     clean_store, revision_v69228, family, year, package_local_set_v69247
                 )
                 diagnostic_log(
-                    "technical_verified_package_local_multi_match_bound_v69247",
+                    "technical_verified_package_local_multi_match_bound_v69248",
                     family=family, year=int(year), packages=verified_package_count_v69244,
                     systems=[str(row.get("system_label") or "") for row in (package_local_set_v69247.get("authorities") or []) if isinstance(row, dict)],
                 )
@@ -71427,7 +71442,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                 return compatibility_set_v69244
 
             diagnostic_log(
-                "technical_verified_package_set_render_fail_closed_v69247",
+                "technical_verified_package_set_render_fail_closed_v69248",
                 family=family, year=int(year), verified_packages=verified_package_count_v69244,
             )
             return _technical_verified_set_fail_closed_result_v69247(
@@ -72171,7 +72186,7 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         cached_prompt_codes_v69241 = {str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
         if not cached_explicit_system_v69241 and not cached_prompt_systems_v69241 and not cached_prompt_codes_v69241:
             diagnostic_log(
-                "technical_configuration_cache_hit_v69247",
+                "technical_configuration_cache_hit_v69248",
                 family=str(families[0]), year=int(years[0]),
                 kind=str(cached_set_v69241.get("kind") or ""),
                 packages=len(cached_set_v69241.get("authorities") or []) or 1,
