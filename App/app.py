@@ -6,7 +6,7 @@
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
-# AutoTecPro AI v69242 — universal model-specific scope authority + rerun-persistent speed cache
+# AutoTecPro AI v69243 — complete verified multi-match + atomic cache + package-native exact images
 
 # AutoTecPro AI v69233 — exact current-source recovery + verified multi-package registry over v69232
 import streamlit.components.v1 as components
@@ -70070,7 +70070,7 @@ def _technical_configuration_set_cache_key_v69241(store, revision, family, year)
         clean_year = int(year)
     except Exception:
         return ""
-    return "|".join((str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
+    return "|".join(("v69243", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
 
 def _technical_configuration_set_cache_get_v69241(store, revision, family, year):
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
@@ -70083,10 +70083,18 @@ def _technical_configuration_set_cache_get_v69241(store, revision, family, year)
 
 def _technical_configuration_set_cache_put_v69241(store, revision, family, year, result):
     value = dict(result or {})
-    # Cache only deterministic recovered configuration authority.  A single current
-    # package and a multi-package set are both safe; failures/semantic/provider
-    # results are never cached.
-    if str(value.get("status") or "") != "recovered" or str(value.get("kind") or "") not in {"configuration", "configuration_set"}:
+    # v69243 completeness gate: cache only finalized deterministic authority.
+    # A configuration_set must contain at least two independently verified rows.
+    # A generic single result is cacheable only when the v69243 classifier proved
+    # exactly one recovered current configuration. Provider/semantic/failure results
+    # are never cached.
+    kind_v69243 = str(value.get("kind") or "")
+    if str(value.get("status") or "") != "recovered" or kind_v69243 not in {"configuration", "configuration_set"}:
+        return False
+    if kind_v69243 == "configuration_set":
+        if len([x for x in (value.get("authorities") or []) if isinstance(x, dict)]) < 2:
+            return False
+    elif value.get("verified_hydrated_single_v69242") and int(value.get("verified_recovered_configuration_count_v69243") or 0) != 1:
         return False
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
     if not key:
@@ -70175,97 +70183,163 @@ def _technical_package_model_year_eligible_v69242(package, family, year):
     except Exception:
         return False
 
-def _technical_configuration_set_from_verified_packages_v69241(prompt_text, packages, family, year):
-    """Build all current model/year configuration results from already-verified packages.
+def _technical_package_exact_discriminators_v69243(package):
+    """Return exact authored system/climate discriminators from ATP root metadata.
 
-    No DB/vector/provider/network work is allowed here.  Packages have already passed
-    durable snapshot SHA, family/year scope and current-source hydration gates.  The
-    helper deliberately does not require a one-system package label: a current source
-    may legitimately contain several internal configuration branches.
+    Root data-atp-factory-system outranks broad text tokens because a SYNC2-only page
+    may legitimately mention SYNC3 only inside an incompatibility warning. This is
+    generic ATP metadata parsing and contains no vehicle/model hard-coding.
     """
+    package = dict(package or {})
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    if not semantics:
+        try:
+            semantics = dict(_technical_package_atp_semantics_v69178(package.get("package_text") or "") or {})
+        except Exception:
+            semantics = {}
+    root = dict(semantics.get("root") or {})
+
+    system_token = ""
+    authored_system = str(
+        root.get("data-atp-factory-system")
+        or root.get("data-atp-system-group-scope")
+        or ""
+    ).strip()
+    if authored_system:
+        system_token = _technical_explicit_factory_system_v69228(authored_system) or ""
+    if not system_token:
+        tokens = set(_technical_factory_system_tokens_v69231(
+            " ".join((
+                str(package.get("source_url") or ""),
+                str(package.get("title") or package.get("page_title") or ""),
+            )),
+            package.get("systems") or [],
+        ) or [])
+        if len(tokens) == 1:
+            system_token = next(iter(tokens))
+    system_label = {
+        "no_sync": "No SYNC", "sync1": "SYNC 1", "sync2": "SYNC 2", "sync3": "SYNC 3"
+    }.get(system_token, system_token.replace("_", " ") if system_token else "")
+
+    climate_hint = ""
+    authored_climate = " ".join(str(x or "").strip() for x in (
+        root.get("data-atp-climate"),
+        root.get("data-atp-climate-branch"),
+    ) if str(x or "").strip())
+    climate_cf = authored_climate.casefold()
+    if climate_cf:
+        has_manual = "manual" in climate_cf
+        has_auto = "automatic" in climate_cf or bool(re.search(r"\bauto\b", climate_cf))
+        if has_auto and not has_manual:
+            climate_hint = "Automatic Climate Control"
+        elif has_manual and not has_auto:
+            climate_hint = "Manual A/C"
+    return {
+        "system_token": system_token,
+        "system_label": system_label,
+        "climate_hint": climate_hint,
+    }
+
+
+def _technical_verified_package_configuration_row_v69243(prompt_text, package):
+    """Parse one already-verified current package exactly once into one row.
+
+    No DB/vector/provider/network work is allowed. Exact root system/climate metadata
+    is appended only as a deterministic branch discriminator for this same package.
+    """
+    package = dict(package or {})
+    if not package or not str(package.get("package_text") or ""):
+        return {}
+    source_url = str(package.get("source_url") or "").strip()
+    file_id = str(package.get("file_id") or "").strip()
+    discriminator = _technical_package_exact_discriminators_v69243(package)
+    system_label = str(discriminator.get("system_label") or "").strip()
+    climate_hint = str(discriminator.get("climate_hint") or "").strip()
+    prompt_parts = [str(prompt_text or "").strip()]
+    if system_label:
+        prompt_parts.append(system_label)
+    if climate_hint:
+        prompt_parts.append(climate_hint)
+    scoped_prompt = " ".join(x for x in prompt_parts if x).strip()
+    result = _technical_exact_verified_package_result_v69238(scoped_prompt, package)
+    if str((result or {}).get("status") or "") != "recovered":
+        return {}
+    authority = dict(result.get("authority") or {})
+    if str(authority.get("status") or "") != "recovered":
+        return {}
+    if not system_label:
+        system_label = str(package.get("title") or package.get("page_title") or "Current Configuration").strip() or "Current Configuration"
+    images = list(result.get("exact_images") or [])[:1]
+    return {
+        "system_label": system_label,
+        "authority": authority,
+        "source_url": str(authority.get("source_url") or source_url),
+        "file_id": str(authority.get("file_id") or file_id),
+        "exact_images": images,
+        "verified_package_row_v69243": True,
+    }
+
+
+def _technical_verified_configuration_rows_v69243(prompt_text, packages, family, year):
+    """Return every independently recovered current configuration row atomically."""
     rows = []
-    exact_images = []
     seen = set()
     for raw_package in packages or []:
         package = dict(raw_package or {})
-        if not package or not str(package.get("package_text") or ""):
+        if not package or not _technical_package_model_year_eligible_v69242(package, family, year):
             continue
         source_url = str(package.get("source_url") or "").strip()
         file_id = str(package.get("file_id") or "").strip()
         try:
-            source_identity = canonical_website_url_identity(source_url) if source_url else file_id
+            identity = canonical_website_url_identity(source_url) if source_url else file_id
         except Exception:
-            source_identity = source_url.casefold() if source_url else file_id
-        identity = source_identity or file_id
+            identity = source_url.casefold() if source_url else file_id
         if not identity or identity in seen:
             continue
         seen.add(identity)
+        row = _technical_verified_package_configuration_row_v69243(prompt_text, package)
+        if row:
+            rows.append(row)
+    order = {"No SYNC": 0, "SYNC 1": 1, "SYNC 2": 2, "SYNC 3": 3}
+    rows.sort(key=lambda row: (
+        order.get(str(row.get("system_label") or ""), 99),
+        str(row.get("system_label") or ""),
+        str(row.get("source_url") or row.get("file_id") or ""),
+    ))
+    return rows
 
-        system_tokens = set(_technical_factory_system_tokens_v69231(
-            " ".join((source_url, str(package.get("title") or package.get("page_title") or ""))),
-            package.get("systems") or [],
-        ) or [])
-        if len(system_tokens) == 1:
-            token = next(iter(system_tokens))
-            system_label = {"no_sync": "No SYNC", "sync1": "SYNC 1", "sync2": "SYNC 2", "sync3": "SYNC 3"}.get(token, token.replace("_", " "))
-            scoped_prompt = f"{prompt_text} {system_label}".strip()
-        else:
-            system_label = str(package.get("title") or package.get("page_title") or "Current Configuration").strip() or "Current Configuration"
-            scoped_prompt = str(prompt_text or "")
 
-        result = _technical_exact_verified_package_result_v69238(scoped_prompt, package)
-        if str((result or {}).get("status") or "") != "recovered":
-            # Generic current sources with multiple internal systems may not select
-            # one structural branch from an unqualified prompt.  Fall back only to
-            # their already-compiled current contract below; never provider/vector.
-            continue
-        authority = dict(result.get("authority") or {})
-        images = list(result.get("exact_images") or [])[:1]
-        rows.append({
-            "system_label": system_label,
-            "authority": authority,
-            "source_url": str(authority.get("source_url") or source_url),
-            "file_id": str(authority.get("file_id") or file_id),
-            "exact_images": images,
-        })
-        for url in images:
-            if url and url not in exact_images:
-                exact_images.append(url)
-
+def _technical_configuration_set_from_rows_v69243(rows, family, year):
+    rows = [dict(x) for x in (rows or []) if isinstance(x, dict)]
     if len(rows) < 2:
         return {}
-    order = {"No SYNC": 0, "SYNC 1": 1, "SYNC 2": 2, "SYNC 3": 3}
-    rows.sort(key=lambda row: (order.get(row.get("system_label"), 99), row.get("system_label") or "", row.get("source_url") or row.get("file_id") or ""))
+    exact_images = []
+    for row in rows:
+        for url in row.get("exact_images") or []:
+            if url and url not in exact_images:
+                exact_images.append(url)
     return {
         "status": "recovered", "kind": "configuration_set",
         "family": str(family or ""), "year": int(year),
         "authorities": rows, "exact_images": exact_images,
         "multi_package_authority_v69239": True,
         "verified_hydrated_set_v69241": True,
+        "verified_complete_set_v69243": True,
+        "verified_recovered_configuration_count_v69243": len(rows),
     }
+
+
+def _technical_configuration_set_from_verified_packages_v69241(prompt_text, packages, family, year):
+    """Compatibility wrapper for the v69243 exact-cardinality classifier."""
+    rows = _technical_verified_configuration_rows_v69243(prompt_text, packages, family, year)
+    return _technical_configuration_set_from_rows_v69243(rows, family, year)
 
 # ============================================================
 # v69239 — model/year multi-package Technical authority
 # ============================================================
 def _technical_package_factory_system_label_v69239(package):
-    """Return one user-facing factory-system label only when package evidence is exact."""
-    package = dict(package or {})
-    tokens = _technical_factory_system_tokens_v69231(
-        " ".join((
-            str(package.get("source_url") or ""),
-            str(package.get("title") or package.get("page_title") or ""),
-        )),
-        package.get("systems") or [],
-    )
-    if len(tokens) != 1:
-        return ""
-    token = next(iter(tokens))
-    return {
-        "no_sync": "No SYNC",
-        "sync1": "SYNC 1",
-        "sync2": "SYNC 2",
-        "sync3": "SYNC 3",
-    }.get(token, token.replace("_", " "))
+    """Return exact user-facing factory-system label, preferring authored root metadata."""
+    return str((_technical_package_exact_discriminators_v69243(package) or {}).get("system_label") or "").strip()
 
 
 def _technical_compiled_packages_for_family_year_v69239(store, family, year):
@@ -70772,77 +70846,78 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     if hydrated_v69228 <= 0:
         return {}
 
-    # v69239: generic model/year configuration queries intentionally preserve
-    # every independently verified current package in this exact bucket.  This
-    # executes entirely in memory after hydration and therefore avoids the old
-    # single-source pointer + vector fallback path for legitimate overlaps.
+    # v69243 exact cardinality handoff. Parse each independently verified current
+    # package exactly once, then decide single vs multi from the recovered rows.
+    # A generic request can never bind/cache one row when two or more recovered
+    # current configurations exist.
     if not explicit_factory_system_v69228:
         eligible_verified_packages_v69242 = [
             dict(pkg) for pkg in verified_hydrated_packages_v69241
             if isinstance(pkg, dict)
             and _technical_package_model_year_eligible_v69242(pkg, family, year)
         ]
-        multi_result_v69241 = _technical_configuration_set_from_verified_packages_v69241(
+        recovered_rows_v69243 = _technical_verified_configuration_rows_v69243(
             prompt_text, eligible_verified_packages_v69242, family, year
         )
-        if str((multi_result_v69241 or {}).get("status") or "") == "recovered":
+        recovered_count_v69243 = len(recovered_rows_v69243)
+        if recovered_count_v69243 >= 2:
+            multi_result_v69243 = _technical_configuration_set_from_rows_v69243(
+                recovered_rows_v69243, family, year
+            )
+            if str((multi_result_v69243 or {}).get("status") or "") == "recovered":
+                _technical_configuration_set_cache_put_v69241(
+                    clean_store, revision_v69228, family, year, multi_result_v69243
+                )
+                diagnostic_log(
+                    "technical_verified_hydrated_complete_multi_match_bound_v69243",
+                    family=family, year=int(year), packages=recovered_count_v69243,
+                    systems=[str(row.get("system_label") or "") for row in recovered_rows_v69243],
+                )
+                return multi_result_v69243
+        elif recovered_count_v69243 == 1:
+            row_v69243 = dict(recovered_rows_v69243[0])
+            authority_v69243 = dict(row_v69243.get("authority") or {})
+            single_result_v69243 = {
+                "status": "recovered",
+                "kind": "configuration",
+                "authority": authority_v69243,
+                "exact_images": list(row_v69243.get("exact_images") or []),
+                "verified_hydrated_single_v69242": True,
+                "verified_recovered_configuration_count_v69243": 1,
+            }
             _technical_configuration_set_cache_put_v69241(
-                clean_store, revision_v69228, family, year, multi_result_v69241
+                clean_store, revision_v69228, family, year, single_result_v69243
             )
             diagnostic_log(
-                "technical_verified_hydrated_multi_match_bound_v69241",
+                "technical_verified_hydrated_single_bound_v69243",
                 family=family, year=int(year),
-                packages=len(multi_result_v69241.get("authorities") or []),
-                systems=[str(row.get("system_label") or "") for row in (multi_result_v69241.get("authorities") or []) if isinstance(row, dict)],
+                file_id=str(authority_v69243.get("file_id") or "")[:160],
+                source_url=str(authority_v69243.get("source_url") or "")[:700],
             )
-            return multi_result_v69241
-        # v69242: if exactly one current model/year package survives, bind that
-        # verified package directly and preempt the legacy family/year pointer.
-        # This closes the F150->foreign-source failure without weakening fail-closed.
-        single_results_v69242 = []
-        seen_single_v69242 = set()
-        for package_v69242 in eligible_verified_packages_v69242:
-            source_v69242 = str(package_v69242.get("source_url") or "").strip()
-            try:
-                identity_v69242 = canonical_website_url_identity(source_v69242) if source_v69242 else str(package_v69242.get("file_id") or "")
-            except Exception:
-                identity_v69242 = source_v69242.casefold() if source_v69242 else str(package_v69242.get("file_id") or "")
-            if not identity_v69242 or identity_v69242 in seen_single_v69242:
-                continue
-            seen_single_v69242.add(identity_v69242)
-            result_v69242 = _technical_exact_verified_package_result_v69238(prompt_text, package_v69242)
-            if str((result_v69242 or {}).get("status") or "") == "recovered":
-                single_results_v69242.append(result_v69242)
-        if len(single_results_v69242) == 1:
-            single_result_v69242 = dict(single_results_v69242[0])
-            single_result_v69242["verified_hydrated_single_v69242"] = True
-            _technical_configuration_set_cache_put_v69241(
-                clean_store, revision_v69228, family, year, single_result_v69242
-            )
+            return single_result_v69243
+        else:
             diagnostic_log(
-                "technical_verified_hydrated_single_bound_v69242",
+                "technical_verified_hydrated_configuration_rows_miss_v69243",
                 family=family, year=int(year),
-                file_id=str((single_result_v69242.get("authority") or {}).get("file_id") or "")[:160],
-                source_url=str((single_result_v69242.get("authority") or {}).get("source_url") or "")[:700],
+                verified_packages=len(eligible_verified_packages_v69242),
             )
-            return single_result_v69242
+
+        # Compatibility fallback for older compiled packages. v69243's root-aware
+        # factory-system helper is used here too. Never cache a partial single result.
         multi_result_v69239 = _technical_multi_package_configuration_result_v69239(
             prompt_text, clean_store, family, year
         )
         if str((multi_result_v69239 or {}).get("status") or "") == "recovered":
+            multi_result_v69239["verified_complete_set_v69243"] = True
+            multi_result_v69239["verified_recovered_configuration_count_v69243"] = len(multi_result_v69239.get("authorities") or [])
             _technical_configuration_set_cache_put_v69241(
                 clean_store, revision_v69228, family, year, multi_result_v69239
             )
             diagnostic_log(
-                "technical_multi_package_configuration_bound_v69239",
-                family=family,
-                year=int(year),
+                "technical_multi_package_configuration_bound_v69243",
+                family=family, year=int(year),
                 packages=len(multi_result_v69239.get("authorities") or []),
-                systems=[
-                    str(row.get("system_label") or "")
-                    for row in (multi_result_v69239.get("authorities") or [])
-                    if isinstance(row, dict)
-                ],
+                systems=[str(row.get("system_label") or "") for row in (multi_result_v69239.get("authorities") or []) if isinstance(row, dict)],
             )
             return multi_result_v69239
 
@@ -71552,7 +71627,7 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         cached_prompt_codes_v69241 = {str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
         if not cached_explicit_system_v69241 and not cached_prompt_systems_v69241 and not cached_prompt_codes_v69241:
             diagnostic_log(
-                "technical_configuration_cache_hit_v69242",
+                "technical_configuration_cache_hit_v69243",
                 family=str(families[0]), year=int(years[0]),
                 kind=str(cached_set_v69241.get("kind") or ""),
                 packages=len(cached_set_v69241.get("authorities") or []) or 1,
@@ -71565,7 +71640,7 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
             if len(matched_v69241) == 1:
                 authority_v69241 = dict(matched_v69241[0].get("authority") or {})
                 if str(authority_v69241.get("status") or "") == "recovered":
-                    diagnostic_log("technical_configuration_branch_cache_hit_v69241", family=str(families[0]), year=int(years[0]), system=wanted_v69241)
+                    diagnostic_log("technical_configuration_branch_cache_hit_v69243", family=str(families[0]), year=int(years[0]), system=wanted_v69241)
                     return {"status": "recovered", "kind": "configuration", "authority": authority_v69241, "exact_images": list(matched_v69241[0].get("exact_images") or []), "configuration_set_cache_branch_v69241": True}
     state = _technical_compiled_contract_state_v69198()
     with state["lock"]:
@@ -86554,7 +86629,7 @@ else:
                 # Re-materialize exact-current-source images, combine them only with already
                 # recovered current-turn images, then run the existing final provenance
                 # verifier against the SAME current authority. No new search/fallback is added.
-                current_exact_images_v69184 = _technical_exact_authority_chat_images_v69170(
+                current_exact_images_v69184 = _technical_v69125_exact_images_v69175(
                     technical_request_prompt_v68879,
                     current_final_authority_v69184,
                     max_images=3,
