@@ -6,7 +6,7 @@
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
-# AutoTecPro AI v69243 — complete verified multi-match + atomic cache + package-native exact images
+# AutoTecPro AI v69244 — verified package-set cardinality + atomic cache + exact image dedupe
 
 # AutoTecPro AI v69233 — exact current-source recovery + verified multi-package registry over v69232
 import streamlit.components.v1 as components
@@ -70070,7 +70070,7 @@ def _technical_configuration_set_cache_key_v69241(store, revision, family, year)
         clean_year = int(year)
     except Exception:
         return ""
-    return "|".join(("v69243", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
+    return "|".join(("v69244", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
 
 def _technical_configuration_set_cache_get_v69241(store, revision, family, year):
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
@@ -70092,10 +70092,15 @@ def _technical_configuration_set_cache_put_v69241(store, revision, family, year,
     if str(value.get("status") or "") != "recovered" or kind_v69243 not in {"configuration", "configuration_set"}:
         return False
     if kind_v69243 == "configuration_set":
-        if len([x for x in (value.get("authorities") or []) if isinstance(x, dict)]) < 2:
+        authority_count_v69244 = len([x for x in (value.get("authorities") or []) if isinstance(x, dict)])
+        expected_count_v69244 = int(value.get("verified_package_count_v69244") or authority_count_v69244)
+        if authority_count_v69244 < 2 or expected_count_v69244 != authority_count_v69244:
             return False
-    elif value.get("verified_hydrated_single_v69242") and int(value.get("verified_recovered_configuration_count_v69243") or 0) != 1:
-        return False
+    elif value.get("verified_hydrated_single_v69242"):
+        if int(value.get("verified_package_count_v69244") or 1) != 1:
+            return False
+        if int(value.get("verified_recovered_configuration_count_v69243") or 0) != 1:
+            return False
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
     if not key:
         return False
@@ -70327,6 +70332,218 @@ def _technical_configuration_set_from_rows_v69243(rows, family, year):
         "verified_complete_set_v69243": True,
         "verified_recovered_configuration_count_v69243": len(rows),
     }
+
+def _technical_exact_chat_image_identity_v69244(image):
+    if not isinstance(image, dict):
+        return ""
+    digest = str(image.get("website_image_sha256") or "").strip().casefold()
+    if digest:
+        return "sha:" + digest
+    raw_url = str(image.get("archive_web_url") or image.get("data_url") or "").strip()
+    if not raw_url:
+        return ""
+    clean_url = raw_url.split("#", 1)[0].split("?", 1)[0]
+    # WordPress thumbnail aliases such as -225x300.jpg are the same visual as
+    # the package-authored full-resolution URL and must publish only once.
+    clean_url = re.sub(
+        r"-\d{2,5}x\d{2,5}(?=\.(?:jpe?g|png|webp|gif)$)",
+        "", clean_url, flags=re.I,
+    )
+    return "url:" + clean_url.casefold()
+
+
+def _technical_dedupe_exact_chat_images_v69244(images):
+    output = []
+    seen = set()
+    for image in images or []:
+        if not isinstance(image, dict):
+            output.append(image)
+            continue
+        identity = _technical_exact_chat_image_identity_v69244(image)
+        if identity and identity in seen:
+            continue
+        if identity:
+            seen.add(identity)
+        output.append(image)
+    return output
+
+
+def _technical_verified_package_identity_v69244(package):
+    package = dict(package or {})
+    source_url = str(package.get("source_url") or "").strip()
+    file_id = str(package.get("file_id") or "").strip()
+    if source_url:
+        try:
+            return "url:" + canonical_website_url_identity(source_url)
+        except Exception:
+            return "url:" + source_url.casefold()
+    return "file:" + file_id if file_id else ""
+
+
+def _technical_configuration_set_covers_verified_packages_v69244(result, packages):
+    """Require one independently rendered authority for every verified package.
+
+    Package cardinality is frozen by the already-verified hydration stage. A later
+    renderer may not silently reduce a valid two-package set to one package.
+    """
+    result = dict(result or {})
+    if str(result.get("status") or "") != "recovered" or str(result.get("kind") or "") != "configuration_set":
+        return False
+    expected = {
+        _technical_verified_package_identity_v69244(pkg)
+        for pkg in (packages or []) if isinstance(pkg, dict)
+    }
+    expected.discard("")
+    actual = set()
+    for row in result.get("authorities") or []:
+        if not isinstance(row, dict):
+            continue
+        authority = dict(row.get("authority") or {})
+        identity = _technical_verified_package_identity_v69244({
+            "source_url": authority.get("source_url") or row.get("source_url"),
+            "file_id": authority.get("file_id") or row.get("file_id"),
+        })
+        if identity:
+            actual.add(identity)
+    return bool(expected) and expected == actual and len(actual) >= 2
+
+
+def _technical_finalize_verified_configuration_set_v69244(result, packages):
+    result = dict(result or {})
+    if not _technical_configuration_set_covers_verified_packages_v69244(result, packages):
+        return {}
+    count = len([x for x in (result.get("authorities") or []) if isinstance(x, dict)])
+    result["verified_complete_set_v69244"] = True
+    result["verified_package_count_v69244"] = count
+    result["verified_recovered_configuration_count_v69243"] = count
+    return result
+
+
+def _technical_compiled_row_for_verified_package_v69244(prompt_text, package, store):
+    """Render one already-verified package from its precompiled configuration contract.
+
+    This deliberately avoids re-running the narrower v69238 structural parser. The
+    contract was compiled from the same hydrated package and already contains the
+    deterministic literal/structured configuration plus exact first-response image.
+    """
+    package = dict(package or {})
+    file_id = str(package.get("file_id") or "").strip()
+    if not file_id:
+        return {}
+    state = _technical_compiled_contract_state_v69198()
+    with state["lock"]:
+        if str(state.get("store") or "") != str(store or "").strip():
+            return {}
+        contracts = [
+            dict(contract) for contract in (state.get("contracts") or {}).values()
+            if isinstance(contract, dict)
+            and str(contract.get("file_id") or "").strip() == file_id
+            and bool(contract.get("config_ready"))
+        ]
+    if not contracts:
+        return {}
+
+    def rank(contract):
+        section_id = str(contract.get("section_id") or "").casefold()
+        section_title = str(contract.get("section_title") or "").casefold()
+        preferred = int(
+            section_id in {"protocol-settings", "car-model-ac", "car-model-ac-protocol"}
+            or "car model" in section_title
+        )
+        query_tokens = _technical_contract_tokens_v69198(prompt_text)
+        contract_tokens = set(contract.get("search_tokens") or [])
+        overlap = len(query_tokens & contract_tokens)
+        return (preferred, overlap, len(str(contract.get("section_text") or "")))
+
+    contracts.sort(key=rank, reverse=True)
+    contract = contracts[0]
+    structured = dict(contract.get("config_structured") or {})
+    if not _technical_table_rows_from_structured_v69155(structured):
+        return {}
+
+    discriminator = _technical_package_exact_discriminators_v69243(package)
+    system_label = str(discriminator.get("system_label") or "").strip()
+    if not system_label:
+        tokens = _technical_factory_system_tokens_v69231(
+            " ".join((
+                str(contract.get("source_url") or ""),
+                str(contract.get("page_title") or ""),
+                str(contract.get("section_title") or ""),
+            )),
+            contract.get("systems") or [],
+        )
+        if len(tokens) == 1:
+            token = next(iter(tokens))
+            system_label = {
+                "no_sync": "No SYNC", "sync1": "SYNC 1",
+                "sync2": "SYNC 2", "sync3": "SYNC 3",
+            }.get(token, token.replace("_", " "))
+    if not system_label:
+        return {}
+
+    authority = {
+        "status": "recovered",
+        "file_id": file_id,
+        "filename": str(contract.get("filename") or package.get("filename") or ""),
+        "source_url": str(contract.get("source_url") or package.get("source_url") or ""),
+        "page_title": str(contract.get("page_title") or package.get("title") or ""),
+        "package_text": str(package.get("package_text") or ""),
+        "section_title": str(contract.get("section_title") or ""),
+        "section_id": str(contract.get("section_id") or ""),
+        "branch_paths": [
+            " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+            for seg in (contract.get("segments") or []) if isinstance(seg, dict)
+        ],
+        "section_text": str(contract.get("section_text") or ""),
+        "selected_image_urls_v69143": list(contract.get("exact_images") or [])[:1],
+        "selected_section_title_v69143": str(contract.get("section_title") or ""),
+        "selected_branch_paths_v69143": [
+            " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+            for seg in (contract.get("segments") or []) if isinstance(seg, dict)
+        ],
+        "selected_segments_v69158": list(contract.get("segments") or []),
+        "image_evidence": list(contract.get("config_image_evidence_v69204") or []),
+        "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
+        "literal_structured_v69156": dict(contract.get("config_literal") or {}),
+        "structured": structured,
+        "deterministic_literal_authority_v69156": True,
+        "model_structured_v69156": {"status": "not_needed", "fields": [], "branches": []},
+        "selector_version": 69244,
+        "compiled_runtime_contract_v69198": True,
+        "verified_package_compiled_render_v69244": True,
+    }
+    authority["context"] = _technical_authority_context_v69155(authority)
+    authority["rows"] = [{
+        "file_id": authority["file_id"],
+        "filename": authority["filename"],
+        "score": 1.0,
+        "text": authority["section_text"][:14000],
+        "technical_verified_package_compiled_render_v69244": True,
+    }]
+    return {
+        "system_label": system_label,
+        "authority": authority,
+        "source_url": authority["source_url"],
+        "file_id": authority["file_id"],
+        "exact_images": list(authority.get("selected_image_urls_v69143") or []),
+        "verified_package_row_v69244": True,
+    }
+
+
+def _technical_compiled_set_from_verified_packages_v69244(prompt_text, packages, store, family, year):
+    rows = []
+    for package in packages or []:
+        if not isinstance(package, dict):
+            continue
+        row = _technical_compiled_row_for_verified_package_v69244(prompt_text, package, store)
+        if not row:
+            return {}
+        rows.append(row)
+    order = {"No SYNC": 0, "SYNC 1": 1, "SYNC 2": 2, "SYNC 3": 3}
+    rows.sort(key=lambda row: (order.get(str(row.get("system_label") or ""), 99), str(row.get("system_label") or "")))
+    result = _technical_configuration_set_from_rows_v69243(rows, family, year)
+    return _technical_finalize_verified_configuration_set_v69244(result, packages)
+
 
 
 def _technical_configuration_set_from_verified_packages_v69241(prompt_text, packages, family, year):
@@ -70846,80 +71063,120 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     if hydrated_v69228 <= 0:
         return {}
 
-    # v69243 exact cardinality handoff. Parse each independently verified current
-    # package exactly once, then decide single vs multi from the recovered rows.
-    # A generic request can never bind/cache one row when two or more recovered
-    # current configurations exist.
+    # v69244 verified-set authority handoff. The hydration stage has already
+    # independently proven package identity/current-source/scope. Freeze that exact
+    # package cardinality BEFORE rendering; a narrower secondary parser must never
+    # silently turn two verified current packages into one published package.
     if not explicit_factory_system_v69228:
-        eligible_verified_packages_v69242 = [
-            dict(pkg) for pkg in verified_hydrated_packages_v69241
-            if isinstance(pkg, dict)
-            and _technical_package_model_year_eligible_v69242(pkg, family, year)
-        ]
-        recovered_rows_v69243 = _technical_verified_configuration_rows_v69243(
-            prompt_text, eligible_verified_packages_v69242, family, year
-        )
-        recovered_count_v69243 = len(recovered_rows_v69243)
-        if recovered_count_v69243 >= 2:
-            multi_result_v69243 = _technical_configuration_set_from_rows_v69243(
-                recovered_rows_v69243, family, year
+        eligible_verified_packages_v69242 = []
+        seen_verified_identity_v69244 = set()
+        for pkg_v69244 in verified_hydrated_packages_v69241:
+            if not isinstance(pkg_v69244, dict):
+                continue
+            pkg_v69244 = dict(pkg_v69244)
+            if not _technical_package_model_year_eligible_v69242(pkg_v69244, family, year):
+                continue
+            identity_v69244 = _technical_verified_package_identity_v69244(pkg_v69244)
+            if not identity_v69244 or identity_v69244 in seen_verified_identity_v69244:
+                continue
+            seen_verified_identity_v69244.add(identity_v69244)
+            eligible_verified_packages_v69242.append(pkg_v69244)
+
+        verified_package_count_v69244 = len(eligible_verified_packages_v69242)
+
+        if verified_package_count_v69244 >= 2:
+            # Use the already-built O(1) compiled contracts as the renderer. They are
+            # generated from these exact hydrated packages and preserve the complete
+            # configuration rows (including multi-variant SYNC2 metadata).
+            compiled_set_v69244 = _technical_compiled_contract_lookup_v69198(
+                prompt_text, clean_store
             )
-            if str((multi_result_v69243 or {}).get("status") or "") == "recovered":
+            compiled_set_v69244 = _technical_finalize_verified_configuration_set_v69244(
+                compiled_set_v69244, eligible_verified_packages_v69242
+            )
+            if compiled_set_v69244:
                 _technical_configuration_set_cache_put_v69241(
-                    clean_store, revision_v69228, family, year, multi_result_v69243
+                    clean_store, revision_v69228, family, year, compiled_set_v69244
                 )
                 diagnostic_log(
-                    "technical_verified_hydrated_complete_multi_match_bound_v69243",
-                    family=family, year=int(year), packages=recovered_count_v69243,
-                    systems=[str(row.get("system_label") or "") for row in recovered_rows_v69243],
+                    "technical_verified_hydrated_complete_multi_match_bound_v69244",
+                    family=family, year=int(year), packages=verified_package_count_v69244,
+                    systems=[str(row.get("system_label") or "") for row in (compiled_set_v69244.get("authorities") or []) if isinstance(row, dict)],
                 )
-                return multi_result_v69243
-        elif recovered_count_v69243 == 1:
-            row_v69243 = dict(recovered_rows_v69243[0])
-            authority_v69243 = dict(row_v69243.get("authority") or {})
-            single_result_v69243 = {
-                "status": "recovered",
-                "kind": "configuration",
-                "authority": authority_v69243,
-                "exact_images": list(row_v69243.get("exact_images") or []),
-                "verified_hydrated_single_v69242": True,
-                "verified_recovered_configuration_count_v69243": 1,
-            }
-            _technical_configuration_set_cache_put_v69241(
-                clean_store, revision_v69228, family, year, single_result_v69243
-            )
-            diagnostic_log(
-                "technical_verified_hydrated_single_bound_v69243",
-                family=family, year=int(year),
-                file_id=str(authority_v69243.get("file_id") or "")[:160],
-                source_url=str(authority_v69243.get("source_url") or "")[:700],
-            )
-            return single_result_v69243
-        else:
-            diagnostic_log(
-                "technical_verified_hydrated_configuration_rows_miss_v69243",
-                family=family, year=int(year),
-                verified_packages=len(eligible_verified_packages_v69242),
-            )
+                return compiled_set_v69244
 
-        # Compatibility fallback for older compiled packages. v69243's root-aware
-        # factory-system helper is used here too. Never cache a partial single result.
-        multi_result_v69239 = _technical_multi_package_configuration_result_v69239(
-            prompt_text, clean_store, family, year
-        )
-        if str((multi_result_v69239 or {}).get("status") or "") == "recovered":
-            multi_result_v69239["verified_complete_set_v69243"] = True
-            multi_result_v69239["verified_recovered_configuration_count_v69243"] = len(multi_result_v69239.get("authorities") or [])
-            _technical_configuration_set_cache_put_v69241(
-                clean_store, revision_v69228, family, year, multi_result_v69239
+            # Guaranteed package-local renderer from the same precompiled contracts.
+            # This path does not re-run v69238 and therefore cannot discard a valid
+            # multi-variant package merely because a narrower structural parser misses.
+            package_compiled_set_v69244 = _technical_compiled_set_from_verified_packages_v69244(
+                prompt_text, eligible_verified_packages_v69242, clean_store, family, year
             )
+            if package_compiled_set_v69244:
+                _technical_configuration_set_cache_put_v69241(
+                    clean_store, revision_v69228, family, year, package_compiled_set_v69244
+                )
+                diagnostic_log(
+                    "technical_verified_hydrated_package_compiled_multi_match_bound_v69244",
+                    family=family, year=int(year), packages=verified_package_count_v69244,
+                    systems=[str(row.get("system_label") or "") for row in (package_compiled_set_v69244.get("authorities") or []) if isinstance(row, dict)],
+                )
+                return package_compiled_set_v69244
+
+            # Compatibility renderer is the last deterministic package-local path and
+            # is accepted only when it covers the exact same verified package set.
+            compatibility_set_v69244 = _technical_multi_package_configuration_result_v69239(
+                prompt_text, clean_store, family, year
+            )
+            compatibility_set_v69244 = _technical_finalize_verified_configuration_set_v69244(
+                compatibility_set_v69244, eligible_verified_packages_v69242
+            )
+            if compatibility_set_v69244:
+                _technical_configuration_set_cache_put_v69241(
+                    clean_store, revision_v69228, family, year, compatibility_set_v69244
+                )
+                diagnostic_log(
+                    "technical_verified_hydrated_compat_multi_match_bound_v69244",
+                    family=family, year=int(year), packages=verified_package_count_v69244,
+                    systems=[str(row.get("system_label") or "") for row in (compatibility_set_v69244.get("authorities") or []) if isinstance(row, dict)],
+                )
+                return compatibility_set_v69244
+
             diagnostic_log(
-                "technical_multi_package_configuration_bound_v69243",
-                family=family, year=int(year),
-                packages=len(multi_result_v69239.get("authorities") or []),
-                systems=[str(row.get("system_label") or "") for row in (multi_result_v69239.get("authorities") or []) if isinstance(row, dict)],
+                "technical_verified_package_set_render_fail_closed_v69244",
+                family=family, year=int(year), verified_packages=verified_package_count_v69244,
             )
-            return multi_result_v69239
+            return {}
+
+        if verified_package_count_v69244 == 1:
+            recovered_rows_v69243 = _technical_verified_configuration_rows_v69243(
+                prompt_text, eligible_verified_packages_v69242, family, year
+            )
+            if len(recovered_rows_v69243) == 1:
+                row_v69243 = dict(recovered_rows_v69243[0])
+                authority_v69243 = dict(row_v69243.get("authority") or {})
+                single_result_v69243 = {
+                    "status": "recovered",
+                    "kind": "configuration",
+                    "authority": authority_v69243,
+                    "exact_images": list(row_v69243.get("exact_images") or []),
+                    "verified_hydrated_single_v69242": True,
+                    "verified_package_count_v69244": 1,
+                    "verified_recovered_configuration_count_v69243": 1,
+                }
+                _technical_configuration_set_cache_put_v69241(
+                    clean_store, revision_v69228, family, year, single_result_v69243
+                )
+                diagnostic_log(
+                    "technical_verified_hydrated_single_bound_v69244",
+                    family=family, year=int(year),
+                    file_id=str(authority_v69243.get("file_id") or "")[:160],
+                    source_url=str(authority_v69243.get("source_url") or "")[:700],
+                )
+                return single_result_v69243
+            diagnostic_log(
+                "technical_verified_single_package_render_miss_v69244",
+                family=family, year=int(year), verified_packages=1,
+            )
 
     compiled_result_v69238 = _technical_compiled_contract_lookup_v69198(prompt_text, clean_store)
     if str((compiled_result_v69238 or {}).get("status") or "") == "recovered":
@@ -86596,6 +86853,9 @@ else:
                     )
                     for image_v69241 in branch_images_v69241 or []:
                         multi_exact_images_v69241.append(image_v69241)
+                multi_exact_images_v69241 = _technical_dedupe_exact_chat_images_v69244(
+                    multi_exact_images_v69241
+                )
                 non_website_images_v69241 = [
                     x for x in assistant_images_to_save
                     if not (isinstance(x, dict) and str(x.get("source") or "") == "website_knowledge")
@@ -86634,6 +86894,9 @@ else:
                     current_final_authority_v69184,
                     max_images=3,
                 )
+                current_exact_images_v69184 = _technical_dedupe_exact_chat_images_v69244(
+                    current_exact_images_v69184
+                )
                 non_website_images_v69184 = [
                     x for x in assistant_images_to_save
                     if not (
@@ -86641,15 +86904,22 @@ else:
                         and str(x.get("source") or "") == "website_knowledge"
                     )
                 ]
-                current_website_candidates_v69184 = [
+                existing_current_website_images_v69244 = [
                     x for x in assistant_images_to_save
                     if (
                         isinstance(x, dict)
                         and str(x.get("source") or "") == "website_knowledge"
                     )
                 ]
-                current_website_candidates_v69184.extend(
+                # v69244: exact package-native images outrank earlier broad/legacy
+                # recovery candidates. Replacing rather than appending prevents the
+                # same screenshot (or its thumbnail/full-size aliases) from being
+                # published twice and removes unrelated global image candidates once
+                # an exact current package image has already passed provenance gates.
+                current_website_candidates_v69184 = (
                     list(current_exact_images_v69184 or [])
+                    if current_exact_images_v69184
+                    else existing_current_website_images_v69244
                 )
                 current_website_candidates_v69184 = (
                     _technical_verify_published_images_v69158(
