@@ -70070,7 +70070,7 @@ def _technical_configuration_set_cache_key_v69241(store, revision, family, year)
         clean_year = int(year)
     except Exception:
         return ""
-    return "|".join(("v69246", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
+    return "|".join(("v69247", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
 
 def _technical_configuration_set_cache_get_v69241(store, revision, family, year):
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
@@ -70545,6 +70545,178 @@ def _technical_compiled_set_from_verified_packages_v69244(prompt_text, packages,
     return _technical_finalize_verified_configuration_set_v69244(result, packages)
 
 
+def _technical_compiled_row_for_verified_package_v69247(prompt_text, package, store):
+    """Render one already-verified package using the same literal path as the proven
+    explicit single-package runtime, but restricted to this exact package identity.
+
+    v69246 proved the authoritative package set is correct (2/2) and that the failure
+    occurs only when the generic set renderer reconstructs package rows.  v69247 does
+    not rediscover or re-rank sources.  It reads only contracts already compiled from
+    this verified package, scopes the prompt with the package's authored factory-system
+    label, and runs the unchanged deterministic literal/structured parser used by the
+    explicit Technical configuration path.  No DB/vector/provider/network work occurs.
+    """
+    package = dict(package or {})
+    file_id = str(package.get("file_id") or "").strip()
+    source_url = str(package.get("source_url") or "").strip()
+    if not file_id:
+        return {}
+
+    discriminator = dict(_technical_package_exact_discriminators_v69243(package) or {})
+    system_label = str(discriminator.get("system_label") or "").strip()
+    if not system_label:
+        return {}
+    scoped_prompt = f"{prompt_text} {system_label}".strip()
+
+    state = _technical_compiled_contract_state_v69198()
+    with state["lock"]:
+        if str(state.get("store") or "") != str(store or "").strip():
+            return {}
+        contracts = [
+            dict(contract) for contract in (state.get("contracts") or {}).values()
+            if isinstance(contract, dict)
+            and str(contract.get("file_id") or "").strip() == file_id
+        ]
+    if not contracts:
+        diagnostic_log(
+            "technical_verified_package_local_contract_miss_v69247",
+            file_id=file_id[:160], source_url=source_url[:700], system=system_label[:120],
+        )
+        return {}
+
+    query_tokens = _technical_contract_tokens_v69198(scoped_prompt)
+    def rank(contract):
+        section_id = str(contract.get("section_id") or "").casefold()
+        section_title = str(contract.get("section_title") or "").casefold()
+        preferred = int(
+            section_id in {"protocol-settings", "car-model-ac", "car-model-ac-protocol"}
+            or "car model" in section_title
+            or "protocol" in section_title
+        )
+        ready = int(bool(contract.get("config_ready")))
+        overlap = len(query_tokens & set(contract.get("search_tokens") or []))
+        return (preferred, ready, overlap, len(str(contract.get("section_text") or "")))
+
+    contracts.sort(key=rank, reverse=True)
+    for contract in contracts:
+        authority = {
+            "status": "selected",
+            "file_id": file_id,
+            "filename": str(contract.get("filename") or package.get("filename") or ""),
+            "source_url": str(contract.get("source_url") or source_url),
+            "page_title": str(contract.get("page_title") or package.get("title") or ""),
+            "package_text": str(package.get("package_text") or ""),
+            "section_title": str(contract.get("section_title") or ""),
+            "section_id": str(contract.get("section_id") or ""),
+            "branch_paths": [
+                " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+                for seg in (contract.get("segments") or []) if isinstance(seg, dict)
+            ],
+            "section_text": str(contract.get("section_text") or ""),
+            "selected_image_urls_v69143": list(contract.get("exact_images") or [])[:1],
+            "selected_section_title_v69143": str(contract.get("section_title") or ""),
+            "selected_branch_paths_v69143": [
+                " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+                for seg in (contract.get("segments") or []) if isinstance(seg, dict)
+            ],
+            "selected_segments_v69158": list(contract.get("segments") or []),
+            "image_evidence": list(contract.get("config_image_evidence_v69204") or []),
+            "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
+            "selector_version": 69247,
+            "compiled_runtime_contract_v69198": True,
+            "verified_package_local_render_v69247": True,
+        }
+
+        try:
+            literal = dict(_technical_metadata_literal_configuration_v69178(scoped_prompt, authority) or {})
+        except Exception:
+            literal = {}
+        if not _technical_literal_is_sufficient_v69156(scoped_prompt, literal):
+            literal = dict(contract.get("config_literal") or {})
+        if not _technical_literal_is_sufficient_v69156(scoped_prompt, literal):
+            continue
+        structured = _technical_merge_structured_v69156(
+            literal, {"fields": [], "branches": [], "status": "not_needed"}
+        )
+        if not _technical_table_rows_from_structured_v69155(structured):
+            continue
+
+        authority["literal_structured_v69156"] = literal
+        authority["structured"] = structured
+        authority["deterministic_literal_authority_v69156"] = True
+        authority["model_structured_v69156"] = {"status": "not_needed", "fields": [], "branches": []}
+        authority["status"] = "recovered"
+        authority["context"] = _technical_authority_context_v69155(authority)
+        authority["rows"] = [{
+            "file_id": authority["file_id"],
+            "filename": authority["filename"],
+            "score": 1.0,
+            "text": authority["section_text"][:14000],
+            "technical_verified_package_local_render_v69247": True,
+        }]
+        diagnostic_log(
+            "technical_verified_package_local_render_hit_v69247",
+            file_id=file_id[:160], source_url=str(authority.get("source_url") or "")[:700],
+            system=system_label[:120], section=str(authority.get("section_title") or "")[:300],
+            rows=len(_technical_table_rows_from_structured_v69155(structured) or []),
+        )
+        return {
+            "system_label": system_label,
+            "authority": authority,
+            "source_url": str(authority.get("source_url") or source_url),
+            "file_id": file_id,
+            "exact_images": list(authority.get("selected_image_urls_v69143") or []),
+            "verified_package_row_v69247": True,
+        }
+
+    diagnostic_log(
+        "technical_verified_package_local_render_miss_v69247",
+        file_id=file_id[:160], source_url=source_url[:700], system=system_label[:120],
+        contracts=len(contracts),
+    )
+    return {}
+
+
+def _technical_compiled_set_from_verified_packages_v69247(prompt_text, packages, store, family, year):
+    rows = []
+    for package in packages or []:
+        if not isinstance(package, dict):
+            continue
+        row = _technical_compiled_row_for_verified_package_v69247(
+            prompt_text, package, store
+        )
+        if not row:
+            return {}
+        rows.append(row)
+    order = {"No SYNC": 0, "SYNC 1": 1, "SYNC 2": 2, "SYNC 3": 3}
+    rows.sort(key=lambda row: (
+        order.get(str(row.get("system_label") or ""), 99),
+        str(row.get("system_label") or ""),
+        str(row.get("source_url") or row.get("file_id") or ""),
+    ))
+    result = _technical_configuration_set_from_rows_v69243(rows, family, year)
+    result = _technical_finalize_verified_configuration_set_v69244(result, packages)
+    if result:
+        result["verified_package_local_set_v69247"] = True
+    return result
+
+
+def _technical_verified_set_fail_closed_result_v69247(family, year, packages):
+    """Preempt legacy single-source fallback if an already-verified multi-package set
+    cannot be rendered completely.  This is a safety sentinel only; it is never cached.
+    """
+    return {
+        "status": "recovered",
+        "kind": "configuration_set",
+        "family": str(family or ""),
+        "year": int(year),
+        "authorities": [],
+        "exact_images": [],
+        "verified_package_count_v69244": len([x for x in (packages or []) if isinstance(x, dict)]),
+        "verified_set_render_fail_closed_v69247": True,
+    }
+
+
 
 def _technical_configuration_set_from_verified_packages_v69241(prompt_text, packages, family, year):
     """Compatibility wrapper for the v69243 exact-cardinality classifier."""
@@ -70694,6 +70866,16 @@ def _technical_verified_configuration_set_answer_v69239(prompt_text, result):
     result = dict(result or {})
     if str(result.get("status") or "") != "recovered" or str(result.get("kind") or "") != "configuration_set":
         return ""
+    if bool(result.get("verified_set_render_fail_closed_v69247")):
+        family = str(result.get("family") or "").upper().replace("-", "")
+        year = str(result.get("year") or "")
+        title = " ".join(x for x in (year, family) if x).strip() or "Verified Technical Configurations"
+        return (
+            f"## {title}\n\n"
+            "Current Technical Source Temporarily Unavailable. The current Technical source set "
+            "contains multiple verified configurations, but the complete set could not be rendered "
+            "safely. No partial or older configuration was published."
+        )
     rows = [dict(x) for x in (result.get("authorities") or []) if isinstance(x, dict)]
     if len(rows) < 2:
         return ""
@@ -71189,9 +71371,27 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             )
 
         if verified_package_count_v69244 >= 2:
-            # Use the already-built O(1) compiled contracts as the renderer. They are
-            # generated from these exact hydrated packages and preserve the complete
-            # configuration rows (including multi-variant SYNC2 metadata).
+            # v69247: render each already-verified package independently using the
+            # same deterministic literal path proven by explicit single-package
+            # queries.  This avoids the generic set scorer that v69246 proved can
+            # fail after the package set itself is already correct.
+            package_local_set_v69247 = _technical_compiled_set_from_verified_packages_v69247(
+                prompt_text, eligible_verified_packages_v69242, clean_store, family, year
+            )
+            if package_local_set_v69247:
+                _technical_configuration_set_cache_put_v69241(
+                    clean_store, revision_v69228, family, year, package_local_set_v69247
+                )
+                diagnostic_log(
+                    "technical_verified_package_local_multi_match_bound_v69247",
+                    family=family, year=int(year), packages=verified_package_count_v69244,
+                    systems=[str(row.get("system_label") or "") for row in (package_local_set_v69247.get("authorities") or []) if isinstance(row, dict)],
+                )
+                return package_local_set_v69247
+
+            # Compatibility only: retain the existing generic compiled set attempts,
+            # but never allow their failure to fall through to a single-source legacy
+            # pointer when two current packages were already verified.
             compiled_set_v69244 = _technical_compiled_contract_lookup_v69198(
                 prompt_text, clean_store
             )
@@ -71203,31 +71403,12 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                     clean_store, revision_v69228, family, year, compiled_set_v69244
                 )
                 diagnostic_log(
-                    "technical_verified_hydrated_complete_multi_match_bound_v69244",
+                    "technical_verified_hydrated_complete_multi_match_bound_v69247",
                     family=family, year=int(year), packages=verified_package_count_v69244,
                     systems=[str(row.get("system_label") or "") for row in (compiled_set_v69244.get("authorities") or []) if isinstance(row, dict)],
                 )
                 return compiled_set_v69244
 
-            # Guaranteed package-local renderer from the same precompiled contracts.
-            # This path does not re-run v69238 and therefore cannot discard a valid
-            # multi-variant package merely because a narrower structural parser misses.
-            package_compiled_set_v69244 = _technical_compiled_set_from_verified_packages_v69244(
-                prompt_text, eligible_verified_packages_v69242, clean_store, family, year
-            )
-            if package_compiled_set_v69244:
-                _technical_configuration_set_cache_put_v69241(
-                    clean_store, revision_v69228, family, year, package_compiled_set_v69244
-                )
-                diagnostic_log(
-                    "technical_verified_hydrated_package_compiled_multi_match_bound_v69244",
-                    family=family, year=int(year), packages=verified_package_count_v69244,
-                    systems=[str(row.get("system_label") or "") for row in (package_compiled_set_v69244.get("authorities") or []) if isinstance(row, dict)],
-                )
-                return package_compiled_set_v69244
-
-            # Compatibility renderer is the last deterministic package-local path and
-            # is accepted only when it covers the exact same verified package set.
             compatibility_set_v69244 = _technical_multi_package_configuration_result_v69239(
                 prompt_text, clean_store, family, year
             )
@@ -71239,17 +71420,19 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                     clean_store, revision_v69228, family, year, compatibility_set_v69244
                 )
                 diagnostic_log(
-                    "technical_verified_hydrated_compat_multi_match_bound_v69244",
+                    "technical_verified_hydrated_compat_multi_match_bound_v69247",
                     family=family, year=int(year), packages=verified_package_count_v69244,
                     systems=[str(row.get("system_label") or "") for row in (compatibility_set_v69244.get("authorities") or []) if isinstance(row, dict)],
                 )
                 return compatibility_set_v69244
 
             diagnostic_log(
-                "technical_verified_package_set_render_fail_closed_v69244",
+                "technical_verified_package_set_render_fail_closed_v69247",
                 family=family, year=int(year), verified_packages=verified_package_count_v69244,
             )
-            return {}
+            return _technical_verified_set_fail_closed_result_v69247(
+                family, year, eligible_verified_packages_v69242
+            )
 
         if verified_package_count_v69244 == 1:
             recovered_rows_v69243 = _technical_verified_configuration_rows_v69243(
@@ -71988,7 +72171,7 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         cached_prompt_codes_v69241 = {str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
         if not cached_explicit_system_v69241 and not cached_prompt_systems_v69241 and not cached_prompt_codes_v69241:
             diagnostic_log(
-                "technical_configuration_cache_hit_v69246",
+                "technical_configuration_cache_hit_v69247",
                 family=str(families[0]), year=int(years[0]),
                 kind=str(cached_set_v69241.get("kind") or ""),
                 packages=len(cached_set_v69241.get("authorities") or []) or 1,
