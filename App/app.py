@@ -6,7 +6,7 @@
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
-# AutoTecPro AI v69245 — authoritative hydrated-set handoff + atomic cache + exact image dedupe
+# AutoTecPro AI v69246 — candidate provenance coalescing + authoritative hydrated-set handoff + exact image dedupe
 
 # AutoTecPro AI v69233 — exact current-source recovery + verified multi-package registry over v69232
 import streamlit.components.v1 as components
@@ -70070,7 +70070,7 @@ def _technical_configuration_set_cache_key_v69241(store, revision, family, year)
         clean_year = int(year)
     except Exception:
         return ""
-    return "|".join(("v69245", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
+    return "|".join(("v69246", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
 
 def _technical_configuration_set_cache_get_v69241(store, revision, family, year):
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
@@ -70722,6 +70722,76 @@ def _technical_verified_configuration_set_answer_v69239(prompt_text, result):
             out.extend(["", f"**Current source:** {source_url}"])
     return "\n".join(out).strip()
 
+def _technical_coalesce_candidate_payloads_v69246(candidate_payloads):
+    """Merge duplicate Technical candidate evidence before hydration.
+
+    v69246 fixes a provenance-order bug where the same canonical source URL could
+    be encountered first through the active-pointer/registry path and later through
+    the durable verified-snapshot path.  The old first-seen dedupe allowed the early
+    row to hydrate, but its missing durable-snapshot flag prevented it from joining
+    the authoritative multi-package set; the later durable row was then skipped as a
+    duplicate.  Coalescing preserves one hydration per canonical source while OR-ing
+    stronger durable evidence onto that candidate before the hydration loop runs.
+    """
+    out = []
+    index_by_identity = {}
+    merged_duplicates = 0
+    durable_promotions = 0
+    for raw in candidate_payloads or []:
+        if not isinstance(raw, dict):
+            continue
+        row = dict(raw)
+        source_url = str(row.get("source_url") or "").strip()
+        file_id = str(row.get("file_id") or "").strip()
+        if not source_url and not file_id:
+            continue
+        try:
+            canonical = canonical_website_url_identity(source_url) if source_url else ""
+        except Exception:
+            canonical = source_url.casefold() if source_url else ""
+        identity = canonical or file_id
+        pos = index_by_identity.get(identity)
+        if pos is None:
+            index_by_identity[identity] = len(out)
+            out.append(row)
+            continue
+
+        merged_duplicates += 1
+        existing = dict(out[pos])
+        incoming_durable = bool(row.get("durable_snapshot_candidate_v69233"))
+        existing_durable = bool(existing.get("durable_snapshot_candidate_v69233"))
+        if incoming_durable and not existing_durable:
+            durable_promotions += 1
+
+        # Stronger durable evidence wins for identity-bearing fields.  For all
+        # other fields, only fill gaps so pointer/registry latency hints remain
+        # intact without overriding exact current-source snapshot proof.
+        if incoming_durable:
+            for key in (
+                "file_id", "source_url", "filename", "title",
+                "snapshot_sha256_v69171", "sha256", "systems",
+                "vehicle_families", "years",
+            ):
+                value = row.get(key)
+                if value not in (None, "", [], {}, ()):
+                    existing[key] = value
+        else:
+            for key, value in row.items():
+                if existing.get(key) in (None, "", [], {}, ()) and value not in (None, "", [], {}, ()):
+                    existing[key] = value
+
+        if incoming_durable or existing_durable:
+            existing["durable_snapshot_candidate_v69233"] = True
+        out[pos] = existing
+
+    return out, {
+        "input_candidates": len([x for x in (candidate_payloads or []) if isinstance(x, dict)]),
+        "coalesced_candidates": len(out),
+        "merged_duplicates": merged_duplicates,
+        "durable_promotions": durable_promotions,
+    }
+
+
 def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     """Cold-path hydrate all compatible current packages for one family/year.
 
@@ -70919,6 +70989,17 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
         candidate_payloads_v69228.append(dict(snapshot_row_v69233))
         snapshot_candidates_v69233 += 1
 
+    # v69246: coalesce duplicate source identities *before* hydration so a
+    # pointer/registry row cannot consume the canonical URL and suppress the
+    # stronger durable-snapshot provenance for the same current package.
+    candidate_payloads_v69228, coalesce_stats_v69246 = _technical_coalesce_candidate_payloads_v69246(
+        candidate_payloads_v69228
+    )
+    diagnostic_log(
+        "technical_candidate_provenance_coalesced_v69246",
+        family=family, year=int(year), **coalesce_stats_v69246,
+    )
+
     hydrated_v69228 = 0
     rejected_v69228 = 0
     immutable_cache_hits_v69232 = 0
@@ -71071,7 +71152,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     # package cardinality BEFORE rendering; a narrower secondary parser must never
     # silently turn two verified current packages into one published package.
     if not explicit_factory_system_v69228:
-        # v69245: successful durable hydration is the single source of truth for generic
+        # v69246: successful durable hydration after provenance coalescing is the single source of truth for generic
         # package cardinality. Every entry below already passed the candidate snapshot
         # family/year/current-source gates AND compiled merge. A later normalization/parser
         # is not allowed to delete a package from that already-verified set.
@@ -71095,14 +71176,14 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
 
         verified_package_count_v69244 = len(eligible_verified_packages_v69242)
         diagnostic_log(
-            "technical_authoritative_hydrated_set_handoff_v69245",
+            "technical_authoritative_hydrated_set_handoff_v69246",
             family=family, year=int(year), hydrated=hydrated_v69228,
             authoritative_packages=verified_package_count_v69244,
             packages=handoff_identities_v69245,
         )
         if verified_package_count_v69244 != len(verified_hydrated_packages_v69241):
             diagnostic_log(
-                "technical_authoritative_hydrated_set_dedupe_v69245",
+                "technical_authoritative_hydrated_set_dedupe_v69246",
                 family=family, year=int(year), raw_packages=len(verified_hydrated_packages_v69241),
                 deduped_packages=verified_package_count_v69244,
             )
@@ -71907,7 +71988,7 @@ def _technical_compiled_contract_lookup_v69198(prompt_text, store):
         cached_prompt_codes_v69241 = {str(x).casefold() for x in _website_image_product_codes_v69020(prompt)}
         if not cached_explicit_system_v69241 and not cached_prompt_systems_v69241 and not cached_prompt_codes_v69241:
             diagnostic_log(
-                "technical_configuration_cache_hit_v69245",
+                "technical_configuration_cache_hit_v69246",
                 family=str(families[0]), year=int(years[0]),
                 kind=str(cached_set_v69241.get("kind") or ""),
                 packages=len(cached_set_v69241.get("authorities") or []) or 1,
