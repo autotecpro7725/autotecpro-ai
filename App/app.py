@@ -6297,6 +6297,32 @@ AUTH_SESSION_COOKIE = "atp_authenticated_session_v1"
 AUTH_SESSION_HOURS = 12
 AUTH_COOKIE_ACTION_MAX_ATTEMPTS_V69042 = 4
 
+# v69250 FINAL production — Admin long-task continuity.  Keep the exact Admin
+# subsection in the already-signed auth-session envelope so a Streamlit
+# websocket/session replacement during a long website-learning save restores
+# Upload Knowledge instead of defaulting to Users.  This is navigation recovery
+# metadata only; it does not alter auth validity, learning, provider, Technical,
+# Sales/Marketing, Graphic, image, cache, History, or persistence semantics.
+ADMIN_SECTIONS_V69250 = (
+    "👥 Users",
+    "📚 Upload Knowledge",
+    "📥 Pending Submissions",
+    "🧠 AI Learning",
+    "📦 Product Library",
+    "🚗 Vehicle Analytics",
+    "📦 Product Analytics",
+    "🔧 Technical Analytics",
+    "📊 AI Analytics",
+    "📈 Learning Analytics",
+    "🔌 Live Integrations",
+    "🎨 Graphic Intelligence",
+)
+
+
+def _normalize_admin_section_v69250(value):
+    clean = str(value or "").strip()
+    return clean if clean in ADMIN_SECTIONS_V69250 else ""
+
 
 def _auth_session_signing_key():
     """Return a stable server-only key used to sign browser auth sessions."""
@@ -6409,7 +6435,7 @@ def _load_active_user_record(username):
     return _login_user_lookup_v69186(username, timeout_seconds=6.0)
 
 
-def save_authenticated_session(username, remember=False, workspace=None, conversation_id=None, credential_fingerprint=None):
+def save_authenticated_session(username, remember=False, workspace=None, conversation_id=None, credential_fingerprint=None, admin_section=None):
     """
     Save a signed browser session so Streamlit websocket/session resets do not
     unexpectedly return an authenticated user to the login page.
@@ -6445,6 +6471,14 @@ def save_authenticated_session(username, remember=False, workspace=None, convers
         proven_fingerprint_v69186 = _auth_credential_fingerprint(
             active_user.get("password")
         )
+    active_admin_section_v69250 = ""
+    if active_workspace == "⚙️ Admin Panel":
+        active_admin_section_v69250 = _normalize_admin_section_v69250(
+            admin_section
+            if admin_section is not None
+            else st.session_state.get("admin_active_section_v69028")
+        )
+
     payload = {
         "version": 2,
         "username": username,
@@ -6469,6 +6503,9 @@ def save_authenticated_session(username, remember=False, workspace=None, convers
             ).strip()
             or None
         ),
+        # v69250: signed, allow-listed Admin navigation recovery only.  Never put
+        # reviewed content, URLs, credentials, or learning payloads in the cookie.
+        "admin_section": active_admin_section_v69250 or None,
     }
     payload_text = json.dumps(payload, separators=(",", ":"), sort_keys=True)
     envelope = {
@@ -6618,6 +6655,15 @@ def restore_login_session():
         restored_workspace = str(payload.get("workspace") or "").strip()
         if restored_workspace:
             st.session_state["_restored_workspace_assistant_v68843"] = restored_workspace
+        restored_admin_section_v69250 = ""
+        if restored_workspace == "⚙️ Admin Panel":
+            restored_admin_section_v69250 = _normalize_admin_section_v69250(
+                payload.get("admin_section")
+            )
+            if restored_admin_section_v69250:
+                st.session_state["_restored_admin_section_v69250"] = (
+                    restored_admin_section_v69250
+                )
         restored_conversation_v69026 = str(payload.get("conversation_id") or "").strip()
 
         # v69194: a cookie-based authenticated restore is a fresh app entry.
@@ -6638,6 +6684,11 @@ def restore_login_session():
             workspace=restored_workspace,
             prior_conversation_present=bool(restored_conversation_v69026),
         )
+        if restored_admin_section_v69250:
+            diagnostic_log(
+                "admin_section_restore_staged_v69250",
+                section=restored_admin_section_v69250,
+            )
         return True
     except Exception as error:
         # Session-state publication is retryable and must never revoke a valid
@@ -73782,9 +73833,40 @@ def render_learn_from_website(database_choice):
     )
 
     def begin_website_knowledge_save():
-        """Set the processing state before Streamlit renders the next run."""
+        """Set processing state and checkpoint exact Admin navigation before long work."""
         if not st.session_state.get("admin_website_save_in_progress", False):
             st.session_state.admin_website_save_in_progress = True
+
+        # v69250: the log-proven reconnect failure happened after a long save had
+        # already started.  Refresh the existing signed session envelope here,
+        # before the expensive next run, so a replacement Streamlit session lands
+        # back on Upload Knowledge rather than the Admin default Users section.
+        checkpoint_username_v69250 = str(
+            st.session_state.get("username") or ""
+        ).strip()
+        if checkpoint_username_v69250:
+            try:
+                save_authenticated_session(
+                    checkpoint_username_v69250,
+                    remember=bool(
+                        st.session_state.get("_atp_session_remembered")
+                    ),
+                    workspace="⚙️ Admin Panel",
+                    conversation_id=None,
+                    admin_section="📚 Upload Knowledge",
+                )
+                diagnostic_log(
+                    "admin_long_task_auth_checkpoint_v69250",
+                    section="📚 Upload Knowledge",
+                )
+            except Exception as checkpoint_error_v69250:
+                # Do not block or change the learning transaction if the cookie
+                # transport itself is temporarily unavailable. Existing auth and
+                # learning failure semantics remain authoritative.
+                diagnostic_log(
+                    "admin_long_task_auth_checkpoint_failed_v69250",
+                    error_type=type(checkpoint_error_v69250).__name__,
+                )
 
     # website_save_in_progress was captured before preview rendering on this run.
     save_left, save_center, save_right = st.columns(
@@ -82409,23 +82491,20 @@ if (
         # while the frontend reconciles.  That caused Users -> Upload Knowledge
         # bounce, duplicated preview controls during website save reruns, and a
         # heavy Admin destination render.  Render exactly one Admin section.
-        _admin_sections_v69028 = [
-            "👥 Users",
-            "📚 Upload Knowledge",
-            "📥 Pending Submissions",
-            "🧠 AI Learning",
-            "📦 Product Library",
-            "🚗 Vehicle Analytics",
-            "📦 Product Analytics",
-            "🔧 Technical Analytics",
-            "📊 AI Analytics",
-            "📈 Learning Analytics",
-            "🔌 Live Integrations",
-            "🎨 Graphic Intelligence",
-        ]
+        _admin_sections_v69028 = list(ADMIN_SECTIONS_V69250)
         _admin_state_key_v69028 = "admin_active_section_v69028"
         if st.session_state.get(_admin_state_key_v69028) not in _admin_sections_v69028:
-            st.session_state[_admin_state_key_v69028] = "👥 Users"
+            restored_admin_section_v69250 = _normalize_admin_section_v69250(
+                st.session_state.pop("_restored_admin_section_v69250", "")
+            )
+            st.session_state[_admin_state_key_v69028] = (
+                restored_admin_section_v69250 or "👥 Users"
+            )
+            if restored_admin_section_v69250:
+                diagnostic_log(
+                    "admin_section_restored_v69250",
+                    section=restored_admin_section_v69250,
+                )
 
         # v69036: restore the exact native Streamlit Admin tab bar from v69022
         # whenever the deployed Streamlit version supports stateful/lazy tabs.
@@ -85508,6 +85587,13 @@ else:
                         and str(
                             (locals().get("technical_full_package_authority_v69155") or {}).get("status") or ""
                         ) != "recovered"
+                        # v69249 FINAL production cold-path lock: a complete verified
+                        # multi-package configuration_set is already stronger than the
+                        # legacy v69050/v69125 baseline. Do not re-enable provider
+                        # file_search after the deterministic set has pre-empted legacy.
+                        and str(
+                            (locals().get("technical_multi_package_configuration_v69239") or {}).get("status") or ""
+                        ) != "recovered"
                     )
                     if technical_v69050_v69125_baseline_v69154:
                         # Prevent stale post-v69125 authority from a previous saved turn
@@ -86523,6 +86609,57 @@ else:
                     f"document could not be created: {document_error}"
                 )
 
+        # v69249 FINAL production cold-path early-stop.  At this point the
+        # deterministic Technical answer is already complete.  When the exact
+        # current package authority (single or multi) also carries package-local
+        # image URLs, the later broad website/image discovery paths are redundant
+        # and can only add latency/noise.  This flag does NOT alter source selection,
+        # rendering, QA, fail-closed behavior, or final exact-image publication.
+        technical_exact_postbind_images_ready_v69249 = False
+        if (
+            assistant == "🔧 Technical Support"
+            and _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
+        ):
+            multi_bound_v69249 = dict(
+                locals().get("technical_multi_package_configuration_v69239") or {}
+            )
+            single_bound_v69249 = dict(
+                locals().get("technical_full_package_authority_v69155") or {}
+            )
+            if str(multi_bound_v69249.get("status") or "") == "recovered":
+                branches_v69249 = [
+                    dict(row.get("authority") or {})
+                    for row in (multi_bound_v69249.get("authorities") or [])
+                    if isinstance(row, dict)
+                    and str((row.get("authority") or {}).get("status") or "") == "recovered"
+                ]
+                technical_exact_postbind_images_ready_v69249 = bool(
+                    branches_v69249
+                    and len(branches_v69249) == len(multi_bound_v69249.get("authorities") or [])
+                    and all(
+                        bool(branch.get("selected_image_urls_v69143") or [])
+                        for branch in branches_v69249
+                    )
+                )
+            elif str(single_bound_v69249.get("status") or "") == "recovered":
+                technical_exact_postbind_images_ready_v69249 = bool(
+                    single_bound_v69249.get("selected_image_urls_v69143") or []
+                )
+            if technical_exact_postbind_images_ready_v69249:
+                diagnostic_log(
+                    "technical_exact_postbind_image_recovery_bypassed_v69249",
+                    mode=(
+                        "multi"
+                        if str(multi_bound_v69249.get("status") or "") == "recovered"
+                        else "single"
+                    ),
+                    packages=(
+                        len(multi_bound_v69249.get("authorities") or [])
+                        if str(multi_bound_v69249.get("status") or "") == "recovered"
+                        else 1
+                    ),
+                )
+
         # v69126: first-turn Technical image recovery from the exact evidence rows
         # that supported this answer. This is independent of the later active-package
         # state, which v69122 intentionally stopped binding for factual retrieval.
@@ -86614,7 +86751,10 @@ else:
         # authority gate inside _website_image_lookup_v68883. This recovers approved
         # images whose indexed metadata is sparse without allowing a different or
         # weakly-related image to bypass the existing fail-closed authority rules.
-        if assistant == "🔧 Technical Support":
+        if (
+            assistant == "🔧 Technical Support"
+            and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
+        ):
             existing_website_images_v69008 = [
                 image for image in (generated_images or [])
                 if isinstance(image, dict)
@@ -86654,8 +86794,12 @@ else:
         # Text retrieval and image retrieval are independent objectives. Candidate images
         # must be related to the exact answer-supporting section and still pass vehicle/year
         # authority; broad same-page similarity alone is never sufficient.
-        if assistant == "🔧 Technical Support" and _website_image_universal_technical_candidate_v69014(
-            technical_request_prompt_v68879, answer
+        if (
+            assistant == "🔧 Technical Support"
+            and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
+            and _website_image_universal_technical_candidate_v69014(
+                technical_request_prompt_v68879, answer
+            )
         ):
             indexed_website_images_v69014 = [
                 image for image in (generated_images or [])
@@ -86767,7 +86911,11 @@ else:
         # website image, publish safe inquiry-related evidence for the exact resolved
         # product/vehicle/year/system. Topic-specific images are preferred; otherwise
         # one clearly labelled same-product reference may be used.
-        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+        if (
+            assistant == "🔧 Technical Support"
+            and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
+            and str(answer or "").strip()
+        ):
             existing_website_images_v69025r1 = [
                 image for image in (generated_images or [])
                 if isinstance(image, dict)
