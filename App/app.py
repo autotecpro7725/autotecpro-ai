@@ -14847,13 +14847,20 @@ def _graphic_v68848_is_retryable(error, generated_images=None):
     )
     if any(term in text for term in non_retryable):
         return False, "deterministic_failure"
+    interruption_terms = (
+        "stopexception", "interrupted before completion",
+        "streamlit execution interrupted", "streamlit interruption",
+    )
+    if any(term in text for term in interruption_terms):
+        return True, "streamlit_interruption"
     retryable = (
         "timeout", "timed out", "connection", "reset", "temporarily", "temporary",
         "rate limit", "429", "502", "503", "504", "server error", "service unavailable",
-        "no-image", "empty", "websocket", "worker", "transport", "stopexception",
-        "interrupted before completion", "interrupted", "cancelled", "canceled",
+        "no-image", "empty", "websocket", "worker", "transport",
+        "cancelled", "canceled",
     )
-    return (any(term in text for term in retryable), "transient_failure" if any(term in text for term in retryable) else "unclassified_failure")
+    transient = any(term in text for term in retryable)
+    return transient, "transient_failure" if transient else "unclassified_failure"
 
 
 def _graphic_multi_image_intent_plan_v68848(prompt_text, role_items):
@@ -27342,6 +27349,9 @@ def _graphic_compose_reference_campaign_v3200(
         "engine": "exact-source-bounds-v68981",
     }
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
+    # v69254 — initialize deterministic product provenance before the run-manifest
+    # consumes it. This is metadata-only and does not alter composed pixels/layout.
+    product_source_signature = _graphic_product_source_signature_v9000(product_item)
     metadata["deterministic_run_manifest_v61000"] = _graphic_deterministic_run_manifest_v61000(
         product_source_signature, layout_bp, transforms, lighting_profile, micro_reflection_v48000,
         source_to_final_geometry_qa_v61000, metadata.get("v61000_stage_timing")
@@ -27445,7 +27455,7 @@ def _graphic_compose_reference_campaign_v3200(
         "canvas_size": [W, H],
         "reference_layout_blueprint": layout_bp,
         "reference_content_policy": "geometry_only_no_reference_pixels",
-        "product_source_sha256": (product_source_signature := _graphic_product_source_signature_v9000(product_item)).get("sha256"),
+        "product_source_sha256": product_source_signature.get("sha256"),
         "product_source_dimensions": product_source_signature,
         "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
         "hero_product_priority": "primary",
@@ -28290,7 +28300,8 @@ def _graphic_focused_vehicle_validation_v3300(data_url, role_items, prompt_text,
         "VEHICLE IDENTITY AND BODY-TYPE AUDIT ONLY. "
         f"Required vehicle: {explicit}. Required body class: {required_body}. "
         f"Reject any {forbidden_body}. "
-        "Inspect grille, headlamps, badge region, hood, fenders, cab/roofline, doors, bed or cargo body, wheelbase, and overall proportions. "
+        "Inspect grille, headlamps, OEM badge/emblem region, hood, fenders, cab/roofline, doors, bed or cargo body, wheelbase, and overall proportions. "
+        "If the viewing angle naturally exposes the factory badge/emblem region, reject a missing, blank, malformed, mirrored, or wrong-make OEM badge/emblem. "
         "Reject if the vehicle is ambiguous, too hidden, materially cropped, a different generation, a different make/model, or the wrong body class. "
         + (("Explicitly prohibited identities: " + prohibited + ". ") if prohibited else "")
         + "Ignore all product, typography, and layout quality. Return a vehicle score only. "
@@ -31456,6 +31467,129 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_project_failure_v4000("pipeline_exception", provider_errors + [_graphic_compact_error_v4000(error)])
         raise
 
+@st.cache_data(ttl=1800, max_entries=64, show_spinner=False)
+def _graphic_v69253_emergency_vehicle_audit_cached(
+    generated_sha256, explicit_vehicle, required_body_type, prohibited_terms, _generated_data_url
+):
+    """Emergency-route-only visual QA using one generated image and a compact prompt.
+
+    This does not alter generation, Reference Mode composition, After Install Mode, or pixels.
+    The generated image bytes are excluded from Streamlit hashing; the SHA-256 is the cache key.
+    """
+    explicit_vehicle = str(explicit_vehicle or "").strip()
+    if not explicit_vehicle:
+        return {
+            "available": True, "passed": True, "vehicle_accuracy_score": 100,
+            "emblem_accuracy_score": 100, "badge_region_visible": False,
+            "reason": "no explicit vehicle lock", "cached_sha256": generated_sha256,
+        }
+    prompt = (
+        "Audit only the visible vehicle identity in this generated automotive commercial. "
+        f"Required vehicle: {explicit_vehicle}. Required body type: {required_body_type or 'factory-correct body type'}. "
+        + (("Prohibited identities: " + str(prohibited_terms) + ". ") if prohibited_terms else "")
+        + "Return one JSON object only with keys: vehicle_accuracy_score (0-100), "
+        "emblem_accuracy_score (0-100), badge_region_visible (boolean), passed (boolean), reason (string). "
+        "Inspect grille, headlamps, factory OEM badge/emblem region, hood, body proportions, cab/roofline, doors, bed/cargo body and wheelbase. "
+        "If the camera angle naturally shows the factory badge/emblem region, a missing, blank, malformed, mirrored, or wrong-make badge/emblem is a failure. "
+        "If the badge region is genuinely hidden by angle/occlusion, set badge_region_visible=false and do not fail only for invisibility. "
+        "Reject a different make/model/generation or wrong body class. Ignore product, typography, layout and ad styling."
+    )
+    try:
+        response = client.with_options(timeout=45, max_retries=0).responses.create(
+            model="gpt-5.5",
+            input=[{
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt},
+                    {"type": "input_image", "image_url": _generated_data_url, "detail": "low"},
+                ],
+            }],
+            max_output_tokens=320,
+        )
+        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        if not isinstance(payload, dict):
+            payload = {}
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v69253_emergency_vehicle_audit_unavailable",
+            error_type=type(error).__name__,
+            error=_graphic_compact_error_v4000(error),
+        )
+        return {
+            "available": False, "passed": False, "vehicle_accuracy_score": 0,
+            "emblem_accuracy_score": 0, "badge_region_visible": None,
+            "reason": "emergency vehicle QA unavailable", "cached_sha256": generated_sha256,
+        }
+    try:
+        vehicle_score = int(float(payload.get("vehicle_accuracy_score")))
+    except Exception:
+        vehicle_score = 0
+    try:
+        emblem_score = int(float(payload.get("emblem_accuracy_score")))
+    except Exception:
+        emblem_score = 0
+    badge_visible = payload.get("badge_region_visible")
+    badge_visible = badge_visible if isinstance(badge_visible, bool) else None
+    model_passed = bool(payload.get("passed"))
+    passed = bool(
+        model_passed
+        and vehicle_score >= 97
+        and (badge_visible is False or (badge_visible is True and emblem_score >= 95))
+    )
+    return {
+        "available": True,
+        "passed": passed,
+        "vehicle_accuracy_score": vehicle_score,
+        "emblem_accuracy_score": emblem_score,
+        "badge_region_visible": badge_visible,
+        "reason": str(payload.get("reason") or "")[:800],
+        "cached_sha256": generated_sha256,
+        "policy": "v69253-emergency-vehicle-oem-emblem-release-gate",
+    }
+
+
+def _graphic_v69253_emergency_vehicle_release_audit(result, vehicle_profile):
+    """Fail closed only for emergency recovery when an explicit vehicle lock exists."""
+    result = result if isinstance(result, dict) else {}
+    vehicle_profile = vehicle_profile if isinstance(vehicle_profile, dict) else {}
+    explicit = str(vehicle_profile.get("explicit_display_name") or "").strip()
+    hard_lock = bool(vehicle_profile.get("hard_vehicle_lock") and explicit)
+    if not hard_lock:
+        return {
+            "available": True, "passed": True, "vehicle_accuracy_score": 100,
+            "emblem_accuracy_score": 100, "badge_region_visible": False,
+            "reason": "no hard vehicle lock",
+            "policy": "v69253-emergency-vehicle-oem-emblem-release-gate",
+        }
+    data_url = str(result.get("data_url") or "")
+    if not data_url.startswith("data:image/"):
+        return {
+            "available": False, "passed": False, "vehicle_accuracy_score": 0,
+            "emblem_accuracy_score": 0, "badge_region_visible": None,
+            "reason": "generated image unavailable for emergency vehicle QA",
+            "policy": "v69253-emergency-vehicle-oem-emblem-release-gate",
+        }
+    raw, _mime = data_url_to_bytes(data_url)
+    digest = hashlib.sha256(raw).hexdigest() if raw else hashlib.sha256(data_url.encode("utf-8")).hexdigest()
+    lowered = explicit.casefold()
+    if any(term in lowered for term in ("silverado", "sierra", "ram", "f-150", "f150", "super duty", "truck", "pickup")):
+        required_body = "pickup truck"
+    elif any(term in lowered for term in ("tahoe", "suburban", "yukon", "escalade", "suv")):
+        required_body = "SUV"
+    elif any(term in lowered for term in ("q50", "q60", "sedan", "coupe")):
+        required_body = "passenger car"
+    else:
+        required_body = "factory-correct body type"
+    prohibited = ", ".join(
+        str(value).strip()
+        for value in (vehicle_profile.get("prohibited_reference_vehicle_terms") or [])
+        if str(value).strip()
+    )
+    return _graphic_v69253_emergency_vehicle_audit_cached(
+        digest, explicit, required_body, prohibited, data_url
+    )
+
+
 def _graphic_emergency_provider_result_v15000(
     prompt_text,
     uploaded_files=None,
@@ -31477,26 +31611,38 @@ def _graphic_emergency_provider_result_v15000(
         raise RuntimeError("No saved Graphic project images were available for recovery.")
 
     has_style = any(item.get("role") == "style_reference" for item in role_items)
-    reference_blueprint = _graphic_safe_optional_call(
-        "graphic_v15000_emergency_reference_analysis_unavailable",
-        lambda: analyze_graphic_reference_blueprint(
-            role_items,
-            prompt_text=prompt_text,
-            style_strength=style_strength,
-        ),
-        {},
-    ) if has_style else {}
+    project_v69253 = get_graphic_project_state() or {}
+    locked_blueprint_v69253 = dict(project_v69253.get("last_reference_blueprint") or {})
+    if has_style and project_v69253.get("reference_blueprint_locked") and locked_blueprint_v69253:
+        reference_blueprint = locked_blueprint_v69253
+        diagnostic_log("graphic_v69253_emergency_blueprint_reused", cached=True)
+    else:
+        reference_blueprint = _graphic_safe_optional_call(
+            "graphic_v15000_emergency_reference_analysis_unavailable",
+            lambda: analyze_graphic_reference_blueprint(
+                role_items,
+                prompt_text=prompt_text,
+                style_strength=style_strength,
+            ),
+            {},
+        ) if has_style else {}
     reference_blueprint = _graphic_safe_reference_blueprint_v16000(reference_blueprint) if has_style else {}
     if has_style:
         _graphic_project_style_dna_v16000(reference_blueprint)
-    vehicle_profile = _graphic_resolve_vehicle_lock(
-        prompt_text,
-        _graphic_safe_optional_call(
-            "graphic_v15000_emergency_vehicle_profile_unavailable",
-            lambda: research_graphic_vehicle_profile(role_items, prompt_text),
-            {},
-        ),
-    )
+
+    locked_vehicle_v69253 = dict(project_v69253.get("last_vehicle_profile") or {})
+    if locked_vehicle_v69253:
+        vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, locked_vehicle_v69253)
+        diagnostic_log("graphic_v69253_emergency_vehicle_profile_reused", cached=True)
+    else:
+        vehicle_profile = _graphic_resolve_vehicle_lock(
+            prompt_text,
+            _graphic_safe_optional_call(
+                "graphic_v15000_emergency_vehicle_profile_unavailable",
+                lambda: research_graphic_vehicle_profile(role_items, prompt_text),
+                {},
+            ),
+        )
     production_prompt = _graphic_chatgpt_production_prompt(
         prompt_text,
         role_items,
@@ -31544,9 +31690,25 @@ def _graphic_emergency_provider_result_v15000(
         reference_blueprint,
         vehicle_profile,
     )
+    emergency_vehicle_audit_v69253 = _graphic_v69253_emergency_vehicle_release_audit(
+        result, vehicle_profile
+    )
+    result["emergency_vehicle_release_audit_v69253"] = emergency_vehicle_audit_v69253
+    if not emergency_vehicle_audit_v69253.get("passed"):
+        diagnostic_log(
+            "graphic_v69253_emergency_vehicle_release_blocked",
+            vehicle_score=emergency_vehicle_audit_v69253.get("vehicle_accuracy_score"),
+            emblem_score=emergency_vehicle_audit_v69253.get("emblem_accuracy_score"),
+            badge_region_visible=emergency_vehicle_audit_v69253.get("badge_region_visible"),
+            reason=emergency_vehicle_audit_v69253.get("reason"),
+        )
+        raise RuntimeError(
+            "Emergency recovery vehicle QA failed safely; the generated recovery image was not published. "
+            + str(emergency_vehicle_audit_v69253.get("reason") or "Vehicle identity or OEM emblem could not be verified.")[:500]
+        )
     result = _graphic_mark_unverified_v4100(
         result,
-        "The image was created through the recovery route because the strict professional pipeline failed. Review product and vehicle accuracy before publishing.",
+        "The image was created through the recovery route because the strict professional pipeline failed. Product accuracy remains subject to the existing recovery warning; vehicle identity and visible OEM emblem were verified by the v69253 recovery release gate.",
         status="completed_recovery_route_v15000",
     )
     result["graphic_engine_version"] = "v15000-graphic-recovery"
@@ -84448,6 +84610,18 @@ else:
             retryable_v68848, retry_reason_v68848 = _graphic_v68848_is_retryable(
                 generation_error_v68837, generated_images
             )
+            if not generated_images and retry_reason_v68848 == "streamlit_interruption":
+                # v69253 interruption-only durability: grant exactly one additional
+                # attempt even when the original job had a one-attempt budget.
+                # Normal successful generation and ordinary provider retry behavior are unchanged.
+                max_attempts_v68844 = max(max_attempts_v68844, current_attempt_v68844 + 2)
+                durable_job_v68844["max_attempts"] = max_attempts_v68844
+                diagnostic_log(
+                    "graphic_v69253_interruption_retry_budget_extended",
+                    job_id=str(durable_job_v68844.get("job_id") or ""),
+                    current_attempt=current_attempt_v68844 + 1,
+                    max_attempts=max_attempts_v68844,
+                )
             if not generated_images and retryable_v68848 and current_attempt_v68844 + 1 < max_attempts_v68844:
                 _graphic_v68848_release_lease(durable_job_v68844)
                 durable_job_v68844 = _graphic_update_durable_job_v68844(
