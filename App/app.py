@@ -6,6 +6,17 @@
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
+try:
+    from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
+except Exception:
+    try:
+        from streamlit.runtime.scriptrunner.script_runner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
+    except Exception:
+        try:
+            from streamlit.script_runner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
+        except Exception:
+            STREAMLIT_STOP_EXCEPTION = None
+            STREAMLIT_RERUN_EXCEPTION = None
 # AutoTecPro AI v69246 — candidate provenance coalescing + authoritative hydrated-set handoff + exact image dedupe
 
 # AutoTecPro AI v69233 — exact current-source recovery + verified multi-package registry over v69232
@@ -368,6 +379,31 @@ def _heavy_work_guard_v69188(operation, timeout_seconds=900):
 
 def _serialize_heavy_work_v69188(operation):
     """Serialize only website-learning entry points across Streamlit sessions."""
+
+
+def _graphic_is_streamlit_stop_exception(error):
+    """Return True for Streamlit stop-control exceptions without hard-coding one release path."""
+    if error is None:
+        return False
+    try:
+        if STREAMLIT_STOP_EXCEPTION is not None and isinstance(error, STREAMLIT_STOP_EXCEPTION):
+            return True
+    except Exception:
+        pass
+    return type(error).__name__ == "StopException"
+
+
+def _graphic_is_streamlit_rerun_exception(error):
+    """Return True for Streamlit rerun-control exceptions that must be re-raised."""
+    if error is None:
+        return False
+    try:
+        if STREAMLIT_RERUN_EXCEPTION is not None and isinstance(error, STREAMLIT_RERUN_EXCEPTION):
+            return True
+    except Exception:
+        pass
+    return type(error).__name__ == "RerunException"
+
     def decorator(function):
         @functools.wraps(function)
         def wrapped(*args, **kwargs):
@@ -14803,6 +14839,8 @@ def _graphic_v68848_is_retryable(error, generated_images=None):
         return True, "empty_response"
     if error is None:
         return False, "success"
+    if _graphic_is_streamlit_stop_exception(error):
+        return True, "streamlit_interruption"
     text = f"{type(error).__name__}: {error}".casefold()
     non_retryable = (
         "geometry authority", "reference authority", "missing required reference",
@@ -14814,7 +14852,8 @@ def _graphic_v68848_is_retryable(error, generated_images=None):
     retryable = (
         "timeout", "timed out", "connection", "reset", "temporarily", "temporary",
         "rate limit", "429", "502", "503", "504", "server error", "service unavailable",
-        "no-image", "empty", "websocket", "worker", "transport",
+        "no-image", "empty", "websocket", "worker", "transport", "stopexception",
+        "interrupted before completion", "interrupted", "cancelled", "canceled",
     )
     return (any(term in text for term in retryable), "transient_failure" if any(term in text for term in retryable) else "unclassified_failure")
 
@@ -15466,7 +15505,7 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
             directive["change_targets"].append("hero_product")
         elif any(term in old_lower for term in ("background", "scene", "sky", "mountain", "sunset", "lighting")):
             directive["change_targets"].append("background")
-        elif any(term in old_lower for term in ("truck", "vehicle", "car")):
+        elif any(term in old_lower for term in ("truck", "vehicle", "car", "emblem", "badge", "grille")):
             directive["change_targets"].append("vehicle")
         elif any(term in old_lower for term in ("logo", "brand mark", "website")):
             directive["change_targets"].append("logo")
@@ -15490,7 +15529,7 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
     target_map = {
         "headline": ("headline", "title", "wording", "text"),
         "hero_product": ("product", "unit", "screen", "device", "hardware"),
-        "vehicle": ("truck", "vehicle", "car", "silverado", "f150", "f-150"),
+        "vehicle": ("truck", "vehicle", "car", "silverado", "f150", "f-150", "emblem", "badge", "grille", "ford", "raptor"),
         "background": ("background", "mountain", "sky", "scene", "sunset", "lighting"),
         "logo": ("logo", "branding", "website"),
         "feature_matrix": ("feature", "icon", "icons"),
@@ -19210,10 +19249,11 @@ def _graphic_is_followup_edit_request(prompt_text):
     if not value:
         return False
     edit_terms = (
-        "edit", "change", "replace", "remove", "add", "move", "make it", "make the",
-        "bigger", "smaller", "brighter", "darker", "left", "right", "top", "bottom",
-        "headline", "text", "background", "logo", "color", "colour", "keep everything else",
-        "same image", "same design", "this image", "current image", "previous image",
+        "edit", "change", "replace", "remove", "add", "move", "restore", "reinstate",
+        "make it", "make the", "bigger", "smaller", "brighter", "darker", "left", "right",
+        "top", "bottom", "headline", "text", "background", "logo", "color", "colour",
+        "emblem", "badge", "grille", "keep everything else", "same image", "same design",
+        "this image", "current image", "previous image",
     )
     creation_terms = (
         "create it", "generate it", "create the ad", "make the ad", "new image", "new ad",
@@ -24779,7 +24819,8 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
         return "\n".join([
             "Create one premium photorealistic automotive BACKGROUND PLATE ONLY for an original AutoTecPro commercial campaign.",
             f"Canvas: {output_size}.",
-            "Do not render any product, screen, dashboard frame, logo, text, icons, benefit bar, poster or advertisement panel.",
+            "Do not render any product, screen, dashboard frame, advertising logo, brand watermark, text, icons, benefit bar, poster or advertisement panel.",
+            "Factory OEM vehicle badges/emblems that belong on the requested vehicle are allowed and should remain correct and visible whenever the viewing angle naturally shows them.",
             f"ART DIRECTION: {mood}; approved layout variant: {layout_variant}.",
             f"TARGET VEHICLE: exactly one clearly recognizable {explicit_name or 'vehicle explicitly named by the user'} with correct factory body type ({body_type}).",
             f"VEHICLE ROLE: {vehicle_scale}, three-quarter front view, fully visible and physically grounded; preserve a dominant clean foreground zone for the exact product cutout.",
@@ -24794,10 +24835,10 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
         f"Canvas: {output_size}.",
         "This is not an advertisement and must contain no reference-image pixels or copied objects.",
         "Allowed content: environment, realistic ground, natural lighting, and exactly one target vehicle.",
-        "Forbidden content: infotainment product, dashboard screen, gauge cluster, product frame, logo, headline, text, icons, ribbon, benefit bar, watermark, screenshot, poster, advertisement panel, collage, or floating UI.",
+        "Forbidden content: infotainment product, dashboard screen, gauge cluster, product frame, advertising logo, headline, text, icons, ribbon, benefit bar, brand watermark, screenshot, poster, advertisement panel, collage, or floating UI. Factory OEM vehicle badges/emblems on the requested vehicle are permitted and should remain correct.",
         f"TARGET VEHICLE IDENTITY LOCK: exactly one clearly recognizable {explicit_name or 'vehicle explicitly named by the user'}.",
         f"BODY-TYPE LOCK: it must visibly be a {body_type}; do not substitute a different body class.",
-        "Place the target vehicle deep in the RIGHT background, centered approximately between 72% and 86% of canvas width and 54% to 68% of canvas height. Keep the complete vehicle within the rightmost 30% of the composition, approximately 12-18% smaller than a normal hero vehicle, and behind the future product zone. Its grille, lamps, body proportions, cab/roofline, and wheelbase cues must remain visible enough for identity verification, but it must never compete with the product.",
+        "Place the target vehicle deep in the RIGHT background, centered approximately between 72% and 86% of canvas width and 54% to 68% of canvas height. Keep the complete vehicle within the rightmost 30% of the composition, approximately 12-18% smaller than a normal hero vehicle, and behind the future product zone. Its grille, OEM badge/emblem region, lamps, body proportions, cab/roofline, and wheelbase cues must remain visible enough for identity verification, but it must never compete with the product.",
         f"Template mood: {cfg.get('label')} — {cfg.get('background')}.",
         f"Reserve the left foreground from {int(layout['hero_left']*100)}% to {int(layout['hero_right']*100)}% width and from {int(layout['hero_top']*100)}% height downward for a dominant exact product cutout.",
         f"Keep the top {int(layout['top_ratio']*100)}% calm for deterministic typography and the bottom {int((1-layout['bar_ratio'])*100)}% clear for a deterministic benefit bar.",
@@ -48600,8 +48641,8 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
 
     # Common replacement grammar.  Keep it deliberately conservative and bounded.
     replacement_patterns = (
-        r"\b(?:change|replace|rename|update)\s+(?:the\s+)?(.{2,90}?)\s+(?:to|with|as)\s+(.{2,120}?)(?:[.!]|$)",
-        r"\b(?:instead of)\s+(.{2,90}?)\s+(?:use|write|show)\s+(.{2,120}?)(?:[.!]|$)",
+        r"\b(?:change|replace|rename|update)\s+(?:the\s+)?(.{2,90}?)\s+(?:to|with|as)\s+(.{2,120}?)\s*[.!]?\s*$",
+        r"\b(?:instead of)\s+(.{2,90}?)\s+(?:use|write|show)\s+(.{2,120}?)\s*[.!]?\s*$",
     )
     replacement = None
     for pattern in replacement_patterns:
@@ -48624,7 +48665,7 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
             directive["change_targets"].append("hero_product")
         elif any(term in old_lower for term in ("background", "scene", "sky", "mountain", "sunset", "lighting")):
             directive["change_targets"].append("background")
-        elif any(term in old_lower for term in ("truck", "vehicle", "car")):
+        elif any(term in old_lower for term in ("truck", "vehicle", "car", "emblem", "badge", "grille")):
             directive["change_targets"].append("vehicle")
         elif any(term in old_lower for term in ("logo", "brand mark", "website")):
             directive["change_targets"].append("logo")
@@ -48648,7 +48689,7 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
     target_map = {
         "headline": ("headline", "title", "wording", "text"),
         "hero_product": ("product", "unit", "screen", "device", "hardware"),
-        "vehicle": ("truck", "vehicle", "car", "silverado", "f150", "f-150"),
+        "vehicle": ("truck", "vehicle", "car", "silverado", "f150", "f-150", "emblem", "badge", "grille", "ford", "raptor"),
         "background": ("background", "mountain", "sky", "scene", "sunset", "lighting"),
         "logo": ("logo", "branding", "website"),
         "feature_matrix": ("feature", "icon", "icons"),
@@ -84371,8 +84412,20 @@ else:
                         professional_layered_studio=graphic_options.get("professional_layered_studio", True),
                     )
                 generation_error_v68837 = None
-            except Exception as error:
-                generation_error_v68837 = error
+            except BaseException as error:
+                if _graphic_is_streamlit_rerun_exception(error) or isinstance(error, (KeyboardInterrupt, SystemExit)):
+                    raise
+                if _graphic_is_streamlit_stop_exception(error):
+                    diagnostic_log(
+                        "graphic_generation_interrupted_v69251",
+                        error_type=type(error).__name__,
+                        reason="streamlit_stop_exception_captured_for_durable_retry",
+                    )
+                    generation_error_v68837 = RuntimeError(
+                        "Graphic generation was interrupted before completion (StopException); safe to retry."
+                    )
+                else:
+                    generation_error_v68837 = error
                 generated_images = []
             finally:
                 _graphic_v68874_release_transient_memory("after_graphic_generation")
