@@ -379,6 +379,15 @@ def _heavy_work_guard_v69188(operation, timeout_seconds=900):
 
 def _serialize_heavy_work_v69188(operation):
     """Serialize only website-learning entry points across Streamlit sessions."""
+    def decorator(function):
+        @functools.wraps(function)
+        def wrapped(*args, **kwargs):
+            with _heavy_work_guard_v69188(operation):
+                return function(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
 
 
 def _graphic_is_streamlit_stop_exception(error):
@@ -403,17 +412,6 @@ def _graphic_is_streamlit_rerun_exception(error):
     except Exception:
         pass
     return type(error).__name__ == "RerunException"
-
-    def decorator(function):
-        @functools.wraps(function)
-        def wrapped(*args, **kwargs):
-            with _heavy_work_guard_v69188(operation):
-                return function(*args, **kwargs)
-
-        return wrapped
-
-    return decorator
-
 
 
 # ============================================================
@@ -21979,7 +21977,24 @@ def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template
     footer[2] = max(footer[2], 0.90); footer[3] = max(footer[3], 0.102)
     defaults["bottom_bar_box"] = clean_box(footer, defaults["bottom_bar_box"])
 
+    # v69252 compatibility bridge: expose the legacy scalar layout keys consumed by
+    # the established background-plate prompt without changing any measured box.
+    # This prevents the live Reference route from failing with KeyError('hero_left')
+    # while keeping hero/headline/footer geometry exactly identical.
+    hero_box = list(defaults["hero_product_box"])
+    headline_box = list(defaults["headline_box"])
+    bottom_bar_box = list(defaults["bottom_bar_box"])
+    feature_box = list(defaults["feature_matrix_box"])
     defaults.update({
+        "hero_left": hero_box[0],
+        "hero_right": hero_box[0] + hero_box[2],
+        "hero_top": hero_box[1],
+        "top_ratio": headline_box[1],
+        "bar_ratio": bottom_bar_box[1],
+        "feature_left": feature_box[0],
+        "feature_top": feature_box[1],
+        "feature_width": feature_box[2],
+        "feature_height": feature_box[3],
         "source": "reference_blueprint" if bp else "approved_reference_fallback",
         "content_policy": "geometry_only_no_reference_content",
         "reference_locked": bool(bp),
