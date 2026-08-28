@@ -12861,12 +12861,41 @@ def get_approved_graphic_reference_for_prompt(prompt_text=""):
 
 
 def _graphic_role_data_url(item):
-    """Return a normalized data URL for one classified Graphic upload."""
+    """Return a normalized data URL for one classified Graphic upload.
+
+    v69255 keeps provider input bytes identical while avoiding repeated image
+    normalization/base64 work for the same immutable Graphic asset during one
+    Streamlit process. The cache is process-local only and is never persisted as
+    authority; cache misses execute the exact historical normalization path.
+    """
+    record = item or {}
+    file_obj = record.get("file") if isinstance(record, dict) else None
+    asset_id = str(
+        (record.get("graphic_asset_id") if isinstance(record, dict) else "")
+        or (record.get("asset_id") if isinstance(record, dict) else "")
+        or (record.get("id") if isinstance(record, dict) else "")
+        or getattr(file_obj, "graphic_asset_id", "")
+        or ""
+    ).strip()
+    cache = st.session_state.setdefault("graphic_role_data_url_cache_v69255", {})
+    if asset_id:
+        cached = cache.get(asset_id)
+        if isinstance(cached, str) and cached.startswith("data:image/"):
+            return cached
     try:
-        value = normalized_image_data_url((item or {}).get("file"))
+        value = normalized_image_data_url(file_obj)
     except Exception:
         value = ""
-    return value if str(value).startswith("data:image/") else ""
+    value = value if str(value).startswith("data:image/") else ""
+    if asset_id and value:
+        # Bound memory without changing any provider-visible bytes.
+        if len(cache) >= 4 and asset_id not in cache:
+            try:
+                cache.pop(next(iter(cache)))
+            except Exception:
+                pass
+        cache[asset_id] = value
+    return value
 
 
 def analyze_graphic_reference_blueprint(role_items, prompt_text="", style_strength="High"):
@@ -27349,14 +27378,10 @@ def _graphic_compose_reference_campaign_v3200(
         "engine": "exact-source-bounds-v68981",
     }
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
-    # v69254 — initialize deterministic product provenance before the run-manifest
-    # consumes it. This is metadata-only and does not alter composed pixels/layout.
+    # v69256 — build metadata first, then bind deterministic run provenance.
+    # Provenance-only repair; composed pixels, geometry, prompts, and provider routing are unchanged.
     product_source_signature = _graphic_product_source_signature_v9000(product_item)
-    metadata["deterministic_run_manifest_v61000"] = _graphic_deterministic_run_manifest_v61000(
-        product_source_signature, layout_bp, transforms, lighting_profile, micro_reflection_v48000,
-        source_to_final_geometry_qa_v61000, metadata.get("v61000_stage_timing")
-    )
-    return output.getvalue(), {
+    metadata = {
         "engine": "autotecpro-commercial-composer-v66000-universal-fail-closed-exact-geometry-authority",
         "exact_product_pixels": True,
         "v55000_product_pixel_authority": True,
@@ -27544,6 +27569,11 @@ def _graphic_compose_reference_campaign_v3200(
         "v61000_compatibility_scope": ["authentication","roles_permissions","supabase","history","admin","knowledge_upload","product_library","technical","sales","marketing","woocommerce","documents","mobile","downloads"],
         "v61000_stage_timing": {"local_composition_seconds": round(time.perf_counter()-v61000_compose_started,4)},
     }
+    metadata["deterministic_run_manifest_v61000"] = _graphic_deterministic_run_manifest_v61000(
+        product_source_signature, layout_bp, transforms, lighting_profile, micro_reflection_v48000,
+        source_to_final_geometry_qa_v61000, metadata.get("v61000_stage_timing")
+    )
+    return output.getvalue(), metadata
 
 
 
@@ -35015,9 +35045,16 @@ _GRAPHIC_V68826_UNCACHED_GENERATOR = generate_graphic_marketing_images
 
 
 def _graphic_v68826_uploaded_file_digest(uploaded_file):
-    """Return stable upload metadata without consuming the Streamlit file."""
+    """Return stable upload metadata without consuming the Streamlit file.
+
+    v69255 memoizes the digest on the immutable upload object when possible.
+    The returned structure and SHA-256 authority are unchanged.
+    """
     if uploaded_file is None:
         return {"name": "", "type": "", "sha256": "", "size": 0}
+    cached = getattr(uploaded_file, "_atp_graphic_digest_v69255", None)
+    if isinstance(cached, dict) and cached.get("sha256") and "size" in cached:
+        return dict(cached)
     try:
         raw = bytes(uploaded_file.getvalue() or b"")
     except Exception:
@@ -35035,12 +35072,17 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
                 uploaded_file.seek(position)
             except Exception:
                 pass
-    return {
+    result = {
         "name": Path(str(getattr(uploaded_file, "name", "") or "")).name,
         "type": str(getattr(uploaded_file, "type", "") or "").lower(),
         "sha256": hashlib.sha256(raw).hexdigest(),
         "size": len(raw),
     }
+    try:
+        setattr(uploaded_file, "_atp_graphic_digest_v69255", dict(result))
+    except Exception:
+        pass
+    return result
 
 
 def _graphic_v68978_persistent_authority_payload():
@@ -48337,7 +48379,9 @@ def _graphic_compose_reference_campaign_v3200(
     rendered_aspect = product.width / max(1, product.height)
     product_ratio_relative_error = abs(rendered_aspect - source_visible_aspect) / max(source_visible_aspect, 0.001)
     engineering_landmarks = _graphic_engineering_landmarks_v20000(role_items)
-    return output.getvalue(), {
+    # v69256 — initialize provenance before metadata construction.
+    product_source_signature = _graphic_product_source_signature_v9000(product_item)
+    metadata = {
         "engine": "autotecpro-commercial-composer-v66000-universal-fail-closed-exact-geometry-authority",
         "exact_product_pixels": True,
         "v55000_product_pixel_authority": True,
@@ -48436,7 +48480,7 @@ def _graphic_compose_reference_campaign_v3200(
         "canvas_size": [W, H],
         "reference_layout_blueprint": layout_bp,
         "reference_content_policy": "geometry_only_no_reference_pixels",
-        "product_source_sha256": (product_source_signature := _graphic_product_source_signature_v9000(product_item)).get("sha256"),
+        "product_source_sha256": product_source_signature.get("sha256"),
         "product_source_dimensions": product_source_signature,
         "render_mode": "commercial_recreation" if any(i.get("role") == "style_reference" for i in role_items or []) else "autotecpro_studio",
         "hero_product_priority": "primary",
@@ -48498,6 +48542,7 @@ def _graphic_compose_reference_campaign_v3200(
         product_source_signature, layout_bp, transforms, lighting_profile, micro_reflection_v48000,
         source_to_final_geometry_qa_v61000, metadata.get("v61000_stage_timing")
     )
+    return output.getvalue(), metadata
 
 
 def _graphic_copy_project_state_v68400(state):
