@@ -1,3 +1,4 @@
+# AutoTecPro AI v69274 — strict v69248 Reference compatibility + output-neutral speed repair; target <10 min
 # AutoTecPro AI v69227 FINAL PRODUCTION — v69226 accuracy preserved; revision-aware parsed-contract cache restores v69205-class deterministic speed\n# AutoTecPro AI v69226 FINAL PRODUCTION — exact v69206 base + audited v69207 generic Sales/Marketing + workspace callback safety + immediate status; NO Technical overlapping-year multi-match code
 # AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
@@ -52368,6 +52369,72 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
     ns_v69272["__builtins__"] = __builtins__
     exec(compile(raw_v69272, "<autotecpro-v69248-isolated-graphic-v69272>", "exec"), ns_v69272, ns_v69272)
 
+    # v69274 strict-Reference compatibility/speed repair. The exact attached v69248
+    # layout authority returns normalized boxes, while the downstream v69248 background
+    # prompt also reads legacy scalar aliases such as hero_left. In the isolated lane
+    # those aliases are not inherited from later globals, which caused the proven
+    # KeyError('hero_left') and then an expensive second recovery-generation cycle.
+    # Add ONLY deterministic scalar projections of the already-authoritative v69248
+    # boxes. No box, prompt text, provider model, compositor, product pixels, QA threshold,
+    # output size, or retry quality policy is changed.
+    def _v69274_install_layout_scalar_bridge(scope_v69274):
+        original_v69274 = scope_v69274.get("_graphic_reference_layout_blueprint_v9000")
+        if not callable(original_v69274):
+            raise RuntimeError("v69274 isolated v69248 layout authority missing")
+        if bool(getattr(original_v69274, "_atp_v69274_scalar_bridge", False)):
+            return original_v69274
+
+        def bridged_v69274(reference_blueprint=None, template_key=""):
+            layout_v69274 = original_v69274(reference_blueprint, template_key)
+            if not isinstance(layout_v69274, dict):
+                return layout_v69274
+            result_v69274 = dict(layout_v69274)
+            def _box_v69274(key_v69274):
+                raw_v69274 = result_v69274.get(key_v69274)
+                if isinstance(raw_v69274, (list, tuple)) and len(raw_v69274) == 4:
+                    try:
+                        return [float(x_v69274) for x_v69274 in raw_v69274]
+                    except Exception:
+                        return None
+                return None
+            hero_v69274 = _box_v69274("hero_product_box")
+            headline_v69274 = _box_v69274("headline_box")
+            footer_v69274 = _box_v69274("bottom_bar_box")
+            feature_v69274 = _box_v69274("feature_matrix_box")
+            if hero_v69274:
+                result_v69274.setdefault("hero_left", hero_v69274[0])
+                result_v69274.setdefault("hero_right", hero_v69274[0] + hero_v69274[2])
+                result_v69274.setdefault("hero_top", hero_v69274[1])
+            if headline_v69274:
+                result_v69274.setdefault("top_ratio", headline_v69274[1])
+            if footer_v69274:
+                result_v69274.setdefault("bar_ratio", footer_v69274[1])
+            if feature_v69274:
+                result_v69274.setdefault("feature_left", feature_v69274[0])
+                result_v69274.setdefault("feature_top", feature_v69274[1])
+                result_v69274.setdefault("feature_width", feature_v69274[2])
+                result_v69274.setdefault("feature_height", feature_v69274[3])
+            return result_v69274
+
+        bridged_v69274.__name__ = getattr(original_v69274, "__name__", "_graphic_reference_layout_blueprint_v9000")
+        bridged_v69274.__doc__ = getattr(original_v69274, "__doc__", None)
+        bridged_v69274._atp_v69274_scalar_bridge = True
+        bridged_v69274._atp_v69274_original = original_v69274
+        scope_v69274["_graphic_reference_layout_blueprint_v9000"] = bridged_v69274
+        return bridged_v69274
+
+    _v69274_install_layout_scalar_bridge(ns_v69272)
+    inner_pre_v69274 = ns_v69272.get("_GRAPHIC_V68835_NS")
+    if isinstance(inner_pre_v69274, dict):
+        _v69274_install_layout_scalar_bridge(inner_pre_v69274)
+    else:
+        raise RuntimeError("v69274 isolated v69248 inner namespace unavailable for layout repair")
+
+    diagnostic_log(
+        "graphic_v69274_v69248_layout_scalar_bridge_installed",
+        root=True, inner=True, geometry_source="existing-v69248-normalized-boxes",
+    )
+
     engine_v69272 = ns_v69272.get("generate_graphic_marketing_images")
     inner_v69272 = ns_v69272.get("_GRAPHIC_V68835_NS")
     if not callable(engine_v69272) or not isinstance(inner_v69272, dict):
@@ -52562,12 +52629,24 @@ def generate_graphic_marketing_images(
             mode=mode_v69273,
             source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16],
         )
+        diagnostic_log(
+            "graphic_v69274_strict_v69248_engine_entered",
+            mode=mode_v69273,
+            speed_strategy="prevent-known-layout-crash-and-recovery-cycle",
+        )
+        started_v69274 = time.perf_counter()
         images_v69273 = engine_v69273(
             prompt_text, uploaded_files,
             use_approved_style=use_approved_style, preserve_product=preserve_product,
             style_strength=style_strength, forced_upload_role=forced_upload_role,
             quality_retry=quality_retry, product_transform_mode=product_transform_mode,
             professional_layered_studio=professional_layered_studio,
+        )
+        elapsed_v69274 = max(0.0, time.perf_counter() - started_v69274)
+        diagnostic_log(
+            "graphic_v69274_protected_engine_elapsed",
+            mode=mode_v69273, elapsed_seconds=round(elapsed_v69274, 3),
+            target_seconds=600.0, under_target=elapsed_v69274 < 600.0,
         )
         if not images_v69273:
             raise RuntimeError(f"v69273 isolated v69248 {mode_v69273} engine returned no image")
@@ -52576,6 +52655,12 @@ def generate_graphic_marketing_images(
                 image_v69273["graphic_v69273_isolated_v69248"] = True
                 image_v69273["graphic_v69273_mode"] = mode_v69273
                 image_v69273["graphic_v69273_source_sha256"] = _GRAPHIC_V69271_V69248_SOURCE_SHA256
+        diagnostic_log(
+            "graphic_v69274_strict_v69248_engine_returned",
+            mode=mode_v69273, image_count=len(images_v69273 or []),
+            elapsed_seconds=round(elapsed_v69274, 3),
+            under_10_minute_target=elapsed_v69274 < 600.0,
+        )
         diagnostic_log(
             "graphic_v69273_true_v69248_engine_returned",
             mode=mode_v69273, image_count=len(images_v69273 or []),
