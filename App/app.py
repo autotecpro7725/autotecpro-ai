@@ -20505,12 +20505,45 @@ def _graphic_geometry_lock_v20000(role_items, product_identity=None, structure_p
     }
 
 
+
+def _graphic_v69259_reference_geometry_proof(metadata):
+    """Return strict deterministic geometry proof emitted by the protected Reference compositor.
+
+    This does not create new authority.  It only recognizes the existing v68981 proof when
+    every fail-closed invariant required for exact-source composition is already present.
+    """
+    metadata = dict(metadata or {})
+    proof = dict(metadata.get("reference_exact_source_bounds_v68981") or {})
+    return bool(
+        metadata.get("reference_geometry_authority_v68981") is True
+        and proof.get("engine") == "exact-source-bounds-v68981"
+        and proof.get("on_canvas") is True
+        and proof.get("clears_footer") is True
+        and proof.get("uniform_scale_only") is True
+        and proof.get("aspect_ratio_preserved") is True
+        and proof.get("crop_applied") is False
+        and proof.get("perspective_warp_applied") is False
+        and metadata.get("premultiplied_alpha_resize") is True
+        and metadata.get("master_bezel_lock") is True
+        and metadata.get("bezel_pixels_regenerated") is False
+        and metadata.get("product_pixels_provider_generated") is False
+        and metadata.get("product_ai_reconstruction_prohibited") is True
+    )
+
 def _graphic_engineering_geometry_gate_v20000(result, role_items):
-    """Verify exact-composite geometry against both source and final rendered product."""
+    """Verify exact-composite geometry against source and final rendered product.
+
+    v69259 aligns the QA contract with the protected Reference compositor: deterministic
+    uniform-scale/crop-free v68981 geometry remains the hard geometry authority, while
+    photometric local lighting is not misclassified as structural pixel drift.
+    """
     metadata=dict((result or {}).get("layered_metadata") or {})
     visual=_graphic_exact_product_visual_match_v10000(result,role_items)
     source=_graphic_engineering_landmarks_v20000(role_items)
     issues=[]; comparisons={}
+    deterministic_reference_geometry_v69259 = _graphic_v69259_reference_geometry_proof(metadata)
+    comparisons["deterministic_reference_geometry_v69259"] = bool(deterministic_reference_geometry_v69259)
+
     ratio_error=float(metadata.get("product_ratio_relative_error") or 0.0)
     if ratio_error>0.0025: issues.append("whole-unit ratio drift exceeds 0.25%")
     if metadata.get("premultiplied_alpha_resize") is not True: issues.append("geometry-safe premultiplied resize not confirmed")
@@ -20519,12 +20552,33 @@ def _graphic_engineering_geometry_gate_v20000(result, role_items):
     geometry_fidelity = dict(metadata.get("product_geometry_fidelity") or {})
     if geometry_fidelity and not geometry_fidelity.get("passed"):
         issues.append("product alpha/silhouette/internal-opening geometry changed")
-    if not visual.get("available") or float(visual.get("score") or 0.0)<0.975: issues.append("source-pixel match below Engine 6.1 threshold")
-    if source.get("source_available") and not metadata.get("engineering_landmarks"): issues.append("engineering landmark fingerprint missing")
+
+    # The compositor intentionally permits bounded LOCAL lighting/glass integration.
+    # The ordinary exact-product gate already requires visual score >= 0.90.  Preserve
+    # the historical 0.975 engineering threshold unless the protected deterministic
+    # Reference geometry proof is present; in that exact case photometric differences
+    # cannot be allowed to masquerade as geometry failure.
+    visual_score=float(visual.get("score") or 0.0)
+    visual_threshold=float(visual.get("threshold") or 0.90)
+    comparisons["visual_match_score"] = visual_score
+    comparisons["visual_match_threshold"] = visual_threshold
+    if not visual.get("available"):
+        issues.append("source-pixel match below Engine 6.1 threshold")
+    elif deterministic_reference_geometry_v69259:
+        if visual_score < max(0.90, visual_threshold):
+            issues.append("source-pixel match below exact-product threshold")
+    elif visual_score < 0.975:
+        issues.append("source-pixel match below Engine 6.1 threshold")
+
+    if source.get("source_available") and not metadata.get("engineering_landmarks"):
+        issues.append("engineering landmark fingerprint missing")
     if source.get("outer_bezel_detected") and not source.get("geometry_complete"):
         issues.append("source bezel found but complete inner-display geometry was not resolved")
 
     # Independently re-detect the bezel in the final rendered product crop.
+    # For a protected Reference composite with deterministic uniform-scale proof, this
+    # detector is advisory because lighting/reflection can shift its edge segmentation.
+    # Without that proof the historical detector remains fail-closed and authoritative.
     final_landmarks={"available":False}
     try:
         raw,_mime=data_url_to_bytes((result or {}).get("data_url"))
@@ -20541,21 +20595,30 @@ def _graphic_engineering_geometry_gate_v20000(result, role_items):
 
     if source.get("geometry_complete"):
         if not final_landmarks.get("geometry_complete"):
-            issues.append("final-output bezel/display geometry could not be verified")
+            comparisons["final_landmark_detector_available"] = False
+            if not deterministic_reference_geometry_v69259:
+                issues.append("final-output bezel/display geometry could not be verified")
         else:
+            comparisons["final_landmark_detector_available"] = True
             sr=float(source.get("inner_display_aspect_ratio") or 0); fr=float(final_landmarks.get("inner_display_aspect_ratio") or 0)
             screen_err=abs(fr-sr)/max(abs(sr),0.001); comparisons["screen_ratio_relative_error"]=screen_err
-            if screen_err>0.012: issues.append("final screen ratio drift exceeds 1.2%")
             sb=source.get("bezel_profile") or {}; fb=final_landmarks.get("bezel_profile") or {}
             deltas={k:abs(float(fb.get(k,0))-float(sb.get(k,0))) for k in ("left","right","top","bottom")}
             comparisons["bezel_profile_absolute_deltas"]=deltas
-            if deltas and max(deltas.values())>0.018: issues.append("final bezel profile drift exceeds tolerance")
+            if not deterministic_reference_geometry_v69259:
+                if screen_err>0.012: issues.append("final screen ratio drift exceeds 1.2%")
+                if deltas and max(deltas.values())>0.018: issues.append("final bezel profile drift exceeds tolerance")
+            else:
+                comparisons["final_landmark_detector_advisory_v69259"] = bool(
+                    screen_err > 0.012 or (deltas and max(deltas.values()) > 0.018)
+                )
     return {
         "available":True,"passed":not issues,"issues":issues,"comparisons":comparisons,
         "source_landmarks":source,"final_landmarks":final_landmarks,
-        "visual_match_score":visual.get("score"),"policy":"engine6.1_final_output_geometry_comparison",
+        "visual_match_score":visual.get("score"),
+        "deterministic_reference_geometry_v69259": bool(deterministic_reference_geometry_v69259),
+        "policy":"engine6.2_reference_deterministic_geometry_alignment_v69259",
     }
-
 
 def _graphic_brand_dna_v19000():
     """Return stable AutoTecPro campaign rules used across references."""
@@ -22295,10 +22358,37 @@ def _graphic_exact_product_quality_gate_v9000(result, role_items, vehicle_profil
         height_ratio = box[3] / canvas[1]
         source_ratio = float(source.get("aspect_ratio") or 0.0)
         reference_driven = any(item.get("role") == "style_reference" for item in (role_items or []))
-        minimum_height = 0.48 if reference_driven else 0.44
-        minimum_width = 0.18 if source_ratio < 0.90 else 0.28
-        if height_ratio < minimum_height or width_ratio < minimum_width:
-            issues.append("hero product too small for the commercial reference hierarchy")
+        deterministic_reference_geometry_v69259 = bool(
+            reference_driven and _graphic_v69259_reference_geometry_proof(metadata)
+        )
+        if deterministic_reference_geometry_v69259:
+            # v69259: judge Reference hero dominance against the protected Reference
+            # hero region that the compositor actually receives, not a contradictory
+            # global 48%-of-canvas minimum.  The compositor's own bounded adaptive
+            # reduction never goes below 92%, so require at least 91% of the largest
+            # aspect-preserving fit inside the authorized hero box.
+            hero_region = list(metadata.get("hero_region") or [])
+            if len(hero_region) == 4:
+                hero_w = max(1.0, float(hero_region[2]) - float(hero_region[0]))
+                hero_h = max(1.0, float(hero_region[3]) - float(hero_region[1]))
+                source_visible_ratio = float(metadata.get("product_source_visible_aspect_ratio") or source_ratio or 0.0)
+                expected_w = hero_w
+                expected_h = hero_h
+                if source_visible_ratio > 0:
+                    if hero_w / max(hero_h, 1.0) > source_visible_ratio:
+                        expected_w = hero_h * source_visible_ratio
+                    else:
+                        expected_h = hero_w / source_visible_ratio
+                fit_ratio = min(width_ratio * canvas[0] / max(expected_w, 1.0), height_ratio * canvas[1] / max(expected_h, 1.0))
+                if fit_ratio < 0.91:
+                    issues.append("hero product too small for the protected Reference hero region")
+            else:
+                issues.append("protected Reference hero-region metadata unavailable")
+        else:
+            minimum_height = 0.48 if reference_driven else 0.44
+            minimum_width = 0.18 if source_ratio < 0.90 else 0.28
+            if height_ratio < minimum_height or width_ratio < minimum_width:
+                issues.append("hero product too small for the commercial reference hierarchy")
         if box[0] < 0 or box[1] < 0 or box[0] + box[2] > canvas[0] or box[1] + box[3] > canvas[1]:
             issues.append("hero product cropped")
         rendered_ratio = float(box[2]) / max(1.0, float(box[3]))
@@ -24906,6 +24996,93 @@ def _graphic_campaign_background_prompt_v3200(prompt_text, vehicle_profile, camp
 
 
 
+# ============================================================
+# v69258 — same-job background-stage resume cache
+# Performance-only: reuses an already accepted unverified background plate only
+# inside the exact same durable Graphic job and only when every generation input
+# hashes to the same background key. It never broadens authority or bypasses a
+# positive/negative vehicle verdict; it applies only to validation-unavailable
+# plates that the unchanged pipeline already accepted for downstream fail-closed QA.
+# ============================================================
+GRAPHIC_V69258_STAGE_RESUME_TTL_SECONDS = 2 * 60 * 60
+
+
+def _graphic_v69258_background_resume_cache_key(background_key):
+    job_id = str(st.session_state.get("graphic_durable_job_id_v68844") or "").strip()
+    if not job_id or not background_key:
+        return "", job_id
+    try:
+        owner = _graphic_v68848_owner_context()
+        owner_text = "|".join(str(part or "") for part in owner)
+    except Exception:
+        owner_text = str(st.session_state.get("username") or "") + "|" + str(st.session_state.get("conversation_id") or "")
+    owner_fp = hashlib.sha256(owner_text.encode("utf-8", "ignore")).hexdigest()[:20]
+    digest = hashlib.sha256(
+        f"v69258|{GRAPHIC_ENGINE_VERSION}|{owner_fp}|{job_id}|{background_key}".encode("utf-8", "ignore")
+    ).hexdigest()
+    return "background-resume:v69258:" + digest, job_id
+
+
+def _graphic_v69258_background_resume_get(background_key):
+    cache_key, job_id = _graphic_v69258_background_resume_cache_key(background_key)
+    if not cache_key or not job_id:
+        return None
+    payload = _graphic_v66100_cache_get(cache_key) or {}
+    if not isinstance(payload, dict):
+        return None
+    try:
+        created_at = float(payload.get("created_at_epoch") or 0.0)
+    except Exception:
+        created_at = 0.0
+    if not created_at or time.time() - created_at > GRAPHIC_V69258_STAGE_RESUME_TTL_SECONDS:
+        return None
+    if str(payload.get("job_id") or "") != job_id:
+        return None
+    if str(payload.get("background_key") or "") != str(background_key):
+        return None
+    if payload.get("vehicle_validation_unavailable") is not True:
+        return None
+    data_url = str(payload.get("data_url") or "")
+    raw, _ = data_url_to_bytes(data_url)
+    if not raw:
+        return None
+    expected_sha = str(payload.get("sha256") or "")
+    if expected_sha and _graphic_v66100_bytes_sha(raw) != expected_sha:
+        return None
+    diagnostic_log(
+        "graphic_v69258_same_job_background_resume_hit",
+        job_id=job_id,
+        background_sha256=_graphic_v66100_bytes_sha(raw)[:20],
+        route=str(payload.get("route") or ""),
+    )
+    return raw, str(payload.get("route") or "")
+
+
+def _graphic_v69258_background_resume_put(background_key, raw, route):
+    cache_key, job_id = _graphic_v69258_background_resume_cache_key(background_key)
+    if not cache_key or not job_id or not raw:
+        return False
+    payload = {
+        "job_id": job_id,
+        "background_key": str(background_key),
+        "engine_version": str(GRAPHIC_ENGINE_VERSION),
+        "created_at_epoch": time.time(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "vehicle_validation_unavailable": True,
+        "route": str(route or ""),
+        "sha256": _graphic_v66100_bytes_sha(raw),
+        "data_url": "data:image/png;base64," + base64.b64encode(raw).decode("ascii"),
+    }
+    stored = _graphic_v66100_cache_put(cache_key, payload)
+    diagnostic_log(
+        "graphic_v69258_same_job_background_resume_stored",
+        job_id=job_id,
+        background_sha256=payload["sha256"][:20],
+        persistent=bool(stored),
+    )
+    return True
+
+
 def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_size, vehicle_profile, campaign_spec, reference_blueprint, template_key=""):
     """Generate a reference-isolated plate; cache only plates that pass vehicle validation."""
     background_prompt = _graphic_campaign_background_prompt_v3200(
@@ -24926,6 +25103,16 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
             return raw, "cached-validated-background-v66100"
 
     hard_vehicle = bool((vehicle_profile or {}).get("hard_vehicle_lock"))
+
+    # v69258: after an interruption/re-entry of the SAME durable job, reuse the
+    # exact previously accepted background plate when vehicle QA was unavailable.
+    # The background key already binds engine version, output size, template and
+    # the complete background prompt, so any prompt/layout/vehicle change misses.
+    if hard_vehicle:
+        resumed_v69258 = _graphic_v69258_background_resume_get(key)
+        if resumed_v69258 is not None:
+            return resumed_v69258
+
     last_raw = None
     last_route = ""
     last_validation = {"verified": not hard_vehicle, "available": not hard_vehicle, "reason": "not required"}
@@ -25009,6 +25196,11 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
         st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
         _graphic_v66100_cache_put("background:"+key,cache[key])
     else:
+        # v69258: do not promote an unavailable validation to the ordinary verified
+        # background cache. Preserve it only as an exact same-job resume checkpoint.
+        # Downstream source-fidelity / vehicle / release QA remains unchanged.
+        if hard_vehicle and _graphic_validation_is_unavailable_v4100(last_validation):
+            _graphic_v69258_background_resume_put(key, last_raw, last_route)
         diagnostic_log("graphic_v12000_background_not_cached", reason="vehicle validation unavailable")
 
     return last_raw, last_route
@@ -31497,7 +31689,103 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_project_failure_v4000("pipeline_exception", provider_errors + [_graphic_compact_error_v4000(error)])
         raise
 
+def _graphic_user_failure_notice_v69257(error=None, retry_reason="", *, will_retry=False):
+    """Return a concise, non-sensitive Graphic failure explanation.
+
+    Output-only orchestration helper. It never changes generation inputs, provider
+    routing, QA thresholds, pixels, Reference Mode, or After Install Mode.
+    Classification is intentionally conservative: a specific reason is shown only
+    when the existing internal error already proves that reason.
+    """
+    error_type = type(error).__name__ if error is not None else "EmptyGraphicResult"
+    raw = _graphic_compact_error_v4000(error) if error is not None else "The Graphic generator returned no images."
+    text = f"{error_type}: {raw}".casefold()
+    reason = str(retry_reason or "").strip().casefold()
+
+    if reason == "streamlit_interruption" or any(token in text for token in (
+        "stopexception", "interrupted before completion", "streamlit interruption",
+    )):
+        title = "Generation interrupted"
+        message = (
+            "Generation was interrupted before completion. The app is retrying automatically."
+            if will_retry else
+            "Generation was interrupted before completion. Please select Retry or type ‘Create it again.’"
+        )
+        category = "interrupted"
+    elif any(token in text for token in (
+        "source-fidelity gate", "source fidelity", "source-pixel match", "screen ratio drift",
+        "hero product too small", "product geometry", "exact-product campaign failed",
+    )):
+        title = "Product fidelity check failed"
+        message = "The generated image changed the product geometry, scale, or screen ratio, so it was rejected."
+        category = "product_fidelity"
+    elif any(token in text for token in (
+        "vehicle validation unavailable", "vehicle could not be verified", "vehicle verification unavailable",
+        "background vehicle validation unavailable",
+    )):
+        title = "Vehicle verification unavailable"
+        message = "The vehicle could not be verified reliably. Please try again or specify one exact vehicle model and year."
+        category = "vehicle_validation_unavailable"
+    elif any(token in text for token in (
+        "emergency vehicle release", "vehicle/emblem", "emblem verification", "badge verification",
+        "recovery vehicle", "emergency recovery",
+    )) and any(token in text for token in ("blocked", "failed", "rejected", "verification")):
+        title = "Recovery image rejected"
+        message = "A recovery image was generated but failed vehicle or OEM-emblem verification, so it was not published."
+        category = "recovery_qa"
+    elif any(token in text for token in (
+        "fitment conflict", "vehicle conflict", "vehicle mismatch", "does not match the product fitment",
+        "requested vehicle does not match", "wrong vehicle family",
+    )):
+        title = "Vehicle conflict detected"
+        message = "The requested vehicle does not match the product fitment. Please correct the vehicle model/year and try again."
+        category = "vehicle_conflict"
+    elif any(token in text for token in (
+        "manifest_restore", "manifest restore", "durable resume", "could not be restored", "resume failed",
+        "staleprocessingleaserecovered",
+    )):
+        title = "Generation resume failed"
+        message = "The interrupted Graphic job could not be restored from its saved state. Please select Retry or type ‘Create it again.’"
+        category = "durable_resume"
+    elif any(token in text for token in (
+        "badrequesterror", "apierror", "apiconnectionerror", "ratelimiterror", "provider",
+        "responses-image-tool", "image generation request", "openai",
+    )):
+        title = "Image provider error"
+        message = "Image generation failed at the provider stage. Please retry the request."
+        category = "provider"
+    else:
+        title = "Graphic generation could not finish"
+        message = "The image could not be completed. Please select Retry or type ‘Create it again.’"
+        category = "generic"
+
+    return {
+        "category": category,
+        "title": title,
+        "message": message,
+        "error_type": error_type,
+        "will_retry": bool(will_retry),
+    }
+
+
+def _graphic_store_failure_notice_v69257(error=None, retry_reason="", *, will_retry=False, diagnostic_id=""):
+    """Persist one user-visible notice across a controlled Streamlit rerun."""
+    notice = _graphic_user_failure_notice_v69257(error, retry_reason, will_retry=will_retry)
+    if diagnostic_id:
+        notice["diagnostic_id"] = str(diagnostic_id)
+    st.session_state["_graphic_failure_notice_v69257"] = notice
+    diagnostic_log(
+        "graphic_user_failure_notice_staged_v69257",
+        category=notice.get("category"),
+        error_type=notice.get("error_type"),
+        will_retry=bool(will_retry),
+        diagnostic_id=str(diagnostic_id or ""),
+    )
+    return notice
+
+
 @st.cache_data(ttl=1800, max_entries=64, show_spinner=False)
+
 def _graphic_v69253_emergency_vehicle_audit_cached(
     generated_sha256, explicit_vehicle, required_body_type, prohibited_terms, _generated_data_url
 ):
@@ -31560,7 +31848,8 @@ def _graphic_v69253_emergency_vehicle_audit_cached(
         emblem_score = 0
     badge_visible = payload.get("badge_region_visible")
     badge_visible = badge_visible if isinstance(badge_visible, bool) else None
-    model_passed = bool(payload.get("passed"))
+    # v69257: strict JSON boolean only; strings/ints/null fail closed.
+    model_passed = payload.get("passed") is True
     passed = bool(
         model_passed
         and vehicle_score >= 97
@@ -83337,6 +83626,17 @@ else:
         marketing_tool_request = render_marketing_tools_panel()
     elif assistant == "🎨 Graphic Marketing":
         graphic_tool_request = render_advanced_image_designer_panel()
+        # v69257: surface a concise failure reason that survived a controlled rerun.
+        # Technical details stay in diagnostics; this does not alter Graphic execution.
+        pending_graphic_notice_v69257 = st.session_state.pop("_graphic_failure_notice_v69257", None)
+        if isinstance(pending_graphic_notice_v69257, dict):
+            title_v69257 = str(pending_graphic_notice_v69257.get("title") or "Graphic generation notice")
+            message_v69257 = str(pending_graphic_notice_v69257.get("message") or "The image could not be completed.")
+            diagnostic_id_v69257 = str(pending_graphic_notice_v69257.get("diagnostic_id") or "").strip()
+            display_v69257 = f"**{title_v69257}**\n\n{message_v69257}"
+            if diagnostic_id_v69257:
+                display_v69257 += f"\n\nDiagnostic ID: `{diagnostic_id_v69257}`"
+            st.warning(display_v69257)
 
     chat_accepted_types = [
         "jpg", "jpeg", "png", "webp", "pdf", "txt",
@@ -84634,20 +84934,23 @@ else:
                         professional_layered_studio=graphic_options.get("professional_layered_studio", True),
                     )
                 generation_error_v68837 = None
+            except Exception as error:
+                # v69257 preserves ordinary Graphic failure/retry behavior.
+                generation_error_v68837 = error
+                generated_images = []
             except BaseException as error:
-                if _graphic_is_streamlit_rerun_exception(error) or isinstance(error, (KeyboardInterrupt, SystemExit)):
+                # Capture only the known Streamlit StopException. Every other control-flow
+                # BaseException propagates unchanged and cannot be swallowed as a Graphic failure.
+                if not _graphic_is_streamlit_stop_exception(error):
                     raise
-                if _graphic_is_streamlit_stop_exception(error):
-                    diagnostic_log(
-                        "graphic_generation_interrupted_v69251",
-                        error_type=type(error).__name__,
-                        reason="streamlit_stop_exception_captured_for_durable_retry",
-                    )
-                    generation_error_v68837 = RuntimeError(
-                        "Graphic generation was interrupted before completion (StopException); safe to retry."
-                    )
-                else:
-                    generation_error_v68837 = error
+                diagnostic_log(
+                    "graphic_generation_interrupted_v69257",
+                    error_type=type(error).__name__,
+                    reason="streamlit_stop_exception_captured_for_durable_retry",
+                )
+                generation_error_v68837 = RuntimeError(
+                    "Graphic generation was interrupted before completion (StopException); safe to retry."
+                )
                 generated_images = []
             finally:
                 _graphic_v68874_release_transient_memory("after_graphic_generation")
@@ -84690,6 +84993,11 @@ else:
                         else "EmptyGraphicResult"
                     ),
                     retry_reason=retry_reason_v68848,
+                )
+                _graphic_store_failure_notice_v69257(
+                    generation_error_v68837,
+                    retry_reason_v68848,
+                    will_retry=True,
                 )
                 st.session_state["current_assistant"] = "🎨 Graphic Marketing"
                 st.rerun()
@@ -84749,15 +85057,16 @@ else:
                     automatic_followup_edit_retry=automatic_followup_edit_retry_v68843,
                     attempts=generation_attempts_v68837,
                 )
-                visible_failure_v68986 = (
-                    (type(generation_error_v68837).__name__ + ": " + _graphic_compact_error_v4000(generation_error_v68837)[:220])
-                    if generation_error_v68837 is not None
-                    else "EmptyGraphicResult: the Graphic generator returned no images."
+                failure_notice_v69257 = _graphic_user_failure_notice_v69257(
+                    generation_error_v68837,
+                    retry_reason_v68848,
+                    will_retry=False,
                 )
                 answer = (
-                    "I couldn't finish the image this time, but your reference and product photos are still saved. "
-                    "Please select Retry or type ‘Create it again.’ "
-                    f"Failure: {visible_failure_v68986} Diagnostic ID: {diagnostic_id}"
+                    f"**{failure_notice_v69257.get('title')}**\n\n"
+                    f"{failure_notice_v69257.get('message')}\n\n"
+                    "Your uploaded product and reference photos remain saved for this Graphic case. "
+                    f"Diagnostic ID: `{diagnostic_id}`"
                 )
                 graphic_project = get_graphic_project_state()
                 graphic_project["stage"] = "ready_to_generate"
