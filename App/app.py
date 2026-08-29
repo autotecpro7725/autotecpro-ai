@@ -6009,10 +6009,10 @@ def render_chat_message(
 
     if role != "user" and generated_transport_images_v69271:
         for image_index_v69271, image_v69271 in enumerate(generated_transport_images_v69271):
-            display_url_v69271 = str(image_v69271.get("graphic_display_url_v69271") or "").strip()
+            display_url_v69271 = _graphic_v69273_resolve_generated_display_url(
+                image_v69271, image_index_v69271
+            )
             storage_path_v69271 = str(image_v69271.get("graphic_display_storage_path_v69271") or "").strip()
-            if storage_path_v69271 and not display_url_v69271:
-                display_url_v69271 = _graphic_v69271_signed_job_url(storage_path_v69271, expires=86400)
             raw_v69271 = b""
             if not display_url_v69271:
                 raw_v69271, _mime_v69271 = data_url_to_bytes(image_v69271.get("data_url"))
@@ -11643,6 +11643,12 @@ def extract_images_from_message_content(content):
             "graphic_v69271_isolated_v69248",
             "graphic_v69271_mode",
             "graphic_v69271_source_sha256",
+            "graphic_v69272_isolated_v69248",
+            "graphic_v69272_mode",
+            "graphic_v69272_source_sha256",
+            "graphic_v69273_isolated_v69248",
+            "graphic_v69273_mode",
+            "graphic_v69273_source_sha256",
             "website_image_index_v68883",
             "website_image_sha256",
             "website_image_match_score_v68883",
@@ -52402,31 +52408,143 @@ def _graphic_v69272_get_v69248_namespace():
 _GRAPHIC_V69272_CURRENT_ENGINE = generate_graphic_marketing_images
 
 
-def _graphic_v69272_protected_mode(prompt_text, uploaded_files=None, forced_upload_role="Auto-detect"):
-    # This function is reached only from the actual Graphic generation call, so the
-    # expensive protected engine is never built during ordinary startup/UI rendering.
-    ns_v69272 = _graphic_v69272_get_v69248_namespace()
-    text_v69272 = str(prompt_text or "")
+# v69273: outer protected-mode routing must understand negative preservation clauses.
+# The historical v69248 detector intentionally remains untouched inside the isolated
+# engine so its output behavior is not modified. Only the CURRENT application router
+# decides whether a Product + Style Reference request should enter that engine.
+def _graphic_v69273_positive_product_recreation_intent(prompt_text):
+    text_v69273 = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not text_v69273:
+        return False
+
+    # Reset negation at sentence/strong-clause boundaries and at contrastive clauses.
+    clauses_v69273 = re.split(
+        r"(?:[.;!?\n]+|\b(?:but|however|instead|except)\b)", text_v69273,
+        flags=re.I,
+    )
+    negator_v69273 = re.compile(
+        r"\b(?:do\s+not|don't|dont|never|must\s+not|should\s+not|cannot|can't|cant|avoid)\b",
+        re.I,
+    )
+    direct_change_v69273 = re.compile(
+        r"\bchange\s+(?:the\s+)?(?:housing|bezel|buttons?|knobs?)\b|"
+        r"\bnew\s+product\s+design\b|\bproduct\s+variant\b",
+        re.I,
+    )
+    recreate_v69273 = re.compile(r"\b(?:recreate|reconstruct|invent|redesign)\w*\b", re.I)
+    product_context_v69273 = re.compile(
+        r"\b(?:product|unit|device|hardware|housing|bezel|screen|buttons?|knobs?|brackets?|vents?|openings?|geometry)\b",
+        re.I,
+    )
+
+    for clause_v69273 in clauses_v69273:
+        clause_v69273 = clause_v69273.strip()
+        if not clause_v69273:
+            continue
+        for match_v69273 in direct_change_v69273.finditer(clause_v69273):
+            before_v69273 = clause_v69273[:match_v69273.start()]
+            if not negator_v69273.search(before_v69273):
+                return True
+        for match_v69273 in recreate_v69273.finditer(clause_v69273):
+            before_v69273 = clause_v69273[:match_v69273.start()]
+            if negator_v69273.search(before_v69273):
+                continue
+            # Determine what the recreation verb actually targets. "Recreate the
+            # advertising style" must remain Reference Mode even if the same clause
+            # later says "preserve the product". A product target must occur before
+            # any clear style/layout target after the verb, or be present immediately
+            # before the verb.
+            before_context_v69273 = clause_v69273[max(0, match_v69273.start() - 80):match_v69273.start()]
+            after_context_v69273 = clause_v69273[match_v69273.end():min(len(clause_v69273), match_v69273.end() + 140)]
+            product_before_v69273 = product_context_v69273.search(before_context_v69273)
+            product_after_v69273 = product_context_v69273.search(after_context_v69273)
+            style_after_v69273 = re.search(
+                r"\b(?:style|reference|image|layout|advertising|commercial|visual|look|template|composition)\b",
+                after_context_v69273, re.I,
+            )
+            if product_before_v69273:
+                return True
+            if product_after_v69273 and (not style_after_v69273 or product_after_v69273.start() < style_after_v69273.start()):
+                return True
+    return False
+
+
+def _graphic_v69273_reference_authority(prompt_text, uploaded_files, forced_upload_role, ns_v69273):
+    text_v69273 = str(prompt_text or "")
+    positive_recreation_v69273 = _graphic_v69273_positive_product_recreation_intent(text_v69273)
+    context_v69273 = {}
+    detector_error_v69273 = ""
     try:
-        if bool(ns_v69272["_graphic_v68829_is_installed_request"](text_v69272)):
-            return "installed", ns_v69272
-    except Exception:
-        pass
-    try:
-        if bool(ns_v69272["_graphic_v68827_is_reference_mode"](text_v69272, uploaded_files, forced_upload_role)):
-            return "reference", ns_v69272
-    except Exception as error_v69272:
-        diagnostic_log(
-            "graphic_v69272_reference_detector_failed_closed",
-            error_type=type(error_v69272).__name__, error=str(error_v69272)[:500],
-        )
+        context_v69273 = ns_v69273["_graphic_v68000_exact_reference_context"](
+            text_v69273, uploaded_files or [], forced_upload_role,
+        ) or {}
+    except Exception as error_v69273:
+        detector_error_v69273 = f"{type(error_v69273).__name__}: {str(error_v69273)[:300]}"
+
+    has_product_v69273 = bool(context_v69273.get("has_product"))
+    has_style_v69273 = bool(context_v69273.get("has_style"))
+    has_edit_v69273 = bool(context_v69273.get("has_edit_base"))
+
+    # Current project IDs are a recovery authority only when the isolated v69248
+    # role resolver could not recover both uploaded roles. They cannot override a
+    # real Edit Base or a genuine positive product-recreation command.
+    project_fallback_v69273 = False
+    if not (has_product_v69273 and has_style_v69273):
         try:
-            project_v69272 = get_graphic_project_state() or {}
-            if str(project_v69272.get("active_reference_id") or "") and str(project_v69272.get("active_product_id") or ""):
-                return "reference", ns_v69272
+            project_v69273 = get_graphic_project_state() or {}
+            active_product_v69273 = str(project_v69273.get("active_product_id") or "").strip()
+            active_reference_v69273 = str(project_v69273.get("active_reference_id") or "").strip()
+            project_fallback_v69273 = bool(
+                active_product_v69273
+                and active_reference_v69273
+                and active_product_v69273 != active_reference_v69273
+            )
+            if project_fallback_v69273:
+                has_product_v69273 = True
+                has_style_v69273 = True
         except Exception:
-            pass
-    return "other", ns_v69272
+            project_fallback_v69273 = False
+
+    reference_v69273 = bool(
+        has_product_v69273
+        and has_style_v69273
+        and not has_edit_v69273
+        and not positive_recreation_v69273
+    )
+    diagnostic_log(
+        "graphic_v69273_protected_route_decision",
+        reference=reference_v69273,
+        has_product=has_product_v69273,
+        has_style_reference=has_style_v69273,
+        has_edit_base=has_edit_v69273,
+        positive_product_recreation=positive_recreation_v69273,
+        project_authority_fallback=project_fallback_v69273,
+        historical_detector_exact_reference=bool(context_v69273.get("exact_reference")),
+        historical_detector_requested_recreation=bool(context_v69273.get("requested_recreation")),
+        detector_error=detector_error_v69273,
+    )
+    return reference_v69273
+
+
+def _graphic_v69273_protected_mode(prompt_text, uploaded_files=None, forced_upload_role="Auto-detect"):
+    # Lazy engine build: this is reached only after a Graphic generation request.
+    ns_v69273 = _graphic_v69272_get_v69248_namespace()
+    text_v69273 = str(prompt_text or "")
+    try:
+        if bool(ns_v69273["_graphic_v68829_is_installed_request"](text_v69273)):
+            diagnostic_log("graphic_v69273_protected_route_decision", installed=True, reference=False)
+            return "installed", ns_v69273
+    except Exception as error_v69273:
+        diagnostic_log(
+            "graphic_v69273_installed_detector_failed_closed",
+            error_type=type(error_v69273).__name__, error=str(error_v69273)[:500],
+        )
+
+    if _graphic_v69273_reference_authority(
+        text_v69273, uploaded_files, forced_upload_role, ns_v69273
+    ):
+        return "reference", ns_v69273
+    return "other", ns_v69273
 
 
 def generate_graphic_marketing_images(
@@ -52434,33 +52552,35 @@ def generate_graphic_marketing_images(
     style_strength="High", forced_upload_role="Auto-detect", quality_retry=True,
     product_transform_mode="Auto", professional_layered_studio=True,
 ):
-    mode_v69272, ns_v69272 = _graphic_v69272_protected_mode(prompt_text, uploaded_files, forced_upload_role)
-    if mode_v69272 in {"reference", "installed"}:
-        engine_v69272 = ns_v69272["generate_graphic_marketing_images"]
+    mode_v69273, ns_v69273 = _graphic_v69273_protected_mode(
+        prompt_text, uploaded_files, forced_upload_role
+    )
+    if mode_v69273 in {"reference", "installed"}:
+        engine_v69273 = ns_v69273["generate_graphic_marketing_images"]
         diagnostic_log(
-            "graphic_v69272_true_v69248_engine_entered",
-            mode=mode_v69272,
+            "graphic_v69273_true_v69248_engine_entered",
+            mode=mode_v69273,
             source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16],
         )
-        images_v69272 = engine_v69272(
+        images_v69273 = engine_v69273(
             prompt_text, uploaded_files,
             use_approved_style=use_approved_style, preserve_product=preserve_product,
             style_strength=style_strength, forced_upload_role=forced_upload_role,
             quality_retry=quality_retry, product_transform_mode=product_transform_mode,
             professional_layered_studio=professional_layered_studio,
         )
-        if not images_v69272:
-            raise RuntimeError(f"v69272 isolated v69248 {mode_v69272} engine returned no image")
-        for image_v69272 in images_v69272 or []:
-            if isinstance(image_v69272, dict):
-                image_v69272["graphic_v69272_isolated_v69248"] = True
-                image_v69272["graphic_v69272_mode"] = mode_v69272
-                image_v69272["graphic_v69272_source_sha256"] = _GRAPHIC_V69271_V69248_SOURCE_SHA256
+        if not images_v69273:
+            raise RuntimeError(f"v69273 isolated v69248 {mode_v69273} engine returned no image")
+        for image_v69273 in images_v69273 or []:
+            if isinstance(image_v69273, dict):
+                image_v69273["graphic_v69273_isolated_v69248"] = True
+                image_v69273["graphic_v69273_mode"] = mode_v69273
+                image_v69273["graphic_v69273_source_sha256"] = _GRAPHIC_V69271_V69248_SOURCE_SHA256
         diagnostic_log(
-            "graphic_v69272_true_v69248_engine_returned",
-            mode=mode_v69272, image_count=len(images_v69272 or []),
+            "graphic_v69273_true_v69248_engine_returned",
+            mode=mode_v69273, image_count=len(images_v69273 or []),
         )
-        return images_v69272
+        return images_v69273
     return _GRAPHIC_V69272_CURRENT_ENGINE(
         prompt_text, uploaded_files,
         use_approved_style=use_approved_style, preserve_product=preserve_product,
@@ -52488,6 +52608,25 @@ def _graphic_v69271_signed_job_url(storage_path, expires=86400):
     except Exception as error_v69271:
         diagnostic_log("graphic_v69271_signed_display_url_failed", error_type=type(error_v69271).__name__, error=str(error_v69271)[:500])
     return ""
+
+def _graphic_v69273_resolve_generated_display_url(image_v69273, image_index_v69273=0):
+    if not isinstance(image_v69273, dict):
+        return ""
+    stored_url_v69273 = str(image_v69273.get("graphic_display_url_v69271") or "").strip()
+    storage_path_v69273 = str(image_v69273.get("graphic_display_storage_path_v69271") or "").strip()
+    if storage_path_v69273:
+        fresh_url_v69273 = _graphic_v69271_signed_job_url(storage_path_v69273, expires=86400)
+        if fresh_url_v69273:
+            image_v69273["graphic_display_url_v69271"] = fresh_url_v69273
+            diagnostic_log("graphic_v69273_display_url_refreshed", image_index=image_index_v69273)
+            return fresh_url_v69273
+        # A serialized signed URL may already be expired. When a durable storage path
+        # exists but fresh signing is temporarily unavailable, force the renderer to
+        # use the exact embedded PNG bytes instead of retrying a potentially stale URL.
+        diagnostic_log("graphic_v69273_display_url_refresh_failed_binary_fallback", image_index=image_index_v69273)
+        return ""
+    return stored_url_v69273
+
 
 def _graphic_v69271_prepare_generated_display(images):
     job_ctx_v69271 = st.session_state.get("_graphic_v69264_durable_job_context") or {}
