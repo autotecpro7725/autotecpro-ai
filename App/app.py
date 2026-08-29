@@ -30656,7 +30656,16 @@ def _graphic_update_metrics_v8000(*, elapsed=0.0, provider_calls=0, retries=0, l
 
 
 def _graphic_reference_layout_fidelity_gate_v13000(result, role_items):
-    """Quantitatively verify that deterministic zones reproduce reference hierarchy."""
+    """Quantitatively verify that deterministic zones reproduce reference hierarchy.
+
+    v69261: For the protected Reference exact-product compositor, the reference
+    ``hero_product_box`` is a placement REGION, not a requirement that every uploaded
+    product inherit the reference product's physical width/height proportions.  When
+    the existing v68981 deterministic exact-source geometry proof is present, judge
+    hero prominence against the maximum uniform/aspect-preserving fit of THIS uploaded
+    product inside that authorized region.  Legacy behavior remains unchanged when
+    deterministic proof is absent.
+    """
     has_reference = any(item.get("role") == "style_reference" for item in (role_items or []))
     if not has_reference:
         return {"required": False, "passed": True, "score": 1.0, "checks": {}, "issues": []}
@@ -30676,7 +30685,74 @@ def _graphic_reference_layout_fidelity_gate_v13000(result, role_items):
         except Exception:
             return 0.0
 
+    deterministic_reference_geometry_v69261 = bool(_graphic_v69259_reference_geometry_proof(metadata))
+    hero_fit = {
+        "available": False,
+        "fit_ratio": 0.0,
+        "max_fit_box": None,
+        "center_inside_authorized_region": False,
+        "contained_in_authorized_region": False,
+    }
+
+    # Derive the legal maximum aspect-preserving size for THIS uploaded product inside
+    # the already-authorized Reference hero region.  This is measurement only; it does
+    # not alter any rendered pixels or compositor geometry.
+    if deterministic_reference_geometry_v69261:
+        try:
+            ex, ey, ew, eh = [float(v) for v in expected.get("hero_product_box")]
+            ax, ay, aw, ah = [float(v) for v in actual.get("hero_product_box")]
+            source_w, source_h = [float(v) for v in metadata.get("product_source_visible_size")]
+            canvas_w, canvas_h = [float(v) for v in metadata.get("canvas_size")]
+            if min(ew, eh, aw, ah, source_w, source_h, canvas_w, canvas_h) > 0:
+                max_scale = min((ew * canvas_w) / source_w, (eh * canvas_h) / source_h)
+                max_w = (source_w * max_scale) / canvas_w
+                max_h = (source_h * max_scale) / canvas_h
+                width_fill = aw / max(max_w, 1e-9)
+                height_fill = ah / max(max_h, 1e-9)
+                fit_ratio = max(0.0, min(1.0, min(width_fill, height_fill)))
+                center_x = ax + aw / 2.0
+                center_y = ay + ah / 2.0
+                center_inside = bool(ex <= center_x <= ex + ew and ey <= center_y <= ey + eh)
+                tolerance_x = max(0.012, ew * 0.035)
+                tolerance_y = max(0.012, eh * 0.035)
+                contained = bool(
+                    ax >= ex - tolerance_x
+                    and ay >= ey - tolerance_y
+                    and ax + aw <= ex + ew + tolerance_x
+                    and ay + ah <= ey + eh + tolerance_y
+                )
+                hero_fit = {
+                    "available": True,
+                    "fit_ratio": round(fit_ratio, 6),
+                    "width_fill": round(max(0.0, width_fill), 6),
+                    "height_fill": round(max(0.0, height_fill), 6),
+                    "max_fit_box": [round(max_w, 6), round(max_h, 6)],
+                    "center_inside_authorized_region": center_inside,
+                    "contained_in_authorized_region": contained,
+                }
+        except Exception:
+            hero_fit = {**hero_fit, "available": False}
+
     for key in keys:
+        if key == "hero_product_box" and hero_fit.get("available"):
+            fit_ratio = float(hero_fit.get("fit_ratio") or 0.0)
+            center_inside = bool(hero_fit.get("center_inside_authorized_region"))
+            contained = bool(hero_fit.get("contained_in_authorized_region"))
+            # v68808's own bounded adaptive reduction floors at 0.92.  A 0.90 QA
+            # threshold leaves rounding/supersampling tolerance while still rejecting
+            # materially undersized hero placement.
+            value = max(0.0, min(1.0, fit_ratio)) if center_inside and contained else 0.0
+            checks[key] = round(value, 4)
+            checks["hero_product_aspect_fit_v69261"] = dict(hero_fit)
+            score += value * weights[key]
+            if not center_inside:
+                issues.append("hero product center left the authorized reference region")
+            if not contained:
+                issues.append("hero product exceeds the authorized reference region")
+            if fit_ratio < 0.90:
+                issues.append("hero product is materially undersized for its aspect-preserving reference fit")
+            continue
+
         value = similarity(expected.get(key), actual.get(key))
         checks[key] = round(value, 4)
         score += value * weights[key]
@@ -30688,12 +30764,22 @@ def _graphic_reference_layout_fidelity_gate_v13000(result, role_items):
         hero_width, hero_height = float(hero[2]), float(hero[3])
     except Exception:
         hero_width = hero_height = 0.0
-    if hero_height < 0.48:
-        issues.append("hero product is not vertically dominant")
-    if hero_width < 0.18:
-        issues.append("hero product is visually secondary")
-    if hero_width * hero_height < 0.15:
-        issues.append("hero product visible area is too small")
+
+    if hero_fit.get("available"):
+        # For protected deterministic Reference composition, dominance is defined by
+        # occupying the legal maximum fit for the uploaded product, not by forcing a
+        # portrait/tall unit to satisfy global width/area constants derived from the
+        # reference product's different silhouette.
+        pass
+    else:
+        # Legacy fail-closed behavior for every non-proven/non-Reference geometry path.
+        if hero_height < 0.48:
+            issues.append("hero product is not vertically dominant")
+        if hero_width < 0.18:
+            issues.append("hero product is visually secondary")
+        if hero_width * hero_height < 0.15:
+            issues.append("hero product visible area is too small")
+
     trim_report = dict(metadata.get("product_trim_report") or {})
     if trim_report and not trim_report.get("trimmed") and hero_height < 0.52:
         issues.append("product source contains unresolved outer canvas margins")
@@ -30718,7 +30804,7 @@ def _graphic_reference_layout_fidelity_gate_v13000(result, role_items):
         "checks": checks,
         "issues": issues,
         "threshold": 0.78,
-        "engine": "v13000-reference-layout-fidelity-gate",
+        "engine": "v69261-reference-layout-fidelity-aspect-aware",
     }
 
 
