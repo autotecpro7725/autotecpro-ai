@@ -6,6 +6,7 @@
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
+AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -21312,14 +21313,31 @@ def _graphic_v68874_release_transient_memory(stage=""):
     return snapshot
 
 
+def _graphic_v66100_cache_remote_allowed_v69262():
+    """Circuit-break unavailable persistent cache I/O while preserving session cache."""
+    retry_at = float(st.session_state.get("_graphic_v66100_remote_retry_at_v69262") or 0.0)
+    return time.monotonic() >= retry_at
+
+
+def _graphic_v66100_cache_remote_backoff_v69262(error, operation):
+    st.session_state["_graphic_v66100_remote_retry_at_v69262"] = time.monotonic() + 300.0
+    diagnostic_log(
+        f"graphic_v69262_cache_{operation}_circuit_open",
+        error_type=type(error).__name__,
+        error=str(error or "")[:500],
+        retry_seconds=300,
+    )
+
+
 def _graphic_v66100_cache_get(cache_key):
     session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
     _graphic_v68874_bound_session_cache(session)
     if cache_key in session:
-        # Refresh local recency without changing the cached payload.
         cached = session.pop(cache_key)
         session[cache_key] = cached
         return cached
+    if not _graphic_v66100_cache_remote_allowed_v69262():
+        return None
     try:
         result = (supabase.table(GRAPHIC_V66100_CACHE_TABLE)
                   .select("payload")
@@ -21330,32 +21348,35 @@ def _graphic_v66100_cache_get(cache_key):
             _graphic_v68874_bound_session_cache(session)
             return session.get(cache_key) or rows[0]["payload"]
     except Exception as error:
-        diagnostic_log("graphic_v66100_cache_read_unavailable", error_type=type(error).__name__)
+        _graphic_v66100_cache_remote_backoff_v69262(error, "read")
     return None
 
 
 def _graphic_v66100_cache_put(cache_key, payload):
     if not isinstance(payload, dict):
         return False
-
     session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
     if cache_key in session:
         session.pop(cache_key, None)
     session[cache_key] = payload
     _graphic_v68874_bound_session_cache(session)
-
+    if not _graphic_v66100_cache_remote_allowed_v69262():
+        return False
     try:
         record = {"cache_key": cache_key, "namespace": GRAPHIC_V66100_CACHE_NAMESPACE,
                   "payload": payload, "updated_at": datetime.now(timezone.utc).isoformat()}
         try:
             supabase.table(GRAPHIC_V66100_CACHE_TABLE).upsert(record, on_conflict="cache_key").execute()
-        except Exception:
-            supabase.table(GRAPHIC_V66100_CACHE_TABLE).insert(record).execute()
+        except Exception as upsert_error:
+            try:
+                supabase.table(GRAPHIC_V66100_CACHE_TABLE).insert(record).execute()
+            except Exception as insert_error:
+                raise insert_error from upsert_error
+        st.session_state.pop("_graphic_v66100_remote_retry_at_v69262", None)
         return True
     except Exception as error:
-        diagnostic_log("graphic_v66100_cache_write_unavailable", error_type=type(error).__name__)
+        _graphic_v66100_cache_remote_backoff_v69262(error, "write")
         return False
-
 
 def _graphic_v66100_route_fingerprint(action, output_size, has_images):
     return hashlib.sha256(f"{GRAPHIC_ENGINE_VERSION}|{action}|{output_size}|{int(has_images)}".encode()).hexdigest()
@@ -25183,6 +25204,19 @@ def _graphic_generate_background_plate_v3200(role_items, prompt_text, output_siz
             score=last_validation.get("score"),
             route=route,
         )
+        # v69262: distinguish an unavailable optional validator from a positive
+        # vehicle mismatch.  Regenerating a second 80-100s plate cannot improve
+        # authority when the validator itself is unavailable.  Preserve the first
+        # accepted plate and let the existing downstream deterministic/reference/
+        # release gates remain fail-closed.  A positive mismatch still receives
+        # the historical one bounded retry.
+        if _graphic_validation_is_unavailable_v4100(last_validation):
+            diagnostic_log(
+                "graphic_v69262_background_retry_skipped_validation_unavailable",
+                attempt=attempt + 1,
+                route=route,
+            )
+            break
         if last_validation.get("verified") is True:
             break
 
@@ -39647,15 +39681,12 @@ def _assistant_stream_html(visible_text):
 
 
 def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
-    """
-    Return approved staff-confirmed knowledge learned in the current conversation.
+    """Return approved same-case learned knowledge with adaptive schema compatibility.
 
-    v68864 performance behavior:
-    - Keep the existing direct-Supabase authority.
-    - Cache the already-built current-case context per browser session.
-    - Invalidate immediately whenever this session successfully learns new
-      current-case knowledge.
-    - Ordinary follow-up commands therefore avoid a redundant Supabase round trip.
+    v69262 keeps the existing direct-Supabase authority and five-minute result cache,
+    but remembers missing learned_knowledge columns per Streamlit session. A 42703
+    therefore costs at most one discovery failure for that column instead of being
+    repeated on every chat/rerun.
     """
     conversation_id = str(st.session_state.get("conversation_id") or "").strip()
     if not conversation_id:
@@ -39664,72 +39695,80 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
     clean_assistant = clean_assistant_label(selected_assistant).strip()
     revision = int(st.session_state.get("_case_learning_context_revision_v68864", 0) or 0)
     cache_key = f"{conversation_id}|{clean_assistant}|{int(limit or 5)}|{revision}"
-    session_cache = st.session_state.setdefault(
-        "_case_learning_context_cache_v68864",
-        {},
-    )
-
+    session_cache = st.session_state.setdefault("_case_learning_context_cache_v68864", {})
     cached = session_cache.get(cache_key)
     if isinstance(cached, dict):
         cached_at = float(cached.get("cached_at") or 0.0)
-        # Five minutes is long enough to remove repeated query latency while the
-        # revision above guarantees same-session learning is visible immediately.
         if time.monotonic() - cached_at <= 300.0:
             return str(cached.get("text") or "")
 
-    try:
-        query = (
-            supabase.table("learned_knowledge")
-            .select(
-                "id,assistant,record_type,vehicle,issue,solution,approved_answer,"
-                "keywords,staff_confirmed,source_type,confidence_score,updated_at"
+    base_columns = [
+        "id", "assistant", "record_type", "vehicle", "issue", "solution",
+        "approved_answer", "keywords", "staff_confirmed", "source_type",
+        "confidence_score", "updated_at",
+    ]
+    missing_columns = set(
+        str(x or "").strip() for x in
+        st.session_state.setdefault("_learned_knowledge_missing_columns_v69262", [])
+        if str(x or "").strip()
+    )
+    rows = []
+    max_schema_repairs = 6
+    for schema_attempt in range(max_schema_repairs):
+        selected_columns = [c for c in base_columns if c not in missing_columns]
+        try:
+            query = (
+                supabase.table("learned_knowledge")
+                .select(",".join(selected_columns))
+                .eq("source_conversation_id", conversation_id)
+                .eq("assistant", clean_assistant)
+                .order("updated_at", desc=True)
+                .limit(max(1, min(int(limit or 5), 10)))
+                .execute()
             )
-            .eq("source_conversation_id", conversation_id)
-            .eq("assistant", clean_assistant)
-            .order("updated_at", desc=True)
-            .limit(max(1, min(int(limit or 5), 10)))
-            .execute()
-        )
-        rows = list(query.data or [])
-    except Exception as error:
-        error_text = str(error or "")
-        if "42703" in error_text and "learned_knowledge.record_type" in error_text:
-            try:
-                query = (
-                    supabase.table("learned_knowledge")
-                    .select(
-                        "id,assistant,vehicle,issue,solution,approved_answer,"
-                        "keywords,staff_confirmed,source_type,confidence_score,updated_at"
-                    )
-                    .eq("source_conversation_id", conversation_id)
-                    .eq("assistant", clean_assistant)
-                    .order("updated_at", desc=True)
-                    .limit(max(1, min(int(limit or 5), 10)))
-                    .execute()
-                )
-                rows = [dict(row or {}, record_type="") for row in list(query.data or [])]
-                diagnostic_log("recent_case_learned_context_schema_fallback_v69260", missing_column="record_type")
-            except Exception as fallback_error:
+            rows = [dict(row or {}) for row in list(query.data or [])]
+            for row in rows:
+                for optional in ("record_type", "staff_confirmed", "source_type", "confidence_score"):
+                    row.setdefault(optional, "" if optional != "staff_confirmed" else False)
+            if missing_columns:
                 diagnostic_log(
-                    "recent_case_learned_context_failed",
-                    error_type=type(fallback_error).__name__,
-                    error=str(fallback_error),
+                    "recent_case_learned_context_schema_compatible_v69262",
+                    missing_columns=sorted(missing_columns),
                 )
-                return ""
-        else:
+            break
+        except Exception as error:
+            error_text = str(error or "")
+            match = re.search(
+                r"column\s+(?:public\.)?learned_knowledge\.([A-Za-z_][A-Za-z0-9_]*)\s+does not exist",
+                error_text,
+                flags=re.IGNORECASE,
+            )
+            if "42703" in error_text and match:
+                missing = str(match.group(1) or "").strip()
+                if missing and missing in base_columns and missing not in {"id", "assistant", "updated_at"}:
+                    missing_columns.add(missing)
+                    st.session_state["_learned_knowledge_missing_columns_v69262"] = sorted(missing_columns)
+                    diagnostic_log(
+                        "recent_case_learned_context_schema_learned_v69262",
+                        missing_column=missing,
+                        schema_attempt=schema_attempt + 1,
+                    )
+                    continue
             diagnostic_log(
                 "recent_case_learned_context_failed",
                 error_type=type(error).__name__,
-                error=error_text,
+                error=error_text[:700],
             )
             return ""
+    else:
+        diagnostic_log("recent_case_learned_context_schema_repair_exhausted_v69262")
+        return ""
 
     approved_rows = [
         row for row in rows
         if not is_pending_knowledge_row(row)
         and str(row.get("solution") or row.get("approved_answer") or "").strip()
     ]
-
     if not approved_rows:
         context_text = ""
     else:
@@ -39743,28 +39782,26 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
             "choices, such as standard versus Pro when both remain valid.\n",
         ]
         for index, row in enumerate(approved_rows, start=1):
-            solution = str(
-                row.get("solution") or row.get("approved_answer") or ""
-            ).strip()
+            solution = str(row.get("solution") or row.get("approved_answer") or "").strip()
+            staff_value = row.get("staff_confirmed")
+            staff_text = "schema-unavailable" if "staff_confirmed" in missing_columns else str(bool(staff_value))
             blocks.append(
                 f"\nRECORD {index}\n"
                 f"Title: {str(row.get('issue') or '').strip()}\n"
                 f"Vehicle/Product: {str(row.get('vehicle') or '').strip()}\n"
                 f"Record type: {str(row.get('record_type') or '').strip()}\n"
-                f"Staff confirmed: {bool(row.get('staff_confirmed'))}\n"
+                f"Staff confirmed: {staff_text}\n"
                 f"Confidence: {row.get('confidence_score')}\n"
                 f"Approved knowledge:\n{solution}\n"
             )
         context_text = "".join(blocks).strip()
 
-    # Keep this tiny and session-local.
     if len(session_cache) >= 16:
         session_cache.clear()
-    session_cache[cache_key] = {
-        "cached_at": time.monotonic(),
-        "text": context_text,
-    }
+    session_cache[cache_key] = {"cached_at": time.monotonic(), "text": context_text}
     return context_text
+
+
 
 
 
@@ -49837,10 +49874,32 @@ def _graphic_stage5_execute_v43000(
     return composed, metadata
 
 
+def _graphic_v66100_cache_remote_allowed_v69262():
+    """Circuit-break unavailable persistent cache I/O while preserving session cache."""
+    retry_at = float(st.session_state.get("_graphic_v66100_remote_retry_at_v69262") or 0.0)
+    return time.monotonic() >= retry_at
+
+
+def _graphic_v66100_cache_remote_backoff_v69262(error, operation):
+    # Five-minute backoff prevents the same missing-table/RLS/network failure from
+    # adding latency to every provider attempt and Streamlit rerun. Session cache
+    # remains authoritative only for the current session and is never mislabeled
+    # as persistent.
+    st.session_state["_graphic_v66100_remote_retry_at_v69262"] = time.monotonic() + 300.0
+    diagnostic_log(
+        f"graphic_v69262_cache_{operation}_circuit_open",
+        error_type=type(error).__name__,
+        error=str(error or "")[:500],
+        retry_seconds=300,
+    )
+
+
 def _graphic_v66100_cache_get(cache_key):
     session = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
     if cache_key in session:
         return session.get(cache_key)
+    if not _graphic_v66100_cache_remote_allowed_v69262():
+        return None
     try:
         result = (supabase.table(GRAPHIC_V66100_CACHE_TABLE)
                   .select("payload")
@@ -49850,7 +49909,7 @@ def _graphic_v66100_cache_get(cache_key):
             session[cache_key] = rows[0]["payload"]
             return session[cache_key]
     except Exception as error:
-        diagnostic_log("graphic_v66100_cache_read_unavailable", error_type=type(error).__name__)
+        _graphic_v66100_cache_remote_backoff_v69262(error, "read")
     return None
 
 
@@ -49858,16 +49917,24 @@ def _graphic_v66100_cache_put(cache_key, payload):
     if not isinstance(payload, dict):
         return False
     st.session_state.setdefault("graphic_persistent_cache_v66100", {})[cache_key] = payload
+    if not _graphic_v66100_cache_remote_allowed_v69262():
+        return False
     try:
         record = {"cache_key": cache_key, "namespace": GRAPHIC_V66100_CACHE_NAMESPACE,
                   "payload": payload, "updated_at": datetime.now(timezone.utc).isoformat()}
         try:
             supabase.table(GRAPHIC_V66100_CACHE_TABLE).upsert(record, on_conflict="cache_key").execute()
-        except Exception:
-            supabase.table(GRAPHIC_V66100_CACHE_TABLE).insert(record).execute()
+        except Exception as upsert_error:
+            # Preserve the legacy insert compatibility attempt, but if both fail
+            # open the circuit once instead of repeating two failures per image.
+            try:
+                supabase.table(GRAPHIC_V66100_CACHE_TABLE).insert(record).execute()
+            except Exception as insert_error:
+                raise insert_error from upsert_error
+        st.session_state.pop("_graphic_v66100_remote_retry_at_v69262", None)
         return True
     except Exception as error:
-        diagnostic_log("graphic_v66100_cache_write_unavailable", error_type=type(error).__name__)
+        _graphic_v66100_cache_remote_backoff_v69262(error, "write")
         return False
 
 
@@ -74026,15 +74093,29 @@ def _website_invalidate_learning_caches_v69109(database_choices):
 
 # v69119: non-blocking startup warm only after revision/cache helpers exist.
 try:
+    _v69262_active_workspace = str(
+        st.session_state.get("current_assistant")
+        or st.session_state.get("_restored_workspace_assistant_v68843")
+        or ""
+    ).strip()
+    _v69262_should_start_technical_prewarm = (
+        not _v69262_active_workspace
+        or _v69262_active_workspace in {"🔧 Technical Support", "⚙️ Admin Panel"}
+    )
     _v69119_startup_store_ids = _configured_vector_store_ids(
         TECHNICAL_VECTOR_STORE_ID
     )
-    if _v69119_startup_store_ids:
+    if _v69119_startup_store_ids and _v69262_should_start_technical_prewarm:
         _technical_package_prewarm_start_v69119(
             str(_v69119_startup_store_ids[0] or "").strip(),
             _website_destination_revision_v69109(
                 "Technical Support Database"
             ),
+        )
+    elif _v69119_startup_store_ids:
+        diagnostic_log(
+            "technical_startup_prewarm_deferred_v69262",
+            workspace=_v69262_active_workspace,
         )
 except Exception as _v69119_prewarm_start_error:
     diagnostic_log(
