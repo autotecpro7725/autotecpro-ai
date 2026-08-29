@@ -31310,6 +31310,10 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(prompt_text))
         role_items = _graphic_project_role_items(uploaded_files, prompt_text, forced_upload_role)
         role_items = _graphic_promote_multiview_sources_v7100(role_items, prompt_text)
+        # v69264: a durable retry must reuse the exact role contract established
+        # before the first provider call. A restored project/edit-base must never
+        # reclassify a Reference new-generation job into product recreation.
+        role_items = _graphic_v69264_apply_durable_role_contract(role_items)
         product_authority_reset_v52000 = _graphic_invalidate_product_caches_v52000(role_items)
         role_integrity = _graphic_role_integrity_v8300(role_items)
         if not role_integrity.get("passed"):
@@ -31360,6 +31364,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
 
         active_edit = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {})
         edit_kind = _graphic_local_edit_kind_v8000(active_edit) if has_edit_base else "new_generation"
+        edit_kind = _graphic_v69264_lock_durable_edit_kind(edit_kind, has_edit_base)
         saved_state = get_graphic_project_state()
         if has_edit_base and edit_kind in {"local_copy", "local_layout"}:
             reference_blueprint = dict(saved_state.get("last_reference_blueprint") or {})
@@ -50877,6 +50882,359 @@ if callable(_GRAPHIC_V69263_FROZEN_REFERENCE_ANALYZER):
     _GRAPHIC_V68835_NS["analyze_graphic_reference_blueprint"] = _graphic_v69263_bounded_reference_blueprint
 if callable(_GRAPHIC_V69263_FROZEN_OUTPUT_REVIEW):
     _GRAPHIC_V68835_NS["review_graphic_output_accuracy"] = _graphic_v69263_bounded_output_review
+
+
+
+# ============================================================
+# v69264 — durable Reference intent/role freeze + storage-backed stage resume
+# ============================================================
+GRAPHIC_V69264_DURABLE_CONTRACT_VERSION = "v69264-reference-role-edit-contract"
+
+
+def _graphic_v69264_role_item_id(item):
+    item = item if isinstance(item, dict) else {}
+    file_obj = item.get("file")
+    return str(item.get("graphic_asset_id") or item.get("id") or getattr(file_obj, "graphic_asset_id", "") or "").strip()
+
+
+def _graphic_v69264_update_job_contract(**fields):
+    ctx = st.session_state.get("_graphic_v69264_durable_job_context") or {}
+    if not isinstance(ctx, dict): return None
+    job = ctx.get("job")
+    if not isinstance(job, dict) or not str(job.get("job_id") or ""): return None
+    updated = dict(job); updated.update(fields)
+    updated["durable_contract_version_v69264"] = GRAPHIC_V69264_DURABLE_CONTRACT_VERSION
+    try:
+        persisted = _graphic_update_durable_job_v68844(updated, status=updated.get("status"), attempt=updated.get("attempt")) or updated
+    except Exception as error:
+        diagnostic_log("graphic_v69264_contract_persist_failed", error_type=type(error).__name__, error=str(error)[:600])
+        persisted = updated
+    ctx["job"] = dict(persisted)
+    st.session_state["_graphic_v69264_durable_job_context"] = ctx
+    return dict(persisted)
+
+
+def _graphic_v69264_apply_durable_role_contract(role_items):
+    items = [dict(item) for item in (role_items or []) if isinstance(item, dict)]
+    ctx = st.session_state.get("_graphic_v69264_durable_job_context") or {}
+    job = ctx.get("job") if isinstance(ctx, dict) else None
+    resume = bool(ctx.get("resume")) if isinstance(ctx, dict) else False
+    if not isinstance(job, dict): return items
+    contract = job.get("original_role_manifest_v69264")
+    if not isinstance(contract, list) or not contract:
+        manifest=[]
+        for item in items:
+            asset_id=_graphic_v69264_role_item_id(item); role=str(item.get("role") or "").strip()
+            if asset_id and role: manifest.append({"asset_id":asset_id,"role":role})
+        if manifest:
+            _graphic_v69264_update_job_contract(original_role_manifest_v69264=manifest, original_role_count_v69264=len(manifest))
+            diagnostic_log("graphic_v69264_role_contract_stored", job_id=str(job.get("job_id") or ""), roles=[x.get("role") for x in manifest])
+        return items
+    if not resume: return items
+    expected={str(x.get("asset_id") or ""):str(x.get("role") or "") for x in contract if isinstance(x,dict) and x.get("asset_id") and x.get("role")}
+    current={_graphic_v69264_role_item_id(item):item for item in items if _graphic_v69264_role_item_id(item)}
+    missing=[aid for aid in expected if aid not in current]
+    if missing:
+        diagnostic_log("graphic_v69264_role_contract_missing_asset", job_id=str(job.get("job_id") or ""), missing_count=len(missing))
+        raise RuntimeError("Durable Graphic resume input authority mismatch: an original product/reference asset is missing.")
+    restored=[]; drift=[]
+    for entry in contract:
+        if not isinstance(entry,dict): continue
+        aid=str(entry.get("asset_id") or ""); role=str(entry.get("role") or ""); item=dict(current.get(aid) or {})
+        if not item: continue
+        actual=str(item.get("role") or "")
+        if actual != role: drift.append({"asset_id":aid[:16],"from":actual,"to":role})
+        item["role"]=role; restored.append(item)
+    if drift or len(items)!=len(restored):
+        diagnostic_log("graphic_v69264_role_contract_restored", job_id=str(job.get("job_id") or ""), drift=drift, dropped_extra_roles=max(0,len(items)-len(restored)))
+    else:
+        diagnostic_log("graphic_v69264_role_contract_resume_match", job_id=str(job.get("job_id") or ""), role_count=len(restored))
+    return restored
+
+
+def _graphic_v69264_lock_durable_edit_kind(edit_kind, has_edit_base):
+    current=str(edit_kind or "new_generation").strip() or "new_generation"
+    ctx=st.session_state.get("_graphic_v69264_durable_job_context") or {}; job=ctx.get("job") if isinstance(ctx,dict) else None; resume=bool(ctx.get("resume")) if isinstance(ctx,dict) else False
+    if not isinstance(job,dict): return current
+    original=str(job.get("original_edit_kind_v69264") or "").strip()
+    if not original:
+        _graphic_v69264_update_job_contract(original_edit_kind_v69264=current, original_has_edit_base_v69264=bool(has_edit_base))
+        diagnostic_log("graphic_v69264_edit_kind_contract_stored", job_id=str(job.get("job_id") or ""), edit_kind=current, has_edit_base=bool(has_edit_base))
+        return current
+    if resume and current != original:
+        diagnostic_log("graphic_v69264_edit_kind_restored", job_id=str(job.get("job_id") or ""), reclassified=current, restored=original)
+        return original
+    return current
+
+
+def _graphic_v69264_stage_resume_paths(background_key):
+    ctx=st.session_state.get("_graphic_v69264_durable_job_context") or {}; job=ctx.get("job") if isinstance(ctx,dict) else None
+    if not isinstance(job,dict) or not background_key: return None,None,None
+    digest=hashlib.sha256(str(background_key).encode("utf-8","ignore")).hexdigest()[:32]; prefix=_graphic_v68848_job_prefix(job)
+    return job,f"{prefix}/stage_resume/{digest}.png",f"{prefix}/stage_resume/{digest}.json"
+
+
+def _graphic_v69264_storage_background_get(background_key):
+    job,image_path,meta_path=_graphic_v69264_stage_resume_paths(background_key)
+    if not job: return None
+    try:
+        meta_raw=_graphic_v68848_download_bytes(meta_path); meta=json.loads(meta_raw.decode("utf-8")) if meta_raw else {}; raw=_graphic_v68848_download_bytes(image_path)
+    except Exception as error:
+        if not _graphic_v69260_storage_not_found(error): diagnostic_log("graphic_v69264_stage_resume_storage_read_failed", error_type=type(error).__name__, error=str(error)[:500])
+        return None
+    if not raw or not isinstance(meta,dict): return None
+    if str(meta.get("job_id") or "") != str(job.get("job_id") or "") or str(meta.get("background_key") or "") != str(background_key): return None
+    try: created_at=float(meta.get("created_at_epoch") or 0.0)
+    except Exception: created_at=0.0
+    if not created_at or time.time()-created_at > GRAPHIC_V69258_STAGE_RESUME_TTL_SECONDS or meta.get("vehicle_validation_unavailable") is not True: return None
+    sha=_graphic_v66100_bytes_sha(raw)
+    if str(meta.get("sha256") or "") and str(meta.get("sha256")) != sha: return None
+    diagnostic_log("graphic_v69264_same_job_background_storage_hit", job_id=str(job.get("job_id") or ""), background_sha256=sha[:20], route=str(meta.get("route") or ""))
+    return raw,str(meta.get("route") or "")
+
+
+def _graphic_v69264_storage_background_put(background_key, raw, route):
+    job,image_path,meta_path=_graphic_v69264_stage_resume_paths(background_key)
+    if not job or not raw: return False
+    meta={"job_id":str(job.get("job_id") or ""),"background_key":str(background_key),"engine_version":str(GRAPHIC_ENGINE_VERSION),"created_at_epoch":time.time(),"vehicle_validation_unavailable":True,"route":str(route or ""),"sha256":_graphic_v66100_bytes_sha(raw)}
+    try:
+        _graphic_v68848_upload_bytes(image_path,raw,"image/png",upsert=True); _graphic_v68848_upload_bytes(meta_path,json.dumps(meta,ensure_ascii=False).encode("utf-8"),"application/json",upsert=True)
+        diagnostic_log("graphic_v69264_same_job_background_storage_stored", job_id=meta["job_id"], background_sha256=meta["sha256"][:20]); return True
+    except Exception as error:
+        diagnostic_log("graphic_v69264_stage_resume_storage_write_failed", error_type=type(error).__name__, error=str(error)[:500]); return False
+
+
+_GRAPHIC_V69264_BASE_BACKGROUND_RESUME_GET = _graphic_v69258_background_resume_get
+_GRAPHIC_V69264_BASE_BACKGROUND_RESUME_PUT = _graphic_v69258_background_resume_put
+
+
+def _graphic_v69258_background_resume_get(background_key):
+    hit=_GRAPHIC_V69264_BASE_BACKGROUND_RESUME_GET(background_key)
+    return hit if hit is not None else _graphic_v69264_storage_background_get(background_key)
+
+
+def _graphic_v69258_background_resume_put(background_key, raw, route):
+    base_result=_GRAPHIC_V69264_BASE_BACKGROUND_RESUME_PUT(background_key,raw,route)
+    storage_result=_graphic_v69264_storage_background_put(background_key,raw,route)
+    return bool(base_result or storage_result)
+
+
+# ============================================================
+# v69265 — maximum-safe-speed consolidation
+# ============================================================
+# Goals:
+# 1) Preserve the exact protected Reference/After-Install compositor/release authority.
+# 2) Bound the remaining advisory pre-generation vision/web calls that production logs
+#    proved can stall silently for many minutes.
+# 3) Reuse exact advisory results across durable same-job resume without changing
+#    provider prompts, parsing, image quality, Reference geometry, or release gates.
+# 4) Never convert a timeout into positive authority: all bounded calls keep the
+#    historical fail-open fallback behavior of the original functions.
+GRAPHIC_V69265_AUX_TIMEOUT_SECONDS = 45.0
+GRAPHIC_V69265_DURABLE_AUX_MAX_ENTRIES = 6
+
+
+def _graphic_v69265_job_aux_records():
+    ctx = st.session_state.get("_graphic_v69264_durable_job_context") or {}
+    job = ctx.get("job") if isinstance(ctx, dict) else None
+    if not isinstance(job, dict):
+        return {}, None
+    records = job.get("durable_aux_results_v69265")
+    if not isinstance(records, dict):
+        records = {}
+    return dict(records), job
+
+
+def _graphic_v69265_job_aux_get(key):
+    records, job = _graphic_v69265_job_aux_records()
+    record = records.get(str(key or ""))
+    if not isinstance(record, dict) or "value" not in record:
+        return None
+    diagnostic_log(
+        "graphic_v69265_durable_aux_cache_hit",
+        job_id=str((job or {}).get("job_id") or ""),
+        cache_key=str(key or "")[:16],
+        kind=str(record.get("kind") or ""),
+    )
+    return record.get("value")
+
+
+def _graphic_v69265_job_aux_put(key, value, kind="aux"):
+    if value is None:
+        return value
+    records, job = _graphic_v69265_job_aux_records()
+    if not isinstance(job, dict) or not str(job.get("job_id") or ""):
+        return value
+    try:
+        # Prove serializability before adding it to the durable manifest.
+        json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+    except Exception:
+        return value
+    records[str(key or "")] = {
+        "kind": str(kind or "aux"),
+        "value": value,
+        "saved_at_epoch": time.time(),
+    }
+    if len(records) > GRAPHIC_V69265_DURABLE_AUX_MAX_ENTRIES:
+        ordered = sorted(
+            records.items(),
+            key=lambda kv: float((kv[1] or {}).get("saved_at_epoch") or 0.0),
+        )
+        records = dict(ordered[-GRAPHIC_V69265_DURABLE_AUX_MAX_ENTRIES:])
+    _graphic_v69264_update_job_contract(durable_aux_results_v69265=records)
+    diagnostic_log(
+        "graphic_v69265_durable_aux_cache_stored",
+        job_id=str(job.get("job_id") or ""),
+        cache_key=str(key or "")[:16],
+        kind=str(kind or "aux"),
+    )
+    return value
+
+
+# Extend the v69263 exact-result cache to the durable job manifest. This does not
+# broaden cache admission: the v69263 key already binds exact role identity,
+# prompt/style strength or generated-image SHA, mode, and Reference blueprint SHA.
+_GRAPHIC_V69265_SESSION_AUX_GET = _graphic_v69263_aux_cache_get
+_GRAPHIC_V69265_SESSION_AUX_PUT = _graphic_v69263_aux_cache_put
+
+
+def _graphic_v69263_aux_cache_get(key):
+    hit = _GRAPHIC_V69265_SESSION_AUX_GET(key)
+    if hit is not None:
+        return hit
+    durable = _graphic_v69265_job_aux_get(key)
+    if durable is not None:
+        _GRAPHIC_V69265_SESSION_AUX_PUT(key, durable)
+    return durable
+
+
+def _graphic_v69263_aux_cache_put(key, value):
+    result = _GRAPHIC_V69265_SESSION_AUX_PUT(key, value)
+    return _graphic_v69265_job_aux_put(key, result, "v69263-exact-aux")
+
+
+# ---- Remaining hidden pre-generation auxiliary call #1: vehicle research ----
+_GRAPHIC_V69265_ORIGINAL_VEHICLE_RESEARCH = research_graphic_vehicle_profile
+
+
+def research_graphic_vehicle_profile(role_items, prompt_text=""):
+    # Preserve the historical cache identity exactly: product fingerprint only.
+    fingerprint = _graphic_product_fingerprint(role_items)
+    durable_key = "vehicle-research:" + str(fingerprint or "")
+    if fingerprint:
+        durable = _graphic_v69265_job_aux_get(durable_key)
+        if isinstance(durable, dict) and durable:
+            cache = st.session_state.setdefault("graphic_vehicle_research_cache_v1000", {})
+            cache[fingerprint] = {"profile": dict(durable), "cached_at": now_iso()}
+            diagnostic_log("graphic_v69265_vehicle_research_durable_hit", fingerprint=fingerprint[:16])
+            return dict(durable)
+    started = time.perf_counter()
+    result = _graphic_v69263_call_exact_frozen_with_bounded_client(
+        _GRAPHIC_V69265_ORIGINAL_VEHICLE_RESEARCH,
+        role_items, prompt_text,
+    )
+    elapsed = time.perf_counter() - started
+    diagnostic_log(
+        "graphic_v69265_vehicle_research_bounded",
+        elapsed_seconds=round(elapsed, 3),
+        timeout_seconds=GRAPHIC_V69265_AUX_TIMEOUT_SECONDS,
+        available=bool(result),
+    )
+    if fingerprint and isinstance(result, dict) and result:
+        _graphic_v69265_job_aux_put(durable_key, dict(result), "vehicle-research")
+    return result
+
+
+# ---- Remaining hidden pre-generation auxiliary call #2: product structure ----
+# This is the exact historical analysis/fallback contract with only a bounded
+# client. Successful provider output is parsed identically; timeout/error returns
+# the same advisory fallback the original function already returned.
+@st.cache_data(ttl=86400, max_entries=128, show_spinner=False)
+def _graphic_product_structure_profile_cached_v4300(raw_bytes, filename=""):
+    if not raw_bytes:
+        return {}
+    source_sha = hashlib.sha256(raw_bytes).hexdigest()
+    durable_key = "product-structure:" + source_sha
+    durable = _graphic_v69265_job_aux_get(durable_key)
+    if isinstance(durable, dict) and durable:
+        diagnostic_log("graphic_v69265_product_structure_durable_hit", source_sha256=source_sha[:16])
+        return dict(durable)
+    fallback = {
+        "source_filename": str(filename or ""),
+        "must_preserve": [
+            "complete outer housing silhouette",
+            "screen aspect ratio and visible screen UI",
+            "left and right trim/handle geometry",
+            "all physical knobs and buttons",
+            "lower mounting frame and tabs",
+            "all open negative-space cutouts",
+            "the horizontal gap directly below the screen",
+            "bottom bracket openings and mounting points",
+        ],
+        "critical_negative_spaces": [
+            "gap below screen",
+            "lower rectangular openings",
+            "side handle openings",
+        ],
+        "analysis_available": False,
+    }
+    started = time.perf_counter()
+    result = fallback
+    try:
+        mime = "image/png" if raw_bytes[:8] == b"\x89PNG\r\n\x1a\n" else "image/jpeg"
+        data_url = f"data:{mime};base64," + base64.b64encode(raw_bytes).decode("ascii")
+        bounded_client = client.with_options(
+            timeout=GRAPHIC_V69265_AUX_TIMEOUT_SECONDS,
+            max_retries=0,
+        )
+        response = bounded_client.responses.create(
+            model=_graphic_responses_model_v4000(),
+            instructions=(
+                "Act as a strict automotive hardware geometry inspector. Return JSON only. "
+                "Identify exact silhouette, openings, gaps, tabs, controls, screen borders, and mounting geometry."
+            ),
+            input=[{"role":"user","content":[
+                {"type":"input_text","text":(
+                    "Analyze this exact AutoTecPro product source for immutable structural details. "
+                    "Return one JSON object with keys: outer_silhouette, screen_geometry, side_structures, "
+                    "physical_controls, lower_structure, critical_negative_spaces, mounting_points, "
+                    "must_preserve, common_failure_risks. Explicitly inspect whether there is a visible "
+                    "horizontal gap below the screen, open lower cavities, side handle openings, bottom tabs, "
+                    "and any other empty spaces that an image model may accidentally fill."
+                )},
+                {"type":"input_image","image_url":data_url},
+            ]}],
+            max_output_tokens=1200,
+        )
+        parsed = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        if isinstance(parsed, dict) and parsed:
+            parsed["source_filename"] = str(filename or "")
+            parsed["analysis_available"] = True
+            parsed.setdefault("must_preserve", fallback["must_preserve"])
+            parsed.setdefault("critical_negative_spaces", fallback["critical_negative_spaces"])
+            result = parsed
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v4300_product_structure_analysis_failed",
+            error_type=type(error).__name__, error=str(error),
+        )
+    elapsed = time.perf_counter() - started
+    diagnostic_log(
+        "graphic_v69265_product_structure_bounded",
+        elapsed_seconds=round(elapsed, 3),
+        timeout_seconds=GRAPHIC_V69265_AUX_TIMEOUT_SECONDS,
+        analysis_available=bool((result or {}).get("analysis_available")),
+    )
+    if isinstance(result, dict) and result:
+        _graphic_v69265_job_aux_put(durable_key, dict(result), "product-structure")
+    return result
+
+
+# One-per-session diagnostic suppression for the deliberately deferred Technical
+# prewarm marker. This is log-noise/format work only; it does not change the
+# underlying workspace gate or Technical startup behavior.
+_GRAPHIC_V69265_MAX_SAFE_SPEED_ACTIVE = True
+
 
 GRAPHIC_V68993_AUTHORITY_VERSION = "v68993-v68835-final-production-authority"
 GRAPHIC_V68993_ICON_LAYER_VERSION = "v68993-reference-connectivity-icons"
@@ -85347,6 +85705,15 @@ else:
 
             _graphic_v68874_release_transient_memory("before_graphic_generation")
 
+            # v69264: expose only this exact durable job to the Graphic engine so
+            # its first-run role/edit contract can be persisted and restored after
+            # StopException/worker reruns. This is orchestration authority only.
+            st.session_state["_graphic_v69264_durable_job_context"] = {
+                "job": dict(durable_job_v68844),
+                "job_id": str(durable_job_v68844.get("job_id") or ""),
+                "resume": bool(is_graphic_resume_v68844),
+            }
+
             try:
                 with _heavy_work_guard_v69188("graphic-generation"):
                     generated_images = generate_graphic_marketing_images(
@@ -85381,6 +85748,7 @@ else:
                 generated_images = []
             finally:
                 _graphic_v68874_release_transient_memory("after_graphic_generation")
+                st.session_state.pop("_graphic_v69264_durable_job_context", None)
 
             retryable_v68848, retry_reason_v68848 = _graphic_v68848_is_retryable(
                 generation_error_v68837, generated_images
@@ -89708,3 +90076,6 @@ _render_final_print_authority_v69009()
 # the fixed cover until this point prevents stale login or authenticated DOM
 # from flashing during Streamlit reruns.
 _finish_auth_transition(_auth_transition_placeholder)
+
+
+AUTOTECPRO_RELEASE_V69264 = "v69264-durable-reference-intent-and-resume-consolidation"
