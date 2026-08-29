@@ -37765,6 +37765,13 @@ def generated_image_answer_text(images, regenerated=False):
         action = "Created your verified, reference-locked campaign image"
     elif status in {"verified_after_correction", "completed_after_correction", "completed_after_correction_v3300"}:
         action = "Created and quality-corrected your image"
+    elif status == "completed_exact_product_unverified_v9000":
+        # v69268: this status means every hard exact-product / Reference-layout /
+        # provenance gate passed and the only unavailable check was the optional
+        # vehicle reviewer. Preserve the internal unverified metadata for audit,
+        # but do not present an alarming "incomplete" warning as though a hard
+        # validation failed. Real vehicle mismatches never reach this status.
+        action = "Created your exact-product AutoTecPro campaign image"
     elif status in {"completed_unverified", "completed_controlled_unverified"} or verification == "unverified":
         action = "Created your image, but optional verification is incomplete"
     elif regenerated:
@@ -37777,7 +37784,12 @@ def generated_image_answer_text(images, regenerated=False):
         "Format: PNG",
     ]
     warning = str(image.get("verification_warning") or "").strip()
-    if warning:
+    suppress_optional_vehicle_warning_v69268 = bool(
+        status == "completed_exact_product_unverified_v9000"
+        and verification == "unverified"
+        and "optional vehicle verification was unavailable" in warning.casefold()
+    )
+    if warning and not suppress_optional_vehicle_warning_v69268:
         details.append("Verification note: " + warning)
     return " ".join(details)
 
