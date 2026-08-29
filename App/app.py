@@ -18189,6 +18189,7 @@ def _graphic_save_memory_record(source_type, issue, solution, *, keywords="", ca
         "issue": str(issue or "Graphic intelligence")[:500],
         "question": str(issue or "Graphic intelligence")[:500],
         "solution": str(solution or "")[:50000],
+        "approved_answer": str(solution or "")[:50000],
         "keywords": str(keywords or "")[:4000],
         "source_type": source_type,
         "record_type": source_type,
@@ -50697,6 +50698,185 @@ _GRAPHIC_V68835_NS = _graphic_v68989_build_v68835_namespace()
 # function is replaced here.
 _GRAPHIC_V68835_NS["normalized_image_data_url"] = normalized_image_data_url
 _GRAPHIC_V68835_NS["_graphic_role_fingerprint_v8200"] = _graphic_role_fingerprint_v8200
+
+
+# ============================================================
+# v69263 — bounded auxiliary Reference vision + exact-result memoization
+# ============================================================
+# The protected v68835 Reference engine contains exactly three Responses API call
+# sites: the image-generation provider plus two auxiliary vision/text calls
+# (reference blueprint analysis and final output review). v69262 already bounded the
+# image-generation duplication. Production evidence then proved the two auxiliary
+# calls could remain silent for many minutes because their frozen functions used the
+# process-wide client without an explicit timeout. This bridge executes the EXACT
+# frozen function code with an OpenAI client clone carrying a bounded timeout and
+# zero SDK retries. The frozen prompts, parsing, fallback behavior, QA semantics,
+# Reference compositor, provider image route and release gates are not changed.
+GRAPHIC_V69263_AUX_VISION_TIMEOUT_SECONDS = 45.0
+GRAPHIC_V69263_AUX_CACHE_MAX_ENTRIES = 12
+
+
+def _graphic_v69263_role_identity(role_items):
+    rows = []
+    for item in role_items or []:
+        if not isinstance(item, dict):
+            continue
+        file_obj = item.get("file")
+        digest = str(
+            item.get("graphic_asset_id")
+            or getattr(file_obj, "graphic_asset_id", "")
+            or ""
+        ).strip()
+        if not digest and file_obj is not None:
+            try:
+                raw = _graphic_uploaded_file_bytes(file_obj)
+                digest = hashlib.sha256(raw).hexdigest() if raw else ""
+            except Exception:
+                digest = ""
+        rows.append((
+            str(item.get("role") or ""),
+            str(item.get("name") or getattr(file_obj, "name", "") or ""),
+            digest,
+        ))
+    return tuple(rows)
+
+
+def _graphic_v69263_aux_cache():
+    cache = st.session_state.setdefault("graphic_v69263_aux_vision_cache", {})
+    if not isinstance(cache, dict):
+        cache = {}
+        st.session_state["graphic_v69263_aux_vision_cache"] = cache
+    return cache
+
+
+def _graphic_v69263_aux_cache_get(key):
+    record = _graphic_v69263_aux_cache().get(str(key or ""))
+    if not isinstance(record, dict):
+        return None
+    return record.get("value")
+
+
+def _graphic_v69263_aux_cache_put(key, value):
+    cache = _graphic_v69263_aux_cache()
+    cache[str(key or "")] = {
+        "value": value,
+        "saved_at": time.time(),
+    }
+    while len(cache) > GRAPHIC_V69263_AUX_CACHE_MAX_ENTRIES:
+        try:
+            oldest = min(cache, key=lambda k: float((cache.get(k) or {}).get("saved_at") or 0.0))
+            cache.pop(oldest, None)
+        except Exception:
+            cache.pop(next(iter(cache)), None)
+    return value
+
+
+def _graphic_v69263_call_exact_frozen_with_bounded_client(function, *args, **kwargs):
+    """Run the exact frozen function code with only the client timeout overridden."""
+    import types as _graphic_v69263_types
+    globals_copy = dict(getattr(function, "__globals__", {}) or {})
+    globals_copy["client"] = client.with_options(
+        timeout=GRAPHIC_V69263_AUX_VISION_TIMEOUT_SECONDS,
+        max_retries=0,
+    )
+    cloned = _graphic_v69263_types.FunctionType(
+        function.__code__, globals_copy,
+        name=function.__name__,
+        argdefs=function.__defaults__,
+        closure=function.__closure__,
+    )
+    cloned.__kwdefaults__ = getattr(function, "__kwdefaults__", None)
+    return cloned(*args, **kwargs)
+
+
+_GRAPHIC_V69263_FROZEN_REFERENCE_ANALYZER = _GRAPHIC_V68835_NS.get("analyze_graphic_reference_blueprint")
+_GRAPHIC_V69263_FROZEN_OUTPUT_REVIEW = _GRAPHIC_V68835_NS.get("review_graphic_output_accuracy")
+
+
+def _graphic_v69263_bounded_reference_blueprint(role_items, prompt_text="", style_strength="High"):
+    identity = _graphic_v69263_role_identity(role_items)
+    key_payload = json.dumps(
+        {
+            "kind": "reference-blueprint",
+            "identity": identity,
+            "prompt": re.sub(r"\s+", " ", str(prompt_text or "")).strip(),
+            "style_strength": str(style_strength or "High"),
+            "engine": "v68835",
+        },
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str,
+    )
+    key = hashlib.sha256(key_payload.encode("utf-8")).hexdigest()
+    cached = _graphic_v69263_aux_cache_get(key)
+    if isinstance(cached, dict):
+        diagnostic_log("graphic_v69263_reference_blueprint_cache_hit", cache_key=key[:16])
+        return dict(cached)
+    started = time.perf_counter()
+    result = _graphic_v69263_call_exact_frozen_with_bounded_client(
+        _GRAPHIC_V69263_FROZEN_REFERENCE_ANALYZER,
+        role_items, prompt_text, style_strength,
+    )
+    elapsed = time.perf_counter() - started
+    diagnostic_log(
+        "graphic_v69263_reference_blueprint_bounded",
+        elapsed_seconds=round(elapsed, 3),
+        timeout_seconds=GRAPHIC_V69263_AUX_VISION_TIMEOUT_SECONDS,
+        available=bool(result),
+    )
+    if isinstance(result, dict) and result:
+        _graphic_v69263_aux_cache_put(key, dict(result))
+    return result
+
+
+def _graphic_v69263_bounded_output_review(
+    generated_data_url, product_role_items, prompt_text,
+    product_transform_mode="Controlled Product Adaptation", reference_blueprint=None,
+):
+    # The generated image hash makes this cache exact-output-only. A different image,
+    # product, prompt, mode or Reference blueprint automatically misses.
+    generated_hash = hashlib.sha256(str(generated_data_url or "").encode("utf-8")).hexdigest()
+    identity = _graphic_v69263_role_identity(product_role_items)
+    blueprint_hash = hashlib.sha256(
+        json.dumps(reference_blueprint or {}, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    ).hexdigest()
+    key_payload = json.dumps(
+        {
+            "kind": "output-review",
+            "generated": generated_hash,
+            "identity": identity,
+            "prompt": re.sub(r"\s+", " ", str(prompt_text or "")).strip(),
+            "mode": str(product_transform_mode or ""),
+            "blueprint": blueprint_hash,
+            "engine": "v68835",
+        },
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str,
+    )
+    key = hashlib.sha256(key_payload.encode("utf-8")).hexdigest()
+    cached = _graphic_v69263_aux_cache_get(key)
+    if isinstance(cached, dict):
+        diagnostic_log("graphic_v69263_output_review_cache_hit", cache_key=key[:16])
+        return dict(cached)
+    started = time.perf_counter()
+    result = _graphic_v69263_call_exact_frozen_with_bounded_client(
+        _GRAPHIC_V69263_FROZEN_OUTPUT_REVIEW,
+        generated_data_url, product_role_items, prompt_text,
+        product_transform_mode, reference_blueprint,
+    )
+    elapsed = time.perf_counter() - started
+    diagnostic_log(
+        "graphic_v69263_output_review_bounded",
+        elapsed_seconds=round(elapsed, 3),
+        timeout_seconds=GRAPHIC_V69263_AUX_VISION_TIMEOUT_SECONDS,
+        available=bool(result),
+    )
+    if isinstance(result, dict) and result:
+        _graphic_v69263_aux_cache_put(key, dict(result))
+    return result
+
+
+if callable(_GRAPHIC_V69263_FROZEN_REFERENCE_ANALYZER):
+    _GRAPHIC_V68835_NS["analyze_graphic_reference_blueprint"] = _graphic_v69263_bounded_reference_blueprint
+if callable(_GRAPHIC_V69263_FROZEN_OUTPUT_REVIEW):
+    _GRAPHIC_V68835_NS["review_graphic_output_accuracy"] = _graphic_v69263_bounded_output_review
 
 GRAPHIC_V68993_AUTHORITY_VERSION = "v68993-v68835-final-production-authority"
 GRAPHIC_V68993_ICON_LAYER_VERSION = "v68993-reference-connectivity-icons"
