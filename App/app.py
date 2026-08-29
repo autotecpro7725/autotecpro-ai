@@ -14289,6 +14289,20 @@ def _graphic_v68848_download_bytes(path):
     return bytes(raw) if isinstance(raw, (bytes, bytearray)) else b""
 
 
+def _graphic_v69260_storage_not_found(error):
+    """Return True only for a genuine missing-object Storage response.
+
+    A missing active pointer/manifest is a normal cache miss when no resumable
+    Graphic job exists. Treating that state as an operational failure created
+    repeated noisy 404 diagnostics without improving recovery.
+    """
+    text = str(error or "").casefold()
+    return (
+        "statuscode" in text and "404" in text
+        and ("not_found" in text or "object not found" in text or "not found" in text)
+    )
+
+
 def _graphic_v68848_remove_paths(paths):
     clean = [str(path) for path in paths or [] if str(path).strip()]
     if not clean:
@@ -14650,6 +14664,9 @@ def _graphic_v68854_peek_active_manifest(conversation_id=None):
             return None
         return job
     except Exception as error:
+        if _graphic_v69260_storage_not_found(error):
+            diagnostic_log("graphic_v69260_active_manifest_absent")
+            return None
         diagnostic_log(
             "graphic_v68854_active_manifest_peek_failed",
             error_type=type(error).__name__,
@@ -14759,6 +14776,9 @@ def _graphic_v68848_restore_manifest():
             return None
         return job
     except Exception as error:
+        if _graphic_v69260_storage_not_found(error):
+            diagnostic_log("graphic_v69260_manifest_absent")
+            return None
         diagnostic_log("graphic_v68848_manifest_restore_failed", error_type=type(error).__name__, error=str(error))
         return None
 
@@ -26459,9 +26479,15 @@ def _graphic_execution_blueprint_v43000(prompt_text, campaign_spec, reference_bl
 
 
 def _graphic_local_repair_blueprint_v43000(reference_blueprint, failed_checks):
-    """Apply one bounded deterministic layout repair without another provider call."""
+    """Apply one bounded deterministic layout repair without another provider call.
+
+    v69260 implements the copy-fidelity repair that Stage 5 has advertised since
+    v43000. Only local text-region geometry may move; product/vehicle/background
+    pixels and the feature matrix are never regenerated or altered.
+    """
     repaired = dict(reference_blueprint or {})
     failed = {str(x) for x in (failed_checks or [])}
+
     if "critical_visibility" in failed or "critical_region_visibility" in failed:
         hero = list(repaired.get("hero_product_box") or [0.03, 0.34, 0.60, 0.53])
         hero[1] = max(0.30, hero[1] - 0.025)
@@ -26470,6 +26496,25 @@ def _graphic_local_repair_blueprint_v43000(reference_blueprint, failed_checks):
         footer = list(repaired.get("bottom_bar_box") or [0.03, 0.89, 0.94, 0.095])
         footer[1] = min(0.915, max(0.895, footer[1] + 0.008))
         repaired["bottom_bar_box"] = footer
+
+    if "copy_fidelity" in failed:
+        compatibility = list(repaired.get("compatibility_box") or [0.025, 0.245, 0.43, 0.055])
+        feature = list(repaired.get("feature_matrix_box") or [0.57, 0.035, 0.395, 0.285])
+        tagline = list(repaired.get("tagline_box") or [0.025, 0.305, 0.50, 0.045])
+
+        max_right = max(
+            float(compatibility[0]) + float(compatibility[2]),
+            min(0.555, float(feature[0]) - 0.012),
+        )
+        compatibility[2] = min(
+            0.535,
+            max(float(compatibility[2]), max_right - float(compatibility[0])),
+        )
+        # Preserve ribbon height/tagline placement to avoid changing the approved
+        # Reference vertical hierarchy. Width alone is the bounded local repair;
+        # the existing compositor still owns font reduction and two-line fitting.
+        repaired["compatibility_box"] = compatibility
+
     return repaired
 
 
@@ -26733,20 +26778,20 @@ def _graphic_stage5_execute_v43000(
     background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
     role_items, execution_blueprint, template_key="", product_dna=None,
 ):
-    """Execute the compiled blueprint and perform one local-only repair pass when needed."""
+    """Execute the compiled blueprint and perform one local-only repair pass when needed.
+
+    v69260 preserves the complete Reference authority at the final live binding and
+    overlays only Stage-4 solved boxes. This restores the intended handoff already
+    implemented by the earlier Stage-5 definition and makes local copy repair effective.
+    """
     stages_v68878 = dict((execution_blueprint or {}).get("stages") or {})
     layout_stage_v68878 = dict(stages_v68878.get("4_layout_compiler") or {})
     solved_boxes_v68878 = dict(layout_stage_v68878.get("normalized_boxes") or {})
 
-    # v68878: carry the complete reference authority into Stage 5 and overlay
-    # only the Stage-4 solved geometry. This preserves measured topology,
-    # icon/copy style, and other reference metadata while retaining the same
-    # Stage-4 layout solver output.
     ref = dict((execution_blueprint or {}).get("reference_authority_v68878") or {})
     if ref:
         ref["normalized_boxes"] = solved_boxes_v68878
     else:
-        # Non-reference / backward-compatible path.
         ref = {"normalized_boxes": solved_boxes_v68878}
 
     composed, metadata = _graphic_compose_reference_campaign_v3200(
@@ -26755,39 +26800,49 @@ def _graphic_stage5_execute_v43000(
     )
     score = _graphic_qa_scorecard_v42000(metadata)
     repair_applied = False
-    if not score.get("passed") and any(x in set(score.get("critical_failed") or []) for x in ("critical_visibility", "copy_fidelity")):
-        repaired_boxes_v68878 = _graphic_local_repair_blueprint_v43000(
-            dict(ref.get("normalized_boxes") or {}),
-            score.get("critical_failed"),
+    if not score.get("passed") and any(
+        x in set(score.get("critical_failed") or []) for x in ("critical_visibility", "copy_fidelity")
+    ):
+        repaired_boxes_v69260 = _graphic_local_repair_blueprint_v43000(
+            dict(ref.get("normalized_boxes") or {}), score.get("critical_failed")
         )
-        if repaired_boxes_v68878 != dict(ref.get("normalized_boxes") or {}):
+        if repaired_boxes_v69260 != dict(ref.get("normalized_boxes") or {}):
             repaired_ref = dict(ref)
-            repaired_ref["normalized_boxes"] = repaired_boxes_v68878
+            repaired_ref["normalized_boxes"] = repaired_boxes_v69260
+            diagnostic_log(
+                "graphic_v69260_local_reference_repair",
+                failed=list(score.get("critical_failed") or []),
+                compatibility_box=repaired_boxes_v69260.get("compatibility_box"),
+            )
             composed, metadata = _graphic_compose_reference_campaign_v3200(
                 background, product_item, prompt_text, output_size, campaign_spec, vehicle_profile,
                 role_items, reference_blueprint=repaired_ref, template_key=template_key, product_dna=product_dna or {},
             )
             score = _graphic_qa_scorecard_v42000(metadata)
             repair_applied = True
+
     detail_gate_v48000 = dict(metadata.get("autotecpro_final_qa_v48000") or {})
     if detail_gate_v48000 and not detail_gate_v48000.get("passed"):
         score = dict(score or {})
         score["passed"] = False
-        score["critical_failed"] = list(dict.fromkeys(list(score.get("critical_failed") or []) + list(detail_gate_v48000.get("failed") or [])))
+        score["critical_failed"] = list(dict.fromkeys(
+            list(score.get("critical_failed") or []) + list(detail_gate_v48000.get("failed") or [])
+        ))
+
     metadata["reference_authority_handoff_v68878"] = {
         "reference_authority_present": bool((execution_blueprint or {}).get("reference_authority_v68878")),
         "normalized_boxes_present": bool(ref.get("normalized_boxes")),
         "feature_grid_topology": dict(ref.get("feature_grid_topology") or {}),
         "feature_icon_system_present": bool(ref.get("feature_icon_system")),
         "feature_copy_structure_present": bool(ref.get("feature_copy_structure")),
-        "engine": "reference-authority-handoff-v68878",
+        "engine": "reference-authority-handoff-v68878-v69260-live-binding",
     }
     metadata["five_stage_execution_v43000"] = {
         "ready": bool((execution_blueprint or {}).get("ready")),
         "local_repair_applied": repair_applied,
         "provider_retry_used": False,
         "final_scorecard": score,
-        "version": "stage5-image-generator-v48000",
+        "version": "stage5-image-generator-v48000-v69260",
     }
     return composed, metadata
 
@@ -27450,7 +27505,7 @@ def _graphic_compose_reference_campaign_v3200(
             draw.text((left_x + int(W * 0.015), text_y), line, font=ribbon_font, fill=white)
             text_y += int(ribbon_fit.get("font_px", 14)) + line_gap
     required_copy_tokens = list(campaign_spec.get("compatibility_required_tokens") or _graphic_copy_required_tokens_v36000(compatibility))
-    rendered_copy_norm = re.sub(r"\s+", "", " ".join(ribbon_lines)).casefold()
+    rendered_copy_norm = re.sub(r"[^a-z0-9]+", "", " ".join(ribbon_lines).casefold())
     missing_copy_tokens = [token for token in required_copy_tokens if token not in rendered_copy_norm]
     copy_fidelity_report = {
         "authoritative_text": compatibility,
@@ -28538,7 +28593,7 @@ def _graphic_focused_vehicle_validation_v3300(data_url, role_items, prompt_text,
         score = 0
     summary = str(review.get("summary") or review.get("correction_prompt") or "vehicle verification unavailable")[:1000]
     available = bool(review) and score > 0
-    verified = available and bool(review.get("passed", False)) and score >= 97
+    verified = available and review.get("passed") is True and score >= 97
     return {
         "verified": verified,
         "available": available,
@@ -39551,12 +39606,37 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
         )
         rows = list(query.data or [])
     except Exception as error:
-        diagnostic_log(
-            "recent_case_learned_context_failed",
-            error_type=type(error).__name__,
-            error=str(error),
-        )
-        return ""
+        error_text = str(error or "")
+        if "42703" in error_text and "learned_knowledge.record_type" in error_text:
+            try:
+                query = (
+                    supabase.table("learned_knowledge")
+                    .select(
+                        "id,assistant,vehicle,issue,solution,approved_answer,"
+                        "keywords,staff_confirmed,source_type,confidence_score,updated_at"
+                    )
+                    .eq("source_conversation_id", conversation_id)
+                    .eq("assistant", clean_assistant)
+                    .order("updated_at", desc=True)
+                    .limit(max(1, min(int(limit or 5), 10)))
+                    .execute()
+                )
+                rows = [dict(row or {}, record_type="") for row in list(query.data or [])]
+                diagnostic_log("recent_case_learned_context_schema_fallback_v69260", missing_column="record_type")
+            except Exception as fallback_error:
+                diagnostic_log(
+                    "recent_case_learned_context_failed",
+                    error_type=type(fallback_error).__name__,
+                    error=str(fallback_error),
+                )
+                return ""
+        else:
+            diagnostic_log(
+                "recent_case_learned_context_failed",
+                error_type=type(error).__name__,
+                error=error_text,
+            )
+            return ""
 
     approved_rows = [
         row for row in rows
@@ -48582,7 +48662,7 @@ def _graphic_compose_reference_campaign_v3200(
             draw.text((left_x + int(W * 0.015), text_y), line, font=ribbon_font, fill=white)
             text_y += int(ribbon_fit.get("font_px", 14)) + line_gap
     required_copy_tokens = list(campaign_spec.get("compatibility_required_tokens") or _graphic_copy_required_tokens_v36000(compatibility))
-    rendered_copy_norm = re.sub(r"\s+", "", " ".join(ribbon_lines)).casefold()
+    rendered_copy_norm = re.sub(r"[^a-z0-9]+", "", " ".join(ribbon_lines).casefold())
     missing_copy_tokens = [token for token in required_copy_tokens if token not in rendered_copy_norm]
     copy_fidelity_report = {
         "authoritative_text": compatibility,
