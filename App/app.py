@@ -1,4 +1,4 @@
-# AutoTecPro AI v69276 — Final Production Hidden-Failure Closure (2026-08-29)
+# AutoTecPro AI v69277 — Final Production Technical Authority Integrity Repair (2026-08-30)
 # AutoTecPro AI v69275 FINAL STABLE PRODUCTION — v69248 Reference output authority + concurrent auxiliary analysis; target <5 min normal provider conditions
 # AutoTecPro AI v69227 FINAL PRODUCTION — v69226 accuracy preserved; revision-aware parsed-contract cache restores v69205-class deterministic speed\n# AutoTecPro AI v69226 FINAL PRODUCTION — exact v69206 base + audited v69207 generic Sales/Marketing + workspace callback safety + immediate status; NO Technical overlapping-year multi-match code
 # AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
@@ -72375,7 +72375,7 @@ def _technical_configuration_set_cache_key_v69241(store, revision, family, year)
         clean_year = int(year)
     except Exception:
         return ""
-    return "|".join(("v69248", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
+    return "|".join(("v69277", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
 
 def _technical_configuration_set_cache_get_v69241(store, revision, family, year):
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
@@ -72420,6 +72420,155 @@ def _technical_configuration_set_cache_put_v69241(store, revision, family, year,
             except Exception:
                 break
     return True
+
+def _technical_expected_brands_for_family_v69277(family):
+    """Return conservative manufacturer identities implied by a canonical vehicle family.
+
+    This is routing taxonomy only. It never supplies a Technical setting value.
+    """
+    family_cf = str(family or "").casefold().strip().replace("-", "_")
+    if re.fullmatch(r"f(?:150|250|350|450|550|650)", family_cf.replace("_", "")):
+        return {"ford"}
+    if family_cf.startswith("ram"):
+        return {"ram", "dodge"}
+    mapping = {
+        "silverado": {"chevrolet"}, "sierra": {"gmc"},
+        "tahoe": {"chevrolet"}, "suburban": {"chevrolet"},
+        "yukon": {"gmc"}, "escalade": {"cadillac"},
+        "q50": {"infiniti"}, "q60": {"infiniti"},
+        "wrangler": {"jeep"}, "grand_cherokee": {"jeep"}, "cherokee": {"jeep"},
+        "durango": {"dodge"}, "charger": {"dodge"}, "challenger": {"dodge"},
+        "tundra": {"toyota"}, "tacoma": {"toyota"}, "4runner": {"toyota"},
+    }
+    return set(mapping.get(family_cf) or set())
+
+
+def _technical_package_hard_scope_match_v69277(package, payload, family, year):
+    """Final positive identity gate for a supposedly verified Technical package.
+
+    Critical rule: a source URL/title that positively identifies another manufacturer
+    may not inherit stale cached family arrays and enter the requested authoritative set.
+    Ambiguous source identity remains eligible only when the parsed package itself carries
+    the requested family/year scope. This closes the hosted F150 -> Mercedes contamination.
+    """
+    package = dict(package or {})
+    payload = dict(payload or {})
+    family_cf = str(family or "").casefold().strip()
+    try:
+        year_i = int(year)
+    except Exception:
+        return False
+    if not package or not family_cf:
+        return False
+
+    pkg_families = {str(x).casefold().strip() for x in (package.get("vehicle_families") or []) if str(x).strip()}
+    if pkg_families and family_cf not in pkg_families:
+        return False
+
+    source_text = " ".join((
+        str(package.get("title") or package.get("page_title") or payload.get("title") or ""),
+        str(package.get("source_url") or payload.get("source_url") or ""),
+    )).strip()
+    try:
+        source_families = {str(x).casefold().strip() for x in (_website_identity_vehicle_families_v69022(source_text) or set()) if str(x).strip()}
+    except Exception:
+        source_families = set()
+    if source_families and family_cf not in source_families:
+        return False
+
+    expected_brands = _technical_expected_brands_for_family_v69277(family_cf)
+    try:
+        source_brands = set(_website_identity_brand_set_v69022(source_text) or set())
+    except Exception:
+        source_brands = set()
+    if expected_brands and source_brands and expected_brands.isdisjoint(source_brands):
+        return False
+
+    # Root ATP identity is stronger than body/profile values. This is crucial for
+    # vehicles such as Dodge RAM that intentionally use a Jeep CANBUS menu profile:
+    # the page root remains Dodge/RAM, so the valid Jeep *setting* is not mistaken
+    # for a cross-make source. Conversely, a Mercedes root can never enter F150.
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    if not semantics and str(package.get("package_text") or ""):
+        try:
+            semantics = dict(_technical_package_atp_semantics_v69178(package.get("package_text") or "") or {})
+        except Exception:
+            semantics = {}
+    root = dict(semantics.get("root") or {})
+    root_brand_text = " ".join(str(root.get(k) or "") for k in (
+        "data-atp-brand", "data-atp-make"
+    )).strip()
+    try:
+        root_brands = set(_website_identity_brand_set_v69022(root_brand_text) or set())
+    except Exception:
+        root_brands = set()
+    if expected_brands and root_brands and expected_brands.isdisjoint(root_brands):
+        return False
+
+    root_model_text = " ".join(str(root.get(k) or "") for k in (
+        "data-atp-model", "data-atp-models", "data-atp-vehicle-family",
+        "data-atp-canonical-model-family"
+    )).strip()
+    try:
+        root_families = {str(x).casefold().strip() for x in (_website_identity_vehicle_families_v69022(root_model_text) or set()) if str(x).strip()}
+    except Exception:
+        root_families = set()
+    if root_families and family_cf not in root_families:
+        return False
+
+    if not _technical_package_model_year_eligible_v69242(package, family_cf, year_i):
+        return False
+    try:
+        source_years = {int(x) for x in (_website_identity_years_v69022(source_text) or set())}
+    except Exception:
+        source_years = set()
+    if source_years and year_i not in source_years:
+        # URL/title years are a hard rejection only when explicit; package model-year
+        # metadata remains the primary authority for ambiguous source identities.
+        return False
+    return True
+
+
+def _technical_result_hard_scope_valid_v69277(result, prompt_text, store=""):
+    """Validate a recovered preflight result before it may pre-empt exact-source recovery."""
+    result = dict(result or {})
+    if str(result.get("status") or "") != "recovered":
+        return False
+    family, year = _technical_resolve_family_year_v69199(prompt_text, store, allow_registry=False)
+    if not family or year is None:
+        return True
+    kind = str(result.get("kind") or "")
+    if kind == "configuration":
+        authority = dict(result.get("authority") or {})
+        pseudo = {
+            "vehicle_families": [family],
+            "years": [int(year)],
+            "source_url": str(authority.get("source_url") or ""),
+            "title": str(authority.get("page_title") or ""),
+            "atp_semantics_v69178": dict(authority.get("atp_semantics_v69178") or {}),
+            "package_text": str(authority.get("package_text") or ""),
+        }
+        # The recovered authority already carries the selected package semantics and
+        # exact source identity. Revalidate those directly; do not invoke another
+        # parser or source lookup from the live preflight path.
+        return _technical_package_hard_scope_match_v69277(pseudo, authority, family, year)
+    if kind == "configuration_set":
+        rows = [dict(x) for x in (result.get("authorities") or []) if isinstance(x, dict)]
+        # Preserve the established fail-closed sentinel: when multiple genuinely
+        # verified same-scope packages cannot all be rendered, it must still pre-empt
+        # legacy/older fallback. Only an unexplained zero-row recovered set is invalid.
+        if not rows:
+            return bool(result.get("verified_set_render_fail_closed_v69247"))
+        for row in rows:
+            authority = dict(row.get("authority") or {})
+            source_text = " ".join((str(authority.get("page_title") or ""), str(row.get("source_url") or authority.get("source_url") or "")))
+            expected = _technical_expected_brands_for_family_v69277(family)
+            brands = set(_website_identity_brand_set_v69022(source_text) or set())
+            if expected and brands and expected.isdisjoint(brands):
+                return False
+        return True
+    return True
+
 
 def _technical_model_year_scope_map_v69242(package):
     """Return explicit per-model year ranges authored in ATP root metadata.
@@ -73536,24 +73685,32 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             revision_v69228,
         ):
             already_compiled_hits_v69232 += 1
-            hydrated_v69228 += 1
-            if bool(payload_v69228.get("durable_snapshot_candidate_v69233")):
-                state_v69241 = _technical_compiled_contract_state_v69198()
-                with state_v69241["lock"]:
-                    cached_package_v69241 = dict((state_v69241.get("packages") or {}).get(file_id_v69228) or {})
-                if cached_package_v69241:
-                    cached_package_v69241.update({
-                        "file_id": file_id_v69228,
-                        "filename": filename_v69228 or str(cached_package_v69241.get("filename") or ""),
-                        "source_url": source_url_v69228 or str(cached_package_v69241.get("source_url") or ""),
-                        "title": str(cached_package_v69241.get("title") or payload_v69228.get("title") or ""),
-                        "systems": list(payload_v69228.get("systems") or cached_package_v69241.get("systems") or []),
-                    })
-                    # v69245: this payload already passed the exact snapshot family/year/current-source
-                    # gates before entering hydration. Do not re-run a different model/year parser here,
-                    # because package normalization can omit authored composite scope fields and make the
-                    # authoritative hydrated set diverge from the successful hydration count.
+            state_v69241 = _technical_compiled_contract_state_v69198()
+            with state_v69241["lock"]:
+                cached_package_v69241 = dict((state_v69241.get("packages") or {}).get(file_id_v69228) or {})
+            if cached_package_v69241:
+                cached_package_v69241.update({
+                    "file_id": file_id_v69228,
+                    "filename": filename_v69228 or str(cached_package_v69241.get("filename") or ""),
+                    "source_url": source_url_v69228 or str(cached_package_v69241.get("source_url") or ""),
+                    "title": str(cached_package_v69241.get("title") or payload_v69228.get("title") or ""),
+                    "systems": list(payload_v69228.get("systems") or cached_package_v69241.get("systems") or []),
+                })
+                if not _technical_package_hard_scope_match_v69277(
+                    cached_package_v69241, payload_v69228, family, year
+                ):
+                    rejected_v69228 += 1
+                    diagnostic_log(
+                        "technical_cached_package_cross_scope_rejected_v69277",
+                        requested_family=family, requested_year=int(year),
+                        file_id=file_id_v69228[:160], source_url=source_url_v69228[:700],
+                    )
+                    continue
+                hydrated_v69228 += 1
+                if bool(payload_v69228.get("durable_snapshot_candidate_v69233")):
                     verified_hydrated_packages_v69241.append(cached_package_v69241)
+            else:
+                rejected_v69228 += 1
             continue
 
         recovered_v69232 = _technical_verified_snapshot_package_v69232(
@@ -73578,6 +73735,17 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             package_v69228 = _technical_package_apply_verified_scope_v69237(
                 package_v69228, payload_v69228
             )
+
+        if not _technical_package_hard_scope_match_v69277(
+            package_v69228, payload_v69228, family, year
+        ):
+            rejected_v69228 += 1
+            diagnostic_log(
+                "technical_verified_package_cross_scope_rejected_v69277",
+                requested_family=family, requested_year=int(year),
+                file_id=file_id_v69228[:160], source_url=source_url_v69228[:700],
+            )
+            continue
 
         # Hard family/year check prevents cache/registry corruption such as an
         # F-150 key hydrating a Mercedes Sprinter package.
@@ -73665,6 +73833,16 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             if not isinstance(pkg_v69244, dict):
                 continue
             pkg_v69244 = dict(pkg_v69244)
+            if not _technical_package_hard_scope_match_v69277(
+                pkg_v69244, {}, family, year
+            ):
+                diagnostic_log(
+                    "technical_authoritative_handoff_cross_scope_rejected_v69277",
+                    requested_family=family, requested_year=int(year),
+                    file_id=str(pkg_v69244.get("file_id") or "")[:160],
+                    source_url=str(pkg_v69244.get("source_url") or "")[:700],
+                )
+                continue
             identity_v69244 = _technical_verified_package_identity_v69244(pkg_v69244)
             if not identity_v69244 or identity_v69244 in seen_verified_identity_v69244:
                 continue
@@ -85991,6 +86169,15 @@ else:
                             compiled_store_v69199,
                         )
                     )
+                    if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered" and not _technical_result_hard_scope_valid_v69277(
+                        technical_compiled_preflight_v69198, technical_request_prompt_v68879, compiled_store_v69199
+                    ):
+                        diagnostic_log(
+                            "technical_preflight_cross_scope_rejected_v69277",
+                            kind=str(technical_compiled_preflight_v69198.get("kind") or ""),
+                            source_url=str((technical_compiled_preflight_v69198.get("authority") or {}).get("source_url") or "")[:700],
+                        )
+                        technical_compiled_preflight_v69198 = {}
                     if str(technical_compiled_preflight_v69198.get("status") or "") != "recovered":
                         technical_compiled_preflight_v69198 = (
                             _technical_compiled_on_demand_hydrate_v69199(
@@ -85999,6 +86186,14 @@ else:
                             )
                             or technical_compiled_preflight_v69198
                         )
+                    if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered" and not _technical_result_hard_scope_valid_v69277(
+                        technical_compiled_preflight_v69198, technical_request_prompt_v68879, compiled_store_v69199
+                    ):
+                        diagnostic_log(
+                            "technical_hydrated_preflight_cross_scope_rejected_v69277",
+                            kind=str(technical_compiled_preflight_v69198.get("kind") or ""),
+                        )
+                        technical_compiled_preflight_v69198 = {}
                     if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered":
                         if str(technical_compiled_preflight_v69198.get("kind") or "") == "configuration_set":
                             diagnostic_log(
