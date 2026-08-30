@@ -74850,6 +74850,220 @@ def _technical_contract_factory_system_v69228(contract):
     )
 
 
+
+# ============================================================
+# v69281 — generic ATP metadata identity recovery for models that are not in
+# the legacy hard-coded vehicle-family parser (e.g. Chrysler 300/300C/300S/SRT8).
+#
+# Safety contract:
+# - activates only when the legacy family resolver returns NO family;
+# - uses only SHA-verified durable current-source packages already discovered by
+#   the bounded exact-source index;
+# - requires positive same-source ATP make + model metadata match;
+# - explicit years, when present, are hard gates; no-year requests are accepted
+#   only when exactly one canonical current source matches;
+# - no vector/provider/broad website-image fallback is introduced here;
+# - publication remains through the existing verified same-source configuration
+#   renderer and final Technical image gates.
+# ============================================================
+def _technical_prompt_brand_tokens_v69281(prompt_text):
+    norm = _technical_contract_norm_v69198(prompt_text)
+    known = {
+        "acura", "audi", "bmw", "buick", "cadillac", "chevrolet", "chrysler",
+        "dodge", "ford", "gmc", "honda", "hyundai", "infiniti", "jeep", "kia",
+        "lexus", "lincoln", "mazda", "mercedes", "nissan", "porsche", "ram",
+        "subaru", "tesla", "toyota", "volkswagen", "volvo",
+    }
+    tokens = set(norm.split())
+    return {x for x in known if x in tokens}
+
+
+def _technical_root_model_aliases_v69281(root):
+    root = dict(root or {})
+    values = []
+    for key in (
+        "data-atp-model", "data-atp-models", "data-atp-canonical-model-family",
+        "data-atp-vehicle-family", "data-atp-query-key", "data-atp-aliases",
+    ):
+        raw = str(root.get(key) or "").strip()
+        if raw:
+            values.append(raw)
+    aliases = set()
+    # Pipe-delimited ATP model declarations are authoritative exact aliases.
+    for raw in values[:4]:
+        for part in re.split(r"[|,;]", raw):
+            clean = _technical_contract_norm_v69198(part)
+            if clean:
+                aliases.add(clean)
+    # Query-key/aliases are supporting identity only; retain bounded n-grams so
+    # numeric model names such as "300" can match when the make is also exact.
+    for raw in values[4:]:
+        clean = _technical_contract_norm_v69198(raw)
+        if clean:
+            aliases.add(clean)
+    return aliases
+
+
+def _technical_root_make_tokens_v69281(root):
+    root = dict(root or {})
+    values = " ".join(str(root.get(k) or "") for k in (
+        "data-atp-make", "data-atp-brand"
+    ))
+    return _technical_prompt_brand_tokens_v69281(values)
+
+
+def _technical_model_alias_matches_prompt_v69281(prompt_text, alias, make_matched=False):
+    prompt_norm = _technical_contract_norm_v69198(prompt_text)
+    alias_norm = _technical_contract_norm_v69198(alias)
+    if not prompt_norm or not alias_norm:
+        return False
+    # Exact token/phrase containment is deterministic. Numeric-only aliases are
+    # accepted only together with an exact ATP make match to avoid matching years,
+    # screen sizes, or unrelated numeric product labels.
+    if re.fullmatch(r"\d{2,4}", alias_norm):
+        return bool(make_matched and re.search(rf"(?<!\d){re.escape(alias_norm)}(?!\d)", prompt_norm))
+    if re.search(rf"(?<![a-z0-9]){re.escape(alias_norm)}(?![a-z0-9])", prompt_norm):
+        return True
+    alias_tokens = alias_norm.split()
+    prompt_tokens = set(prompt_norm.split())
+    return bool(alias_tokens and len(alias_tokens) <= 4 and set(alias_tokens).issubset(prompt_tokens))
+
+
+def _technical_metadata_identity_exact_result_v69281(prompt_text, clean_store):
+    """Bind one exact current Technical source from ATP make/model metadata.
+
+    This fills the gap where the old parser cannot name a family. It never runs
+    when the legacy parser already resolved a family, so the v69280 Ford path is
+    frozen. Multiple canonical matches fail closed.
+    """
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    legacy_families = set(_website_identity_vehicle_families_v69022(prompt) or set())
+    if legacy_families:
+        return {}
+    if not _technical_configuration_query_v69155(prompt):
+        return {}
+
+    prompt_brands = _technical_prompt_brand_tokens_v69281(prompt)
+    if not prompt_brands:
+        return {}
+    prompt_years = {int(x) for x in (_website_identity_years_v69022(prompt) or set())}
+
+    try:
+        candidate_payloads = list(_technical_durable_snapshot_candidates_v69233(prompt, clean_store) or [])
+    except Exception as error_v69281:
+        diagnostic_log(
+            "technical_metadata_identity_snapshot_lookup_failed_v69281",
+            error_type=type(error_v69281).__name__, error=str(error_v69281)[:500],
+        )
+        return {}
+
+    matches = []
+    seen = set()
+    for payload in candidate_payloads[:12]:
+        if not isinstance(payload, dict):
+            continue
+        try:
+            scope = dict(_technical_verified_snapshot_scope_v69235(payload, clean_store) or {})
+        except Exception:
+            scope = {}
+        package = dict(scope.get("package") or {})
+        if not package:
+            continue
+        semantics = dict(package.get("atp_semantics_v69178") or {})
+        if not semantics:
+            try:
+                semantics = dict(_technical_package_atp_semantics_v69178(package.get("package_text") or "") or {})
+            except Exception:
+                semantics = {}
+        root = dict(semantics.get("root") or {})
+        if not root:
+            continue
+
+        root_status = str(root.get("data-atp-source-status") or "").strip().casefold()
+        root_current = str(root.get("data-atp-current-source") or "").strip().casefold()
+        if root_status and root_status not in {"current-authoritative", "current", "authoritative"}:
+            continue
+        if root_current and root_current not in {"true", "1", "yes"}:
+            continue
+
+        source_url = str(package.get("source_url") or payload.get("source_url") or "").strip()
+        file_id = str(package.get("file_id") or payload.get("file_id") or "").strip()
+        try:
+            canonical = canonical_website_url_identity(source_url) if source_url else file_id
+        except Exception:
+            canonical = source_url.casefold() if source_url else file_id
+        if not canonical or canonical in seen:
+            continue
+
+        make_tokens = _technical_root_make_tokens_v69281(root)
+        if not make_tokens or prompt_brands.isdisjoint(make_tokens):
+            continue
+        make_matched = True
+
+        aliases = _technical_root_model_aliases_v69281(root)
+        # Prefer exact authored model/model(s) declarations. Query-key-only matches
+        # are not sufficient unless an authored model alias also matches.
+        authored_aliases = set()
+        for key in ("data-atp-model", "data-atp-models", "data-atp-canonical-model-family", "data-atp-vehicle-family"):
+            raw = str(root.get(key) or "").strip()
+            for part in re.split(r"[|,;]", raw):
+                clean = _technical_contract_norm_v69198(part)
+                if clean:
+                    authored_aliases.add(clean)
+        model_matches = [
+            alias for alias in authored_aliases
+            if _technical_model_alias_matches_prompt_v69281(prompt, alias, make_matched=make_matched)
+        ]
+        if not model_matches:
+            continue
+
+        scope_years = {int(x) for x in (scope.get("years") or set()) if str(x).strip()}
+        if prompt_years and scope_years and prompt_years.isdisjoint(scope_years):
+            continue
+
+        verified_package = _technical_package_apply_verified_scope_v69237(package, payload)
+        result = _technical_verified_single_multibranch_result_v69278(prompt, verified_package)
+        if str((result or {}).get("status") or "") != "recovered":
+            continue
+        authority = dict(result.get("authority") or {})
+        if str(authority.get("status") or "") != "recovered":
+            continue
+        exact_images = list(result.get("exact_images") or authority.get("selected_image_urls_v69143") or [])
+        # Car-model queries on an authored ATP source with a primary auto-display
+        # image must retain that exact same-source image through the result object.
+        if not exact_images:
+            semantic_images = _technical_atp_semantic_image_urls_v69179(prompt, authority, max_images=8)
+            if semantic_images:
+                authority["selected_image_urls_v69143"] = list(semantic_images)
+                result["exact_images"] = list(semantic_images)
+                result["authority"] = authority
+                exact_images = list(semantic_images)
+        seen.add(canonical)
+        matches.append((canonical, result, sorted(model_matches)))
+
+    if len(matches) != 1:
+        if matches:
+            diagnostic_log(
+                "technical_metadata_identity_ambiguous_v69281",
+                matches=len(matches), brands=sorted(prompt_brands),
+                sources=[str(x[0])[:500] for x in matches[:8]],
+            )
+        return {}
+
+    canonical, result, model_matches = matches[0]
+    authority = dict(result.get("authority") or {})
+    diagnostic_log(
+        "technical_metadata_identity_exact_bound_v69281",
+        brands=sorted(prompt_brands), models=model_matches[:8],
+        source_url=str(authority.get("source_url") or "")[:700],
+        section=str(authority.get("section_title") or "")[:300],
+        images=len(result.get("exact_images") or []),
+        no_explicit_year=not bool(prompt_years),
+    )
+    result["metadata_identity_exact_v69281"] = True
+    return result
+
+
 def _technical_compiled_contract_lookup_v69198(prompt_text, store):
     """O(1)-bucket + tiny local section match; no DB/vector/provider calls."""
     prompt = _technical_settings_routing_prompt_v69117(prompt_text)
@@ -86372,12 +86586,25 @@ else:
                     compiled_store_v69199 = str(
                         compiled_store_ids_v69198[0] or ""
                     ).strip()
+                    # v69281: when the legacy hard-coded family parser cannot
+                    # identify a model (for example Chrysler 300), bind the exact
+                    # current ATP source from SHA-verified make/model metadata before
+                    # entering the old generic recovery path. Existing recognized
+                    # families, including the production-proven F-150 path, bypass
+                    # this resolver completely.
                     technical_compiled_preflight_v69198 = (
-                        _technical_compiled_contract_lookup_v69198(
+                        _technical_metadata_identity_exact_result_v69281(
                             technical_request_prompt_v68879,
                             compiled_store_v69199,
                         )
                     )
+                    if str(technical_compiled_preflight_v69198.get("status") or "") != "recovered":
+                        technical_compiled_preflight_v69198 = (
+                            _technical_compiled_contract_lookup_v69198(
+                                technical_request_prompt_v68879,
+                                compiled_store_v69199,
+                            )
+                        )
                     if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered" and not _technical_result_hard_scope_valid_v69277(
                         technical_compiled_preflight_v69198, technical_request_prompt_v68879, compiled_store_v69199
                     ):
