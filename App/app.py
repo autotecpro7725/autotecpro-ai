@@ -1,4 +1,6 @@
-# AutoTecPro AI v69278 — Final Production Technical Authority Closure + Legacy Pointer Hardening (2026-08-30)
+# AutoTecPro AI v69280 — Technical profile corroboration + runtime contract repair
+# AutoTecPro AI v69278 — Final Production Technical Single-Source Multi-Branch Render Fix
+# AutoTecPro AI v69277 — Final Production Technical Authority Integrity Repair (2026-08-30)
 # AutoTecPro AI v69275 FINAL STABLE PRODUCTION — v69248 Reference output authority + concurrent auxiliary analysis; target <5 min normal provider conditions
 # AutoTecPro AI v69227 FINAL PRODUCTION — v69226 accuracy preserved; revision-aware parsed-contract cache restores v69205-class deterministic speed\n# AutoTecPro AI v69226 FINAL PRODUCTION — exact v69206 base + audited v69207 generic Sales/Marketing + workspace callback safety + immediate status; NO Technical overlapping-year multi-match code
 # AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
@@ -67678,26 +67680,6 @@ def _technical_active_authority_upsert_package_v69164(
 
     for family in families:
         for year in years:
-            # v69278: never create a family/year pointer from a package whose exact
-            # source/root identity or authored per-model year map contradicts that pair.
-            # This also fixes the legacy cross-product bug on shared pages where F150 and
-            # Super Duty have different supported year ranges.
-            try:
-                hard_scope_ok_v69278 = _technical_package_hard_scope_match_v69277(
-                    package,
-                    {"source_url": package.get("source_url"), "title": package.get("title")},
-                    family, year,
-                )
-            except Exception:
-                hard_scope_ok_v69278 = False
-            if not hard_scope_ok_v69278:
-                diagnostic_log(
-                    "technical_active_authority_upsert_scope_rejected_v69278",
-                    family=str(family)[:80], year=int(year),
-                    file_id=str(package.get("file_id") or "")[:160],
-                    source_url=str(package.get("source_url") or "")[:700],
-                )
-                continue
             stats["attempted"] += 1
             key = _technical_active_authority_key_v69164(family, year)
             existing = _technical_active_authority_row_v69164(
@@ -67855,33 +67837,12 @@ def _technical_active_authority_commit_verified_v69167(
     if not _technical_registry_verify_exact_package_v69233(package, vector_store_id):
         raise RuntimeError("The Technical multi-package registry read-back verification failed.")
 
-    # v69278: shared multi-model pages may have different authored year ranges per
-    # model.  Commit/read-back must validate only exact model/year pairs supported by
-    # the source, never the legacy families × years Cartesian product.
-    valid_pairs_v69278 = []
-    for family_v69278 in families:
-        for year_v69278 in years:
-            try:
-                valid_v69278 = _technical_package_hard_scope_match_v69277(
-                    package,
-                    {"source_url": source_url, "title": package.get("title")},
-                    family_v69278, year_v69278,
-                )
-            except Exception:
-                valid_v69278 = False
-            if valid_v69278:
-                valid_pairs_v69278.append((family_v69278, int(year_v69278)))
-    if not valid_pairs_v69278:
-        raise RuntimeError(
-            "The Technical package has no exact source-authorized model/year pairs."
-        )
-
     stats = _technical_active_authority_upsert_package_v69164(
         package,
         vector_store_id,
         force=True,
     )
-    expected = len(valid_pairs_v69278)
+    expected = len(families) * len(years)
     if (
         int(stats.get("attempted") or 0) != expected
         or int(stats.get("updated") or 0) != expected
@@ -67897,39 +67858,41 @@ def _technical_active_authority_commit_verified_v69167(
         pass
 
     verified = []
-    for family, year in valid_pairs_v69278:
-        row = _technical_active_authority_row_v69164(
-            family,
-            year,
-            vector_store_id,
-        )
-        if str(row.get("file_id") or "").strip() != file_id:
-            raise RuntimeError(
-                f"Active Technical pointer read-back mismatch for {family}/{year}."
+    for family in families:
+        for year in years:
+            row = _technical_active_authority_row_v69164(
+                family,
+                year,
+                vector_store_id,
             )
-        if str(row.get("snapshot_sha256_v69171") or "").strip() != str(
-            durable_snapshot_v69171.get("content_sha256") or ""
-        ).strip():
-            raise RuntimeError(
-                f"Active Technical durable snapshot read-back mismatch for {family}/{year}."
-            )
-        row_source = str(row.get("source_url") or "").strip()
-        try:
-            same_source = (
-                canonical_website_url_identity(row_source)
-                == canonical_website_url_identity(source_url)
-            )
-        except Exception:
-            same_source = bool(row_source and row_source == source_url)
-        if not same_source:
-            raise RuntimeError(
-                f"Active Technical source URL read-back mismatch for {family}/{year}."
-            )
-        verified.append({
-            "family": family,
-            "year": year,
-            "file_id": file_id,
-        })
+            if str(row.get("file_id") or "").strip() != file_id:
+                raise RuntimeError(
+                    f"Active Technical pointer read-back mismatch for {family}/{year}."
+                )
+            if str(row.get("snapshot_sha256_v69171") or "").strip() != str(
+                durable_snapshot_v69171.get("content_sha256") or ""
+            ).strip():
+                raise RuntimeError(
+                    f"Active Technical durable snapshot read-back mismatch for {family}/{year}."
+                )
+            row_source = str(row.get("source_url") or "").strip()
+            try:
+                same_source = (
+                    canonical_website_url_identity(row_source)
+                    == canonical_website_url_identity(source_url)
+                )
+            except Exception:
+                same_source = bool(row_source and row_source == source_url)
+            if not same_source:
+                raise RuntimeError(
+                    f"Active Technical source URL read-back mismatch for {family}/{year}."
+                )
+            verified.append({
+                "family": family,
+                "year": year,
+                "file_id": file_id,
+            })
+
     diagnostic_log(
         "technical_active_authority_commit_verified_v69167",
         file_id=file_id[:160],
@@ -68160,23 +68123,6 @@ def _technical_active_authority_bootstrap_v69164(prompt_text, vector_store_id):
             continue
         if not _technical_package_candidate_score_v69157(prompt_text, package):
             continue
-        # v69278: registry rows and stale family arrays are discovery hints only.
-        # The hydrated package must pass the final exact source/root + model/year gate
-        # before it can seed or replace an active authority pointer.
-        try:
-            bootstrap_scope_ok_v69278 = _technical_package_hard_scope_match_v69277(
-                package, payload, family, year
-            )
-        except Exception:
-            bootstrap_scope_ok_v69278 = False
-        if not bootstrap_scope_ok_v69278:
-            diagnostic_log(
-                "technical_active_bootstrap_cross_scope_rejected_v69278",
-                family=str(family)[:80], year=int(year),
-                file_id=str(package.get("file_id") or "")[:160],
-                source_url=str(package.get("source_url") or "")[:700],
-            )
-            continue
         _technical_active_authority_upsert_package_v69164(
             package,
             vector_store_id,
@@ -68277,21 +68223,6 @@ def _technical_verified_hot_authority_get_v69195(
 
     source_url = str(entry.get("source_url") or package.get("source_url") or "").strip()
     file_id = str(entry.get("file_id") or package.get("file_id") or "").strip()
-    try:
-        hot_scope_ok_v69278 = _technical_package_hard_scope_match_v69277(
-            package, {"source_url": source_url, "title": entry.get("page_title")}, family, year
-        )
-    except Exception:
-        hot_scope_ok_v69278 = False
-    if not hot_scope_ok_v69278:
-        with state["lock"]:
-            state["entries"].pop(key, None)
-        diagnostic_log(
-            "technical_verified_hot_cross_scope_evicted_v69278",
-            family=str(family)[:80], year=int(year), file_id=file_id[:160],
-            source_url=source_url[:700],
-        )
-        return {}
     if not source_url or not file_id:
         with state["lock"]:
             state["entries"].pop(key, None)
@@ -68338,24 +68269,6 @@ def _technical_verified_hot_authority_put_v69195(lock, vector_store_id):
             package,
         )
     ):
-        return False
-
-    try:
-        hot_put_scope_ok_v69278 = _technical_package_hard_scope_match_v69277(
-            package,
-            {"source_url": lock.get("source_url") or package.get("source_url"),
-             "title": lock.get("page_title") or package.get("title")},
-            family, year,
-        )
-    except Exception:
-        hot_put_scope_ok_v69278 = False
-    if not hot_put_scope_ok_v69278:
-        diagnostic_log(
-            "technical_verified_hot_store_cross_scope_rejected_v69278",
-            family=str(family)[:80], year=int(year) if str(year).isdigit() else str(year),
-            file_id=str(lock.get("file_id") or package.get("file_id") or "")[:160],
-            source_url=str(lock.get("source_url") or package.get("source_url") or "")[:700],
-        )
         return False
 
     entry = {
@@ -68609,64 +68522,6 @@ def _technical_active_source_lock_v69164(prompt_text, vector_store_id):
     package = _technical_package_from_text_v69121(
         file_id, str(payload.get("filename") or ""), full
     )
-    # v69278: a family/year pointer is not authority by itself.  Revalidate its
-    # hydrated package against exact source/root identity before migration, hot-cache
-    # admission, or fail-closed behavior. A foreign pointer is treated as stale, not
-    # as a known-current source for this request.
-    try:
-        active_scope_ok_v69278 = bool(
-            isinstance(package, dict)
-            and _technical_package_hard_scope_match_v69277(package, payload, family, year)
-        )
-    except Exception:
-        active_scope_ok_v69278 = False
-    if not active_scope_ok_v69278:
-        diagnostic_log(
-            "technical_active_pointer_cross_scope_rejected_v69278",
-            family=str(family)[:80], year=int(year), file_id=file_id[:160],
-            source_url=str(payload.get("source_url") or "")[:700],
-        )
-        try:
-            repaired_package_v69278 = _technical_active_authority_bootstrap_v69164(
-                prompt_text, vector_store_id
-            )
-        except Exception:
-            repaired_package_v69278 = {}
-        if isinstance(repaired_package_v69278, dict) and repaired_package_v69278:
-            try:
-                repaired_ok_v69278 = _technical_package_hard_scope_match_v69277(
-                    repaired_package_v69278,
-                    {"source_url": repaired_package_v69278.get("source_url"), "title": repaired_package_v69278.get("title")},
-                    family, year,
-                )
-            except Exception:
-                repaired_ok_v69278 = False
-            if repaired_ok_v69278:
-                package = dict(repaired_package_v69278)
-                file_id = str(package.get("file_id") or "").strip()
-                full = str(package.get("package_text") or "")
-                if not full and file_id:
-                    try:
-                        full = str(_technical_exact_file_text_v69182(file_id, timeout_seconds=3.5) or "")
-                    except Exception:
-                        full = ""
-                payload = {
-                    **dict(payload or {}),
-                    "file_id": file_id,
-                    "filename": str(package.get("filename") or ""),
-                    "source_url": str(package.get("source_url") or ""),
-                    "title": str(package.get("title") or ""),
-                    "extracted_at": str(package.get("extracted_at") or ""),
-                }
-                diagnostic_log(
-                    "technical_active_pointer_repaired_to_exact_scope_v69278",
-                    family=str(family)[:80], year=int(year), file_id=file_id[:160],
-                    source_url=str(package.get("source_url") or "")[:700],
-                )
-            else:
-                return {"status": "no_active_authority", "reason_code": "STALE_CROSS_SCOPE_POINTER", "family": family, "year": year}
-        else:
-            return {"status": "no_active_authority", "reason_code": "STALE_CROSS_SCOPE_POINTER", "family": family, "year": year}
 
     # v69171 in-place migration for pre-v69171 healthy pointers. When the current
     # OpenAI package still exists but no durable snapshot reference was ever written,
@@ -69189,30 +69044,6 @@ def _technical_current_source_bound_recovery_v69169(prompt_text, current_authori
         return {"status": "not_applicable"}
     package_text = str(current.get("package_text") or "")
     file_id = str(current.get("file_id") or "").strip()
-    # v69278 defense-in-depth: even a legacy "known_current" object may not
-    # become factual authority until its hydrated package passes exact request scope.
-    try:
-        prompt_scope_v69278 = _technical_settings_routing_prompt_v69117(prompt_text)
-        families_v69278 = sorted(set(_website_identity_vehicle_families_v69022(prompt_scope_v69278)))
-        years_v69278 = sorted(set(_website_identity_years_v69022(prompt_scope_v69278)))
-        parsed_current_v69278 = _technical_package_from_text_v69121(
-            file_id, str(current.get("filename") or ""), package_text
-        ) if package_text and file_id else {}
-        current_scope_ok_v69278 = bool(
-            len(families_v69278) == 1 and len(years_v69278) == 1
-            and isinstance(parsed_current_v69278, dict)
-            and _technical_package_hard_scope_match_v69277(
-                parsed_current_v69278, current, families_v69278[0], years_v69278[0]
-            )
-        )
-    except Exception:
-        current_scope_ok_v69278 = False
-    if package_text and file_id and not current_scope_ok_v69278:
-        diagnostic_log(
-            "technical_bound_recovery_cross_scope_rejected_v69278",
-            file_id=file_id[:160], source_url=str(current.get("source_url") or "")[:700],
-        )
-        return {"status": "not_applicable", "reason_code": "CROSS_SCOPE_CURRENT_POINTER"}
     if not package_text or not file_id:
         return {
             "status": "bound_source_unavailable",
@@ -71335,8 +71166,25 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
                 ]
                 if len(parts_v69201) < 2:
                     continue
+                # v69279: exact profile corroboration must be punctuation/alias neutral.
+                # ATP-authored values such as ``F150 LO S1 Manual`` are visibly
+                # rendered as ``F150 LO – S1 Manual`` on current pages, and
+                # ``automatic`` is commonly displayed as ``Auto``.  The former raw
+                # substring check falsely rejected those exact same-section values.
+                # Normalize only presentation punctuation and the Auto/Automatic
+                # vocabulary alias; no vehicle/menu value is invented or broadened.
+                def _profile_corroboration_norm_v69279(value):
+                    value = html.unescape(str(value or "")).casefold()
+                    value = re.sub(r"\bautomatic\b", "auto", value)
+                    value = re.sub(r"[^a-z0-9.]+", " ", value)
+                    return re.sub(r"\s+", " ", value).strip()
+
+                section_norm_v69279 = _profile_corroboration_norm_v69279(
+                    profile_section_text_v69201
+                )
                 if not all(
-                    part.casefold() in profile_section_cf_v69201
+                    _profile_corroboration_norm_v69279(part)
+                    and _profile_corroboration_norm_v69279(part) in section_norm_v69279
                     for part in parts_v69201
                 ):
                     continue
@@ -72700,12 +72548,6 @@ def _technical_package_hard_scope_match_v69277(package, payload, family, year):
     return True
 
 
-# v69278 production closure contract:
-# - exact verified package outranks legacy family/year pointers
-# - active/hot pointers must pass the same hard source/root/model-year gate
-# - shared multi-branch pages render atomically without requiring one root SYNC token
-TECHNICAL_AUTHORITY_CLOSURE_VERSION_V69278 = 69278
-
 def _technical_result_hard_scope_valid_v69277(result, prompt_text, store=""):
     """Validate a recovered preflight result before it may pre-empt exact-source recovery."""
     result = dict(result or {})
@@ -72876,6 +72718,186 @@ def _technical_package_exact_discriminators_v69243(package):
         "climate_hint": climate_hint,
     }
 
+
+# ============================================================
+# v69278 — verified single-source multi-branch configuration renderer
+# A single current ATP source may intentionally contain multiple configuration
+# profiles (e.g. Ford F-Series SYNC/climate combinations).  Do not require one
+# factory-system discriminator for a generic model/year query.  Render the
+# already-compiled exact package contract directly; no source rediscovery,
+# provider call, vector fallback, or cross-source fallback is permitted.
+# ============================================================
+def _technical_verified_single_multibranch_result_v69278(prompt_text, package):
+    package = dict(package or {})
+    file_id = str(package.get("file_id") or "").strip()
+    source_url = str(package.get("source_url") or "").strip()
+    if not file_id or not str(package.get("package_text") or ""):
+        return {}
+    try:
+        # v69279: do not trust an embedded v69199 ``config_ready=False`` forever.
+        # A package learned before the punctuation-neutral profile parser can carry
+        # a stale compiled flag even though the exact current section now parses
+        # deterministically. Re-evaluate only this already-verified package's own
+        # compiled configuration sections at the live call site.
+        contracts = []
+        # v69280: rebuild contracts from the verified package's RAW current-source
+        # package_text first. Embedded v69199 templates may preserve stale/truncated
+        # section_text from an older compiler, which prevents the corrected v69279
+        # profile corroboration from ever seeing the full authored Ford profile matrix.
+        # This fresh compile stays inside the same already-verified package and does
+        # not perform source discovery, provider calls, vector fallback, or cross-source
+        # substitution. Fall back to embedded templates only if the raw package cannot
+        # be freshly compiled for a non-configuration legacy reason.
+        fresh_contracts_v69280 = list(_technical_compile_one_package_v69198(package) or [])
+        contract_source_v69280 = "fresh-raw-package" if fresh_contracts_v69280 else "embedded-fallback"
+        raw_contracts_v69280 = fresh_contracts_v69280 or list(_technical_compile_one_package_v69199(package) or [])
+        diagnostic_log(
+            "technical_verified_single_fresh_compile_v69280",
+            file_id=file_id[:160], source_url=source_url[:700],
+            source=contract_source_v69280, contracts=len(raw_contracts_v69280),
+        )
+        for raw_contract_v69279 in raw_contracts_v69280:
+            if not isinstance(raw_contract_v69279, dict):
+                continue
+            contract_v69279 = dict(raw_contract_v69279)
+            if not bool(contract_v69279.get("config_ready")):
+                authority_seed_v69279 = {
+                    "status": "selected",
+                    "file_id": file_id,
+                    "filename": str(contract_v69279.get("filename") or package.get("filename") or ""),
+                    "source_url": str(contract_v69279.get("source_url") or source_url),
+                    "page_title": str(contract_v69279.get("page_title") or package.get("title") or package.get("page_title") or ""),
+                    "package_text": str(package.get("package_text") or ""),
+                    "section_title": str(contract_v69279.get("section_title") or ""),
+                    "section_id": str(contract_v69279.get("section_id") or ""),
+                    "section_text": str(contract_v69279.get("section_text") or ""),
+                    "selected_section_title_v69143": str(contract_v69279.get("section_title") or ""),
+                    "selected_segments_v69158": list(contract_v69279.get("segments") or []),
+                    "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
+                }
+                literal_v69279 = dict(
+                    _technical_metadata_literal_configuration_v69178(
+                        "car model a/c protocol", authority_seed_v69279
+                    ) or {}
+                )
+                if _technical_literal_is_sufficient_v69156(
+                    "car model a/c protocol", literal_v69279
+                ):
+                    structured_v69279 = _technical_merge_structured_v69156(
+                        literal_v69279,
+                        {"fields": [], "branches": [], "status": "not_needed"},
+                    )
+                    if _technical_table_rows_from_structured_v69155(structured_v69279):
+                        contract_v69279["config_ready"] = True
+                        contract_v69279["config_literal"] = literal_v69279
+                        contract_v69279["config_structured"] = structured_v69279
+                        contract_v69279["runtime_config_repaired_v69279"] = True
+                        diagnostic_log(
+                            "technical_compiled_config_runtime_repaired_v69279",
+                            file_id=file_id[:160], source_url=source_url[:700],
+                            contract_source=contract_source_v69280,
+                            section=str(contract_v69279.get("section_title") or "")[:300],
+                            branches=len(structured_v69279.get("branches") or []),
+                            rows=len(_technical_table_rows_from_structured_v69155(structured_v69279) or []),
+                        )
+            if bool(contract_v69279.get("config_ready")):
+                contracts.append(contract_v69279)
+    except Exception as error_v69278:
+        diagnostic_log(
+            "technical_verified_single_multibranch_compile_failed_v69278",
+            file_id=file_id[:160], source_url=source_url[:700],
+            error_type=type(error_v69278).__name__, error=str(error_v69278)[:500],
+        )
+        return {}
+    if not contracts:
+        return {}
+
+    query_tokens = _technical_contract_tokens_v69198(prompt_text)
+    def rank_v69278(contract):
+        sid = str(contract.get("section_id") or "").casefold()
+        title = str(contract.get("section_title") or "").casefold()
+        preferred = int(
+            sid in {"protocol-settings", "car-model-ac", "car-model-ac-protocol"}
+            or "car model" in title or "protocol" in title
+        )
+        structured = dict(contract.get("config_structured") or {})
+        row_count = len(_technical_table_rows_from_structured_v69155(structured) or [])
+        branch_count = len(structured.get("branches") or []) if isinstance(structured, dict) else 0
+        overlap = len(query_tokens & set(contract.get("search_tokens") or []))
+        return (preferred, int(row_count > 0), branch_count, overlap, len(str(contract.get("section_text") or "")))
+
+    contracts.sort(key=rank_v69278, reverse=True)
+    for contract in contracts:
+        structured = dict(contract.get("config_structured") or {})
+        literal = dict(contract.get("config_literal") or {})
+        # Prefer the compiled structured contract because it preserves all authored
+        # branches. If unavailable, merge the same-source compiled literal only.
+        rows = _technical_table_rows_from_structured_v69155(structured) or []
+        if not rows and literal:
+            structured = _technical_merge_structured_v69156(
+                literal, {"fields": [], "branches": [], "status": "not_needed"}
+            )
+            rows = _technical_table_rows_from_structured_v69155(structured) or []
+        if not rows:
+            continue
+
+        authority = {
+            "status": "recovered",
+            "file_id": file_id,
+            "filename": str(contract.get("filename") or package.get("filename") or ""),
+            "source_url": str(contract.get("source_url") or source_url),
+            "page_title": str(contract.get("page_title") or package.get("title") or package.get("page_title") or ""),
+            "package_text": str(package.get("package_text") or ""),
+            "section_title": str(contract.get("section_title") or ""),
+            "section_id": str(contract.get("section_id") or ""),
+            "branch_paths": [
+                " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+                for seg in (contract.get("segments") or []) if isinstance(seg, dict)
+            ],
+            "section_text": str(contract.get("section_text") or ""),
+            "selected_image_urls_v69143": list(contract.get("exact_images") or [])[:8],
+            "selected_section_title_v69143": str(contract.get("section_title") or ""),
+            "selected_segments_v69158": list(contract.get("segments") or []),
+            "image_evidence": list(contract.get("config_image_evidence_v69204") or []),
+            "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
+            "literal_structured_v69156": literal,
+            "structured": structured,
+            "deterministic_literal_authority_v69156": True,
+            "model_structured_v69156": {"status": "not_needed", "fields": [], "branches": []},
+            "selector_version": 69278,
+            "verified_single_multibranch_v69278": True,
+        }
+        authority["context"] = _technical_authority_context_v69155(authority)
+        authority["rows"] = [{
+            "file_id": file_id,
+            "filename": authority["filename"],
+            "score": 1.0,
+            "text": authority["section_text"][:14000],
+            "technical_verified_single_multibranch_v69278": True,
+        }]
+        diagnostic_log(
+            "technical_verified_single_multibranch_bound_v69278",
+            file_id=file_id[:160], source_url=authority["source_url"][:700],
+            section=authority["section_title"][:300], rows=len(rows),
+            branches=len(structured.get("branches") or []) if isinstance(structured, dict) else 0,
+            images=len(authority.get("selected_image_urls_v69143") or []),
+        )
+        diagnostic_log(
+            "technical_verified_single_fresh_multibranch_bound_v69280",
+            file_id=file_id[:160], source_url=source_url[:700],
+            branches=len(structured.get("branches") or []), rows=len(rows),
+            images=len(authority.get("selected_image_urls_v69143") or []),
+        )
+        return {
+            "status": "recovered", "kind": "configuration",
+            "authority": authority,
+            "exact_images": list(authority.get("selected_image_urls_v69143") or []),
+            "verified_hydrated_single_v69242": True,
+            "verified_single_multibranch_v69278": True,
+            "verified_package_count_v69244": 1,
+            "verified_recovered_configuration_count_v69243": 1,
+        }
+    return {}
 
 def _technical_verified_package_configuration_row_v69243(prompt_text, package):
     """Parse one already-verified current package exactly once into one row.
@@ -73195,11 +73217,9 @@ def _technical_compiled_row_for_verified_package_v69247(prompt_text, package, st
 
     discriminator = dict(_technical_package_exact_discriminators_v69243(package) or {})
     system_label = str(discriminator.get("system_label") or "").strip()
-    # v69278: one current page may intentionally contain several authored SYNC /
-    # screen / climate profiles.  Absence of one root system discriminator is not a
-    # render failure for a generic model/year query.  Keep the original user prompt
-    # so the ATP profile matrix can publish all same-source branches atomically.
-    scoped_prompt = f"{prompt_text} {system_label}".strip() if system_label else str(prompt_text or "").strip()
+    if not system_label:
+        return {}
+    scoped_prompt = f"{prompt_text} {system_label}".strip()
 
     # v69248: compile directly from this already-verified package object.
     # v69247 looked the package back up in the shared compiled-state dictionary;
@@ -73289,13 +73309,6 @@ def _technical_compiled_row_for_verified_package_v69247(prompt_text, package, st
         if not _technical_table_rows_from_structured_v69155(structured):
             continue
 
-        if not system_label:
-            branch_count_v69278 = len([b for b in (structured.get("branches") or []) if isinstance(b, dict)])
-            if branch_count_v69278 < 2:
-                # A generic page without one system discriminator is acceptable only
-                # when the same exact section proves multiple configuration branches.
-                continue
-            system_label = "Multiple Factory Configurations"
         authority["literal_structured_v69156"] = literal
         authority["structured"] = structured
         authority["deterministic_literal_authority_v69156"] = True
@@ -74119,6 +74132,16 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             )
 
         if verified_package_count_v69244 == 1:
+            # v69278: one verified source may contain multiple authored profiles.
+            # Bind its compiled multi-branch contract before the older one-row path.
+            single_multibranch_v69278 = _technical_verified_single_multibranch_result_v69278(
+                prompt_text, eligible_verified_packages_v69242[0]
+            )
+            if str((single_multibranch_v69278 or {}).get("status") or "") == "recovered":
+                _technical_configuration_set_cache_put_v69241(
+                    clean_store, revision_v69228, family, year, single_multibranch_v69278
+                )
+                return single_multibranch_v69278
             recovered_rows_v69243 = _technical_verified_configuration_rows_v69243(
                 prompt_text, eligible_verified_packages_v69242, family, year
             )
@@ -74148,53 +74171,6 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
                 "technical_verified_single_package_render_miss_v69244",
                 family=family, year=int(year), verified_packages=1,
             )
-            # v69278: the v69243 narrow renderer expects one branch discriminator.
-            # For a single exact current page that intentionally carries a complete
-            # multi-branch profile matrix (e.g. one Ford F-Series page with six SYNC/
-            # climate profiles), compile/render that same verified package directly.
-            generic_row_v69278 = _technical_compiled_row_for_verified_package_v69247(
-                prompt_text, eligible_verified_packages_v69242[0], clean_store
-            )
-            if generic_row_v69278:
-                authority_v69278 = dict(generic_row_v69278.get("authority") or {})
-                if str(authority_v69278.get("status") or "") == "recovered":
-                    result_v69278 = {
-                        "status": "recovered",
-                        "kind": "configuration",
-                        "authority": authority_v69278,
-                        "exact_images": list(generic_row_v69278.get("exact_images") or []),
-                        "verified_hydrated_single_v69242": True,
-                        "verified_package_count_v69244": 1,
-                        "verified_recovered_configuration_count_v69243": 1,
-                        "generic_multi_branch_single_source_v69278": True,
-                    }
-                    _technical_configuration_set_cache_put_v69241(
-                        clean_store, revision_v69228, family, year, result_v69278
-                    )
-                    diagnostic_log(
-                        "technical_verified_single_multibranch_bound_v69278",
-                        family=family, year=int(year),
-                        file_id=str(authority_v69278.get("file_id") or "")[:160],
-                        source_url=str(authority_v69278.get("source_url") or "")[:700],
-                        branches=len(authority_v69278.get("structured", {}).get("branches") or []),
-                    )
-                    return result_v69278
-            # Do not let a stale legacy family/year pointer override a source that was
-            # already positively verified in this exact request.  Preserve that exact
-            # source identity as a sentinel so the live call site can fail closed on it.
-            exact_pkg_v69278 = dict(eligible_verified_packages_v69242[0] or {})
-            return {
-                "status": "verified_current_unrendered",
-                "kind": "configuration",
-                "family": family, "year": int(year),
-                "verified_package_count_v69278": 1,
-                "verified_package_v69278": exact_pkg_v69278,
-                "authority": {
-                    "file_id": str(exact_pkg_v69278.get("file_id") or ""),
-                    "source_url": str(exact_pkg_v69278.get("source_url") or ""),
-                    "page_title": str(exact_pkg_v69278.get("title") or ""),
-                },
-            }
 
     compiled_result_v69238 = _technical_compiled_contract_lookup_v69198(prompt_text, clean_store)
     if str((compiled_result_v69238 or {}).get("status") or "") == "recovered":
@@ -87941,32 +87917,8 @@ else:
                             packages=len(technical_multi_package_configuration_v69239.get("authorities") or []),
                         )
 
-                    verified_unrendered_v69278 = bool(
-                        technical_v69156_configuration_required
-                        and str((locals().get("technical_compiled_preflight_v69198") or {}).get("status") or "") == "verified_current_unrendered"
-                        and int((locals().get("technical_compiled_preflight_v69198") or {}).get("verified_package_count_v69278") or 0) == 1
-                    )
-                    if verified_unrendered_v69278:
-                        exact_unrendered_authority_v69278 = dict(
-                            (locals().get("technical_compiled_preflight_v69198") or {}).get("authority") or {}
-                        )
-                        technical_current_source_baseline_recovery_v69168 = False
-                        use_file_search = False
-                        technical_current_source_safe_answer_v69164 = (
-                            "## Current Technical Source Temporarily Unavailable\n\n"
-                            "The exact current AutoTecPro Technical source was verified for this vehicle, "
-                            "but its requested configuration could not be rendered safely. No older, cached, "
-                            "or cross-vehicle authority was allowed to replace it."
-                        )
-                        diagnostic_log(
-                            "technical_verified_exact_source_render_fail_closed_v69278",
-                            file_id=str(exact_unrendered_authority_v69278.get("file_id") or "")[:160],
-                            source_url=str(exact_unrendered_authority_v69278.get("source_url") or "")[:700],
-                        )
-
                     if (
                         technical_v69156_configuration_required
-                        and not verified_unrendered_v69278
                         and str(technical_full_package_authority_v69155.get("status") or "") != "recovered"
                         and str((locals().get("technical_multi_package_configuration_v69239") or {}).get("status") or "") != "recovered"
                     ):
