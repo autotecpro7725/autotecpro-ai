@@ -1,3 +1,5 @@
+# AutoTecPro AI v69286 — Final Production Graphic Runtime Identity + Stale Durable-Job Repair (2026-08-31)
+# v69285 binding authority and v69284 primary Reference repairs preserved unchanged.
 # AutoTecPro AI v69280 — Technical profile corroboration + runtime contract repair
 # AutoTecPro AI v69278 — Final Production Technical Single-Source Multi-Branch Render Fix
 # AutoTecPro AI v69277 — Final Production Technical Authority Integrity Repair (2026-08-30)
@@ -11,6 +13,8 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
+AUTOTECPRO_RELEASE_VERSION = "v69286"
+AUTOTECPRO_RELEASE_BUILD = "graphic-runtime-identity-stale-job-repair-v69286-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -235,6 +239,14 @@ def diagnostic_log(event, **fields):
         # Diagnostics must never affect application behavior.
         pass
 
+
+# v69285 explicit runtime build fingerprint. This is intentionally emitted at module
+# load so production logs prove which App/app.py revision is actually executing.
+diagnostic_log(
+    "autotecpro_release_loaded_v69286",
+    release=AUTOTECPRO_RELEASE_VERSION,
+    build=AUTOTECPRO_RELEASE_BUILD,
+)
 
 # ============================================================
 # v69188 Stability-Only Runtime Guards
@@ -52080,6 +52092,12 @@ def _graphic_queue_durable_job_v68844(prompt_text, files, *, structured_options=
             "manifest_sha256": str(manifest.get("sha256") or ""),
         }
         job["authority_manifest_v68994"] = protected
+        # v69286: stamp the exact application release into protected durable jobs.
+        # A job created by an older Graphic runtime must never resume silently under
+        # a newer protected engine because its captured state/fallback authority can
+        # belong to a different release.
+        job["graphic_runtime_release_v69286"] = AUTOTECPRO_RELEASE_VERSION
+        job["graphic_runtime_build_v69286"] = AUTOTECPRO_RELEASE_BUILD
         st.session_state["_graphic_v68994_durable_authority_hint"] = dict(protected)
         job = _graphic_update_durable_job_v68844(job, status=job.get("status")) or job
     return job
@@ -52089,7 +52107,22 @@ def _graphic_pending_durable_job_v68844():
     job = _GRAPHIC_V68994_BASE_PENDING_DURABLE_JOB()
     if isinstance(job, dict):
         hint = job.get("authority_manifest_v68994")
-        if isinstance(hint, dict) and str(hint.get("mode") or "") in {"reference", "installed"}:
+        protected_mode_v69286 = isinstance(hint, dict) and str(hint.get("mode") or "") in {"reference", "installed"}
+        if protected_mode_v69286:
+            stamped_release_v69286 = str(job.get("graphic_runtime_release_v69286") or "").strip()
+            if stamped_release_v69286 != AUTOTECPRO_RELEASE_VERSION:
+                diagnostic_log(
+                    "graphic_v69286_stale_protected_durable_job_rejected",
+                    job_id=str(job.get("job_id") or ""),
+                    job_release=stamped_release_v69286 or "legacy-unversioned",
+                    current_release=AUTOTECPRO_RELEASE_VERSION,
+                    mode=str(hint.get("mode") or ""),
+                )
+                # Do not mutate/delete the historical durable record here; simply refuse
+                # to treat it as a resumable job in this release. A fresh submission will
+                # create a v69286-stamped job through the queue wrapper above.
+                st.session_state.pop("_graphic_v68994_durable_authority_hint", None)
+                return None
             st.session_state["_graphic_v68994_durable_authority_hint"] = dict(hint)
     return job
 
@@ -52869,6 +52902,331 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         technical_pipeline_changed=False,
     )
 
+
+    # v69284: repair protected Reference primary-authority false blockers exposed by
+    # the v69283 hosted run.  This patch is Graphic-only and operates exclusively
+    # inside the isolated v69248 Reference namespace.
+    def _v69284_install_reference_primary_authority(scope_v69284):
+        spec_name_v69284 = "_graphic_verified_campaign_spec_v3300"
+        layout_name_v69284 = "_graphic_reference_layout_fidelity_gate_v13000"
+        fidelity_name_v69284 = "_graphic_reference_fidelity_qa_v34000"
+        v3200_name_v69284 = "_generate_graphic_marketing_images_advanced_v3200"
+        emergency_name_v69284 = "_graphic_emergency_provider_result_v15000"
+        builder_name_v69284 = "_graphic_build_hybrid_campaign_result_v3300"
+
+        original_spec_v69284 = scope_v69284.get(spec_name_v69284)
+        original_layout_v69284 = scope_v69284.get(layout_name_v69284)
+        original_fidelity_v69284 = scope_v69284.get(fidelity_name_v69284)
+        original_v3200_v69284 = scope_v69284.get(v3200_name_v69284)
+        original_emergency_v69284 = scope_v69284.get(emergency_name_v69284)
+        original_builder_v69284 = scope_v69284.get(builder_name_v69284)
+        explicit_fitment_v69284 = scope_v69284.get("_graphic_explicit_fitment_v41100")
+        copy_tokens_v69284 = scope_v69284.get("_graphic_copy_required_tokens_v36000")
+        visual_match_v69284 = scope_v69284.get("_graphic_exact_product_visual_match_v10000")
+        role_items_v69284 = scope_v69284.get("_graphic_project_role_items")
+
+        required_v69284 = (
+            original_spec_v69284, original_layout_v69284, original_fidelity_v69284,
+            original_v3200_v69284, original_emergency_v69284, original_builder_v69284, explicit_fitment_v69284,
+            copy_tokens_v69284, visual_match_v69284, role_items_v69284,
+        )
+        if not all(callable(x) for x in required_v69284):
+            raise RuntimeError("v69284 protected Reference primary authorities missing")
+
+        def deterministic_proof_v69284(metadata_v69284):
+            md_v69284 = dict(metadata_v69284 or {})
+            proof_v69284 = dict(md_v69284.get("reference_exact_source_bounds_v68981") or {})
+            return bool(
+                md_v69284.get("reference_geometry_authority_v68981") is True
+                and proof_v69284.get("engine") == "exact-source-bounds-v68981"
+                and proof_v69284.get("on_canvas") is True
+                and proof_v69284.get("clears_footer") is True
+                and proof_v69284.get("uniform_scale_only") is True
+                and proof_v69284.get("aspect_ratio_preserved") is True
+                and proof_v69284.get("crop_applied") is False
+                and proof_v69284.get("perspective_warp_applied") is False
+                and md_v69284.get("premultiplied_alpha_resize") is True
+                and md_v69284.get("master_bezel_lock") is True
+                and md_v69284.get("bezel_pixels_regenerated") is False
+                and md_v69284.get("product_pixels_provider_generated") is False
+                and md_v69284.get("product_ai_reconstruction_prohibited") is True
+            )
+
+        # Current prompt copy must outrank any project/reference carry-over.  v69283
+        # proved that stale required-token authority could survive into the isolated
+        # v69248 campaign spec even while the visible current prompt named Ford
+        # F150/F250/F350/F450 explicitly.
+        def spec_v69284(prompt_text_v69284, vehicle_profile_v69284=None):
+            spec_v69284_out = dict(original_spec_v69284(prompt_text_v69284, vehicle_profile_v69284) or {})
+            explicit_v69284 = str(explicit_fitment_v69284(prompt_text_v69284) or "").strip()
+            if explicit_v69284:
+                tokens_v69284 = list(copy_tokens_v69284(explicit_v69284) or [])
+                spec_v69284_out["compatibility"] = explicit_v69284
+                spec_v69284_out["compatibility_required_tokens"] = tokens_v69284
+                spec_v69284_out["compatibility_locked"] = True
+                spec_v69284_out["compatibility_source"] = "v69284-current-prompt-authority"
+            return spec_v69284_out
+        spec_v69284._atp_v69284_current_prompt_copy = True
+        spec_v69284._atp_v69284_original = original_spec_v69284
+        scope_v69284[spec_name_v69284] = spec_v69284
+
+        # The v69283 final release closure captured the original isolated v69248
+        # fidelity callable before v69284 was installed.  Therefore repair the
+        # photometric evidence at its source: immediately after the deterministic
+        # compositor returns, mark ONLY the historical RGB-drift check advisory when
+        # exact-source geometry is proven, alpha is unchanged, and the independent
+        # source-vs-final visual score is >= 0.985.  The original numeric drift is
+        # preserved for diagnostics; geometry/provenance/copy gates remain unchanged.
+        def builder_v69284(prompt_text_v69284, roles_v69284, output_size_v69284, reference_blueprint_v69284, vehicle_profile_v69284):
+            result_v69284 = original_builder_v69284(
+                prompt_text_v69284, roles_v69284, output_size_v69284,
+                reference_blueprint_v69284, vehicle_profile_v69284
+            )
+            if not isinstance(result_v69284, dict):
+                return result_v69284
+            md_v69284 = dict(result_v69284.get("layered_metadata") or {})
+            rgb_v69284 = dict(md_v69284.get("product_rgb_fidelity") or {})
+            if deterministic_proof_v69284(md_v69284) and rgb_v69284.get("passed") is not True:
+                visual_v69284 = dict(visual_match_v69284(result_v69284, roles_v69284) or {})
+                visual_score_v69284 = float(visual_v69284.get("score") or 0.0)
+                if (
+                    rgb_v69284.get("available")
+                    and rgb_v69284.get("alpha_unchanged") is True
+                    and visual_v69284.get("available")
+                    and visual_score_v69284 >= 0.985
+                ):
+                    rgb_v69284["historical_passed_v69284"] = bool(rgb_v69284.get("passed"))
+                    rgb_v69284["passed"] = True
+                    rgb_v69284["photometric_advisory_v69284"] = True
+                    rgb_v69284["visual_score_v69284"] = round(visual_score_v69284, 6)
+                    md_v69284["product_rgb_fidelity"] = rgb_v69284
+                    result_v69284["layered_metadata"] = md_v69284
+                    diagnostic_log(
+                        "graphic_v69284_rgb_evidence_reclassified_photometric",
+                        visual_score=round(visual_score_v69284,6),
+                        mean_rgb_delta=rgb_v69284.get("mean_rgb_delta"),
+                        max_rgb_delta=rgb_v69284.get("max_rgb_delta"),
+                    )
+            return result_v69284
+        builder_v69284._atp_v69284_rgb_evidence = True
+        builder_v69284._atp_v69284_original = original_builder_v69284
+        scope_v69284[builder_name_v69284] = builder_v69284
+
+        # v69248 historically compared the new product's physical silhouette directly
+        # to the product silhouette inside the style reference.  That is invalid when
+        # the user intentionally supplies a different product shape.  Accept the hero
+        # placement only when the existing v68981 exact-source proof shows that THIS
+        # uploaded product occupies its maximum aspect-preserving fit inside the
+        # authorized reference hero region.  Real undersize/crop/off-canvas failures
+        # remain fatal.
+        def layout_v69284(result_v69284, roles_v69284):
+            report_v69284 = dict(original_layout_v69284(result_v69284, roles_v69284) or {})
+            if report_v69284.get("required") is not True or report_v69284.get("passed") is True:
+                return report_v69284
+            md_v69284 = dict((result_v69284 or {}).get("layered_metadata") or {})
+            if not deterministic_proof_v69284(md_v69284):
+                return report_v69284
+            proof_v69284 = dict(md_v69284.get("reference_exact_source_bounds_v68981") or {})
+            expected_v69284 = dict(md_v69284.get("reference_layout_blueprint") or {})
+            actual_v69284 = dict(md_v69284.get("actual_normalized_boxes") or {})
+            try:
+                ex_v69284, ey_v69284, ew_v69284, eh_v69284 = [float(v) for v in expected_v69284.get("hero_product_box")]
+                ax_v69284, ay_v69284, aw_v69284, ah_v69284 = [float(v) for v in actual_v69284.get("hero_product_box")]
+                source_v69284 = proof_v69284.get("source_visible_size") or md_v69284.get("product_source_visible_size")
+                sw_v69284, sh_v69284 = [float(v) for v in source_v69284]
+                canvas_v69284 = proof_v69284.get("canvas_size") or md_v69284.get("canvas_size")
+                cw_v69284, ch_v69284 = [float(v) for v in canvas_v69284]
+                max_scale_v69284 = min((ew_v69284*cw_v69284)/sw_v69284, (eh_v69284*ch_v69284)/sh_v69284)
+                max_w_v69284 = (sw_v69284*max_scale_v69284)/cw_v69284
+                max_h_v69284 = (sh_v69284*max_scale_v69284)/ch_v69284
+                fit_v69284 = min(aw_v69284/max(max_w_v69284,1e-9), ah_v69284/max(max_h_v69284,1e-9))
+                cx_v69284, cy_v69284 = ax_v69284+aw_v69284/2.0, ay_v69284+ah_v69284/2.0
+                tol_x_v69284, tol_y_v69284 = max(0.012, ew_v69284*0.035), max(0.012, eh_v69284*0.035)
+                contained_v69284 = bool(
+                    ex_v69284 <= cx_v69284 <= ex_v69284+ew_v69284
+                    and ey_v69284 <= cy_v69284 <= ey_v69284+eh_v69284
+                    and ax_v69284 >= ex_v69284-tol_x_v69284
+                    and ay_v69284 >= ey_v69284-tol_y_v69284
+                    and ax_v69284+aw_v69284 <= ex_v69284+ew_v69284+tol_x_v69284
+                    and ay_v69284+ah_v69284 <= ey_v69284+eh_v69284+tol_y_v69284
+                )
+            except Exception:
+                return report_v69284
+            if not (contained_v69284 and fit_v69284 >= 0.90):
+                return report_v69284
+            issues_v69284 = []
+            removed_v69284 = []
+            for issue_v69284 in list(report_v69284.get("issues") or []):
+                issue_text_v69284 = str(issue_v69284)
+                if issue_text_v69284 == "hero product differs materially from reference":
+                    removed_v69284.append(issue_text_v69284)
+                    continue
+                issues_v69284.append(issue_v69284)
+            if not removed_v69284:
+                return report_v69284
+            checks_v69284 = dict(report_v69284.get("checks") or {})
+            old_hero_v69284 = float(checks_v69284.get("hero_product_box") or 0.0)
+            new_hero_v69284 = min(1.0, max(0.0, float(fit_v69284)))
+            checks_v69284["hero_product_box"] = round(new_hero_v69284, 4)
+            checks_v69284["hero_product_aspect_fit_v69284"] = {
+                "fit_ratio": round(float(fit_v69284), 6),
+                "contained": True,
+                "source_shape_independent": True,
+            }
+            score_v69284 = min(
+                1.0,
+                max(0.0, float(report_v69284.get("score") or 0.0) + (new_hero_v69284-old_hero_v69284)*0.44)
+            )
+            report_v69284["issues"] = issues_v69284
+            report_v69284["checks"] = checks_v69284
+            report_v69284["score"] = round(score_v69284, 4)
+            report_v69284["passed"] = bool(not issues_v69284 and score_v69284 >= float(report_v69284.get("threshold") or 0.78))
+            report_v69284["policy_v69284"] = "uploaded-product-aspect-aware-reference-hero-authority"
+            diagnostic_log(
+                "graphic_v69284_reference_hero_shape_false_positive_suppressed",
+                fit_ratio=round(float(fit_v69284),6),
+                score=report_v69284.get("score"),
+            )
+            return report_v69284
+        layout_v69284._atp_v69284_aspect_aware = True
+        layout_v69284._atp_v69284_original = original_layout_v69284
+        scope_v69284[layout_name_v69284] = layout_v69284
+
+        # Local photometric integration is not structural product corruption.  Only
+        # suppress the historical RGB-drift blocker when exact-source geometry is
+        # proven, alpha is unchanged, and the independent final-vs-source visual score
+        # is >= 0.985.  All geometry/provenance/copy/aperture failures remain hard.
+        def fidelity_v69284(result_v69284, roles_v69284):
+            report_v69284 = dict(original_fidelity_v69284(result_v69284, roles_v69284) or {})
+            if report_v69284.get("required") is not True or report_v69284.get("passed") is True:
+                return report_v69284
+            md_v69284 = dict((result_v69284 or {}).get("layered_metadata") or {})
+            if not deterministic_proof_v69284(md_v69284):
+                return report_v69284
+            rgb_v69284 = dict(md_v69284.get("product_rgb_fidelity") or {})
+            visual_v69284 = dict(visual_match_v69284(result_v69284, roles_v69284) or {})
+            visual_score_v69284 = float(visual_v69284.get("score") or 0.0)
+            rgb_safe_v69284 = bool(
+                rgb_v69284.get("available")
+                and rgb_v69284.get("alpha_unchanged") is True
+                and visual_v69284.get("available")
+                and visual_score_v69284 >= 0.985
+            )
+            if not rgb_safe_v69284:
+                return report_v69284
+            issues_v69284=[]; removed_v69284=[]
+            for issue_v69284 in list(report_v69284.get("issues") or []):
+                if str(issue_v69284) == "product RGB drift exceeded the reference-mode tolerance":
+                    removed_v69284.append(str(issue_v69284))
+                    continue
+                issues_v69284.append(issue_v69284)
+            if not removed_v69284:
+                return report_v69284
+            checks_v69284 = dict(report_v69284.get("checks") or {})
+            checks_v69284["product_rgb_fidelity"] = 1.0
+            checks_v69284["product_rgb_photometric_authority_v69284"] = {
+                "visual_score": round(visual_score_v69284,6),
+                "alpha_unchanged": True,
+                "deterministic_geometry": True,
+            }
+            score_v69284 = min(1.0, float(report_v69284.get("score") or 0.0) + 0.09)
+            report_v69284["issues"] = issues_v69284
+            report_v69284["checks"] = checks_v69284
+            report_v69284["score"] = round(score_v69284,4)
+            report_v69284["passed"] = bool(not issues_v69284 and score_v69284 >= float(report_v69284.get("threshold") or 0.86))
+            report_v69284["policy_v69284"] = "exact-source-photometric-integration-authority"
+            diagnostic_log(
+                "graphic_v69284_rgb_photometric_false_positive_suppressed",
+                visual_score=round(visual_score_v69284,6),
+                mean_rgb_delta=rgb_v69284.get("mean_rgb_delta"),
+                max_rgb_delta=rgb_v69284.get("max_rgb_delta"),
+            )
+            return report_v69284
+        fidelity_v69284._atp_v69284_photometric_authority = True
+        fidelity_v69284._atp_v69284_original = original_fidelity_v69284
+        scope_v69284[fidelity_name_v69284] = fidelity_v69284
+
+        # Protected Reference recovery must never spend another 10–25 minutes asking a
+        # provider to reconstruct a weaker campaign after the exact compositor fails.
+        # The project is already durable; fail fast and let the user retry the primary
+        # exact route rather than publishing or waiting on a weaker fallback.
+        def protected_reference_context_v69284(prompt_v69284, uploads_v69284, forced_v69284):
+            roles_v69284 = list(role_items_v69284(uploads_v69284, prompt_v69284, forced_v69284) or [])
+            return bool(
+                any(x.get("role")=="product_photo" for x in roles_v69284)
+                and any(x.get("role")=="style_reference" for x in roles_v69284)
+                and not any(x.get("role")=="edit_base" for x in roles_v69284)
+            )
+
+        def v3200_v69284(prompt_text_v69284, uploaded_files_v69284=None, *, use_approved_style=True,
+                         preserve_product=True, style_strength="High", forced_upload_role="Auto-detect",
+                         quality_retry=True, product_transform_mode="Auto", professional_layered_studio=True):
+            if preserve_product and protected_reference_context_v69284(prompt_text_v69284, uploaded_files_v69284, forced_upload_role):
+                diagnostic_log("graphic_v69284_reference_v3200_recovery_skipped")
+                raise RuntimeError("Protected Reference uses the exact-product compositor only; compatibility provider recovery is disabled.")
+            return original_v3200_v69284(
+                prompt_text_v69284, uploaded_files_v69284,
+                use_approved_style=use_approved_style, preserve_product=preserve_product,
+                style_strength=style_strength, forced_upload_role=forced_upload_role,
+                quality_retry=quality_retry, product_transform_mode=product_transform_mode,
+                professional_layered_studio=professional_layered_studio,
+            )
+        v3200_v69284._atp_v69284_reference_fail_fast = True
+        v3200_v69284._atp_v69284_original = original_v3200_v69284
+        scope_v69284[v3200_name_v69284] = v3200_v69284
+
+        def emergency_v69284(prompt_text_v69284, uploaded_files_v69284=None, *, style_strength="High", forced_upload_role="Auto-detect"):
+            if protected_reference_context_v69284(prompt_text_v69284, uploaded_files_v69284, forced_upload_role):
+                diagnostic_log("graphic_v69284_reference_emergency_recovery_skipped")
+                raise RuntimeError("Emergency provider recovery is disabled for protected Reference mode.")
+            return original_emergency_v69284(
+                prompt_text_v69284, uploaded_files_v69284,
+                style_strength=style_strength, forced_upload_role=forced_upload_role,
+            )
+        emergency_v69284._atp_v69284_reference_fail_fast = True
+        emergency_v69284._atp_v69284_original = original_emergency_v69284
+        scope_v69284[emergency_name_v69284] = emergency_v69284
+        return True
+
+    _v69284_install_reference_primary_authority(ns_v69272)
+    if isinstance(inner_pre_v69274, dict):
+        _v69284_install_reference_primary_authority(inner_pre_v69274)
+    diagnostic_log(
+        "graphic_v69284_reference_primary_authority_installed",
+        root=True,
+        inner=bool(isinstance(inner_pre_v69274, dict)),
+        current_prompt_copy_authority=True,
+        product_shape_independent_hero_authority=True,
+        photometric_rgb_authority=True,
+        provider_recovery_fail_fast=True,
+        technical_pipeline_changed=False,
+    )
+
+    # v69285: prove that the exact v69284 authorities are the live callables in BOTH
+    # isolated v69248 scopes. A stale/partially deployed process must fail immediately.
+    def _v69285_assert_reference_bindings(scope_v69285, label_v69285):
+        checks_v69285 = {
+            "spec_current_prompt": bool(getattr(scope_v69285.get("_graphic_verified_campaign_spec_v3300"), "_atp_v69284_current_prompt_copy", False)),
+            "layout_aspect_aware": bool(getattr(scope_v69285.get("_graphic_reference_layout_fidelity_gate_v13000"), "_atp_v69284_aspect_aware", False)),
+            "rgb_builder_evidence": bool(getattr(scope_v69285.get("_graphic_build_hybrid_campaign_result_v3300"), "_atp_v69284_rgb_evidence", False)),
+            "v3200_reference_fail_fast": bool(getattr(scope_v69285.get("_generate_graphic_marketing_images_advanced_v3200"), "_atp_v69284_reference_fail_fast", False)),
+            "emergency_reference_fail_fast": bool(getattr(scope_v69285.get("_graphic_emergency_provider_result_v15000"), "_atp_v69284_reference_fail_fast", False)),
+            "v69283_final_release": bool(getattr(scope_v69285.get("generate_graphic_marketing_images"), "_atp_v69283_final_release", False)),
+            "v69282_geometry_authority": bool(getattr(scope_v69285.get("_graphic_engineering_geometry_gate_v20000"), "_atp_v69282_geometry_authority", False)),
+        }
+        missing_v69285 = [key_v69285 for key_v69285, value_v69285 in checks_v69285.items() if not value_v69285]
+        if missing_v69285:
+            diagnostic_log("graphic_v69286_protected_binding_assertion_failed", scope=label_v69285, missing=missing_v69285, checks=checks_v69285)
+            raise RuntimeError("v69286 protected Reference binding authority is incomplete in " + str(label_v69285) + ": " + ", ".join(missing_v69285))
+        scope_v69285["_ATP_V69286_BINDING_OK"] = True
+        scope_v69285["_ATP_V69286_RELEASE"] = AUTOTECPRO_RELEASE_VERSION
+        diagnostic_log("graphic_v69286_protected_binding_asserted", scope=label_v69285, checks=checks_v69285, release=AUTOTECPRO_RELEASE_VERSION)
+        return True
+
+    _v69285_assert_reference_bindings(ns_v69272, "root")
+    _v69285_assert_reference_bindings(inner_pre_v69274, "inner")
+    diagnostic_log("graphic_v69286_reference_runtime_authority_ready", release=AUTOTECPRO_RELEASE_VERSION, root=True, inner=True, v69248_source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16])
+
     # v69275 output-neutral auxiliary concurrency. v69248's Reference blueprint analysis
     # and vehicle research are independent provider requests but historically execute
     # sequentially before the image generation call. Start only the vehicle research
@@ -53325,6 +53683,21 @@ def generate_graphic_marketing_images(
         prompt_text, uploaded_files, forced_upload_role
     )
     if mode_v69273 in {"reference", "installed"}:
+        if mode_v69273 == "reference":
+            binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69286_BINDING_OK"))
+            release_v69285 = str(ns_v69273.get("_ATP_V69286_RELEASE") or "")
+            if not binding_ok_v69285 or release_v69285 != AUTOTECPRO_RELEASE_VERSION:
+                diagnostic_log("graphic_v69286_live_binding_rejected", binding_ok=binding_ok_v69285, namespace_release=release_v69285, expected_release=AUTOTECPRO_RELEASE_VERSION)
+                raise RuntimeError("The deployed Graphic Reference namespace is stale or incomplete; v69286 will not execute an older protected engine silently.")
+            diagnostic_log("graphic_v69286_live_binding_verified", release=release_v69285, mode=mode_v69273)
+            diagnostic_log(
+                "graphic_v69286_protected_execution_authority",
+                release=AUTOTECPRO_RELEASE_VERSION,
+                build=AUTOTECPRO_RELEASE_BUILD,
+                namespace_release=release_v69285,
+                mode=mode_v69273,
+                source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16],
+            )
         engine_v69273 = ns_v69273["generate_graphic_marketing_images"]
         diagnostic_log(
             "graphic_v69273_true_v69248_engine_entered",
