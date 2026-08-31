@@ -1,4 +1,4 @@
-# AutoTecPro AI v69293 FINAL PRODUCTION — Reference post-generation publication recovery + synchronous optional-learning isolation; v69272/v69248 visual authority, After Install, Technical unchanged.
+# AutoTecPro AI v69294 FINAL PRODUCTION — v69272/v69248 visual parity + bounded Reference QA + binary-primary publication; later correctness fixes retained.
 # v69293 fixes the hosted v69292 lifecycle regression where a completed/QA-cleared Reference image was held behind legacy synchronous Graphic intelligence persistence and then discarded on Streamlit StopException.
 # Exact Reference now skips that optional synchronous learning write and records a strict fresh-result completion checkpoint; StopException may recover only that same-job, same-prompt, post-QA Reference result.
 # No provider request, pixel compositor, layout, product fidelity threshold, Reference visual engine, After Install renderer, Technical, Sales/Marketing, auth, History, or ordinary persistence contract is changed.
@@ -20,8 +20,8 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
-AUTOTECPRO_RELEASE_VERSION = "v69293"
-AUTOTECPRO_RELEASE_BUILD = "graphic-v69293-reference-postgeneration-recovery-20260831"
+AUTOTECPRO_RELEASE_VERSION = "v69294"
+AUTOTECPRO_RELEASE_BUILD = "graphic-v69294-reference-atomic-completion-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -253,6 +253,15 @@ diagnostic_log(
     "autotecpro_release_loaded_v69288",
     release=AUTOTECPRO_RELEASE_VERSION,
     build=AUTOTECPRO_RELEASE_BUILD,
+)
+
+diagnostic_log(
+    "graphic_v69294_production_contract",
+    visual_reference="uploaded-v69272-isolated-v69248",
+    reference_nonimage_wallclock_seconds=90.0,
+    reference_binary_primary=True,
+    technical_pipeline_changed=False,
+    installed_mode_changed=False,
 )
 
 # ============================================================
@@ -6032,10 +6041,11 @@ def render_chat_message(
 
     if role != "user" and generated_transport_images_v69271:
         for image_index_v69271, image_v69271 in enumerate(generated_transport_images_v69271):
-            display_url_v69271 = _graphic_v69273_resolve_generated_display_url(
+            binary_primary_v69294 = bool(image_v69271.get("graphic_v69294_binary_primary"))
+            display_url_v69271 = "" if binary_primary_v69294 else _graphic_v69273_resolve_generated_display_url(
                 image_v69271, image_index_v69271
             )
-            storage_path_v69271 = str(image_v69271.get("graphic_display_storage_path_v69271") or "").strip()
+            storage_path_v69271 = "" if binary_primary_v69294 else str(image_v69271.get("graphic_display_storage_path_v69271") or "").strip()
             raw_v69271 = b""
             if not display_url_v69271:
                 raw_v69271, _mime_v69271 = data_url_to_bytes(image_v69271.get("data_url"))
@@ -11672,6 +11682,7 @@ def extract_images_from_message_content(content):
             "graphic_v69273_isolated_v69248",
             "graphic_v69273_mode",
             "graphic_v69273_source_sha256",
+            "graphic_v69294_binary_primary",
             "website_image_index_v68883",
             "website_image_sha256",
             "website_image_match_score_v68883",
@@ -53354,6 +53365,7 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
     # modified. Non-image Responses calls (including ordinary analysis/search) are
     # delegated directly to the original SDK client.
     GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS = 180.0
+    GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS = 90.0
 
     def _v69288_wallclock_call(callable_v69288, args_v69288, kwargs_v69288, *, label_v69288, timeout_v69288):
         result_v69288 = {}
@@ -53409,6 +53421,24 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
                         for tool_v69288 in tools_v69288
                     )
                     if not is_image_v69288:
+                        # v69294: v69293 live production proved that the final exact-Reference
+                        # vehicle/quality review can remain inside a non-image Responses call
+                        # for ~26 minutes after the image provider and compositor have already
+                        # succeeded.  Bound ONLY non-image calls while the protected Reference
+                        # engine is active. Existing v69248 callers already treat unavailable
+                        # optional vehicle review as unverified/fail-open while hard geometry,
+                        # source, copy, and layout gates remain fail-closed. No pixels/prompt
+                        # for image generation are changed.
+                        try:
+                            mode_v69294 = str(getattr(_graphic_v69275_aux_runtime()["context"], "mode", "") or "")
+                        except Exception:
+                            mode_v69294 = ""
+                        if mode_v69294 == "reference":
+                            return _v69288_wallclock_call(
+                                attr_v69288, args_v69288, kwargs_v69288,
+                                label_v69288="responses.nonimage-reference",
+                                timeout_v69288=GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS,
+                            )
                         return attr_v69288(*args_v69288, **kwargs_v69288)
                 return _v69288_wallclock_call(
                     attr_v69288, args_v69288, kwargs_v69288,
@@ -53437,11 +53467,14 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         if not bool(getattr(client_v69288, "_atp_v69288_provider_wallclock", False)):
             scope_v69288["client"] = _V69288ClientProxy(client_v69288)
         scope_v69288["GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS"] = GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS
+        scope_v69288["GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS"] = GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS
         scope_v69288["_ATP_V69288_PROVIDER_WALLCLOCK_OK"] = True
+        scope_v69288["_ATP_V69294_REFERENCE_NONIMAGE_WALLCLOCK_OK"] = True
         diagnostic_log(
             "graphic_v69288_provider_wallclock_installed",
             scope=label_v69288,
             hard_wallclock_seconds=GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS,
+            reference_nonimage_wallclock_seconds=GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS,
             request_payload_changed=False,
             pixel_pipeline_changed=False,
         )
@@ -53681,6 +53714,7 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
             "copy_normalization_v69289": bool(scope_v69292.get("_ATP_V69289_COPY_NORMALIZATION_OK")),
             "legacy_alias_identity_v69287": bool(callable(advanced_v69292) and legacy_v69292 is advanced_v69292),
             "provider_wallclock_v69288": bool(client_v69292 is not None and getattr(client_v69292, "_atp_v69288_provider_wallclock", False)),
+            "reference_nonimage_wallclock_v69294": bool(scope_v69292.get("_ATP_V69294_REFERENCE_NONIMAGE_WALLCLOCK_OK")),
             "v69272_visual_authority": bool(
                 not getattr(scope_v69292.get("_graphic_fit_ribbon_copy_v36000"), "_atp_v69283_complete_copy", False)
                 and not getattr(scope_v69292.get("_graphic_verified_campaign_spec_v3300"), "_atp_v69284_current_prompt_copy", False)
@@ -53694,6 +53728,77 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
             scope=label_v69292, checks=checks_v69292, release=AUTOTECPRO_RELEASE_VERSION,
             pixel_pipeline_changed=False, provider_payload_changed=False, technical_pipeline_changed=False,
         )
+
+
+    # v69294: Reference-only persistent-cache I/O isolation. The v66100 remote cache
+    # is an optimization, never an output authority. A first Supabase cache read/write
+    # could otherwise block before the existing circuit breaker has a chance to open.
+    # Keep exact session-cache semantics and remove remote cache I/O only while the
+    # protected Reference engine is active. Installed/After Install and all other modes
+    # retain the historical functions unchanged.
+    def _v69294_install_reference_cache_io_isolation(scope_v69294, label_v69294):
+        get_name_v69294 = "_graphic_v66100_cache_get"
+        put_name_v69294 = "_graphic_v66100_cache_put"
+        original_get_v69294 = scope_v69294.get(get_name_v69294)
+        original_put_v69294 = scope_v69294.get(put_name_v69294)
+        bound_cache_v69294 = scope_v69294.get("_graphic_v68874_bound_session_cache")
+        if not all(callable(x) for x in (original_get_v69294, original_put_v69294, bound_cache_v69294)):
+            raise RuntimeError("v69294 Reference cache I/O authorities unavailable in " + str(label_v69294))
+
+        def _is_reference_v69294():
+            try:
+                return str(getattr(_graphic_v69275_aux_runtime()["context"], "mode", "") or "") == "reference"
+            except Exception:
+                return False
+
+        def cache_get_v69294(cache_key_v69294):
+            if not _is_reference_v69294():
+                return original_get_v69294(cache_key_v69294)
+            session_v69294 = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
+            bound_cache_v69294(session_v69294)
+            if cache_key_v69294 in session_v69294:
+                cached_v69294 = session_v69294.pop(cache_key_v69294)
+                session_v69294[cache_key_v69294] = cached_v69294
+                diagnostic_log("graphic_v69294_reference_session_cache_hit", scope=label_v69294)
+                return cached_v69294
+            diagnostic_log("graphic_v69294_reference_remote_cache_read_skipped", scope=label_v69294)
+            return None
+
+        def cache_put_v69294(cache_key_v69294, payload_v69294):
+            if not _is_reference_v69294():
+                return original_put_v69294(cache_key_v69294, payload_v69294)
+            if not isinstance(payload_v69294, dict):
+                return False
+            session_v69294 = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
+            session_v69294.pop(cache_key_v69294, None)
+            session_v69294[cache_key_v69294] = payload_v69294
+            bound_cache_v69294(session_v69294)
+            diagnostic_log("graphic_v69294_reference_remote_cache_write_skipped", scope=label_v69294)
+            return True
+
+        cache_get_v69294._atp_v69294_reference_session_only = True
+        cache_put_v69294._atp_v69294_reference_session_only = True
+        scope_v69294[get_name_v69294] = cache_get_v69294
+        scope_v69294[put_name_v69294] = cache_put_v69294
+        scope_v69294["_ATP_V69294_REFERENCE_CACHE_IO_OK"] = True
+        diagnostic_log(
+            "graphic_v69294_reference_cache_io_isolated",
+            scope=label_v69294, remote_cache_in_critical_path=False,
+            session_cache_preserved=True, pixel_pipeline_changed=False,
+        )
+        return True
+
+    _v69294_install_reference_cache_io_isolation(ns_v69272, "root")
+    if isinstance(inner_pre_v69274, dict):
+        _v69294_install_reference_cache_io_isolation(inner_pre_v69274, "inner")
+
+    cache_io_checks_v69294 = {
+        "root": bool(ns_v69272.get("_ATP_V69294_REFERENCE_CACHE_IO_OK")),
+        "inner": bool(isinstance(inner_pre_v69274, dict) and inner_pre_v69274.get("_ATP_V69294_REFERENCE_CACHE_IO_OK")),
+    }
+    if not all(cache_io_checks_v69294.values()):
+        raise RuntimeError("v69294 protected Reference cache I/O isolation incomplete: " + str(cache_io_checks_v69294))
+    diagnostic_log("graphic_v69294_reference_cache_io_binding_asserted", checks=cache_io_checks_v69294)
 
     # v69275 output-neutral auxiliary concurrency. v69248's Reference blueprint analysis
     # and vehicle research are independent provider requests but historically execute
@@ -54422,6 +54527,13 @@ def generate_graphic_marketing_images(
             "graphic_v69273_true_v69248_engine_returned",
             mode=mode_v69273, image_count=len(images_v69273 or []),
         )
+        if mode_v69273 == "reference":
+            diagnostic_log(
+                "graphic_v69294_reference_engine_return_boundary",
+                image_count=len(images_v69273 or []),
+                elapsed_seconds=round(elapsed_v69274, 3),
+                nonimage_wallclock_seconds=GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS,
+            )
         return images_v69273
     return _GRAPHIC_V69272_CURRENT_ENGINE(
         prompt_text, uploaded_files,
@@ -54483,6 +54595,22 @@ def _graphic_v69271_prepare_generated_display(images):
             continue
         digest_v69271 = hashlib.sha256(raw_v69271).hexdigest()
         path_v69271 = f"results/{username_v69271}/{conversation_v69271}/{job_id_v69271}/{digest_v69271}.png"
+        # v69294: Reference publication is binary-primary. v69273-era signed-URL
+        # transport could briefly render, grey out on rerun, then disappear. The
+        # exact embedded PNG is already serialized into history and is the strongest
+        # byte authority. Do not put a successful Reference response behind another
+        # synchronous Storage upload/sign operation. Other Graphic modes retain the
+        # established signed-storage path unchanged.
+        if str(image_v69271.get("graphic_v69273_mode") or "").strip().lower() == "reference":
+            image_v69271.pop("graphic_display_url_v69271", None)
+            image_v69271.pop("graphic_display_storage_path_v69271", None)
+            image_v69271["graphic_v69294_binary_primary"] = True
+            diagnostic_log(
+                "graphic_v69294_reference_binary_primary_ready",
+                image_index=index_v69271, bytes=len(raw_v69271), sha256=digest_v69271[:20],
+                signed_storage_skipped=True, pixel_pipeline_changed=False,
+            )
+            continue
         try:
             _graphic_v68848_upload_bytes(path_v69271, raw_v69271, "image/png", upsert=True)
             signed_v69271 = _graphic_v69271_signed_job_url(path_v69271, expires=86400)
