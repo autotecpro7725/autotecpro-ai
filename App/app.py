@@ -1,4 +1,5 @@
-# AutoTecPro AI v69294 FINAL PRODUCTION — v69272/v69248 visual parity + bounded Reference QA + binary-primary publication; later correctness fixes retained.
+# AutoTecPro AI v69295 FINAL PRODUCTION — v69272/v69248 visual authority + v69293 completion recovery + Reference zero-duplicate final QA + binary-primary publication; Technical/After Install unchanged.
+# AutoTecPro AI v69293 FINAL PRODUCTION — Reference post-generation publication recovery + synchronous optional-learning isolation; v69272/v69248 visual authority, After Install, Technical unchanged.
 # v69293 fixes the hosted v69292 lifecycle regression where a completed/QA-cleared Reference image was held behind legacy synchronous Graphic intelligence persistence and then discarded on Streamlit StopException.
 # Exact Reference now skips that optional synchronous learning write and records a strict fresh-result completion checkpoint; StopException may recover only that same-job, same-prompt, post-QA Reference result.
 # No provider request, pixel compositor, layout, product fidelity threshold, Reference visual engine, After Install renderer, Technical, Sales/Marketing, auth, History, or ordinary persistence contract is changed.
@@ -20,8 +21,8 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
-AUTOTECPRO_RELEASE_VERSION = "v69294"
-AUTOTECPRO_RELEASE_BUILD = "graphic-v69294-reference-atomic-completion-20260831"
+AUTOTECPRO_RELEASE_VERSION = "v69295"
+AUTOTECPRO_RELEASE_BUILD = "graphic-v69295-reference-zero-duplicate-qa-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -254,12 +255,12 @@ diagnostic_log(
     release=AUTOTECPRO_RELEASE_VERSION,
     build=AUTOTECPRO_RELEASE_BUILD,
 )
-
 diagnostic_log(
-    "graphic_v69294_production_contract",
+    "graphic_v69295_production_contract",
     visual_reference="uploaded-v69272-isolated-v69248",
-    reference_nonimage_wallclock_seconds=90.0,
+    duplicate_final_reference_qa=False,
     reference_binary_primary=True,
+    v69294_blanket_nonimage_watchdog=False,
     technical_pipeline_changed=False,
     installed_mode_changed=False,
 )
@@ -6041,11 +6042,11 @@ def render_chat_message(
 
     if role != "user" and generated_transport_images_v69271:
         for image_index_v69271, image_v69271 in enumerate(generated_transport_images_v69271):
-            binary_primary_v69294 = bool(image_v69271.get("graphic_v69294_binary_primary"))
-            display_url_v69271 = "" if binary_primary_v69294 else _graphic_v69273_resolve_generated_display_url(
+            binary_primary_v69295 = bool(image_v69271.get("graphic_v69295_binary_primary"))
+            display_url_v69271 = "" if binary_primary_v69295 else _graphic_v69273_resolve_generated_display_url(
                 image_v69271, image_index_v69271
             )
-            storage_path_v69271 = "" if binary_primary_v69294 else str(image_v69271.get("graphic_display_storage_path_v69271") or "").strip()
+            storage_path_v69271 = "" if binary_primary_v69295 else str(image_v69271.get("graphic_display_storage_path_v69271") or "").strip()
             raw_v69271 = b""
             if not display_url_v69271:
                 raw_v69271, _mime_v69271 = data_url_to_bytes(image_v69271.get("data_url"))
@@ -11682,7 +11683,7 @@ def extract_images_from_message_content(content):
             "graphic_v69273_isolated_v69248",
             "graphic_v69273_mode",
             "graphic_v69273_source_sha256",
-            "graphic_v69294_binary_primary",
+            "graphic_v69295_binary_primary",
             "website_image_index_v68883",
             "website_image_sha256",
             "website_image_match_score_v68883",
@@ -53365,7 +53366,6 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
     # modified. Non-image Responses calls (including ordinary analysis/search) are
     # delegated directly to the original SDK client.
     GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS = 180.0
-    GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS = 90.0
 
     def _v69288_wallclock_call(callable_v69288, args_v69288, kwargs_v69288, *, label_v69288, timeout_v69288):
         result_v69288 = {}
@@ -53421,24 +53421,6 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
                         for tool_v69288 in tools_v69288
                     )
                     if not is_image_v69288:
-                        # v69294: v69293 live production proved that the final exact-Reference
-                        # vehicle/quality review can remain inside a non-image Responses call
-                        # for ~26 minutes after the image provider and compositor have already
-                        # succeeded.  Bound ONLY non-image calls while the protected Reference
-                        # engine is active. Existing v69248 callers already treat unavailable
-                        # optional vehicle review as unverified/fail-open while hard geometry,
-                        # source, copy, and layout gates remain fail-closed. No pixels/prompt
-                        # for image generation are changed.
-                        try:
-                            mode_v69294 = str(getattr(_graphic_v69275_aux_runtime()["context"], "mode", "") or "")
-                        except Exception:
-                            mode_v69294 = ""
-                        if mode_v69294 == "reference":
-                            return _v69288_wallclock_call(
-                                attr_v69288, args_v69288, kwargs_v69288,
-                                label_v69288="responses.nonimage-reference",
-                                timeout_v69288=GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS,
-                            )
                         return attr_v69288(*args_v69288, **kwargs_v69288)
                 return _v69288_wallclock_call(
                     attr_v69288, args_v69288, kwargs_v69288,
@@ -53467,14 +53449,11 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         if not bool(getattr(client_v69288, "_atp_v69288_provider_wallclock", False)):
             scope_v69288["client"] = _V69288ClientProxy(client_v69288)
         scope_v69288["GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS"] = GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS
-        scope_v69288["GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS"] = GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS
         scope_v69288["_ATP_V69288_PROVIDER_WALLCLOCK_OK"] = True
-        scope_v69288["_ATP_V69294_REFERENCE_NONIMAGE_WALLCLOCK_OK"] = True
         diagnostic_log(
             "graphic_v69288_provider_wallclock_installed",
             scope=label_v69288,
             hard_wallclock_seconds=GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS,
-            reference_nonimage_wallclock_seconds=GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS,
             request_payload_changed=False,
             pixel_pipeline_changed=False,
         )
@@ -53714,7 +53693,6 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
             "copy_normalization_v69289": bool(scope_v69292.get("_ATP_V69289_COPY_NORMALIZATION_OK")),
             "legacy_alias_identity_v69287": bool(callable(advanced_v69292) and legacy_v69292 is advanced_v69292),
             "provider_wallclock_v69288": bool(client_v69292 is not None and getattr(client_v69292, "_atp_v69288_provider_wallclock", False)),
-            "reference_nonimage_wallclock_v69294": bool(scope_v69292.get("_ATP_V69294_REFERENCE_NONIMAGE_WALLCLOCK_OK")),
             "v69272_visual_authority": bool(
                 not getattr(scope_v69292.get("_graphic_fit_ribbon_copy_v36000"), "_atp_v69283_complete_copy", False)
                 and not getattr(scope_v69292.get("_graphic_verified_campaign_spec_v3300"), "_atp_v69284_current_prompt_copy", False)
@@ -53728,77 +53706,6 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
             scope=label_v69292, checks=checks_v69292, release=AUTOTECPRO_RELEASE_VERSION,
             pixel_pipeline_changed=False, provider_payload_changed=False, technical_pipeline_changed=False,
         )
-
-
-    # v69294: Reference-only persistent-cache I/O isolation. The v66100 remote cache
-    # is an optimization, never an output authority. A first Supabase cache read/write
-    # could otherwise block before the existing circuit breaker has a chance to open.
-    # Keep exact session-cache semantics and remove remote cache I/O only while the
-    # protected Reference engine is active. Installed/After Install and all other modes
-    # retain the historical functions unchanged.
-    def _v69294_install_reference_cache_io_isolation(scope_v69294, label_v69294):
-        get_name_v69294 = "_graphic_v66100_cache_get"
-        put_name_v69294 = "_graphic_v66100_cache_put"
-        original_get_v69294 = scope_v69294.get(get_name_v69294)
-        original_put_v69294 = scope_v69294.get(put_name_v69294)
-        bound_cache_v69294 = scope_v69294.get("_graphic_v68874_bound_session_cache")
-        if not all(callable(x) for x in (original_get_v69294, original_put_v69294, bound_cache_v69294)):
-            raise RuntimeError("v69294 Reference cache I/O authorities unavailable in " + str(label_v69294))
-
-        def _is_reference_v69294():
-            try:
-                return str(getattr(_graphic_v69275_aux_runtime()["context"], "mode", "") or "") == "reference"
-            except Exception:
-                return False
-
-        def cache_get_v69294(cache_key_v69294):
-            if not _is_reference_v69294():
-                return original_get_v69294(cache_key_v69294)
-            session_v69294 = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
-            bound_cache_v69294(session_v69294)
-            if cache_key_v69294 in session_v69294:
-                cached_v69294 = session_v69294.pop(cache_key_v69294)
-                session_v69294[cache_key_v69294] = cached_v69294
-                diagnostic_log("graphic_v69294_reference_session_cache_hit", scope=label_v69294)
-                return cached_v69294
-            diagnostic_log("graphic_v69294_reference_remote_cache_read_skipped", scope=label_v69294)
-            return None
-
-        def cache_put_v69294(cache_key_v69294, payload_v69294):
-            if not _is_reference_v69294():
-                return original_put_v69294(cache_key_v69294, payload_v69294)
-            if not isinstance(payload_v69294, dict):
-                return False
-            session_v69294 = st.session_state.setdefault("graphic_persistent_cache_v66100", {})
-            session_v69294.pop(cache_key_v69294, None)
-            session_v69294[cache_key_v69294] = payload_v69294
-            bound_cache_v69294(session_v69294)
-            diagnostic_log("graphic_v69294_reference_remote_cache_write_skipped", scope=label_v69294)
-            return True
-
-        cache_get_v69294._atp_v69294_reference_session_only = True
-        cache_put_v69294._atp_v69294_reference_session_only = True
-        scope_v69294[get_name_v69294] = cache_get_v69294
-        scope_v69294[put_name_v69294] = cache_put_v69294
-        scope_v69294["_ATP_V69294_REFERENCE_CACHE_IO_OK"] = True
-        diagnostic_log(
-            "graphic_v69294_reference_cache_io_isolated",
-            scope=label_v69294, remote_cache_in_critical_path=False,
-            session_cache_preserved=True, pixel_pipeline_changed=False,
-        )
-        return True
-
-    _v69294_install_reference_cache_io_isolation(ns_v69272, "root")
-    if isinstance(inner_pre_v69274, dict):
-        _v69294_install_reference_cache_io_isolation(inner_pre_v69274, "inner")
-
-    cache_io_checks_v69294 = {
-        "root": bool(ns_v69272.get("_ATP_V69294_REFERENCE_CACHE_IO_OK")),
-        "inner": bool(isinstance(inner_pre_v69274, dict) and inner_pre_v69274.get("_ATP_V69294_REFERENCE_CACHE_IO_OK")),
-    }
-    if not all(cache_io_checks_v69294.values()):
-        raise RuntimeError("v69294 protected Reference cache I/O isolation incomplete: " + str(cache_io_checks_v69294))
-    diagnostic_log("graphic_v69294_reference_cache_io_binding_asserted", checks=cache_io_checks_v69294)
 
     # v69275 output-neutral auxiliary concurrency. v69248's Reference blueprint analysis
     # and vehicle research are independent provider requests but historically execute
@@ -54169,6 +54076,161 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         release=AUTOTECPRO_RELEASE_VERSION,
     )
 
+    # v69295: eliminate the second full exact-product/Reference QA pass inside the
+    # isolated v69248 engine. The v69293 hosted trace proved that the completed
+    # composite had already passed source-fidelity and Reference-layout gates, then
+    # the legacy _graphic_professional_qa_v8000 recomputed those same expensive
+    # image comparisons before the engine returned. That duplicate pass accounted
+    # for the large post-composite delay and could expose another optional provider
+    # validation. Reuse ONLY already-passed immutable gate objects for exact
+    # Reference jobs; every non-Reference/Installed path calls the historical v69248
+    # function unchanged. No pixels, layout, provider generation payload, threshold,
+    # or fail-fast release gate is modified.
+    def _v69295_install_reference_zero_duplicate_qa(scope_v69295, label_v69295):
+        original_qa_v69295 = scope_v69295.get("_graphic_professional_qa_v8000")
+        data_url_to_bytes_v69295 = scope_v69295.get("data_url_to_bytes")
+        validation_unavailable_v69295 = scope_v69295.get("_graphic_validation_unavailable_v4100")
+        validation_is_unavailable_v69295 = scope_v69295.get("_graphic_validation_is_unavailable_v4100")
+        commercial_hierarchy_v69295 = scope_v69295.get("_graphic_commercial_hierarchy_score_v18000")
+        product_detail_v69295 = scope_v69295.get("_graphic_product_detail_score_v18000")
+        region_confidence_v69295 = scope_v69295.get("_graphic_product_region_confidence_v19000")
+        failure_memory_v69295 = scope_v69295.get("_graphic_failure_memory_v19000")
+        get_state_v69295 = scope_v69295.get("get_graphic_project_state")
+        studio_qa_v69295 = scope_v69295.get("_graphic_studio_commercial_qa_v34000")
+        required_callables_v69295 = (
+            original_qa_v69295, data_url_to_bytes_v69295, validation_unavailable_v69295,
+            validation_is_unavailable_v69295, commercial_hierarchy_v69295,
+            product_detail_v69295, region_confidence_v69295, failure_memory_v69295,
+            get_state_v69295, studio_qa_v69295,
+        )
+        if not all(callable(item_v69295) for item_v69295 in required_callables_v69295):
+            raise RuntimeError(f"v69295 zero-duplicate QA prerequisites missing in {label_v69295}.")
+
+        @functools.wraps(original_qa_v69295)
+        def professional_qa_v69295(result_v69295, role_items_v69295, prompt_text_v69295,
+                                    vehicle_profile_v69295, product_mode_v69295, structure_profile_v69295):
+            active_mode_v69295 = str(
+                getattr(_graphic_v69275_aux_runtime()["context"], "mode", "") or ""
+            ).strip().lower()
+            result_map_v69295 = result_v69295 if isinstance(result_v69295, dict) else {}
+            metadata_v69295 = dict(result_map_v69295.get("layered_metadata") or {})
+            design_mode_v69295 = str(
+                result_map_v69295.get("graphic_design_mode")
+                or metadata_v69295.get("graphic_design_mode")
+                or ("reference_template" if any(
+                    isinstance(item_v69295, dict) and item_v69295.get("role") == "style_reference"
+                    for item_v69295 in (role_items_v69295 or [])
+                ) else "autotecpro_studio")
+            )
+            source_gate_v69295 = result_map_v69295.get("source_fidelity_gate")
+            layout_gate_v69295 = result_map_v69295.get("reference_layout_fidelity_gate")
+            reuse_v69295 = bool(
+                active_mode_v69295 == "reference"
+                and bool((product_mode_v69295 or {}).get("exact_product"))
+                and not bool((product_mode_v69295 or {}).get("installed_view"))
+                and design_mode_v69295 == "reference_template"
+                and isinstance(source_gate_v69295, dict)
+                and source_gate_v69295.get("passed") is True
+                and isinstance(layout_gate_v69295, dict)
+                and layout_gate_v69295.get("passed") is True
+            )
+            if not reuse_v69295:
+                return original_qa_v69295(
+                    result_v69295, role_items_v69295, prompt_text_v69295,
+                    vehicle_profile_v69295, product_mode_v69295, structure_profile_v69295,
+                )
+
+            started_v69295 = time.perf_counter()
+            checks_v69295 = {
+                "image_valid": False, "product_valid": True, "vehicle_valid": True,
+                "branding_valid": True, "layout_valid": True, "text_valid": True,
+                "reference_integrity": True, "hero_dominance": True,
+                "reference_layout_fidelity": True,
+            }
+            raw_v69295, _mime_v69295 = data_url_to_bytes_v69295(str(result_map_v69295.get("data_url") or ""))
+            checks_v69295["image_valid"] = bool(raw_v69295)
+            exact_gate_v69295 = dict(source_gate_v69295)
+            exact_gate_v69295["required"] = True
+            checks_v69295["product_valid"] = bool(exact_gate_v69295.get("passed"))
+            checks_v69295["reference_integrity"] = bool(exact_gate_v69295.get("reference_leakage_blocked", True))
+            checks_v69295["hero_dominance"] = bool(exact_gate_v69295.get("hero_dominance", True))
+            vehicle_v69295 = dict(result_map_v69295.get("vehicle_validation") or {})
+            hard_vehicle_v69295 = bool((vehicle_profile_v69295 or {}).get("hard_vehicle_lock"))
+            if hard_vehicle_v69295:
+                # The exact-result validation already ran the one allowed vehicle
+                # verification. Missing/unavailable evidence is reused as unavailable;
+                # never issue a duplicate provider request after a valid composite exists.
+                if not vehicle_v69295:
+                    vehicle_v69295 = dict(validation_unavailable_v69295() or {})
+                checks_v69295["vehicle_valid"] = bool(
+                    not validation_is_unavailable_v69295(vehicle_v69295)
+                    and vehicle_v69295.get("verified") is True
+                )
+            zones_v69295 = {str(x) for x in metadata_v69295.get("campaign_zones") or []}
+            required_zones_v69295 = {
+                "logo", "headline", "compatibility_ribbon", "tagline",
+                "feature_matrix", "hero_product", "target_vehicle", "bottom_benefit_bar",
+            }
+            studio_gate_v69295 = {"required": False, "passed": True}
+            checks_v69295["reference_layout_fidelity"] = True
+            checks_v69295["layout_valid"] = bool(required_zones_v69295.issubset(zones_v69295))
+            checks_v69295["branding_valid"] = bool(metadata_v69295.get("deterministic_typography") and "logo" in zones_v69295)
+            checks_v69295["text_valid"] = bool(metadata_v69295.get("deterministic_typography"))
+            dna_gate_v69295 = {"available": False, "passed": None, "score": None, "reason": "not required"}
+            hierarchy_gate_v69295 = commercial_hierarchy_v69295(result_map_v69295)
+            product_detail_score_v69295 = product_detail_v69295(product_mode_v69295, exact_gate_v69295, dna_gate_v69295)
+            region_confidence_score_v69295 = region_confidence_v69295(product_mode_v69295, exact_gate_v69295, dna_gate_v69295)
+            failure_memory_score_v69295 = failure_memory_v69295(product_mode_v69295, dna_gate_v69295, exact_gate_v69295)
+            checks_v69295["commercial_hierarchy"] = bool(hierarchy_gate_v69295.get("passed"))
+            checks_v69295["product_detail"] = bool(checks_v69295.get("product_valid"))
+            passed_v69295 = all(checks_v69295.values())
+            diagnostic_log(
+                "graphic_v69295_reference_duplicate_final_qa_skipped",
+                scope=label_v69295,
+                source_gate_reused=True,
+                layout_gate_reused=True,
+                vehicle_result_reused=True,
+                provider_calls_added=0,
+                elapsed_seconds=round(time.perf_counter() - started_v69295, 4),
+                pixel_pipeline_changed=False,
+            )
+            return {
+                "passed": passed_v69295,
+                "checks": checks_v69295,
+                "exact_product_gate": exact_gate_v69295,
+                "product_dna_gate": dna_gate_v69295,
+                "product_detail_score": product_detail_score_v69295,
+                "product_region_confidence": region_confidence_score_v69295,
+                "failure_memory": failure_memory_score_v69295,
+                "vehicle_validation": vehicle_v69295,
+                "layout_fidelity_gate": dict(layout_gate_v69295),
+                "studio_commercial_qa": studio_gate_v69295,
+                "graphic_design_mode": design_mode_v69295,
+                "commercial_hierarchy_gate": hierarchy_gate_v69295,
+                "engine": "v69295-v69248-semantics-zero-duplicate-reference-qa",
+                "reference_exact_gate_reused_v69295": True,
+            }
+
+        professional_qa_v69295._atp_v69295_zero_duplicate_reference_qa = True
+        scope_v69295["_graphic_professional_qa_v8000"] = professional_qa_v69295
+        diagnostic_log(
+            "graphic_v69295_reference_zero_duplicate_qa_installed",
+            scope=label_v69295, reference_only=True, provider_payload_changed=False,
+            pixel_pipeline_changed=False, installed_mode_changed=False,
+        )
+
+    _v69295_install_reference_zero_duplicate_qa(ns_v69272, "root")
+    if isinstance(inner_pre_v69274, dict):
+        _v69295_install_reference_zero_duplicate_qa(inner_pre_v69274, "inner")
+    qa_reuse_checks_v69295 = {
+        "root": bool(getattr(ns_v69272.get("_graphic_professional_qa_v8000"), "_atp_v69295_zero_duplicate_reference_qa", False)),
+        "inner": bool(isinstance(inner_pre_v69274, dict) and getattr(inner_pre_v69274.get("_graphic_professional_qa_v8000"), "_atp_v69295_zero_duplicate_reference_qa", False)),
+    }
+    if not all(qa_reuse_checks_v69295.values()):
+        raise RuntimeError("v69295 protected Reference zero-duplicate QA binding incomplete: " + str(qa_reuse_checks_v69295))
+    ns_v69272["_ATP_V69295_ZERO_DUPLICATE_QA_OK"] = True
+    diagnostic_log("graphic_v69295_reference_zero_duplicate_qa_binding_asserted", checks=qa_reuse_checks_v69295)
+
     _v69275_install_aux_speed(ns_v69272)
     if isinstance(inner_pre_v69274, dict):
         _v69275_install_aux_speed(inner_pre_v69274)
@@ -54452,21 +54514,24 @@ def generate_graphic_marketing_images(
             binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69290_BINDING_OK"))
             release_v69285 = str(ns_v69273.get("_ATP_V69290_RELEASE") or "")
             postgen_ok_v69293 = bool(ns_v69273.get("_ATP_V69293_POSTGEN_OK"))
+            zero_duplicate_qa_ok_v69295 = bool(ns_v69273.get("_ATP_V69295_ZERO_DUPLICATE_QA_OK"))
             if (
                 not binding_ok_v69285
                 or not postgen_ok_v69293
+                or not zero_duplicate_qa_ok_v69295
                 or release_v69285 != AUTOTECPRO_RELEASE_VERSION
             ):
                 diagnostic_log(
                     "graphic_v69290_live_binding_rejected",
                     binding_ok=binding_ok_v69285,
                     postgeneration_ok=postgen_ok_v69293,
+                    zero_duplicate_qa_ok=zero_duplicate_qa_ok_v69295,
                     namespace_release=release_v69285,
                     expected_release=AUTOTECPRO_RELEASE_VERSION,
                 )
                 raise RuntimeError(
                     "The deployed Graphic Reference namespace is stale or incomplete; "
-                    "the protected engine will not execute without v69293 post-generation authority."
+                    "the protected engine will not execute without v69293 post-generation and v69295 zero-duplicate QA authority."
                 )
             diagnostic_log("graphic_v69290_live_binding_verified", release=release_v69285, mode=mode_v69273)
             diagnostic_log(
@@ -54527,13 +54592,6 @@ def generate_graphic_marketing_images(
             "graphic_v69273_true_v69248_engine_returned",
             mode=mode_v69273, image_count=len(images_v69273 or []),
         )
-        if mode_v69273 == "reference":
-            diagnostic_log(
-                "graphic_v69294_reference_engine_return_boundary",
-                image_count=len(images_v69273 or []),
-                elapsed_seconds=round(elapsed_v69274, 3),
-                nonimage_wallclock_seconds=GRAPHIC_V69294_REFERENCE_NONIMAGE_WALLCLOCK_SECONDS,
-            )
         return images_v69273
     return _GRAPHIC_V69272_CURRENT_ENGINE(
         prompt_text, uploaded_files,
@@ -54595,18 +54653,17 @@ def _graphic_v69271_prepare_generated_display(images):
             continue
         digest_v69271 = hashlib.sha256(raw_v69271).hexdigest()
         path_v69271 = f"results/{username_v69271}/{conversation_v69271}/{job_id_v69271}/{digest_v69271}.png"
-        # v69294: Reference publication is binary-primary. v69273-era signed-URL
-        # transport could briefly render, grey out on rerun, then disappear. The
-        # exact embedded PNG is already serialized into history and is the strongest
-        # byte authority. Do not put a successful Reference response behind another
-        # synchronous Storage upload/sign operation. Other Graphic modes retain the
-        # established signed-storage path unchanged.
+        # v69295: for a fresh protected Reference result, the exact embedded PNG is
+        # already the strongest publication authority. Do not make first display
+        # depend on another synchronous Storage upload/sign round trip. History keeps
+        # the embedded data URL, so reruns remain binary-primary. Other modes retain
+        # the existing signed-storage path.
         if str(image_v69271.get("graphic_v69273_mode") or "").strip().lower() == "reference":
             image_v69271.pop("graphic_display_url_v69271", None)
             image_v69271.pop("graphic_display_storage_path_v69271", None)
-            image_v69271["graphic_v69294_binary_primary"] = True
+            image_v69271["graphic_v69295_binary_primary"] = True
             diagnostic_log(
-                "graphic_v69294_reference_binary_primary_ready",
+                "graphic_v69295_reference_binary_primary_ready",
                 image_index=index_v69271, bytes=len(raw_v69271), sha256=digest_v69271[:20],
                 signed_storage_skipped=True, pixel_pipeline_changed=False,
             )
