@@ -1,3 +1,4 @@
+# AutoTecPro AI v69296 FINAL PRODUCTION — durable generated-image history/rerender repair over v69295; v69272/v69248 visual authority unchanged.
 # AutoTecPro AI v69295 FINAL PRODUCTION — v69272/v69248 visual authority + v69293 completion recovery + Reference zero-duplicate final QA + binary-primary publication; Technical/After Install unchanged.
 # AutoTecPro AI v69293 FINAL PRODUCTION — Reference post-generation publication recovery + synchronous optional-learning isolation; v69272/v69248 visual authority, After Install, Technical unchanged.
 # v69293 fixes the hosted v69292 lifecycle regression where a completed/QA-cleared Reference image was held behind legacy synchronous Graphic intelligence persistence and then discarded on Streamlit StopException.
@@ -21,8 +22,8 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
-AUTOTECPRO_RELEASE_VERSION = "v69295"
-AUTOTECPRO_RELEASE_BUILD = "graphic-v69295-reference-zero-duplicate-qa-20260831"
+AUTOTECPRO_RELEASE_VERSION = "v69296"
+AUTOTECPRO_RELEASE_BUILD = "graphic-v69296-reference-durable-image-rerender-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -11623,9 +11624,86 @@ def render_chat_document_cards(documents, message_index=None):
 def serialize_images_marker(images):
     if not images:
         return ""
+
+    # v69296: Preserve the exact legacy serialization whenever every image
+    # payload is already JSON-safe.  Some Graphic Reference results contain
+    # nested QA/runtime objects (bytes, sets, PIL/numpy values, etc.).  The
+    # historical implementation silently returned an empty marker when any
+    # one of those auxiliary fields was not JSON serializable.  The live turn
+    # could therefore render the PNG once, but the mandatory Streamlit rerun
+    # restored only the assistant text and lost the generated image.
+    primary_error_type_v69296 = ""
+    primary_error_text_v69296 = ""
     try:
-        return "\n\n" + IMAGE_MARKER_PREFIX + json.dumps(images, ensure_ascii=False) + IMAGE_MARKER_SUFFIX
-    except Exception:
+        payload_v69296 = json.dumps(images, ensure_ascii=False)
+        return "\n\n" + IMAGE_MARKER_PREFIX + payload_v69296 + IMAGE_MARKER_SUFFIX
+    except Exception as primary_error_v69296:
+        primary_error_type_v69296 = type(primary_error_v69296).__name__
+        primary_error_text_v69296 = str(primary_error_v69296)[:300]
+
+    # Fail-safe history contract: retain only fields needed to reconstruct the
+    # same visible image and its provenance/actions.  In particular, data_url
+    # is copied as the original string without re-encoding, so PNG bytes are
+    # byte-identical after rerun/history restoration.
+    safe_keys_v69296 = (
+        "name", "data_url", "generated", "prompt", "created_at", "model",
+        "size", "resolution", "mime_type", "filename", "source",
+        "asset_type", "storage_path", "content_type", "archive_web_url",
+        "graphic_display_storage_path_v69271", "graphic_display_url_v69271",
+        "graphic_v69271_isolated_v69248", "graphic_v69271_mode",
+        "graphic_v69271_source_sha256", "graphic_v69272_isolated_v69248",
+        "graphic_v69272_mode", "graphic_v69272_source_sha256",
+        "graphic_v69273_isolated_v69248", "graphic_v69273_mode",
+        "graphic_v69273_source_sha256", "graphic_v69295_binary_primary",
+    )
+    safe_images_v69296 = []
+    for image_v69296 in images or []:
+        if not isinstance(image_v69296, dict):
+            continue
+        data_url_v69296 = str(image_v69296.get("data_url") or "")
+        if not data_url_v69296:
+            continue
+        safe_v69296 = {}
+        for key_v69296 in safe_keys_v69296:
+            if key_v69296 not in image_v69296:
+                continue
+            value_v69296 = image_v69296.get(key_v69296)
+            if value_v69296 is None or isinstance(value_v69296, (str, int, float, bool)):
+                safe_v69296[key_v69296] = value_v69296
+            elif key_v69296 == "data_url":
+                safe_v69296[key_v69296] = str(value_v69296)
+            else:
+                # Metadata only: stringify unusual scalar-like values rather
+                # than allowing an optional field to erase the whole image.
+                safe_v69296[key_v69296] = str(value_v69296)
+        safe_v69296["data_url"] = data_url_v69296
+        safe_v69296["name"] = str(safe_v69296.get("name") or image_v69296.get("filename") or "generated image")
+        safe_images_v69296.append(safe_v69296)
+
+    if not safe_images_v69296:
+        diagnostic_log(
+            "graphic_v69296_image_marker_fallback_failed",
+            error_type=primary_error_type_v69296,
+            error=primary_error_text_v69296,
+        )
+        return ""
+
+    try:
+        payload_v69296 = json.dumps(safe_images_v69296, ensure_ascii=False)
+        diagnostic_log(
+            "graphic_v69296_image_marker_fallback_serialized",
+            image_count=len(safe_images_v69296),
+            generated_count=sum(1 for x in safe_images_v69296 if bool(x.get("generated"))),
+            payload_bytes=len(payload_v69296.encode("utf-8")),
+            primary_error_type=primary_error_type_v69296,
+        )
+        return "\n\n" + IMAGE_MARKER_PREFIX + payload_v69296 + IMAGE_MARKER_SUFFIX
+    except Exception as fallback_error_v69296:
+        diagnostic_log(
+            "graphic_v69296_image_marker_fallback_failed",
+            error_type=type(fallback_error_v69296).__name__,
+            error=str(fallback_error_v69296)[:300],
+        )
         return ""
 
 
