@@ -1,3 +1,4 @@
+# AutoTecPro AI v69290 FINAL PRODUCTION — v69272/v69248 Reference visual parity consolidated; later non-visual fixes retained; Technical unchanged.
 # AutoTecPro AI v69289 — Final Production Graphic v69248 Copy Fidelity Normalization Repair (2026-08-31)
 # v69285 binding authority and v69284 primary Reference repairs preserved unchanged.
 # AutoTecPro AI v69280 — Technical profile corroboration + runtime contract repair
@@ -13,8 +14,8 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
-AUTOTECPRO_RELEASE_VERSION = "v69289"
-AUTOTECPRO_RELEASE_BUILD = "graphic-v69248-copy-fidelity-normalization-repair-v69289-20260831"
+AUTOTECPRO_RELEASE_VERSION = "v69290"
+AUTOTECPRO_RELEASE_BUILD = "graphic-v69272-visual-parity-consolidation-v69290-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -52886,20 +52887,13 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         scope_v69283[generate_name_v69283]=generate_v69283
         return True
 
-    _v69283_install_reference_release_authority(ns_v69272)
-    if isinstance(inner_pre_v69274, dict):
-        _v69283_install_reference_release_authority(inner_pre_v69274)
+    # v69290: preserve the proven v69272/v69248 visual lane. Do not install the
+    # v69283 copy-fitting/final-release wrappers because they changed successful
+    # Reference acceptance/rendering semantics. We keep recovery safety separately.
     diagnostic_log(
-        "graphic_v69283_fail_closed_reference_repairs_installed",
-        root=True,
-        inner=bool(isinstance(inner_pre_v69274, dict)),
-        review_missing_defaults_zero=True,
-        recovery_full_protected_release_gate=True,
-        emergency_reference_publication_forbidden=True,
-        hero_matte_gate=True,
-        compatibility_copy_no_truncation=True,
-        lease_seconds=GRAPHIC_V68848_LEASE_SECONDS,
-        technical_pipeline_changed=False,
+        "graphic_v69290_v69283_visual_wrappers_bypassed",
+        root=True, inner=bool(isinstance(inner_pre_v69274, dict)),
+        visual_authority="v69272-v69248", technical_pipeline_changed=False,
     )
 
 
@@ -53188,17 +53182,47 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         scope_v69284[emergency_name_v69284] = emergency_v69284
         return True
 
-    _v69284_install_reference_primary_authority(ns_v69272)
+    # v69290: retain only the later fail-fast recovery safety. Successful primary
+    # Reference rendering and QA remain the v69272/v69248 authority.
+    def _v69290_install_reference_fail_fast_only(scope_v69290, label_v69290):
+        detector_v69290 = scope_v69290.get("_graphic_v68827_is_reference_mode")
+        v3200_name_v69290 = "_generate_graphic_marketing_images_advanced_v3200"
+        emergency_name_v69290 = "_graphic_emergency_provider_result_v15000"
+        original_v3200_v69290 = scope_v69290.get(v3200_name_v69290)
+        original_emergency_v69290 = scope_v69290.get(emergency_name_v69290)
+        if not all(callable(x) for x in (detector_v69290, original_v3200_v69290, original_emergency_v69290)):
+            raise RuntimeError("v69290 Reference fail-fast authorities missing in " + str(label_v69290))
+        def _is_reference_v69290(prompt_v69290, uploads_v69290, forced_v69290):
+            try:
+                return bool(detector_v69290(prompt_v69290, uploads_v69290, forced_v69290))
+            except Exception:
+                return False
+        def v3200_v69290(prompt_text_v69290, uploaded_files_v69290=None, *, use_approved_style=True, preserve_product=True, style_strength="High", forced_upload_role="Auto-detect", quality_retry=True, product_transform_mode="Auto", professional_layered_studio=True):
+            if _is_reference_v69290(prompt_text_v69290, uploaded_files_v69290, forced_upload_role):
+                diagnostic_log("graphic_v69290_reference_v3200_recovery_skipped", scope=label_v69290)
+                raise RuntimeError("Protected Reference uses the v69272/v69248 primary compositor only; compatibility provider recovery is disabled.")
+            return original_v3200_v69290(prompt_text_v69290, uploaded_files_v69290, use_approved_style=use_approved_style, preserve_product=preserve_product, style_strength=style_strength, forced_upload_role=forced_upload_role, quality_retry=quality_retry, product_transform_mode=product_transform_mode, professional_layered_studio=professional_layered_studio)
+        v3200_v69290._atp_v69290_reference_fail_fast_only = True
+        v3200_v69290._atp_v69290_original = original_v3200_v69290
+        scope_v69290[v3200_name_v69290] = v3200_v69290
+        def emergency_v69290(prompt_text_v69290, uploaded_files_v69290=None, *, style_strength="High", forced_upload_role="Auto-detect"):
+            if _is_reference_v69290(prompt_text_v69290, uploaded_files_v69290, forced_upload_role):
+                diagnostic_log("graphic_v69290_reference_emergency_recovery_skipped", scope=label_v69290)
+                raise RuntimeError("Emergency provider recovery is disabled for protected v69272/v69248 Reference mode.")
+            return original_emergency_v69290(prompt_text_v69290, uploaded_files_v69290, style_strength=style_strength, forced_upload_role=forced_upload_role)
+        emergency_v69290._atp_v69290_reference_fail_fast_only = True
+        emergency_v69290._atp_v69290_original = original_emergency_v69290
+        scope_v69290[emergency_name_v69290] = emergency_v69290
+        scope_v69290["_ATP_V69290_REFERENCE_FAIL_FAST_ONLY"] = True
+        diagnostic_log("graphic_v69290_reference_fail_fast_only_installed", scope=label_v69290, visual_authority="v69272-v69248", pixel_pipeline_changed=False)
+        return True
+    _v69290_install_reference_fail_fast_only(ns_v69272, "root")
     if isinstance(inner_pre_v69274, dict):
-        _v69284_install_reference_primary_authority(inner_pre_v69274)
+        _v69290_install_reference_fail_fast_only(inner_pre_v69274, "inner")
     diagnostic_log(
-        "graphic_v69284_reference_primary_authority_installed",
-        root=True,
-        inner=bool(isinstance(inner_pre_v69274, dict)),
-        current_prompt_copy_authority=True,
-        product_shape_independent_hero_authority=True,
-        photometric_rgb_authority=True,
-        provider_recovery_fail_fast=True,
+        "graphic_v69290_v69284_visual_wrappers_bypassed",
+        root=True, inner=bool(isinstance(inner_pre_v69274, dict)),
+        visual_authority="v69272-v69248", provider_recovery_fail_fast=True,
         technical_pipeline_changed=False,
     )
 
@@ -53259,7 +53283,7 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
 
             if prior_missing_v69289 != corrected_missing_v69289 or prior_complete_v69289 != report_v69289["complete"]:
                 diagnostic_log(
-                    "graphic_v69289_copy_fidelity_normalization_applied",
+                    "graphic_v69290_copy_fidelity_normalization_applied",
                     scope=label_v69289,
                     historical_missing=prior_missing_v69289,
                     corrected_missing=corrected_missing_v69289,
@@ -53275,7 +53299,7 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         scope_v69289[builder_name_v69289] = builder_v69289
         scope_v69289["_ATP_V69289_COPY_NORMALIZATION_OK"] = True
         diagnostic_log(
-            "graphic_v69289_copy_fidelity_normalization_installed",
+            "graphic_v69290_copy_fidelity_normalization_installed",
             scope=label_v69289,
             pixel_pipeline_changed=False,
             rendered_copy_changed=False,
@@ -53425,12 +53449,18 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
     # isolated v69248 scopes. A stale/partially deployed process must fail immediately.
     def _v69285_assert_reference_bindings(scope_v69285, label_v69285):
         checks_v69285 = {
-            "spec_current_prompt": bool(getattr(scope_v69285.get("_graphic_verified_campaign_spec_v3300"), "_atp_v69284_current_prompt_copy", False)),
-            "layout_aspect_aware": bool(getattr(scope_v69285.get("_graphic_reference_layout_fidelity_gate_v13000"), "_atp_v69284_aspect_aware", False)),
-            "rgb_builder_evidence": bool(getattr(scope_v69285.get("_graphic_build_hybrid_campaign_result_v3300"), "_atp_v69284_rgb_evidence", False)),
-            "v3200_reference_fail_fast": bool(getattr(scope_v69285.get("_generate_graphic_marketing_images_advanced_v3200"), "_atp_v69284_reference_fail_fast", False)),
-            "emergency_reference_fail_fast": bool(getattr(scope_v69285.get("_graphic_emergency_provider_result_v15000"), "_atp_v69284_reference_fail_fast", False)),
-            "v69283_final_release": bool(getattr(scope_v69285.get("generate_graphic_marketing_images"), "_atp_v69283_final_release", False)),
+            "v69272_visual_authority": bool(
+                not getattr(scope_v69285.get("_graphic_fit_ribbon_copy_v36000"), "_atp_v69283_complete_copy", False)
+                and not getattr(scope_v69285.get("_graphic_verified_campaign_spec_v3300"), "_atp_v69284_current_prompt_copy", False)
+                and not getattr(scope_v69285.get("_graphic_reference_layout_fidelity_gate_v13000"), "_atp_v69284_aspect_aware", False)
+                and not getattr(scope_v69285.get("_graphic_reference_fidelity_qa_v34000"), "_atp_v69284_photometric_authority", False)
+                and not getattr(scope_v69285.get("generate_graphic_marketing_images"), "_atp_v69283_final_release", False)
+            ),
+            "reference_fail_fast_only": bool(
+                scope_v69285.get("_ATP_V69290_REFERENCE_FAIL_FAST_ONLY")
+                and getattr(scope_v69285.get("_generate_graphic_marketing_images_advanced_v3200"), "_atp_v69290_reference_fail_fast_only", False)
+                and getattr(scope_v69285.get("_graphic_emergency_provider_result_v15000"), "_atp_v69290_reference_fail_fast_only", False)
+            ),
             "v69282_geometry_authority": bool(getattr(scope_v69285.get("_graphic_engineering_geometry_gate_v20000"), "_atp_v69282_geometry_authority", False)),
             "v69248_legacy_alias_identity": bool(
                 callable(scope_v69285.get("_generate_graphic_marketing_images_v3200"))
@@ -53448,16 +53478,16 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         }
         missing_v69285 = [key_v69285 for key_v69285, value_v69285 in checks_v69285.items() if not value_v69285]
         if missing_v69285:
-            diagnostic_log("graphic_v69289_protected_binding_assertion_failed", scope=label_v69285, missing=missing_v69285, checks=checks_v69285)
-            raise RuntimeError("v69289 protected Reference binding authority is incomplete in " + str(label_v69285) + ": " + ", ".join(missing_v69285))
-        scope_v69285["_ATP_V69289_BINDING_OK"] = True
-        scope_v69285["_ATP_V69289_RELEASE"] = AUTOTECPRO_RELEASE_VERSION
-        diagnostic_log("graphic_v69289_protected_binding_asserted", scope=label_v69285, checks=checks_v69285, release=AUTOTECPRO_RELEASE_VERSION)
+            diagnostic_log("graphic_v69290_protected_binding_assertion_failed", scope=label_v69285, missing=missing_v69285, checks=checks_v69285)
+            raise RuntimeError("v69290 protected Reference binding authority is incomplete in " + str(label_v69285) + ": " + ", ".join(missing_v69285))
+        scope_v69285["_ATP_V69290_BINDING_OK"] = True
+        scope_v69285["_ATP_V69290_RELEASE"] = AUTOTECPRO_RELEASE_VERSION
+        diagnostic_log("graphic_v69290_protected_binding_asserted", scope=label_v69285, checks=checks_v69285, release=AUTOTECPRO_RELEASE_VERSION)
         return True
 
     _v69285_assert_reference_bindings(ns_v69272, "root")
     _v69285_assert_reference_bindings(inner_pre_v69274, "inner")
-    diagnostic_log("graphic_v69289_reference_runtime_authority_ready", release=AUTOTECPRO_RELEASE_VERSION, root=True, inner=True, v69248_source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16])
+    diagnostic_log("graphic_v69290_reference_runtime_authority_ready", release=AUTOTECPRO_RELEASE_VERSION, root=True, inner=True, v69248_source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16])
 
     # v69275 output-neutral auxiliary concurrency. v69248's Reference blueprint analysis
     # and vehicle research are independent provider requests but historically execute
@@ -53916,14 +53946,14 @@ def generate_graphic_marketing_images(
     )
     if mode_v69273 in {"reference", "installed"}:
         if mode_v69273 == "reference":
-            binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69289_BINDING_OK"))
-            release_v69285 = str(ns_v69273.get("_ATP_V69289_RELEASE") or "")
+            binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69290_BINDING_OK"))
+            release_v69285 = str(ns_v69273.get("_ATP_V69290_RELEASE") or "")
             if not binding_ok_v69285 or release_v69285 != AUTOTECPRO_RELEASE_VERSION:
-                diagnostic_log("graphic_v69289_live_binding_rejected", binding_ok=binding_ok_v69285, namespace_release=release_v69285, expected_release=AUTOTECPRO_RELEASE_VERSION)
+                diagnostic_log("graphic_v69290_live_binding_rejected", binding_ok=binding_ok_v69285, namespace_release=release_v69285, expected_release=AUTOTECPRO_RELEASE_VERSION)
                 raise RuntimeError("The deployed Graphic Reference namespace is stale or incomplete; v69287 will not execute an older protected engine silently.")
-            diagnostic_log("graphic_v69289_live_binding_verified", release=release_v69285, mode=mode_v69273)
+            diagnostic_log("graphic_v69290_live_binding_verified", release=release_v69285, mode=mode_v69273)
             diagnostic_log(
-                "graphic_v69289_protected_execution_authority",
+                "graphic_v69290_protected_execution_authority",
                 release=AUTOTECPRO_RELEASE_VERSION,
                 build=AUTOTECPRO_RELEASE_BUILD,
                 namespace_release=release_v69285,
