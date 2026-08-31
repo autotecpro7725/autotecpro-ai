@@ -6,7 +6,7 @@
 # AutoTecPro AI v69168 FINAL PRODUCTION — current-source structural miss restores proven v69125/v69050 live recovery; v69167 learning transaction preserved.
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
-AUTOTECPRO_V69262_RELEASE = "v69297-true-v69272-reference-with-durable-rerender-20260831"
+AUTOTECPRO_V69262_RELEASE = "v69298-v69272-reference-direct-recovery-fastpath-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -52504,11 +52504,76 @@ def generate_graphic_marketing_images(
 ):
     mode_v69272, ns_v69272 = _graphic_v69272_protected_mode(prompt_text, uploaded_files, forced_upload_role)
     if mode_v69272 in {"reference", "installed"}:
-        engine_v69272 = ns_v69272["generate_graphic_marketing_images"]
         diagnostic_log(
             "graphic_v69272_true_v69248_engine_entered",
             mode=mode_v69272,
             source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16],
+        )
+
+        # v69298: Hosted v69272/v69297 evidence proves the exact Reference jobs
+        # accepted by the user reach the same final image only after the advanced
+        # and v3200 routes deterministically fail on KeyError('hero_left').  For
+        # Reference only, call the unchanged v69272 emergency-provider recovery
+        # function directly.  This preserves its role resolver, reference
+        # blueprint analysis/cache, vehicle lock/research, production prompt,
+        # provider request, compatibility copy, vehicle/emblem release gate,
+        # result builder and output resolution byte-for-byte.  If the fast path
+        # cannot produce an image, fail open to the untouched full v69272 engine.
+        if mode_v69272 == "reference":
+            emergency_v69298 = ns_v69272.get("_graphic_emergency_provider_result_v15000")
+            if callable(emergency_v69298):
+                started_v69298 = time.perf_counter()
+                try:
+                    resolve_prompt_v69298 = ns_v69272.get("_graphic_resolve_effective_prompt_v47000")
+                    effective_prompt_v69298 = (
+                        resolve_prompt_v69298(prompt_text)
+                        if callable(resolve_prompt_v69298)
+                        else str(prompt_text or "")
+                    )
+                    images_v69272 = emergency_v69298(
+                        effective_prompt_v69298, uploaded_files,
+                        style_strength=style_strength,
+                        forced_upload_role=forced_upload_role,
+                    )
+                    if images_v69272:
+                        elapsed_v69298 = time.perf_counter() - started_v69298
+                        diagnostic_log(
+                            "graphic_v69298_reference_direct_known_good_recovery_returned",
+                            image_count=len(images_v69272 or []),
+                            elapsed_seconds=round(elapsed_v69298, 3),
+                            visual_authority="v69272-v15000-recovery",
+                            provider_payload_changed=False,
+                        )
+                    else:
+                        diagnostic_log(
+                            "graphic_v69298_reference_direct_known_good_recovery_empty",
+                            elapsed_seconds=round(time.perf_counter() - started_v69298, 3),
+                        )
+                except Exception as direct_error_v69298:
+                    images_v69272 = []
+                    diagnostic_log(
+                        "graphic_v69298_reference_direct_known_good_recovery_failed_open",
+                        error_type=type(direct_error_v69298).__name__,
+                        error=str(direct_error_v69298)[:500],
+                        elapsed_seconds=round(time.perf_counter() - started_v69298, 3),
+                    )
+                if images_v69272:
+                    for image_v69272 in images_v69272 or []:
+                        if isinstance(image_v69272, dict):
+                            image_v69272["graphic_v69272_isolated_v69248"] = True
+                            image_v69272["graphic_v69272_mode"] = mode_v69272
+                            image_v69272["graphic_v69272_source_sha256"] = _GRAPHIC_V69271_V69248_SOURCE_SHA256
+                            image_v69272["graphic_v69298_direct_known_good_recovery"] = True
+                    diagnostic_log(
+                        "graphic_v69272_true_v69248_engine_returned",
+                        mode=mode_v69272, image_count=len(images_v69272 or []),
+                    )
+                    return images_v69272
+
+        engine_v69272 = ns_v69272["generate_graphic_marketing_images"]
+        diagnostic_log(
+            "graphic_v69298_full_v69272_fallback_entered",
+            mode=mode_v69272,
         )
         images_v69272 = engine_v69272(
             prompt_text, uploaded_files,
