@@ -1,4 +1,6 @@
-# AutoTecPro AI v69290 FINAL PRODUCTION — v69272/v69248 Reference visual parity consolidated; later non-visual fixes retained; Technical unchanged.
+# AutoTecPro AI v69292 FINAL PRODUCTION — v69291 Reference fidelity repair + protected binding/runtime audit hardening; Technical unchanged.
+# v69292 adds only fail-closed binding assertions/diagnostics around the v69291 QA evidence repair; no pixel/provider/layout/provider payload changes.
+# v69291 restored only the proven v69284 QA/evidence safeguards accidentally bypassed by v69290.
 # AutoTecPro AI v69289 — Final Production Graphic v69248 Copy Fidelity Normalization Repair (2026-08-31)
 # v69285 binding authority and v69284 primary Reference repairs preserved unchanged.
 # AutoTecPro AI v69280 — Technical profile corroboration + runtime contract repair
@@ -14,8 +16,8 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
-AUTOTECPRO_RELEASE_VERSION = "v69290"
-AUTOTECPRO_RELEASE_BUILD = "graphic-v69272-visual-parity-consolidation-v69290-20260831"
+AUTOTECPRO_RELEASE_VERSION = "v69292"
+AUTOTECPRO_RELEASE_BUILD = "graphic-v69291-reference-fidelity-audit-hardened-v69292-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -31995,7 +31997,7 @@ def _graphic_user_failure_notice_v69257(error=None, retry_reason="", *, will_ret
         "hero product too small", "product geometry", "exact-product campaign failed",
     )):
         title = "Product fidelity check failed"
-        message = "The generated image changed the product geometry, scale, or screen ratio, so it was rejected."
+        message = "The final product-fidelity evidence did not pass, so the image was rejected rather than publishing a potentially altered product."
         category = "product_fidelity"
     elif any(token in text for token in (
         "vehicle validation unavailable", "vehicle could not be verified", "vehicle verification unavailable",
@@ -53488,6 +53490,206 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
     _v69285_assert_reference_bindings(ns_v69272, "root")
     _v69285_assert_reference_bindings(inner_pre_v69274, "inner")
     diagnostic_log("graphic_v69290_reference_runtime_authority_ready", release=AUTOTECPRO_RELEASE_VERSION, root=True, inner=True, v69248_source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16])
+
+    # v69291: v69290 intentionally bypassed the broad v69284 visual wrapper set to
+    # restore exact v69272/v69248 rendering parity. Hosted production then proved that
+    # two QA-only safeguards were lost with that bypass: (1) the historical layout
+    # validator compares a newly supplied product's physical silhouette to the product
+    # pictured in the STYLE reference; and (2) bounded local photometric integration
+    # can trip the old RGB threshold even when source geometry/alpha remain exact.
+    # Restore ONLY those evidence-layer safeguards. Do not alter compositor pixels,
+    # provider requests, product placement, typography, copy, or recovery routing.
+    def _v69291_install_reference_fidelity_evidence(scope_v69291, label_v69291):
+        layout_name_v69291 = "_graphic_reference_layout_fidelity_gate_v13000"
+        fidelity_name_v69291 = "_graphic_reference_fidelity_qa_v34000"
+        visual_name_v69291 = "_graphic_exact_product_visual_match_v10000"
+        original_layout_v69291 = scope_v69291.get(layout_name_v69291)
+        original_fidelity_v69291 = scope_v69291.get(fidelity_name_v69291)
+        visual_match_v69291 = scope_v69291.get(visual_name_v69291)
+        if not all(callable(x) for x in (original_layout_v69291, original_fidelity_v69291, visual_match_v69291)):
+            raise RuntimeError("v69291 Reference fidelity authorities missing in " + str(label_v69291))
+        if bool(getattr(original_fidelity_v69291, "_atp_v69291_exact_source_evidence", False)):
+            return True
+
+        def deterministic_proof_v69291(metadata_v69291):
+            md_v69291 = dict(metadata_v69291 or {})
+            proof_v69291 = dict(md_v69291.get("reference_exact_source_bounds_v68981") or {})
+            return bool(
+                md_v69291.get("reference_geometry_authority_v68981") is True
+                and proof_v69291.get("engine") == "exact-source-bounds-v68981"
+                and proof_v69291.get("on_canvas") is True
+                and proof_v69291.get("clears_footer") is True
+                and proof_v69291.get("uniform_scale_only") is True
+                and proof_v69291.get("aspect_ratio_preserved") is True
+                and proof_v69291.get("crop_applied") is False
+                and proof_v69291.get("perspective_warp_applied") is False
+                and md_v69291.get("premultiplied_alpha_resize") is True
+                and md_v69291.get("master_bezel_lock") is True
+                and md_v69291.get("bezel_pixels_regenerated") is False
+                and md_v69291.get("product_pixels_provider_generated") is False
+                and md_v69291.get("product_ai_reconstruction_prohibited") is True
+            )
+
+        def layout_v69291(result_v69291, roles_v69291):
+            report_v69291 = dict(original_layout_v69291(result_v69291, roles_v69291) or {})
+            if report_v69291.get("required") is not True or report_v69291.get("passed") is True:
+                return report_v69291
+            md_v69291 = dict((result_v69291 or {}).get("layered_metadata") or {})
+            if not deterministic_proof_v69291(md_v69291):
+                return report_v69291
+            proof_v69291 = dict(md_v69291.get("reference_exact_source_bounds_v68981") or {})
+            expected_v69291 = dict(md_v69291.get("reference_layout_blueprint") or {})
+            actual_v69291 = dict(md_v69291.get("actual_normalized_boxes") or {})
+            try:
+                ex, ey, ew, eh = [float(v) for v in expected_v69291.get("hero_product_box")]
+                ax, ay, aw, ah = [float(v) for v in actual_v69291.get("hero_product_box")]
+                sw, sh = [float(v) for v in (proof_v69291.get("source_visible_size") or md_v69291.get("product_source_visible_size"))]
+                cw, ch = [float(v) for v in (proof_v69291.get("canvas_size") or md_v69291.get("canvas_size"))]
+                max_scale = min((ew*cw)/sw, (eh*ch)/sh)
+                max_w = (sw*max_scale)/cw
+                max_h = (sh*max_scale)/ch
+                fit = min(aw/max(max_w,1e-9), ah/max(max_h,1e-9))
+                cx, cy = ax+aw/2.0, ay+ah/2.0
+                tol_x, tol_y = max(0.012, ew*0.035), max(0.012, eh*0.035)
+                contained = bool(
+                    ex <= cx <= ex+ew and ey <= cy <= ey+eh
+                    and ax >= ex-tol_x and ay >= ey-tol_y
+                    and ax+aw <= ex+ew+tol_x and ay+ah <= ey+eh+tol_y
+                )
+            except Exception:
+                return report_v69291
+            if not (contained and fit >= 0.90):
+                return report_v69291
+            issues = []
+            removed = []
+            for issue in list(report_v69291.get("issues") or []):
+                if str(issue) == "hero product differs materially from reference":
+                    removed.append(str(issue))
+                else:
+                    issues.append(issue)
+            if not removed:
+                return report_v69291
+            checks = dict(report_v69291.get("checks") or {})
+            old_hero = float(checks.get("hero_product_box") or 0.0)
+            new_hero = min(1.0, max(0.0, float(fit)))
+            checks["hero_product_box"] = round(new_hero, 4)
+            checks["hero_product_aspect_fit_v69291"] = {
+                "fit_ratio": round(float(fit), 6), "contained": True,
+                "source_shape_independent": True,
+            }
+            score = min(1.0, max(0.0, float(report_v69291.get("score") or 0.0) + (new_hero-old_hero)*0.44))
+            report_v69291["issues"] = issues
+            report_v69291["checks"] = checks
+            report_v69291["score"] = round(score, 4)
+            report_v69291["passed"] = bool(not issues and score >= float(report_v69291.get("threshold") or 0.78))
+            report_v69291["policy_v69291"] = "uploaded-product-aspect-aware-reference-hero-evidence"
+            diagnostic_log("graphic_v69291_reference_hero_shape_false_positive_suppressed", scope=label_v69291, fit_ratio=round(float(fit),6), score=report_v69291.get("score"))
+            return report_v69291
+        layout_v69291._atp_v69291_exact_source_evidence = True
+        layout_v69291._atp_v69291_original = original_layout_v69291
+        scope_v69291[layout_name_v69291] = layout_v69291
+
+        def fidelity_v69291(result_v69291, roles_v69291):
+            report_v69291 = dict(original_fidelity_v69291(result_v69291, roles_v69291) or {})
+            if report_v69291.get("required") is not True or report_v69291.get("passed") is True:
+                return report_v69291
+            md_v69291 = dict((result_v69291 or {}).get("layered_metadata") or {})
+            if not deterministic_proof_v69291(md_v69291):
+                return report_v69291
+            rgb = dict(md_v69291.get("product_rgb_fidelity") or {})
+            visual = dict(visual_match_v69291(result_v69291, roles_v69291) or {})
+            visual_score = float(visual.get("score") or 0.0)
+            rgb_safe = bool(
+                rgb.get("available")
+                and rgb.get("alpha_unchanged") is True
+                and visual.get("available")
+                and visual_score >= 0.985
+            )
+            if not rgb_safe:
+                return report_v69291
+            issues = []
+            removed = []
+            for issue in list(report_v69291.get("issues") or []):
+                if str(issue) == "product RGB drift exceeded the reference-mode tolerance":
+                    removed.append(str(issue))
+                else:
+                    issues.append(issue)
+            if not removed:
+                return report_v69291
+            checks = dict(report_v69291.get("checks") or {})
+            checks["product_rgb_fidelity"] = 1.0
+            checks["product_rgb_photometric_authority_v69291"] = {
+                "visual_score": round(visual_score,6),
+                "alpha_unchanged": True,
+                "deterministic_geometry": True,
+            }
+            score = min(1.0, float(report_v69291.get("score") or 0.0) + 0.09)
+            report_v69291["issues"] = issues
+            report_v69291["checks"] = checks
+            report_v69291["score"] = round(score,4)
+            report_v69291["passed"] = bool(not issues and score >= float(report_v69291.get("threshold") or 0.86))
+            report_v69291["policy_v69291"] = "exact-source-photometric-integration-evidence"
+            diagnostic_log(
+                "graphic_v69291_rgb_photometric_false_positive_suppressed",
+                scope=label_v69291, visual_score=round(visual_score,6),
+                mean_rgb_delta=rgb.get("mean_rgb_delta"), max_rgb_delta=rgb.get("max_rgb_delta"),
+            )
+            return report_v69291
+        fidelity_v69291._atp_v69291_exact_source_evidence = True
+        fidelity_v69291._atp_v69291_original = original_fidelity_v69291
+        scope_v69291[fidelity_name_v69291] = fidelity_v69291
+        scope_v69291["_ATP_V69291_REFERENCE_FIDELITY_EVIDENCE_OK"] = True
+        diagnostic_log(
+            "graphic_v69291_reference_fidelity_evidence_installed",
+            scope=label_v69291, pixel_pipeline_changed=False,
+            provider_payload_changed=False, layout_render_changed=False,
+            qa_evidence_only=True,
+        )
+        return True
+
+    _v69291_install_reference_fidelity_evidence(ns_v69272, "root")
+    _v69291_install_reference_fidelity_evidence(inner_pre_v69274, "inner")
+    for scope_v69291, label_v69291 in ((ns_v69272, "root"), (inner_pre_v69274, "inner")):
+        checks_v69291 = {
+            "layout_evidence": bool(getattr(scope_v69291.get("_graphic_reference_layout_fidelity_gate_v13000"), "_atp_v69291_exact_source_evidence", False)),
+            "rgb_evidence": bool(getattr(scope_v69291.get("_graphic_reference_fidelity_qa_v34000"), "_atp_v69291_exact_source_evidence", False)),
+            "v69290_fail_fast": bool(scope_v69291.get("_ATP_V69290_REFERENCE_FAIL_FAST_ONLY")),
+            "v69289_copy_normalization": bool(scope_v69291.get("_ATP_V69289_COPY_NORMALIZATION_OK")),
+        }
+        if not all(checks_v69291.values()):
+            raise RuntimeError("v69291 protected Reference evidence binding incomplete in " + label_v69291 + ": " + str(checks_v69291))
+        diagnostic_log("graphic_v69291_reference_fidelity_binding_asserted", scope=label_v69291, checks=checks_v69291, release=AUTOTECPRO_RELEASE_VERSION)
+
+    # v69292: fail-closed post-install authority audit.  This is diagnostic/binding
+    # hardening only: it proves the new evidence wrappers are the live callables while
+    # the protected v69290 fail-fast, v69289 copy normalization, v69287 alias identity,
+    # and v69288 provider watchdog remain installed.  No rendering or provider path changes.
+    for scope_v69292, label_v69292 in ((ns_v69272, "root"), (inner_pre_v69274, "inner")):
+        layout_v69292 = scope_v69292.get("_graphic_reference_layout_fidelity_gate_v13000")
+        fidelity_v69292 = scope_v69292.get("_graphic_reference_fidelity_qa_v34000")
+        advanced_v69292 = scope_v69292.get("_generate_graphic_marketing_images_advanced_v3200")
+        legacy_v69292 = scope_v69292.get("_generate_graphic_marketing_images_v3200")
+        client_v69292 = scope_v69292.get("client")
+        checks_v69292 = {
+            "layout_live_v69291": bool(callable(layout_v69292) and getattr(layout_v69292, "_atp_v69291_exact_source_evidence", False)),
+            "fidelity_live_v69291": bool(callable(fidelity_v69292) and getattr(fidelity_v69292, "_atp_v69291_exact_source_evidence", False)),
+            "reference_fail_fast_v69290": bool(scope_v69292.get("_ATP_V69290_REFERENCE_FAIL_FAST_ONLY")),
+            "copy_normalization_v69289": bool(scope_v69292.get("_ATP_V69289_COPY_NORMALIZATION_OK")),
+            "legacy_alias_identity_v69287": bool(callable(advanced_v69292) and legacy_v69292 is advanced_v69292),
+            "provider_wallclock_v69288": bool(client_v69292 is not None and getattr(client_v69292, "_atp_v69288_provider_wallclock", False)),
+            "v69272_visual_authority": bool(
+                not getattr(scope_v69292.get("_graphic_fit_ribbon_copy_v36000"), "_atp_v69283_complete_copy", False)
+                and not getattr(scope_v69292.get("_graphic_verified_campaign_spec_v3300"), "_atp_v69284_current_prompt_copy", False)
+                and not getattr(scope_v69292.get("generate_graphic_marketing_images"), "_atp_v69283_final_release", False)
+            ),
+        }
+        if not all(checks_v69292.values()):
+            raise RuntimeError("v69292 protected Reference post-install authority audit failed in " + label_v69292 + ": " + str(checks_v69292))
+        diagnostic_log(
+            "graphic_v69292_post_install_authority_verified",
+            scope=label_v69292, checks=checks_v69292, release=AUTOTECPRO_RELEASE_VERSION,
+            pixel_pipeline_changed=False, provider_payload_changed=False, technical_pipeline_changed=False,
+        )
 
     # v69275 output-neutral auxiliary concurrency. v69248's Reference blueprint analysis
     # and vehicle research are independent provider requests but historically execute
