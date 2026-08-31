@@ -13,8 +13,8 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
-AUTOTECPRO_RELEASE_VERSION = "v69287"
-AUTOTECPRO_RELEASE_BUILD = "graphic-v69248-legacy-alias-authority-repair-v69287-20260831"
+AUTOTECPRO_RELEASE_VERSION = "v69288"
+AUTOTECPRO_RELEASE_BUILD = "graphic-provider-wallclock-v69248-runtime-repair-v69288-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -243,7 +243,7 @@ def diagnostic_log(event, **fields):
 # v69285 explicit runtime build fingerprint. This is intentionally emitted at module
 # load so production logs prove which App/app.py revision is actually executing.
 diagnostic_log(
-    "autotecpro_release_loaded_v69287",
+    "autotecpro_release_loaded_v69288",
     release=AUTOTECPRO_RELEASE_VERSION,
     build=AUTOTECPRO_RELEASE_BUILD,
 )
@@ -53231,7 +53231,112 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
     _v69287_restore_v69248_legacy_alias(ns_v69272, "root")
     _v69287_restore_v69248_legacy_alias(inner_pre_v69274, "inner")
 
-    # v69285/v69286 binding proof retained under the v69287 release identity.
+    # v69288: transport-only hard wall-clock guard for image provider calls.
+    # The OpenAI SDK timeout is retained unchanged, but production v69287 proved
+    # that a Responses image_generation call can remain blocked well beyond it.
+    # This proxy preserves the EXACT request payload/model/tool/schema and only
+    # abandons a provider network call that exceeds the hard wall-clock ceiling.
+    # No Reference prompt, layout, compositor, product pixels, QA, or routing is
+    # modified. Non-image Responses calls (including ordinary analysis/search) are
+    # delegated directly to the original SDK client.
+    GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS = 180.0
+
+    def _v69288_wallclock_call(callable_v69288, args_v69288, kwargs_v69288, *, label_v69288, timeout_v69288):
+        result_v69288 = {}
+        done_v69288 = threading.Event()
+        started_v69288 = time.perf_counter()
+        diagnostic_log(
+            "graphic_v69288_provider_attempt_started",
+            provider=label_v69288,
+            hard_wallclock_seconds=float(timeout_v69288),
+        )
+        def worker_v69288():
+            try:
+                result_v69288["value"] = callable_v69288(*args_v69288, **kwargs_v69288)
+            except BaseException as error_v69288:
+                result_v69288["error"] = error_v69288
+            finally:
+                done_v69288.set()
+        thread_v69288 = threading.Thread(
+            target=worker_v69288,
+            name="atp-v69288-provider-wallclock",
+            daemon=True,
+        )
+        thread_v69288.start()
+        if not done_v69288.wait(float(timeout_v69288)):
+            elapsed_v69288 = time.perf_counter() - started_v69288
+            diagnostic_log(
+                "graphic_v69288_provider_wallclock_timeout",
+                provider=label_v69288,
+                elapsed_seconds=round(elapsed_v69288, 3),
+                hard_wallclock_seconds=float(timeout_v69288),
+            )
+            raise TimeoutError(
+                "v69288 hard wall-clock timeout while waiting for " + str(label_v69288)
+            )
+        if "error" in result_v69288:
+            raise result_v69288["error"]
+        return result_v69288.get("value")
+
+    class _V69288ServiceProxy:
+        _atp_v69288_provider_wallclock = True
+        def __init__(self, service_v69288, kind_v69288):
+            self._service_v69288 = service_v69288
+            self._kind_v69288 = str(kind_v69288)
+        def __getattr__(self, name_v69288):
+            attr_v69288 = getattr(self._service_v69288, name_v69288)
+            if name_v69288 != "create" or not callable(attr_v69288):
+                return attr_v69288
+            def create_v69288(*args_v69288, **kwargs_v69288):
+                if self._kind_v69288 == "responses":
+                    tools_v69288 = kwargs_v69288.get("tools") or []
+                    is_image_v69288 = any(
+                        isinstance(tool_v69288, dict) and str(tool_v69288.get("type") or "") == "image_generation"
+                        for tool_v69288 in tools_v69288
+                    )
+                    if not is_image_v69288:
+                        return attr_v69288(*args_v69288, **kwargs_v69288)
+                return _v69288_wallclock_call(
+                    attr_v69288, args_v69288, kwargs_v69288,
+                    label_v69288=self._kind_v69288 + ".create",
+                    timeout_v69288=GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS,
+                )
+            return create_v69288
+
+    class _V69288ClientProxy:
+        _atp_v69288_provider_wallclock = True
+        def __init__(self, client_v69288):
+            self._client_v69288 = client_v69288
+        def __getattr__(self, name_v69288):
+            if name_v69288 == "responses":
+                return _V69288ServiceProxy(getattr(self._client_v69288, name_v69288), "responses")
+            if name_v69288 == "images":
+                return _V69288ServiceProxy(getattr(self._client_v69288, name_v69288), "images")
+            return getattr(self._client_v69288, name_v69288)
+        def with_options(self, *args_v69288, **kwargs_v69288):
+            return _V69288ClientProxy(self._client_v69288.with_options(*args_v69288, **kwargs_v69288))
+
+    def _v69288_install_provider_wallclock(scope_v69288, label_v69288):
+        client_v69288 = scope_v69288.get("client")
+        if client_v69288 is None:
+            raise RuntimeError("v69288 protected provider client missing in " + str(label_v69288))
+        if not bool(getattr(client_v69288, "_atp_v69288_provider_wallclock", False)):
+            scope_v69288["client"] = _V69288ClientProxy(client_v69288)
+        scope_v69288["GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS"] = GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS
+        scope_v69288["_ATP_V69288_PROVIDER_WALLCLOCK_OK"] = True
+        diagnostic_log(
+            "graphic_v69288_provider_wallclock_installed",
+            scope=label_v69288,
+            hard_wallclock_seconds=GRAPHIC_V69288_IMAGE_WALLCLOCK_SECONDS,
+            request_payload_changed=False,
+            pixel_pipeline_changed=False,
+        )
+        return True
+
+    _v69288_install_provider_wallclock(ns_v69272, "root")
+    _v69288_install_provider_wallclock(inner_pre_v69274, "inner")
+
+    # v69285/v69286 binding proof retained under the v69288 release identity.
     # v69285: prove that the exact v69284 authorities are the live callables in BOTH
     # isolated v69248 scopes. A stale/partially deployed process must fail immediately.
     def _v69285_assert_reference_bindings(scope_v69285, label_v69285):
@@ -53248,19 +53353,23 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
                 and scope_v69285.get("_generate_graphic_marketing_images_v3200")
                     is scope_v69285.get("_generate_graphic_marketing_images_advanced_v3200")
             ),
+            "provider_wallclock": bool(
+                scope_v69285.get("_ATP_V69288_PROVIDER_WALLCLOCK_OK")
+                and getattr(scope_v69285.get("client"), "_atp_v69288_provider_wallclock", False)
+            ),
         }
         missing_v69285 = [key_v69285 for key_v69285, value_v69285 in checks_v69285.items() if not value_v69285]
         if missing_v69285:
-            diagnostic_log("graphic_v69287_protected_binding_assertion_failed", scope=label_v69285, missing=missing_v69285, checks=checks_v69285)
+            diagnostic_log("graphic_v69288_protected_binding_assertion_failed", scope=label_v69285, missing=missing_v69285, checks=checks_v69285)
             raise RuntimeError("v69287 protected Reference binding authority is incomplete in " + str(label_v69285) + ": " + ", ".join(missing_v69285))
-        scope_v69285["_ATP_V69287_BINDING_OK"] = True
-        scope_v69285["_ATP_V69287_RELEASE"] = AUTOTECPRO_RELEASE_VERSION
-        diagnostic_log("graphic_v69287_protected_binding_asserted", scope=label_v69285, checks=checks_v69285, release=AUTOTECPRO_RELEASE_VERSION)
+        scope_v69285["_ATP_V69288_BINDING_OK"] = True
+        scope_v69285["_ATP_V69288_RELEASE"] = AUTOTECPRO_RELEASE_VERSION
+        diagnostic_log("graphic_v69288_protected_binding_asserted", scope=label_v69285, checks=checks_v69285, release=AUTOTECPRO_RELEASE_VERSION)
         return True
 
     _v69285_assert_reference_bindings(ns_v69272, "root")
     _v69285_assert_reference_bindings(inner_pre_v69274, "inner")
-    diagnostic_log("graphic_v69287_reference_runtime_authority_ready", release=AUTOTECPRO_RELEASE_VERSION, root=True, inner=True, v69248_source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16])
+    diagnostic_log("graphic_v69288_reference_runtime_authority_ready", release=AUTOTECPRO_RELEASE_VERSION, root=True, inner=True, v69248_source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16])
 
     # v69275 output-neutral auxiliary concurrency. v69248's Reference blueprint analysis
     # and vehicle research are independent provider requests but historically execute
@@ -53719,14 +53828,14 @@ def generate_graphic_marketing_images(
     )
     if mode_v69273 in {"reference", "installed"}:
         if mode_v69273 == "reference":
-            binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69287_BINDING_OK"))
-            release_v69285 = str(ns_v69273.get("_ATP_V69287_RELEASE") or "")
+            binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69288_BINDING_OK"))
+            release_v69285 = str(ns_v69273.get("_ATP_V69288_RELEASE") or "")
             if not binding_ok_v69285 or release_v69285 != AUTOTECPRO_RELEASE_VERSION:
-                diagnostic_log("graphic_v69287_live_binding_rejected", binding_ok=binding_ok_v69285, namespace_release=release_v69285, expected_release=AUTOTECPRO_RELEASE_VERSION)
+                diagnostic_log("graphic_v69288_live_binding_rejected", binding_ok=binding_ok_v69285, namespace_release=release_v69285, expected_release=AUTOTECPRO_RELEASE_VERSION)
                 raise RuntimeError("The deployed Graphic Reference namespace is stale or incomplete; v69287 will not execute an older protected engine silently.")
-            diagnostic_log("graphic_v69287_live_binding_verified", release=release_v69285, mode=mode_v69273)
+            diagnostic_log("graphic_v69288_live_binding_verified", release=release_v69285, mode=mode_v69273)
             diagnostic_log(
-                "graphic_v69287_protected_execution_authority",
+                "graphic_v69288_protected_execution_authority",
                 release=AUTOTECPRO_RELEASE_VERSION,
                 build=AUTOTECPRO_RELEASE_BUILD,
                 namespace_release=release_v69285,
