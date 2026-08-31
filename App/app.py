@@ -1,4 +1,4 @@
-# AutoTecPro AI v69286 — Final Production Graphic Runtime Identity + Stale Durable-Job Repair (2026-08-31)
+# AutoTecPro AI v69287 — Final Production Graphic v69248 Legacy Alias Authority Repair (2026-08-31)
 # v69285 binding authority and v69284 primary Reference repairs preserved unchanged.
 # AutoTecPro AI v69280 — Technical profile corroboration + runtime contract repair
 # AutoTecPro AI v69278 — Final Production Technical Single-Source Multi-Branch Render Fix
@@ -13,8 +13,8 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
-AUTOTECPRO_RELEASE_VERSION = "v69286"
-AUTOTECPRO_RELEASE_BUILD = "graphic-runtime-identity-stale-job-repair-v69286-20260831"
+AUTOTECPRO_RELEASE_VERSION = "v69287"
+AUTOTECPRO_RELEASE_BUILD = "graphic-v69248-legacy-alias-authority-repair-v69287-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -243,7 +243,7 @@ def diagnostic_log(event, **fields):
 # v69285 explicit runtime build fingerprint. This is intentionally emitted at module
 # load so production logs prove which App/app.py revision is actually executing.
 diagnostic_log(
-    "autotecpro_release_loaded_v69286",
+    "autotecpro_release_loaded_v69287",
     release=AUTOTECPRO_RELEASE_VERSION,
     build=AUTOTECPRO_RELEASE_BUILD,
 )
@@ -52112,7 +52112,7 @@ def _graphic_pending_durable_job_v68844():
             stamped_release_v69286 = str(job.get("graphic_runtime_release_v69286") or "").strip()
             if stamped_release_v69286 != AUTOTECPRO_RELEASE_VERSION:
                 diagnostic_log(
-                    "graphic_v69286_stale_protected_durable_job_rejected",
+                    "graphic_v69287_stale_protected_durable_job_rejected",
                     job_id=str(job.get("job_id") or ""),
                     job_release=stamped_release_v69286 or "legacy-unversioned",
                     current_release=AUTOTECPRO_RELEASE_VERSION,
@@ -53202,6 +53202,36 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         technical_pipeline_changed=False,
     )
 
+    # v69287: restore the exact historical v69248 legacy alias invariant AFTER all
+    # protected wrappers have been installed. v69248 line 28398 requires
+    # `_generate_graphic_marketing_images_v3200` to be the SAME callable object as
+    # `_generate_graphic_marketing_images_advanced_v3200`. v69284 correctly wrapped
+    # the advanced callable but left the alias pointing at its pre-wrapper object,
+    # causing the later v69272 fail-fast identity audit to abort before any provider
+    # generation. Rebinding the alias does not alter pixels, prompts, QA, or routing;
+    # it restores the original v69248 alias contract to the currently authoritative
+    # protected callable in both isolated scopes.
+    def _v69287_restore_v69248_legacy_alias(scope_v69287, label_v69287):
+        advanced_v69287 = scope_v69287.get("_generate_graphic_marketing_images_advanced_v3200")
+        if not callable(advanced_v69287):
+            raise RuntimeError("v69287 cannot restore v69248 legacy alias in " + str(label_v69287) + ": advanced callable missing")
+        scope_v69287["_generate_graphic_marketing_images_v3200"] = advanced_v69287
+        alias_v69287 = scope_v69287.get("_generate_graphic_marketing_images_v3200")
+        if alias_v69287 is not advanced_v69287:
+            raise RuntimeError("v69287 failed to restore v69248 legacy alias identity in " + str(label_v69287))
+        scope_v69287["_ATP_V69287_V69248_ALIAS_OK"] = True
+        diagnostic_log(
+            "graphic_v69287_v69248_legacy_alias_restored",
+            scope=label_v69287,
+            identity_equal=True,
+            advanced_wrapped=bool(getattr(advanced_v69287, "_atp_v69284_reference_fail_fast", False)),
+        )
+        return True
+
+    _v69287_restore_v69248_legacy_alias(ns_v69272, "root")
+    _v69287_restore_v69248_legacy_alias(inner_pre_v69274, "inner")
+
+    # v69285/v69286 binding proof retained under the v69287 release identity.
     # v69285: prove that the exact v69284 authorities are the live callables in BOTH
     # isolated v69248 scopes. A stale/partially deployed process must fail immediately.
     def _v69285_assert_reference_bindings(scope_v69285, label_v69285):
@@ -53213,19 +53243,24 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
             "emergency_reference_fail_fast": bool(getattr(scope_v69285.get("_graphic_emergency_provider_result_v15000"), "_atp_v69284_reference_fail_fast", False)),
             "v69283_final_release": bool(getattr(scope_v69285.get("generate_graphic_marketing_images"), "_atp_v69283_final_release", False)),
             "v69282_geometry_authority": bool(getattr(scope_v69285.get("_graphic_engineering_geometry_gate_v20000"), "_atp_v69282_geometry_authority", False)),
+            "v69248_legacy_alias_identity": bool(
+                callable(scope_v69285.get("_generate_graphic_marketing_images_v3200"))
+                and scope_v69285.get("_generate_graphic_marketing_images_v3200")
+                    is scope_v69285.get("_generate_graphic_marketing_images_advanced_v3200")
+            ),
         }
         missing_v69285 = [key_v69285 for key_v69285, value_v69285 in checks_v69285.items() if not value_v69285]
         if missing_v69285:
-            diagnostic_log("graphic_v69286_protected_binding_assertion_failed", scope=label_v69285, missing=missing_v69285, checks=checks_v69285)
-            raise RuntimeError("v69286 protected Reference binding authority is incomplete in " + str(label_v69285) + ": " + ", ".join(missing_v69285))
-        scope_v69285["_ATP_V69286_BINDING_OK"] = True
-        scope_v69285["_ATP_V69286_RELEASE"] = AUTOTECPRO_RELEASE_VERSION
-        diagnostic_log("graphic_v69286_protected_binding_asserted", scope=label_v69285, checks=checks_v69285, release=AUTOTECPRO_RELEASE_VERSION)
+            diagnostic_log("graphic_v69287_protected_binding_assertion_failed", scope=label_v69285, missing=missing_v69285, checks=checks_v69285)
+            raise RuntimeError("v69287 protected Reference binding authority is incomplete in " + str(label_v69285) + ": " + ", ".join(missing_v69285))
+        scope_v69285["_ATP_V69287_BINDING_OK"] = True
+        scope_v69285["_ATP_V69287_RELEASE"] = AUTOTECPRO_RELEASE_VERSION
+        diagnostic_log("graphic_v69287_protected_binding_asserted", scope=label_v69285, checks=checks_v69285, release=AUTOTECPRO_RELEASE_VERSION)
         return True
 
     _v69285_assert_reference_bindings(ns_v69272, "root")
     _v69285_assert_reference_bindings(inner_pre_v69274, "inner")
-    diagnostic_log("graphic_v69286_reference_runtime_authority_ready", release=AUTOTECPRO_RELEASE_VERSION, root=True, inner=True, v69248_source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16])
+    diagnostic_log("graphic_v69287_reference_runtime_authority_ready", release=AUTOTECPRO_RELEASE_VERSION, root=True, inner=True, v69248_source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16])
 
     # v69275 output-neutral auxiliary concurrency. v69248's Reference blueprint analysis
     # and vehicle research are independent provider requests but historically execute
@@ -53684,14 +53719,14 @@ def generate_graphic_marketing_images(
     )
     if mode_v69273 in {"reference", "installed"}:
         if mode_v69273 == "reference":
-            binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69286_BINDING_OK"))
-            release_v69285 = str(ns_v69273.get("_ATP_V69286_RELEASE") or "")
+            binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69287_BINDING_OK"))
+            release_v69285 = str(ns_v69273.get("_ATP_V69287_RELEASE") or "")
             if not binding_ok_v69285 or release_v69285 != AUTOTECPRO_RELEASE_VERSION:
-                diagnostic_log("graphic_v69286_live_binding_rejected", binding_ok=binding_ok_v69285, namespace_release=release_v69285, expected_release=AUTOTECPRO_RELEASE_VERSION)
-                raise RuntimeError("The deployed Graphic Reference namespace is stale or incomplete; v69286 will not execute an older protected engine silently.")
-            diagnostic_log("graphic_v69286_live_binding_verified", release=release_v69285, mode=mode_v69273)
+                diagnostic_log("graphic_v69287_live_binding_rejected", binding_ok=binding_ok_v69285, namespace_release=release_v69285, expected_release=AUTOTECPRO_RELEASE_VERSION)
+                raise RuntimeError("The deployed Graphic Reference namespace is stale or incomplete; v69287 will not execute an older protected engine silently.")
+            diagnostic_log("graphic_v69287_live_binding_verified", release=release_v69285, mode=mode_v69273)
             diagnostic_log(
-                "graphic_v69286_protected_execution_authority",
+                "graphic_v69287_protected_execution_authority",
                 release=AUTOTECPRO_RELEASE_VERSION,
                 build=AUTOTECPRO_RELEASE_BUILD,
                 namespace_release=release_v69285,
