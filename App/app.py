@@ -1,3 +1,7 @@
+# AutoTecPro AI v69293 FINAL PRODUCTION — Reference post-generation publication recovery + synchronous optional-learning isolation; v69272/v69248 visual authority, After Install, Technical unchanged.
+# v69293 fixes the hosted v69292 lifecycle regression where a completed/QA-cleared Reference image was held behind legacy synchronous Graphic intelligence persistence and then discarded on Streamlit StopException.
+# Exact Reference now skips that optional synchronous learning write and records a strict fresh-result completion checkpoint; StopException may recover only that same-job, same-prompt, post-QA Reference result.
+# No provider request, pixel compositor, layout, product fidelity threshold, Reference visual engine, After Install renderer, Technical, Sales/Marketing, auth, History, or ordinary persistence contract is changed.
 # AutoTecPro AI v69292 FINAL PRODUCTION — v69291 Reference fidelity repair + protected binding/runtime audit hardening; Technical unchanged.
 # v69292 adds only fail-closed binding assertions/diagnostics around the v69291 QA evidence repair; no pixel/provider/layout/provider payload changes.
 # v69291 restored only the proven v69284 QA/evidence safeguards accidentally bypassed by v69290.
@@ -16,8 +20,8 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
-AUTOTECPRO_RELEASE_VERSION = "v69292"
-AUTOTECPRO_RELEASE_BUILD = "graphic-v69291-reference-fidelity-audit-hardened-v69292-20260831"
+AUTOTECPRO_RELEASE_VERSION = "v69293"
+AUTOTECPRO_RELEASE_BUILD = "graphic-v69293-reference-postgeneration-recovery-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -53928,6 +53932,138 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         scope_v69275["_graphic_cached_reference_blueprint_v8200"] = reference_cached_v69275
         scope_v69275["_graphic_cached_vehicle_profile_v8200"] = vehicle_cached_v69275
 
+
+    # v69293: The true v69248/v69272 Reference engine still contains one historical
+    # synchronous call to save_graphic_generation_intelligence() after the completed
+    # image has passed the protected QA gates and has already been placed in project
+    # state.  v69270 intended this learning to be non-blocking, but that deferral lived
+    # only in the newer v7100 finalizer and therefore did not cover the protected legacy
+    # v69248 path restored by v69272/v69290.
+    #
+    # Keep the exact Reference visual engine byte-for-byte authoritative.  Replace only
+    # the OPTIONAL post-generation learning call while runtime_context.mode == reference.
+    # Installed / After Install and every non-Reference mode execute the historical
+    # function unchanged.
+    def _v69293_install_reference_postgeneration_isolation(scope_v69293, label_v69293):
+        original_save_v69293 = scope_v69293.get("save_graphic_generation_intelligence")
+        get_state_v69293 = scope_v69293.get("get_graphic_project_state")
+        if not callable(original_save_v69293) or not callable(get_state_v69293):
+            raise RuntimeError(
+                f"v69293 Reference post-generation isolation prerequisites are missing in {label_v69293}."
+            )
+
+        @functools.wraps(original_save_v69293)
+        def save_generation_intelligence_v69293(
+            prompt_text_v69293, generated_image_v69293, multi_agent_plan_v69293, review=None
+        ):
+            active_mode_v69293 = str(
+                getattr(_graphic_v69275_aux_runtime()["context"], "mode", "") or ""
+            ).strip().lower()
+            if active_mode_v69293 != "reference":
+                return original_save_v69293(
+                    prompt_text_v69293,
+                    generated_image_v69293,
+                    multi_agent_plan_v69293,
+                    review,
+                )
+
+            image_v69293 = (
+                dict(generated_image_v69293)
+                if isinstance(generated_image_v69293, dict)
+                else {}
+            )
+            data_url_v69293 = str(image_v69293.get("data_url") or "")
+            if not data_url_v69293.startswith("data:image/"):
+                # Never turn a missing/invalid result into a successful checkpoint.
+                diagnostic_log(
+                    "graphic_v69293_reference_completion_checkpoint_rejected",
+                    scope=label_v69293,
+                    reason="missing_completed_image",
+                )
+                return None
+
+            try:
+                state_v69293 = dict(get_state_v69293() or {})
+            except Exception:
+                state_v69293 = {}
+            durable_context_v69293 = st.session_state.get(
+                "_graphic_v69264_durable_job_context"
+            ) or {}
+            durable_job_v69293 = durable_context_v69293.get("job") or {}
+            job_id_v69293 = str(
+                durable_context_v69293.get("job_id")
+                or durable_job_v69293.get("job_id")
+                or ""
+            ).strip()
+            prompt_digest_v69293 = hashlib.sha256(
+                str(prompt_text_v69293 or "").strip().encode("utf-8")
+            ).hexdigest()
+
+            st.session_state["_graphic_v69293_reference_completion_checkpoint"] = {
+                "job_id": job_id_v69293,
+                "prompt_digest": prompt_digest_v69293,
+                "canvas_id": str(state_v69293.get("current_canvas_id") or ""),
+                "canvas_version": int(state_v69293.get("current_canvas_version") or 0),
+                "created_at": now_iso(),
+                # Shallow copy only; the data_url string is not re-encoded or altered.
+                "image": image_v69293,
+                "post_qa": True,
+            }
+            diagnostic_log(
+                "graphic_v69293_reference_optional_learning_skipped",
+                scope=label_v69293,
+                job_id=job_id_v69293,
+                canvas_version=int(state_v69293.get("current_canvas_version") or 0),
+                reason="optional_learning_must_not_block_completed_reference",
+            )
+            return None
+
+        save_generation_intelligence_v69293._atp_v69293_reference_nonblocking = True
+        scope_v69293["save_graphic_generation_intelligence"] = (
+            save_generation_intelligence_v69293
+        )
+        diagnostic_log(
+            "graphic_v69293_reference_postgeneration_isolation_installed",
+            scope=label_v69293,
+            reference_only=True,
+            installed_mode_changed=False,
+            pixel_pipeline_changed=False,
+            provider_payload_changed=False,
+        )
+
+    _v69293_install_reference_postgeneration_isolation(ns_v69272, "root")
+    if isinstance(inner_pre_v69274, dict):
+        _v69293_install_reference_postgeneration_isolation(inner_pre_v69274, "inner")
+
+    postgen_checks_v69293 = {}
+    for postgen_scope_v69293, postgen_label_v69293 in (
+        (ns_v69272, "root"),
+        (inner_pre_v69274, "inner"),
+    ):
+        if not isinstance(postgen_scope_v69293, dict):
+            continue
+        postgen_checks_v69293[postgen_label_v69293] = bool(
+            getattr(
+                postgen_scope_v69293.get("save_graphic_generation_intelligence"),
+                "_atp_v69293_reference_nonblocking",
+                False,
+            )
+        )
+    postgen_ok_v69293 = bool(
+        postgen_checks_v69293.get("root")
+        and postgen_checks_v69293.get("inner")
+    )
+    ns_v69272["_ATP_V69293_POSTGEN_OK"] = postgen_ok_v69293
+    if not postgen_ok_v69293:
+        raise RuntimeError(
+            "v69293 protected Reference post-generation isolation was not installed in both namespaces."
+        )
+    diagnostic_log(
+        "graphic_v69293_reference_postgeneration_binding_asserted",
+        checks=postgen_checks_v69293,
+        release=AUTOTECPRO_RELEASE_VERSION,
+    )
+
     _v69275_install_aux_speed(ns_v69272)
     if isinstance(inner_pre_v69274, dict):
         _v69275_install_aux_speed(inner_pre_v69274)
@@ -54138,6 +54274,66 @@ def _graphic_v69273_protected_mode(prompt_text, uploaded_files=None, forced_uplo
     return "other", ns_v69273
 
 
+
+def _graphic_v69293_recover_completed_reference_checkpoint(
+    prompt_text_v69293, job_id_v69293="", minimum_canvas_version_v69293=0
+):
+    """Recover only a same-job, same-prompt Reference result checkpointed after QA.
+
+    This is transport/lifecycle recovery only. It cannot synthesize an image, select a
+    fallback engine, relax QA, or recover an older canvas. Any mismatch fails closed.
+    """
+    checkpoint_v69293 = st.session_state.get(
+        "_graphic_v69293_reference_completion_checkpoint"
+    )
+    if not isinstance(checkpoint_v69293, dict):
+        return None
+    if checkpoint_v69293.get("post_qa") is not True:
+        return None
+
+    expected_job_v69293 = str(job_id_v69293 or "").strip()
+    checkpoint_job_v69293 = str(checkpoint_v69293.get("job_id") or "").strip()
+    if expected_job_v69293 and checkpoint_job_v69293 != expected_job_v69293:
+        return None
+
+    expected_prompt_digest_v69293 = hashlib.sha256(
+        str(prompt_text_v69293 or "").strip().encode("utf-8")
+    ).hexdigest()
+    if str(checkpoint_v69293.get("prompt_digest") or "") != expected_prompt_digest_v69293:
+        return None
+
+    try:
+        checkpoint_version_v69293 = int(
+            checkpoint_v69293.get("canvas_version") or 0
+        )
+        minimum_version_v69293 = int(minimum_canvas_version_v69293 or 0)
+    except Exception:
+        return None
+    if checkpoint_version_v69293 <= minimum_version_v69293:
+        return None
+
+    image_v69293 = checkpoint_v69293.get("image")
+    if not isinstance(image_v69293, dict):
+        return None
+    if not str(image_v69293.get("data_url") or "").startswith("data:image/"):
+        return None
+
+    # The checkpoint is created only by the Reference-only post-QA wrapper.
+    recovered_v69293 = dict(image_v69293)
+    recovered_v69293["generated"] = True
+    recovered_v69293.setdefault("mime_type", "image/png")
+    diagnostic_log(
+        "graphic_v69293_completed_reference_recovered_after_stop",
+        job_id=checkpoint_job_v69293,
+        canvas_version=checkpoint_version_v69293,
+        recovery="same-job-same-prompt-post-qa-only",
+    )
+    st.session_state.pop(
+        "_graphic_v69293_reference_completion_checkpoint", None
+    )
+    return recovered_v69293
+
+
 def generate_graphic_marketing_images(
     prompt_text, uploaded_files=None, *, use_approved_style=True, preserve_product=True,
     style_strength="High", forced_upload_role="Auto-detect", quality_retry=True,
@@ -54150,9 +54346,23 @@ def generate_graphic_marketing_images(
         if mode_v69273 == "reference":
             binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69290_BINDING_OK"))
             release_v69285 = str(ns_v69273.get("_ATP_V69290_RELEASE") or "")
-            if not binding_ok_v69285 or release_v69285 != AUTOTECPRO_RELEASE_VERSION:
-                diagnostic_log("graphic_v69290_live_binding_rejected", binding_ok=binding_ok_v69285, namespace_release=release_v69285, expected_release=AUTOTECPRO_RELEASE_VERSION)
-                raise RuntimeError("The deployed Graphic Reference namespace is stale or incomplete; v69287 will not execute an older protected engine silently.")
+            postgen_ok_v69293 = bool(ns_v69273.get("_ATP_V69293_POSTGEN_OK"))
+            if (
+                not binding_ok_v69285
+                or not postgen_ok_v69293
+                or release_v69285 != AUTOTECPRO_RELEASE_VERSION
+            ):
+                diagnostic_log(
+                    "graphic_v69290_live_binding_rejected",
+                    binding_ok=binding_ok_v69285,
+                    postgeneration_ok=postgen_ok_v69293,
+                    namespace_release=release_v69285,
+                    expected_release=AUTOTECPRO_RELEASE_VERSION,
+                )
+                raise RuntimeError(
+                    "The deployed Graphic Reference namespace is stale or incomplete; "
+                    "the protected engine will not execute without v69293 post-generation authority."
+                )
             diagnostic_log("graphic_v69290_live_binding_verified", release=release_v69285, mode=mode_v69273)
             diagnostic_log(
                 "graphic_v69290_protected_execution_authority",
@@ -88489,6 +88699,16 @@ else:
                 "resume": bool(is_graphic_resume_v68844),
             }
 
+            pre_generation_state_v69293 = dict(get_graphic_project_state() or {})
+            pre_generation_canvas_version_v69293 = int(
+                pre_generation_state_v69293.get("current_canvas_version") or 0
+            )
+            active_job_id_v69293 = str(durable_job_v68844.get("job_id") or "").strip()
+            # A stale checkpoint from a prior run must never be eligible for recovery.
+            st.session_state.pop(
+                "_graphic_v69293_reference_completion_checkpoint", None
+            )
+
             try:
                 with _heavy_work_guard_v69188("graphic-generation"):
                     generated_images = generate_graphic_marketing_images(
@@ -88503,8 +88723,14 @@ else:
                         professional_layered_studio=graphic_options.get("professional_layered_studio", True),
                     )
                 generation_error_v68837 = None
+                st.session_state.pop(
+                    "_graphic_v69293_reference_completion_checkpoint", None
+                )
             except Exception as error:
                 # v69257 preserves ordinary Graphic failure/retry behavior.
+                st.session_state.pop(
+                    "_graphic_v69293_reference_completion_checkpoint", None
+                )
                 generation_error_v68837 = error
                 generated_images = []
             except BaseException as error:
@@ -88512,15 +88738,29 @@ else:
                 # BaseException propagates unchanged and cannot be swallowed as a Graphic failure.
                 if not _graphic_is_streamlit_stop_exception(error):
                     raise
-                diagnostic_log(
-                    "graphic_generation_interrupted_v69257",
-                    error_type=type(error).__name__,
-                    reason="streamlit_stop_exception_captured_for_durable_retry",
+                recovered_reference_v69293 = (
+                    _graphic_v69293_recover_completed_reference_checkpoint(
+                        prompt,
+                        active_job_id_v69293,
+                        pre_generation_canvas_version_v69293,
+                    )
                 )
-                generation_error_v68837 = RuntimeError(
-                    "Graphic generation was interrupted before completion (StopException); safe to retry."
-                )
-                generated_images = []
+                if recovered_reference_v69293 is not None:
+                    generated_images = [recovered_reference_v69293]
+                    generation_error_v68837 = None
+                else:
+                    st.session_state.pop(
+                        "_graphic_v69293_reference_completion_checkpoint", None
+                    )
+                    diagnostic_log(
+                        "graphic_generation_interrupted_v69257",
+                        error_type=type(error).__name__,
+                        reason="streamlit_stop_exception_captured_for_durable_retry",
+                    )
+                    generation_error_v68837 = RuntimeError(
+                        "Graphic generation was interrupted before completion (StopException); safe to retry."
+                    )
+                    generated_images = []
             finally:
                 _graphic_v68874_release_transient_memory("after_graphic_generation")
                 st.session_state.pop("_graphic_v69264_durable_job_context", None)
