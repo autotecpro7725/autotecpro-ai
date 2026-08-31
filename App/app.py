@@ -1,4 +1,4 @@
-# AutoTecPro AI v69287 — Final Production Graphic v69248 Legacy Alias Authority Repair (2026-08-31)
+# AutoTecPro AI v69289 — Final Production Graphic v69248 Copy Fidelity Normalization Repair (2026-08-31)
 # v69285 binding authority and v69284 primary Reference repairs preserved unchanged.
 # AutoTecPro AI v69280 — Technical profile corroboration + runtime contract repair
 # AutoTecPro AI v69278 — Final Production Technical Single-Source Multi-Branch Render Fix
@@ -13,8 +13,8 @@
 # AutoTecPro AI v69115 — AUTOMATIC IMAGE RUNTIME ONLY; v69114 result/UI/Graphic pipelines preserved
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "performance-consolidation-reference-safe-20260829"
-AUTOTECPRO_RELEASE_VERSION = "v69288"
-AUTOTECPRO_RELEASE_BUILD = "graphic-provider-wallclock-v69248-runtime-repair-v69288-20260831"
+AUTOTECPRO_RELEASE_VERSION = "v69289"
+AUTOTECPRO_RELEASE_BUILD = "graphic-v69248-copy-fidelity-normalization-repair-v69289-20260831"
 try:
     from streamlit.runtime.scriptrunner import StopException as STREAMLIT_STOP_EXCEPTION, RerunException as STREAMLIT_RERUN_EXCEPTION
 except Exception:
@@ -53202,6 +53202,90 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
         technical_pipeline_changed=False,
     )
 
+    # v69289: surgical repair for the original frozen v69248 compatibility-copy
+    # validator. v69248 normalizes required tokens to forms such as `f150` but its
+    # rendered-copy check removes whitespace only, so the canonical visible copy
+    # `F-150` is falsely rejected as missing `f150`. Do NOT alter rendered pixels,
+    # typography, layout, prompt, provider payload, or the v69248 source artifact.
+    # Repair only the post-compositor evidence by punctuation-insensitive comparison
+    # and require the entire authoritative visible string to survive normalization,
+    # so genuine truncation still fails closed.
+    def _v69289_install_copy_fidelity_normalization(scope_v69289, label_v69289):
+        builder_name_v69289 = "_graphic_build_hybrid_campaign_result_v3300"
+        original_builder_v69289 = scope_v69289.get(builder_name_v69289)
+        if not callable(original_builder_v69289):
+            raise RuntimeError("v69289 protected Reference builder missing in " + str(label_v69289))
+        if bool(getattr(original_builder_v69289, "_atp_v69289_copy_normalization", False)):
+            return True
+
+        def _norm_v69289(value_v69289):
+            return re.sub(r"[^a-z0-9]+", "", str(value_v69289 or "").casefold())
+
+        def builder_v69289(*args_v69289, **kwargs_v69289):
+            result_v69289 = original_builder_v69289(*args_v69289, **kwargs_v69289)
+            if not isinstance(result_v69289, dict):
+                return result_v69289
+            metadata_v69289 = dict(result_v69289.get("layered_metadata") or {})
+            report_v69289 = dict(metadata_v69289.get("compatibility_copy_fidelity") or {})
+            if not report_v69289:
+                return result_v69289
+
+            rendered_text_v69289 = str(report_v69289.get("rendered_text") or "")
+            authoritative_text_v69289 = str(report_v69289.get("authoritative_text") or "")
+            required_tokens_v69289 = list(report_v69289.get("required_tokens") or [])
+            rendered_norm_v69289 = _norm_v69289(rendered_text_v69289)
+            authoritative_norm_v69289 = _norm_v69289(authoritative_text_v69289)
+            corrected_missing_v69289 = [
+                str(token_v69289)
+                for token_v69289 in required_tokens_v69289
+                if _norm_v69289(token_v69289) and _norm_v69289(token_v69289) not in rendered_norm_v69289
+            ]
+            authoritative_complete_v69289 = bool(
+                authoritative_norm_v69289
+                and authoritative_norm_v69289 in rendered_norm_v69289
+            )
+
+            prior_missing_v69289 = list(report_v69289.get("missing_tokens") or [])
+            prior_complete_v69289 = bool(report_v69289.get("complete"))
+            report_v69289["historical_missing_tokens_v69248"] = prior_missing_v69289
+            report_v69289["historical_complete_v69248"] = prior_complete_v69289
+            report_v69289["missing_tokens"] = corrected_missing_v69289
+            report_v69289["complete"] = bool(authoritative_complete_v69289 and not corrected_missing_v69289)
+            report_v69289["normalization"] = "v69289-ascii-alnum-casefold"
+            report_v69289["punctuation_insensitive_v69289"] = True
+            report_v69289["authoritative_text_complete_v69289"] = authoritative_complete_v69289
+            metadata_v69289["compatibility_copy_fidelity"] = report_v69289
+            result_v69289["layered_metadata"] = metadata_v69289
+
+            if prior_missing_v69289 != corrected_missing_v69289 or prior_complete_v69289 != report_v69289["complete"]:
+                diagnostic_log(
+                    "graphic_v69289_copy_fidelity_normalization_applied",
+                    scope=label_v69289,
+                    historical_missing=prior_missing_v69289,
+                    corrected_missing=corrected_missing_v69289,
+                    authoritative_complete=authoritative_complete_v69289,
+                    final_complete=bool(report_v69289.get("complete")),
+                )
+            return result_v69289
+
+        builder_v69289.__name__ = getattr(original_builder_v69289, "__name__", builder_name_v69289)
+        builder_v69289.__doc__ = getattr(original_builder_v69289, "__doc__", None)
+        builder_v69289._atp_v69289_copy_normalization = True
+        builder_v69289._atp_v69289_original = original_builder_v69289
+        scope_v69289[builder_name_v69289] = builder_v69289
+        scope_v69289["_ATP_V69289_COPY_NORMALIZATION_OK"] = True
+        diagnostic_log(
+            "graphic_v69289_copy_fidelity_normalization_installed",
+            scope=label_v69289,
+            pixel_pipeline_changed=False,
+            rendered_copy_changed=False,
+            qa_normalization_only=True,
+        )
+        return True
+
+    _v69289_install_copy_fidelity_normalization(ns_v69272, "root")
+    _v69289_install_copy_fidelity_normalization(inner_pre_v69274, "inner")
+
     # v69287: restore the exact historical v69248 legacy alias invariant AFTER all
     # protected wrappers have been installed. v69248 line 28398 requires
     # `_generate_graphic_marketing_images_v3200` to be the SAME callable object as
@@ -53336,7 +53420,7 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
     _v69288_install_provider_wallclock(ns_v69272, "root")
     _v69288_install_provider_wallclock(inner_pre_v69274, "inner")
 
-    # v69285/v69286 binding proof retained under the v69288 release identity.
+    # v69285/v69286 binding proof retained under the v69289 release identity.
     # v69285: prove that the exact v69284 authorities are the live callables in BOTH
     # isolated v69248 scopes. A stale/partially deployed process must fail immediately.
     def _v69285_assert_reference_bindings(scope_v69285, label_v69285):
@@ -53357,19 +53441,23 @@ def _graphic_v69272_build_v69248_namespace(source_sha256_v69272):
                 scope_v69285.get("_ATP_V69288_PROVIDER_WALLCLOCK_OK")
                 and getattr(scope_v69285.get("client"), "_atp_v69288_provider_wallclock", False)
             ),
+            "copy_fidelity_normalization_v69289": bool(
+                scope_v69285.get("_ATP_V69289_COPY_NORMALIZATION_OK")
+                and getattr(scope_v69285.get("_graphic_build_hybrid_campaign_result_v3300"), "_atp_v69289_copy_normalization", False)
+            ),
         }
         missing_v69285 = [key_v69285 for key_v69285, value_v69285 in checks_v69285.items() if not value_v69285]
         if missing_v69285:
-            diagnostic_log("graphic_v69288_protected_binding_assertion_failed", scope=label_v69285, missing=missing_v69285, checks=checks_v69285)
-            raise RuntimeError("v69287 protected Reference binding authority is incomplete in " + str(label_v69285) + ": " + ", ".join(missing_v69285))
-        scope_v69285["_ATP_V69288_BINDING_OK"] = True
-        scope_v69285["_ATP_V69288_RELEASE"] = AUTOTECPRO_RELEASE_VERSION
-        diagnostic_log("graphic_v69288_protected_binding_asserted", scope=label_v69285, checks=checks_v69285, release=AUTOTECPRO_RELEASE_VERSION)
+            diagnostic_log("graphic_v69289_protected_binding_assertion_failed", scope=label_v69285, missing=missing_v69285, checks=checks_v69285)
+            raise RuntimeError("v69289 protected Reference binding authority is incomplete in " + str(label_v69285) + ": " + ", ".join(missing_v69285))
+        scope_v69285["_ATP_V69289_BINDING_OK"] = True
+        scope_v69285["_ATP_V69289_RELEASE"] = AUTOTECPRO_RELEASE_VERSION
+        diagnostic_log("graphic_v69289_protected_binding_asserted", scope=label_v69285, checks=checks_v69285, release=AUTOTECPRO_RELEASE_VERSION)
         return True
 
     _v69285_assert_reference_bindings(ns_v69272, "root")
     _v69285_assert_reference_bindings(inner_pre_v69274, "inner")
-    diagnostic_log("graphic_v69288_reference_runtime_authority_ready", release=AUTOTECPRO_RELEASE_VERSION, root=True, inner=True, v69248_source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16])
+    diagnostic_log("graphic_v69289_reference_runtime_authority_ready", release=AUTOTECPRO_RELEASE_VERSION, root=True, inner=True, v69248_source_sha256=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16])
 
     # v69275 output-neutral auxiliary concurrency. v69248's Reference blueprint analysis
     # and vehicle research are independent provider requests but historically execute
@@ -53828,14 +53916,14 @@ def generate_graphic_marketing_images(
     )
     if mode_v69273 in {"reference", "installed"}:
         if mode_v69273 == "reference":
-            binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69288_BINDING_OK"))
-            release_v69285 = str(ns_v69273.get("_ATP_V69288_RELEASE") or "")
+            binding_ok_v69285 = bool(ns_v69273.get("_ATP_V69289_BINDING_OK"))
+            release_v69285 = str(ns_v69273.get("_ATP_V69289_RELEASE") or "")
             if not binding_ok_v69285 or release_v69285 != AUTOTECPRO_RELEASE_VERSION:
-                diagnostic_log("graphic_v69288_live_binding_rejected", binding_ok=binding_ok_v69285, namespace_release=release_v69285, expected_release=AUTOTECPRO_RELEASE_VERSION)
+                diagnostic_log("graphic_v69289_live_binding_rejected", binding_ok=binding_ok_v69285, namespace_release=release_v69285, expected_release=AUTOTECPRO_RELEASE_VERSION)
                 raise RuntimeError("The deployed Graphic Reference namespace is stale or incomplete; v69287 will not execute an older protected engine silently.")
-            diagnostic_log("graphic_v69288_live_binding_verified", release=release_v69285, mode=mode_v69273)
+            diagnostic_log("graphic_v69289_live_binding_verified", release=release_v69285, mode=mode_v69273)
             diagnostic_log(
-                "graphic_v69288_protected_execution_authority",
+                "graphic_v69289_protected_execution_authority",
                 release=AUTOTECPRO_RELEASE_VERSION,
                 build=AUTOTECPRO_RELEASE_BUILD,
                 namespace_release=release_v69285,
