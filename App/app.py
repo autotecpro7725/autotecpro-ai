@@ -1,3 +1,8 @@
+# AutoTecPro AI v69299 FINAL PRODUCTION — Technical universal inquiry authority + inquiry-specific auto-image repair.
+# Graphic v69298 is frozen and unchanged.
+AUTOTECPRO_RELEASE_VERSION = "v69299"
+AUTOTECPRO_RELEASE_BUILD = "technical-universal-inquiry-authority-v69299-20260831"
+
 # AutoTecPro AI v69227 FINAL PRODUCTION — v69226 accuracy preserved; revision-aware parsed-contract cache restores v69205-class deterministic speed\n# AutoTecPro AI v69226 FINAL PRODUCTION — exact v69206 base + audited v69207 generic Sales/Marketing + workspace callback safety + immediate status; NO Technical overlapping-year multi-match code
 # AutoTecPro AI v69205 FINAL PRODUCTION — Streamlit 1.61 production pin companion + bounded large non-Graphic website/Product Library caches for Community Cloud memory stability; v69201 multi-branch Technical authority and all protected Graphic/auth/History/persistence/Sales/Marketing pipelines preserved.
 # AutoTecPro AI v69172 FINAL PRODUCTION — exact-source legacy refetch repair + protected-source credential vault; v69171 durability and v69170 image authority preserved.
@@ -70429,12 +70434,6 @@ def _technical_atp_semantic_image_urls_v69179(prompt_text, authority, max_images
         related = norm(row.get("data-atp-related-heading"))
         alt = norm(row.get("alt"))
 
-        # ATP-authored primary/auto-display images only for automatic Technical publication.
-        if auto != "true":
-            continue
-        if authority_label and authority_label not in {"primary", "authoritative", "exact"}:
-            continue
-
         exact_section = bool(
             selected_section
             and section
@@ -70468,9 +70467,32 @@ def _technical_atp_semantic_image_urls_v69179(prompt_text, authority, max_images
             )
         )
 
+        # v69299 universal Technical inquiry image authority:
+        # 1) exact primary/auto-display remains the strongest authority;
+        # 2) when an exact selected section has no primary auto-display image, an
+        #    ATP-authored topic-only/supporting image from that SAME section may
+        #    serve as the automatic fallback (e.g. generic installation inquiry);
+        # 3) navigation icons and cross-section topic-only images never qualify.
+        primary_auto_v69299 = bool(
+            auto == "true"
+            and authority_label in {"", "primary", "authoritative", "exact"}
+        )
+        exact_supporting_v69299 = bool(
+            exact_section
+            and auto in {"topic-only", "topic_only", "supporting"}
+            and authority_label in {"", "supporting", "primary", "authoritative", "exact"}
+        )
+        if not (primary_auto_v69299 or exact_supporting_v69299):
+            continue
+
         # Structural authority can use broad display labels such as "Protocol Settings".
-        # Exact query role + ATP topic is sufficient only for the same recovered source.
-        if not (exact_section or exact_title or topic_match):
+        # v69299: once the deterministic Technical path has selected a concrete
+        # section, topic similarity is NOT allowed to pull in a different section.
+        # Topic matching is a fallback only when no section identity is available.
+        if selected_section or selected_title:
+            if not (exact_section or exact_title):
+                continue
+        elif not topic_match:
             continue
 
         try:
@@ -70482,17 +70504,20 @@ def _technical_atp_semantic_image_urls_v69179(prompt_text, authority, max_images
             1 if exact_section else 0,
             1 if exact_title else 0,
             1 if topic_match else 0,
-            1 if auto == "true" else 0,
+            1 if primary_auto_v69299 else 0,
             priority,
             1 if "protocol" in (topic + " " + role + " " + alt) and query_role in {"car_model_ac", "protocol"} else 0,
         )
         if url in seen:
             continue
         seen.add(url)
-        ranked.append((score, url))
+        ranked.append((score, url, bool(exact_section)))
 
     ranked.sort(key=lambda item: item[0], reverse=True)
-    return [url for _, url in ranked[:max(1, int(max_images or 8))]]
+    exact_ranked_v69299 = [item for item in ranked if bool(item[2])]
+    selected_ranked_v69299 = exact_ranked_v69299 or ranked
+    return [url for _, url, _ in selected_ranked_v69299[:max(1, int(max_images or 8))]]
+
 
 def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
     """Build exact configuration rows from AutoTecPro-authored semantic JSON only."""
@@ -70741,8 +70766,25 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
                 ]
                 if len(parts_v69201) < 2:
                     continue
+                # v69279: exact profile corroboration must be punctuation/alias neutral.
+                # ATP-authored values such as ``F150 LO S1 Manual`` are visibly
+                # rendered as ``F150 LO – S1 Manual`` on current pages, and
+                # ``automatic`` is commonly displayed as ``Auto``.  The former raw
+                # substring check falsely rejected those exact same-section values.
+                # Normalize only presentation punctuation and the Auto/Automatic
+                # vocabulary alias; no vehicle/menu value is invented or broadened.
+                def _profile_corroboration_norm_v69279(value):
+                    value = html.unescape(str(value or "")).casefold()
+                    value = re.sub(r"\bautomatic\b", "auto", value)
+                    value = re.sub(r"[^a-z0-9.]+", " ", value)
+                    return re.sub(r"\s+", " ", value).strip()
+
+                section_norm_v69279 = _profile_corroboration_norm_v69279(
+                    profile_section_text_v69201
+                )
                 if not all(
-                    part.casefold() in profile_section_cf_v69201
+                    _profile_corroboration_norm_v69279(part)
+                    and _profile_corroboration_norm_v69279(part) in section_norm_v69279
                     for part in parts_v69201
                 ):
                     continue
@@ -71197,6 +71239,7 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
         "image_literal_authority_v69204": bool(image_literal_used_v69204),
         "image_literal_row_count_v69204": len({str(v).casefold() for _, v in image_literal_rows_v69204}),
     }
+
 
 
 def _technical_metadata_fast_contract_v69178(prompt_text, store):
@@ -71952,7 +71995,8 @@ def _technical_configuration_set_cache_key_v69241(store, revision, family, year)
         clean_year = int(year)
     except Exception:
         return ""
-    return "|".join(("v69248", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
+    return "|".join(("v69278", str(store or "").strip(), str(int(revision or 0)), str(family or "").casefold().strip(), str(clean_year)))
+
 
 def _technical_configuration_set_cache_get_v69241(store, revision, family, year):
     key = _technical_configuration_set_cache_key_v69241(store, revision, family, year)
@@ -72871,6 +72915,517 @@ def _technical_coalesce_candidate_payloads_v69246(candidate_payloads):
     }
 
 
+def _technical_expected_brands_for_family_v69277(family):
+    """Return conservative manufacturer identities implied by a canonical vehicle family.
+
+    This is routing taxonomy only. It never supplies a Technical setting value.
+    """
+    family_cf = str(family or "").casefold().strip().replace("-", "_")
+    if re.fullmatch(r"f(?:150|250|350|450|550|650)", family_cf.replace("_", "")):
+        return {"ford"}
+    if family_cf.startswith("ram"):
+        return {"ram", "dodge"}
+    mapping = {
+        "silverado": {"chevrolet"}, "sierra": {"gmc"},
+        "tahoe": {"chevrolet"}, "suburban": {"chevrolet"},
+        "yukon": {"gmc"}, "escalade": {"cadillac"},
+        "q50": {"infiniti"}, "q60": {"infiniti"},
+        "wrangler": {"jeep"}, "grand_cherokee": {"jeep"}, "cherokee": {"jeep"},
+        "durango": {"dodge"}, "charger": {"dodge"}, "challenger": {"dodge"},
+        "tundra": {"toyota"}, "tacoma": {"toyota"}, "4runner": {"toyota"},
+    }
+    return set(mapping.get(family_cf) or set())
+
+def _technical_package_hard_scope_match_v69277(package, payload, family, year):
+    """Final positive identity gate for a supposedly verified Technical package.
+
+    Critical rule: a source URL/title that positively identifies another manufacturer
+    may not inherit stale cached family arrays and enter the requested authoritative set.
+    Ambiguous source identity remains eligible only when the parsed package itself carries
+    the requested family/year scope. This closes the hosted F150 -> Mercedes contamination.
+    """
+    package = dict(package or {})
+    payload = dict(payload or {})
+    family_cf = str(family or "").casefold().strip()
+    try:
+        year_i = int(year)
+    except Exception:
+        return False
+    if not package or not family_cf:
+        return False
+
+    pkg_families = {str(x).casefold().strip() for x in (package.get("vehicle_families") or []) if str(x).strip()}
+    if pkg_families and family_cf not in pkg_families:
+        return False
+
+    source_text = " ".join((
+        str(package.get("title") or package.get("page_title") or payload.get("title") or ""),
+        str(package.get("source_url") or payload.get("source_url") or ""),
+    )).strip()
+    try:
+        source_families = {str(x).casefold().strip() for x in (_website_identity_vehicle_families_v69022(source_text) or set()) if str(x).strip()}
+    except Exception:
+        source_families = set()
+    if source_families and family_cf not in source_families:
+        return False
+
+    expected_brands = _technical_expected_brands_for_family_v69277(family_cf)
+    try:
+        source_brands = set(_website_identity_brand_set_v69022(source_text) or set())
+    except Exception:
+        source_brands = set()
+    if expected_brands and source_brands and expected_brands.isdisjoint(source_brands):
+        return False
+
+    # Root ATP identity is stronger than body/profile values. This is crucial for
+    # vehicles such as Dodge RAM that intentionally use a Jeep CANBUS menu profile:
+    # the page root remains Dodge/RAM, so the valid Jeep *setting* is not mistaken
+    # for a cross-make source. Conversely, a Mercedes root can never enter F150.
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    if not semantics and str(package.get("package_text") or ""):
+        try:
+            semantics = dict(_technical_package_atp_semantics_v69178(package.get("package_text") or "") or {})
+        except Exception:
+            semantics = {}
+    root = dict(semantics.get("root") or {})
+    root_brand_text = " ".join(str(root.get(k) or "") for k in (
+        "data-atp-brand", "data-atp-make"
+    )).strip()
+    try:
+        root_brands = set(_website_identity_brand_set_v69022(root_brand_text) or set())
+    except Exception:
+        root_brands = set()
+    if expected_brands and root_brands and expected_brands.isdisjoint(root_brands):
+        return False
+
+    root_model_text = " ".join(str(root.get(k) or "") for k in (
+        "data-atp-model", "data-atp-models", "data-atp-vehicle-family",
+        "data-atp-canonical-model-family"
+    )).strip()
+    try:
+        root_families = {str(x).casefold().strip() for x in (_website_identity_vehicle_families_v69022(root_model_text) or set()) if str(x).strip()}
+    except Exception:
+        root_families = set()
+    if root_families and family_cf not in root_families:
+        return False
+
+    if not _technical_package_model_year_eligible_v69242(package, family_cf, year_i):
+        return False
+    try:
+        source_years = {int(x) for x in (_website_identity_years_v69022(source_text) or set())}
+    except Exception:
+        source_years = set()
+    if source_years and year_i not in source_years:
+        # URL/title years are a hard rejection only when explicit; package model-year
+        # metadata remains the primary authority for ambiguous source identities.
+        return False
+    return True
+
+def _technical_result_hard_scope_valid_v69277(result, prompt_text, store=""):
+    """Validate a recovered preflight result before it may pre-empt exact-source recovery."""
+    result = dict(result or {})
+    if str(result.get("status") or "") != "recovered":
+        return False
+    family, year = _technical_resolve_family_year_v69199(prompt_text, store, allow_registry=False)
+    if not family or year is None:
+        return True
+    kind = str(result.get("kind") or "")
+    if kind == "configuration":
+        authority = dict(result.get("authority") or {})
+        pseudo = {
+            "vehicle_families": [family],
+            "years": [int(year)],
+            "source_url": str(authority.get("source_url") or ""),
+            "title": str(authority.get("page_title") or ""),
+            "atp_semantics_v69178": dict(authority.get("atp_semantics_v69178") or {}),
+            "package_text": str(authority.get("package_text") or ""),
+        }
+        # The recovered authority already carries the selected package semantics and
+        # exact source identity. Revalidate those directly; do not invoke another
+        # parser or source lookup from the live preflight path.
+        return _technical_package_hard_scope_match_v69277(pseudo, authority, family, year)
+    if kind == "configuration_set":
+        rows = [dict(x) for x in (result.get("authorities") or []) if isinstance(x, dict)]
+        # Preserve the established fail-closed sentinel: when multiple genuinely
+        # verified same-scope packages cannot all be rendered, it must still pre-empt
+        # legacy/older fallback. Only an unexplained zero-row recovered set is invalid.
+        if not rows:
+            return bool(result.get("verified_set_render_fail_closed_v69247"))
+        for row in rows:
+            authority = dict(row.get("authority") or {})
+            source_text = " ".join((str(authority.get("page_title") or ""), str(row.get("source_url") or authority.get("source_url") or "")))
+            expected = _technical_expected_brands_for_family_v69277(family)
+            brands = set(_website_identity_brand_set_v69022(source_text) or set())
+            if expected and brands and expected.isdisjoint(brands):
+                return False
+        return True
+    return True
+
+def _technical_verified_single_multibranch_result_v69278(prompt_text, package):
+    package = dict(package or {})
+    file_id = str(package.get("file_id") or "").strip()
+    source_url = str(package.get("source_url") or "").strip()
+    if not file_id or not str(package.get("package_text") or ""):
+        return {}
+    try:
+        # v69279: do not trust an embedded v69199 ``config_ready=False`` forever.
+        # A package learned before the punctuation-neutral profile parser can carry
+        # a stale compiled flag even though the exact current section now parses
+        # deterministically. Re-evaluate only this already-verified package's own
+        # compiled configuration sections at the live call site.
+        contracts = []
+        # v69280: rebuild contracts from the verified package's RAW current-source
+        # package_text first. Embedded v69199 templates may preserve stale/truncated
+        # section_text from an older compiler, which prevents the corrected v69279
+        # profile corroboration from ever seeing the full authored Ford profile matrix.
+        # This fresh compile stays inside the same already-verified package and does
+        # not perform source discovery, provider calls, vector fallback, or cross-source
+        # substitution. Fall back to embedded templates only if the raw package cannot
+        # be freshly compiled for a non-configuration legacy reason.
+        fresh_contracts_v69280 = list(_technical_compile_one_package_v69198(package) or [])
+        contract_source_v69280 = "fresh-raw-package" if fresh_contracts_v69280 else "embedded-fallback"
+        raw_contracts_v69280 = fresh_contracts_v69280 or list(_technical_compile_one_package_v69199(package) or [])
+        diagnostic_log(
+            "technical_verified_single_fresh_compile_v69280",
+            file_id=file_id[:160], source_url=source_url[:700],
+            source=contract_source_v69280, contracts=len(raw_contracts_v69280),
+        )
+        for raw_contract_v69279 in raw_contracts_v69280:
+            if not isinstance(raw_contract_v69279, dict):
+                continue
+            contract_v69279 = dict(raw_contract_v69279)
+            if not bool(contract_v69279.get("config_ready")):
+                authority_seed_v69279 = {
+                    "status": "selected",
+                    "file_id": file_id,
+                    "filename": str(contract_v69279.get("filename") or package.get("filename") or ""),
+                    "source_url": str(contract_v69279.get("source_url") or source_url),
+                    "page_title": str(contract_v69279.get("page_title") or package.get("title") or package.get("page_title") or ""),
+                    "package_text": str(package.get("package_text") or ""),
+                    "section_title": str(contract_v69279.get("section_title") or ""),
+                    "section_id": str(contract_v69279.get("section_id") or ""),
+                    "section_text": str(contract_v69279.get("section_text") or ""),
+                    "selected_section_title_v69143": str(contract_v69279.get("section_title") or ""),
+                    "selected_segments_v69158": list(contract_v69279.get("segments") or []),
+                    "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
+                }
+                literal_v69279 = dict(
+                    _technical_metadata_literal_configuration_v69178(
+                        "car model a/c protocol", authority_seed_v69279
+                    ) or {}
+                )
+                if _technical_literal_is_sufficient_v69156(
+                    "car model a/c protocol", literal_v69279
+                ):
+                    structured_v69279 = _technical_merge_structured_v69156(
+                        literal_v69279,
+                        {"fields": [], "branches": [], "status": "not_needed"},
+                    )
+                    if _technical_table_rows_from_structured_v69155(structured_v69279):
+                        contract_v69279["config_ready"] = True
+                        contract_v69279["config_literal"] = literal_v69279
+                        contract_v69279["config_structured"] = structured_v69279
+                        contract_v69279["runtime_config_repaired_v69279"] = True
+                        diagnostic_log(
+                            "technical_compiled_config_runtime_repaired_v69279",
+                            file_id=file_id[:160], source_url=source_url[:700],
+                            contract_source=contract_source_v69280,
+                            section=str(contract_v69279.get("section_title") or "")[:300],
+                            branches=len(structured_v69279.get("branches") or []),
+                            rows=len(_technical_table_rows_from_structured_v69155(structured_v69279) or []),
+                        )
+            if bool(contract_v69279.get("config_ready")):
+                contracts.append(contract_v69279)
+    except Exception as error_v69278:
+        diagnostic_log(
+            "technical_verified_single_multibranch_compile_failed_v69278",
+            file_id=file_id[:160], source_url=source_url[:700],
+            error_type=type(error_v69278).__name__, error=str(error_v69278)[:500],
+        )
+        return {}
+    if not contracts:
+        return {}
+
+    query_tokens = _technical_contract_tokens_v69198(prompt_text)
+    def rank_v69278(contract):
+        sid = str(contract.get("section_id") or "").casefold()
+        title = str(contract.get("section_title") or "").casefold()
+        preferred = int(
+            sid in {"protocol-settings", "car-model-ac", "car-model-ac-protocol"}
+            or "car model" in title or "protocol" in title
+        )
+        structured = dict(contract.get("config_structured") or {})
+        row_count = len(_technical_table_rows_from_structured_v69155(structured) or [])
+        branch_count = len(structured.get("branches") or []) if isinstance(structured, dict) else 0
+        overlap = len(query_tokens & set(contract.get("search_tokens") or []))
+        return (preferred, int(row_count > 0), branch_count, overlap, len(str(contract.get("section_text") or "")))
+
+    contracts.sort(key=rank_v69278, reverse=True)
+    for contract in contracts:
+        structured = dict(contract.get("config_structured") or {})
+        literal = dict(contract.get("config_literal") or {})
+        # Prefer the compiled structured contract because it preserves all authored
+        # branches. If unavailable, merge the same-source compiled literal only.
+        rows = _technical_table_rows_from_structured_v69155(structured) or []
+        if not rows and literal:
+            structured = _technical_merge_structured_v69156(
+                literal, {"fields": [], "branches": [], "status": "not_needed"}
+            )
+            rows = _technical_table_rows_from_structured_v69155(structured) or []
+        if not rows:
+            continue
+
+        authority = {
+            "status": "recovered",
+            "file_id": file_id,
+            "filename": str(contract.get("filename") or package.get("filename") or ""),
+            "source_url": str(contract.get("source_url") or source_url),
+            "page_title": str(contract.get("page_title") or package.get("title") or package.get("page_title") or ""),
+            "package_text": str(package.get("package_text") or ""),
+            "section_title": str(contract.get("section_title") or ""),
+            "section_id": str(contract.get("section_id") or ""),
+            "branch_paths": [
+                " > ".join(str(y).strip() for y in (seg.get("path") or []) if str(y).strip())
+                for seg in (contract.get("segments") or []) if isinstance(seg, dict)
+            ],
+            "section_text": str(contract.get("section_text") or ""),
+            "selected_image_urls_v69143": list(contract.get("exact_images") or [])[:8],
+            "selected_section_title_v69143": str(contract.get("section_title") or ""),
+            "selected_segments_v69158": list(contract.get("segments") or []),
+            "image_evidence": list(contract.get("config_image_evidence_v69204") or []),
+            "atp_semantics_v69178": dict(package.get("atp_semantics_v69178") or {}),
+            "literal_structured_v69156": literal,
+            "structured": structured,
+            "deterministic_literal_authority_v69156": True,
+            "model_structured_v69156": {"status": "not_needed", "fields": [], "branches": []},
+            "selector_version": 69278,
+            "verified_single_multibranch_v69278": True,
+        }
+        authority["context"] = _technical_authority_context_v69155(authority)
+        authority["rows"] = [{
+            "file_id": file_id,
+            "filename": authority["filename"],
+            "score": 1.0,
+            "text": authority["section_text"][:14000],
+            "technical_verified_single_multibranch_v69278": True,
+        }]
+        diagnostic_log(
+            "technical_verified_single_multibranch_bound_v69278",
+            file_id=file_id[:160], source_url=authority["source_url"][:700],
+            section=authority["section_title"][:300], rows=len(rows),
+            branches=len(structured.get("branches") or []) if isinstance(structured, dict) else 0,
+            images=len(authority.get("selected_image_urls_v69143") or []),
+        )
+        diagnostic_log(
+            "technical_verified_single_fresh_multibranch_bound_v69280",
+            file_id=file_id[:160], source_url=source_url[:700],
+            branches=len(structured.get("branches") or []), rows=len(rows),
+            images=len(authority.get("selected_image_urls_v69143") or []),
+        )
+        return {
+            "status": "recovered", "kind": "configuration",
+            "authority": authority,
+            "exact_images": list(authority.get("selected_image_urls_v69143") or []),
+            "verified_hydrated_single_v69242": True,
+            "verified_single_multibranch_v69278": True,
+            "verified_package_count_v69244": 1,
+            "verified_recovered_configuration_count_v69243": 1,
+        }
+    return {}
+
+def _technical_prompt_brand_tokens_v69281(prompt_text):
+    norm = _technical_contract_norm_v69198(prompt_text)
+    known = {
+        "acura", "audi", "bmw", "buick", "cadillac", "chevrolet", "chrysler",
+        "dodge", "ford", "gmc", "honda", "hyundai", "infiniti", "jeep", "kia",
+        "lexus", "lincoln", "mazda", "mercedes", "nissan", "porsche", "ram",
+        "subaru", "tesla", "toyota", "volkswagen", "volvo",
+    }
+    tokens = set(norm.split())
+    return {x for x in known if x in tokens}
+
+def _technical_root_model_aliases_v69281(root):
+    root = dict(root or {})
+    values = []
+    for key in (
+        "data-atp-model", "data-atp-models", "data-atp-canonical-model-family",
+        "data-atp-vehicle-family", "data-atp-query-key", "data-atp-aliases",
+    ):
+        raw = str(root.get(key) or "").strip()
+        if raw:
+            values.append(raw)
+    aliases = set()
+    # Pipe-delimited ATP model declarations are authoritative exact aliases.
+    for raw in values[:4]:
+        for part in re.split(r"[|,;]", raw):
+            clean = _technical_contract_norm_v69198(part)
+            if clean:
+                aliases.add(clean)
+    # Query-key/aliases are supporting identity only; retain bounded n-grams so
+    # numeric model names such as "300" can match when the make is also exact.
+    for raw in values[4:]:
+        clean = _technical_contract_norm_v69198(raw)
+        if clean:
+            aliases.add(clean)
+    return aliases
+
+def _technical_root_make_tokens_v69281(root):
+    root = dict(root or {})
+    values = " ".join(str(root.get(k) or "") for k in (
+        "data-atp-make", "data-atp-brand"
+    ))
+    return _technical_prompt_brand_tokens_v69281(values)
+
+def _technical_model_alias_matches_prompt_v69281(prompt_text, alias, make_matched=False):
+    prompt_norm = _technical_contract_norm_v69198(prompt_text)
+    alias_norm = _technical_contract_norm_v69198(alias)
+    if not prompt_norm or not alias_norm:
+        return False
+    # Exact token/phrase containment is deterministic. Numeric-only aliases are
+    # accepted only together with an exact ATP make match to avoid matching years,
+    # screen sizes, or unrelated numeric product labels.
+    if re.fullmatch(r"\d{2,4}", alias_norm):
+        return bool(make_matched and re.search(rf"(?<!\d){re.escape(alias_norm)}(?!\d)", prompt_norm))
+    if re.search(rf"(?<![a-z0-9]){re.escape(alias_norm)}(?![a-z0-9])", prompt_norm):
+        return True
+    alias_tokens = alias_norm.split()
+    prompt_tokens = set(prompt_norm.split())
+    return bool(alias_tokens and len(alias_tokens) <= 4 and set(alias_tokens).issubset(prompt_tokens))
+
+def _technical_metadata_identity_exact_result_v69281(prompt_text, clean_store):
+    """Bind one exact current Technical source from ATP make/model metadata.
+
+    This fills the gap where the old parser cannot name a family. It never runs
+    when the legacy parser already resolved a family, so the v69280 Ford path is
+    frozen. Multiple canonical matches fail closed.
+    """
+    prompt = _technical_settings_routing_prompt_v69117(prompt_text)
+    legacy_families = set(_website_identity_vehicle_families_v69022(prompt) or set())
+    if legacy_families:
+        return {}
+    if not _technical_configuration_query_v69155(prompt):
+        return {}
+
+    prompt_brands = _technical_prompt_brand_tokens_v69281(prompt)
+    if not prompt_brands:
+        return {}
+    prompt_years = {int(x) for x in (_website_identity_years_v69022(prompt) or set())}
+
+    try:
+        candidate_payloads = list(_technical_durable_snapshot_candidates_v69233(prompt, clean_store) or [])
+    except Exception as error_v69281:
+        diagnostic_log(
+            "technical_metadata_identity_snapshot_lookup_failed_v69281",
+            error_type=type(error_v69281).__name__, error=str(error_v69281)[:500],
+        )
+        return {}
+
+    matches = []
+    seen = set()
+    for payload in candidate_payloads[:12]:
+        if not isinstance(payload, dict):
+            continue
+        try:
+            scope = dict(_technical_verified_snapshot_scope_v69235(payload, clean_store) or {})
+        except Exception:
+            scope = {}
+        package = dict(scope.get("package") or {})
+        if not package:
+            continue
+        semantics = dict(package.get("atp_semantics_v69178") or {})
+        if not semantics:
+            try:
+                semantics = dict(_technical_package_atp_semantics_v69178(package.get("package_text") or "") or {})
+            except Exception:
+                semantics = {}
+        root = dict(semantics.get("root") or {})
+        if not root:
+            continue
+
+        root_status = str(root.get("data-atp-source-status") or "").strip().casefold()
+        root_current = str(root.get("data-atp-current-source") or "").strip().casefold()
+        if root_status and root_status not in {"current-authoritative", "current", "authoritative"}:
+            continue
+        if root_current and root_current not in {"true", "1", "yes"}:
+            continue
+
+        source_url = str(package.get("source_url") or payload.get("source_url") or "").strip()
+        file_id = str(package.get("file_id") or payload.get("file_id") or "").strip()
+        try:
+            canonical = canonical_website_url_identity(source_url) if source_url else file_id
+        except Exception:
+            canonical = source_url.casefold() if source_url else file_id
+        if not canonical or canonical in seen:
+            continue
+
+        make_tokens = _technical_root_make_tokens_v69281(root)
+        if not make_tokens or prompt_brands.isdisjoint(make_tokens):
+            continue
+        make_matched = True
+
+        aliases = _technical_root_model_aliases_v69281(root)
+        # Prefer exact authored model/model(s) declarations. Query-key-only matches
+        # are not sufficient unless an authored model alias also matches.
+        authored_aliases = set()
+        for key in ("data-atp-model", "data-atp-models", "data-atp-canonical-model-family", "data-atp-vehicle-family"):
+            raw = str(root.get(key) or "").strip()
+            for part in re.split(r"[|,;]", raw):
+                clean = _technical_contract_norm_v69198(part)
+                if clean:
+                    authored_aliases.add(clean)
+        model_matches = [
+            alias for alias in authored_aliases
+            if _technical_model_alias_matches_prompt_v69281(prompt, alias, make_matched=make_matched)
+        ]
+        if not model_matches:
+            continue
+
+        scope_years = {int(x) for x in (scope.get("years") or set()) if str(x).strip()}
+        if prompt_years and scope_years and prompt_years.isdisjoint(scope_years):
+            continue
+
+        verified_package = _technical_package_apply_verified_scope_v69237(package, payload)
+        result = _technical_verified_single_multibranch_result_v69278(prompt, verified_package)
+        if str((result or {}).get("status") or "") != "recovered":
+            continue
+        authority = dict(result.get("authority") or {})
+        if str(authority.get("status") or "") != "recovered":
+            continue
+        exact_images = list(result.get("exact_images") or authority.get("selected_image_urls_v69143") or [])
+        # Car-model queries on an authored ATP source with a primary auto-display
+        # image must retain that exact same-source image through the result object.
+        if not exact_images:
+            semantic_images = _technical_atp_semantic_image_urls_v69179(prompt, authority, max_images=8)
+            if semantic_images:
+                authority["selected_image_urls_v69143"] = list(semantic_images)
+                result["exact_images"] = list(semantic_images)
+                result["authority"] = authority
+                exact_images = list(semantic_images)
+        seen.add(canonical)
+        matches.append((canonical, result, sorted(model_matches)))
+
+    if len(matches) != 1:
+        if matches:
+            diagnostic_log(
+                "technical_metadata_identity_ambiguous_v69281",
+                matches=len(matches), brands=sorted(prompt_brands),
+                sources=[str(x[0])[:500] for x in matches[:8]],
+            )
+        return {}
+
+    canonical, result, model_matches = matches[0]
+    authority = dict(result.get("authority") or {})
+    diagnostic_log(
+        "technical_metadata_identity_exact_bound_v69281",
+        brands=sorted(prompt_brands), models=model_matches[:8],
+        source_url=str(authority.get("source_url") or "")[:700],
+        section=str(authority.get("section_title") or "")[:300],
+        images=len(result.get("exact_images") or []),
+        no_explicit_year=not bool(prompt_years),
+    )
+    result["metadata_identity_exact_v69281"] = True
+    return result
+
 def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
     """Cold-path hydrate all compatible current packages for one family/year.
 
@@ -73113,24 +73668,32 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             revision_v69228,
         ):
             already_compiled_hits_v69232 += 1
-            hydrated_v69228 += 1
-            if bool(payload_v69228.get("durable_snapshot_candidate_v69233")):
-                state_v69241 = _technical_compiled_contract_state_v69198()
-                with state_v69241["lock"]:
-                    cached_package_v69241 = dict((state_v69241.get("packages") or {}).get(file_id_v69228) or {})
-                if cached_package_v69241:
-                    cached_package_v69241.update({
-                        "file_id": file_id_v69228,
-                        "filename": filename_v69228 or str(cached_package_v69241.get("filename") or ""),
-                        "source_url": source_url_v69228 or str(cached_package_v69241.get("source_url") or ""),
-                        "title": str(cached_package_v69241.get("title") or payload_v69228.get("title") or ""),
-                        "systems": list(payload_v69228.get("systems") or cached_package_v69241.get("systems") or []),
-                    })
-                    # v69245: this payload already passed the exact snapshot family/year/current-source
-                    # gates before entering hydration. Do not re-run a different model/year parser here,
-                    # because package normalization can omit authored composite scope fields and make the
-                    # authoritative hydrated set diverge from the successful hydration count.
+            state_v69241 = _technical_compiled_contract_state_v69198()
+            with state_v69241["lock"]:
+                cached_package_v69241 = dict((state_v69241.get("packages") or {}).get(file_id_v69228) or {})
+            if cached_package_v69241:
+                cached_package_v69241.update({
+                    "file_id": file_id_v69228,
+                    "filename": filename_v69228 or str(cached_package_v69241.get("filename") or ""),
+                    "source_url": source_url_v69228 or str(cached_package_v69241.get("source_url") or ""),
+                    "title": str(cached_package_v69241.get("title") or payload_v69228.get("title") or ""),
+                    "systems": list(payload_v69228.get("systems") or cached_package_v69241.get("systems") or []),
+                })
+                if not _technical_package_hard_scope_match_v69277(
+                    cached_package_v69241, payload_v69228, family, year
+                ):
+                    rejected_v69228 += 1
+                    diagnostic_log(
+                        "technical_cached_package_cross_scope_rejected_v69277",
+                        requested_family=family, requested_year=int(year),
+                        file_id=file_id_v69228[:160], source_url=source_url_v69228[:700],
+                    )
+                    continue
+                hydrated_v69228 += 1
+                if bool(payload_v69228.get("durable_snapshot_candidate_v69233")):
                     verified_hydrated_packages_v69241.append(cached_package_v69241)
+            else:
+                rejected_v69228 += 1
             continue
 
         recovered_v69232 = _technical_verified_snapshot_package_v69232(
@@ -73155,6 +73718,17 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             package_v69228 = _technical_package_apply_verified_scope_v69237(
                 package_v69228, payload_v69228
             )
+
+        if not _technical_package_hard_scope_match_v69277(
+            package_v69228, payload_v69228, family, year
+        ):
+            rejected_v69228 += 1
+            diagnostic_log(
+                "technical_verified_package_cross_scope_rejected_v69277",
+                requested_family=family, requested_year=int(year),
+                file_id=file_id_v69228[:160], source_url=source_url_v69228[:700],
+            )
+            continue
 
         # Hard family/year check prevents cache/registry corruption such as an
         # F-150 key hydrating a Mercedes Sprinter package.
@@ -73242,6 +73816,16 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             if not isinstance(pkg_v69244, dict):
                 continue
             pkg_v69244 = dict(pkg_v69244)
+            if not _technical_package_hard_scope_match_v69277(
+                pkg_v69244, {}, family, year
+            ):
+                diagnostic_log(
+                    "technical_authoritative_handoff_cross_scope_rejected_v69277",
+                    requested_family=family, requested_year=int(year),
+                    file_id=str(pkg_v69244.get("file_id") or "")[:160],
+                    source_url=str(pkg_v69244.get("source_url") or "")[:700],
+                )
+                continue
             identity_v69244 = _technical_verified_package_identity_v69244(pkg_v69244)
             if not identity_v69244 or identity_v69244 in seen_verified_identity_v69244:
                 continue
@@ -73332,6 +73916,16 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             )
 
         if verified_package_count_v69244 == 1:
+            # v69278: one verified source may contain multiple authored profiles.
+            # Bind its compiled multi-branch contract before the older one-row path.
+            single_multibranch_v69278 = _technical_verified_single_multibranch_result_v69278(
+                prompt_text, eligible_verified_packages_v69242[0]
+            )
+            if str((single_multibranch_v69278 or {}).get("status") or "") == "recovered":
+                _technical_configuration_set_cache_put_v69241(
+                    clean_store, revision_v69228, family, year, single_multibranch_v69278
+                )
+                return single_multibranch_v69278
             recovered_rows_v69243 = _technical_verified_configuration_rows_v69243(
                 prompt_text, eligible_verified_packages_v69242, family, year
             )
@@ -73398,6 +73992,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             factory_system=str(explicit_factory_system_v69228),
         )
     return compiled_result_v69238 or {}
+
 
 
 def _technical_direct_section_answer_v69199(prompt_text, compiled_result):
@@ -85562,12 +86157,31 @@ else:
                     compiled_store_v69199 = str(
                         compiled_store_ids_v69198[0] or ""
                     ).strip()
+                    # v69299: exact metadata identity resolver first for Technical
+                    # configuration inquiries whose make/model is not represented by
+                    # the legacy family parser. Recognized families bypass internally.
                     technical_compiled_preflight_v69198 = (
-                        _technical_compiled_contract_lookup_v69198(
+                        _technical_metadata_identity_exact_result_v69281(
                             technical_request_prompt_v68879,
                             compiled_store_v69199,
                         )
                     )
+                    if str(technical_compiled_preflight_v69198.get("status") or "") != "recovered":
+                        technical_compiled_preflight_v69198 = (
+                            _technical_compiled_contract_lookup_v69198(
+                                technical_request_prompt_v68879,
+                                compiled_store_v69199,
+                            )
+                        )
+                    if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered" and not _technical_result_hard_scope_valid_v69277(
+                        technical_compiled_preflight_v69198, technical_request_prompt_v68879, compiled_store_v69199
+                    ):
+                        diagnostic_log(
+                            "technical_preflight_cross_scope_rejected_v69277",
+                            kind=str(technical_compiled_preflight_v69198.get("kind") or ""),
+                            source_url=str((technical_compiled_preflight_v69198.get("authority") or {}).get("source_url") or "")[:700],
+                        )
+                        technical_compiled_preflight_v69198 = {}
                     if str(technical_compiled_preflight_v69198.get("status") or "") != "recovered":
                         technical_compiled_preflight_v69198 = (
                             _technical_compiled_on_demand_hydrate_v69199(
@@ -85576,6 +86190,14 @@ else:
                             )
                             or technical_compiled_preflight_v69198
                         )
+                    if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered" and not _technical_result_hard_scope_valid_v69277(
+                        technical_compiled_preflight_v69198, technical_request_prompt_v68879, compiled_store_v69199
+                    ):
+                        diagnostic_log(
+                            "technical_hydrated_preflight_cross_scope_rejected_v69277",
+                            kind=str(technical_compiled_preflight_v69198.get("kind") or ""),
+                        )
+                        technical_compiled_preflight_v69198 = {}
                     if str(technical_compiled_preflight_v69198.get("status") or "") == "recovered":
                         if str(technical_compiled_preflight_v69198.get("kind") or "") == "configuration_set":
                             diagnostic_log(
