@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69305"
-AUTOTECPRO_RELEASE_BUILD = "researched-component-edit-guard-v69305-20260901"
+AUTOTECPRO_RELEASE_VERSION = "v69307"
+AUTOTECPRO_RELEASE_BUILD = "exact-v69304-first-image-researched-followup-only-v69307-20260901"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -15571,28 +15571,6 @@ def _graphic_extract_explicit_vehicle(text):
 
 
 
-def _graphic_component_focus_v69305(text):
-    value = re.sub(r"\s+", " ", str(text or "")).strip().casefold()
-    patterns = (
-        (r"\b(?:upper|top|center|centre)\s+(?:air\s*)?vent\b", "upper air vent"),
-        (r"\b(?:lower|bottom)\s+(?:air\s*)?vent\b", "lower air vent"),
-        (r"\b(?:air\s*)?vent\b", "air vent"),
-        (r"\b(?:hazard|warning)\s+button\b", "hazard button"),
-        (r"\b(?:climate|ac|a/c|hvac)\s+(?:control|button|panel|switch)\b", "climate control"),
-        (r"\b(?:oem|factory|original)\s+(?:trim|bezel|panel)\b", "trim panel"),
-        (r"\bbutton\b", "button"),
-        (r"\bknob\b", "knob"),
-        (r"\bswitch\b", "switch"),
-        (r"\bgrille\b", "grille"),
-        (r"\btrim\b", "trim"),
-        (r"\bpanel\b", "panel"),
-    )
-    for pattern, label in patterns:
-        if re.search(pattern, value, flags=re.I):
-            return label
-    return ""
-
-
 def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
     """Parse short natural-language edits into an object-level change directive.
 
@@ -15605,11 +15583,6 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
     the bottom hole of the unit" is a *localized correction* to the already-created
     artwork, not a request to recreate the physical product from a new angle. Keep
     the edit isolated to the existing canvas and preserve all other layers.
-
-    v69305: a prompt that asks to check the original/OEM/factory component (for
-    example an air vent, button, trim piece, or control) and then implement only
-    that component into the existing product opening is still a follow-up edit.
-    It must preserve the existing artwork and never broaden into product recreation.
     """
     value = re.sub(r"\s+", " ", str(text or "")).strip()
     lower = value.casefold()
@@ -15624,10 +15597,6 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
         "edit_mode": "object_edit",
         "localized_product_cleanup": False,
         "localized_cleanup_reason": "",
-        "researched_component_edit": False,
-        "research_required": False,
-        "component_focus": "",
-        "research_query_hint": "",
     }
     if not value:
         return directive
@@ -15652,31 +15621,12 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
         directive["localized_cleanup_reason"] = "followup_existing_canvas_local_cleanup"
         return directive
 
-    component_focus = _graphic_component_focus_v69305(value)
-    research_signal = bool(re.search(r"\b(?:check|look ?up|lookup|find|verify|search|reference|match)\b", lower, flags=re.I))
-    oem_signal = bool(re.search(r"\b(?:original|oem|factory|stock|authentic)\b", lower, flags=re.I))
-    apply_signal = bool(re.search(r"\b(?:implement|use|apply|insert|put|populate|add|restore|fill|place|show)\b", lower, flags=re.I))
-    location_signal = bool(re.search(r"\b(?:hole|opening|cutout|slot|area|region|upper|top|lower|bottom|inside)\b", lower, flags=re.I))
-    preserve_signal = any(
-        phrase in lower for phrase in (
-            "preserve everything else", "keep everything else", "everything else the same",
-            "everything else unchanged", "preserve all other", "keep all other"
-        )
-    )
-    if component_focus and ((research_signal and oem_signal) or (oem_signal and apply_signal) or (component_focus.endswith("vent") and preserve_signal and location_signal)):
-        directive["change_targets"] = ["hero_product"]
-        directive["preserve_targets"] = [
-            "headline", "vehicle", "background", "logo", "feature_matrix", "bottom_benefit_bar", "layout"
-        ]
-        directive["strict_preservation"] = True
-        directive["edit_mode"] = "researched_component_edit"
-        directive["researched_component_edit"] = True
-        directive["research_required"] = True
-        directive["component_focus"] = component_focus
-        directive["research_query_hint"] = value[:800]
-        return directive
-
+    # Common replacement grammar.  Keep it deliberately conservative and bounded.
     replacement_patterns = (
+        # Anchor optional sentence punctuation at the actual end of the command.
+        # The previous ``(?:[.!]|$)`` terminator treated the decimal point in
+        # values such as 14.4" as sentence punctuation and truncated the new
+        # wording to ``14``. Decimal screen sizes must remain intact.
         r"\b(?:change|replace|rename|update)\s+(?:the\s+)?(.{2,90}?)\s+(?:to|with|as)\s+(.{2,120}?)\s*[.!]?\s*$",
         r"\b(?:instead of)\s+(.{2,90}?)\s+(?:use|write|show)\s+(.{2,120}?)\s*[.!]?\s*$",
     )
@@ -15692,6 +15642,10 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
         directive["replacement_to"] = new
         directive["strict_preservation"] = True
         old_lower = old.casefold()
+        # Resolve the explicitly named replacement target before scanning the whole
+        # sentence. Product names often contain words such as “screen”, “Tundra”, or
+        # “display”; those words describe headline copy and must not accidentally
+        # unlock the physical product or vehicle layers.
         physical_words = ("product photo", "physical product", "hardware", "housing", "unit itself", "device itself", "uploaded product")
         if any(term in lower for term in physical_words):
             directive["change_targets"].append("hero_product")
@@ -15710,6 +15664,8 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
         elif any(term in old_lower for term in ("screen content", "display content", "interface", "screen ui", " ui")):
             directive["change_targets"].append("requested_object")
         else:
+            # A bounded X -> Y wording replacement defaults to copy/headline. This
+            # is the safest interpretation and preserves every visual layer.
             directive["change_targets"].append("headline")
             directive["copy_updates"]["product_category"] = new.upper()
             spec = dict(existing_spec or {})
@@ -15726,11 +15682,14 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
         "bottom_benefit_bar": ("bottom bar", "benefit bar", "bottom strip"),
         "layout": ("layout", "position", "spacing", "move", "resize", "bigger", "smaller"),
     }
+    # For an explicit X -> Y replacement, the target was already resolved from X.
+    # Do not scan unrelated words in the replacement value and unlock extra layers.
     if not replacement and not directive.get("localized_product_cleanup"):
         for target, terms in target_map.items():
             if any(term in lower for term in terms) and target not in directive["change_targets"]:
                 directive["change_targets"].append(target)
 
+    # Default ChatGPT-style behavior: preserve every unmentioned object.
     all_targets = list(target_map)
     directive["preserve_targets"] = [x for x in all_targets if x not in directive["change_targets"]]
     if "keep everything else" in lower or "only" in lower:
@@ -15738,7 +15697,6 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
     else:
         directive["strict_preservation"] = bool(directive["change_targets"])
     return directive
-
 
 
 def _graphic_explicit_fitment_v41100(text):
@@ -30808,8 +30766,6 @@ def _graphic_layer_stack_v8000(
 def _graphic_local_edit_kind_v8000(edit_directive):
     if (edit_directive or {}).get("localized_product_cleanup"):
         return "localized_product_cleanup"
-    if (edit_directive or {}).get("researched_component_edit"):
-        return "researched_component_edit"
     targets = set((edit_directive or {}).get("change_targets") or [])
     if not targets:
         return "provider_edit"
@@ -30824,7 +30780,6 @@ def _graphic_local_edit_kind_v8000(edit_directive):
     if "hero_product" in targets:
         return "product_recreation"
     return "provider_edit"
-
 
 
 def _graphic_followup_cleanup_correction_prompt_v69300(prompt_text, edit_directive=None):
@@ -30845,163 +30800,6 @@ def _graphic_followup_cleanup_correction_prompt_v69300(prompt_text, edit_directi
         "If background or scenery is visible through a real opening/hole/cutout of the product, clean that local area so it looks intentional and polished while preserving the real opening shape and surrounding housing detail. "
         f"Requested adjustment: {instruction[:700]}"
     )
-
-
-def _graphic_v69305_component_research_available(profile):
-    profile = profile if isinstance(profile, dict) else {}
-    if not profile:
-        return False
-    identity_ok = bool(
-        str(profile.get("explicit_display_name") or "").strip()
-        or (str(profile.get("make") or "").strip() and str(profile.get("model") or "").strip())
-    )
-    detail_ok = bool(
-        str(profile.get("component_description") or "").strip()
-        or str(profile.get("component_location") or "").strip()
-        or str(profile.get("safe_interior_description") or "").strip()
-        or str(profile.get("search_summary") or "").strip()
-        or str(profile.get("web_evidence") or "").strip()
-        or str(profile.get("visual_evidence") or "").strip()
-        or (profile.get("source_records") not in (None, "", [], {}))
-    )
-    return bool(identity_ok and detail_ok)
-
-
-@st.cache_data(ttl=21600, max_entries=128, show_spinner=False)
-def _graphic_v69305_component_research_cached(product_data_url, prompt_text="", component_focus=""):
-    if not product_data_url:
-        return {}
-    content = [
-        {"type": "input_text", "text": (
-            "Identify the exact vehicle compatibility of this AutoTecPro dashboard unit/fascia and verify the requested OEM/factory component using live web search. "
-            "Focus on the requested component only, such as the original air vent, trim piece, button, or control that belongs with this product application. "
-            "Return JSON only with keys: make, model, generation, year_range, vehicle_type, confidence_score, component_focus, component_description, component_location, installation_notes, visual_evidence, web_evidence, source_records, search_summary. "
-            "Do not invent certainty. Prefer OEM, manufacturer, established parts catalog, and reputable automotive sources. "
-            "Requested component: " + str(component_focus or "OEM component")[:180] + ". "
-            "Staff request: " + str(prompt_text or "")[:2500]
-        )},
-        {"type": "input_image", "image_url": product_data_url},
-    ]
-    try:
-        bounded_client = client.with_options(
-            timeout=GRAPHIC_V69265_AUX_TIMEOUT_SECONDS,
-            max_retries=0,
-        )
-        response = bounded_client.responses.create(
-            model="gpt-5.5",
-            tools=[{"type": "web_search"}],
-            instructions=(
-                "Act as a cautious OEM automotive component researcher. Use live web search to verify the requested original/factory component. "
-                "Return JSON only and keep uncertainty explicit."
-            ),
-            input=[{"role": "user", "content": content}],
-            max_output_tokens=2200,
-        )
-        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
-        if not isinstance(payload, dict):
-            payload = {}
-    except Exception as error:
-        diagnostic_log("graphic_v69305_component_research_failed", error_type=type(error).__name__, error=str(error)[:600], component_focus=str(component_focus or "")[:120])
-        payload = {}
-    if payload:
-        payload["component_focus"] = str(payload.get("component_focus") or component_focus or "").strip()
-        payload["research_version"] = "v69305-researched-component-edit"
-    return payload
-
-
-def _graphic_v69305_lookup_oem_component_profile(role_items, prompt_text="", edit_directive=None):
-    product = next((x for x in (role_items or []) if x.get("role") == "product_photo"), None)
-    if not product:
-        return {}
-    product_data_url = _graphic_role_data_url(product)
-    if not product_data_url:
-        return {}
-    component_focus = str((edit_directive or {}).get("component_focus") or _graphic_component_focus_v69305(prompt_text) or "OEM component").strip()
-    started = time.perf_counter()
-    profile = _graphic_v69305_component_research_cached(product_data_url, str(prompt_text or ""), component_focus)
-    elapsed = time.perf_counter() - started
-    diagnostic_log(
-        "graphic_v69305_component_research_bounded",
-        elapsed_seconds=round(elapsed, 3),
-        timeout_seconds=GRAPHIC_V69265_AUX_TIMEOUT_SECONDS,
-        available=bool(profile),
-        component_focus=component_focus[:120],
-    )
-    return profile if isinstance(profile, dict) else {}
-
-
-def _graphic_v69305_component_research_text(profile):
-    profile = profile if isinstance(profile, dict) else {}
-    keys = (
-        "make", "model", "generation", "year_range", "vehicle_type", "confidence_score",
-        "component_focus", "component_description", "component_location", "installation_notes",
-        "visual_evidence", "web_evidence", "source_records", "search_summary",
-    )
-    parts = []
-    for key in keys:
-        value = profile.get(key)
-        if value in (None, "", [], {}):
-            continue
-        parts.append(f"{key.replace('_', ' ').title()}: {value}")
-    return "\n".join(parts)
-
-
-def _graphic_followup_researched_component_correction_prompt_v69305(prompt_text, edit_directive=None, research_profile=None):
-    user_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    directive = dict(edit_directive or {})
-    instruction = str(directive.get("raw_instruction") or user_text or "researched component correction")
-    component_focus = str(directive.get("component_focus") or _graphic_component_focus_v69305(user_text) or "requested OEM component").strip()
-    research_text = _graphic_v69305_component_research_text(research_profile) or "Verified component research summary unavailable."
-    return (
-        "RESEARCHED COMPONENT FOLLOW-UP EDIT ONLY. Use the current generated artwork as the base canvas. "
-        "Preserve the exact advertisement composition, headline, vehicle, background, logo, feature icons, footer, product scale, product perspective, and all other product geometry. "
-        "Do NOT recreate the advertisement, do NOT insert any duplicate product, do NOT place the original product photo as a separate panel/box, and do NOT change the camera angle. "
-        f"Edit only the requested product component region: {component_focus}. "
-        "Use the verified OEM/factory component research below to populate or correct that single component only. "
-        "If the requested component sits inside an opening/hole/cutout, fill only that opening with the OEM component appearance while preserving the opening boundary and the surrounding housing detail. "
-        "Preserve every other visible part exactly the same. If multiple alternatives are mentioned, use the highest-confidence OEM/factory appearance only. "
-        "Do not invent low-confidence details.\n\n"
-        "VERIFIED OEM COMPONENT RESEARCH:\n" + research_text[:3000] + "\n\n"
-        f"Requested adjustment: {instruction[:700]}"
-    )
-
-
-
-def _graphic_v69305_researched_component_edit_qa(result, current_canvas, edit_directive=None, research_profile=None):
-    result_raw, _ = data_url_to_bytes(str((result or {}).get("data_url") or ""))
-    base_raw, _ = data_url_to_bytes(str((current_canvas or {}).get("data_url") or ""))
-    result_size = []
-    base_size = []
-    try:
-        if Image is not None and result_raw:
-            with Image.open(io.BytesIO(result_raw)) as im:
-                result_size = [int(im.width), int(im.height)]
-        if Image is not None and base_raw:
-            with Image.open(io.BytesIO(base_raw)) as im:
-                base_size = [int(im.width), int(im.height)]
-    except Exception:
-        pass
-    directive = dict(edit_directive or {})
-    checks = {
-        "image_valid": bool(result_raw),
-        "edit_base_present": bool(base_raw),
-        "canvas_size_preserved": bool(result_size and base_size and result_size == base_size),
-        "research_verified": bool(_graphic_v69305_component_research_available(research_profile)),
-        "localized_scope_locked": bool(
-            directive.get("researched_component_edit")
-            and directive.get("strict_preservation")
-            and set(directive.get("change_targets") or []) == {"hero_product"}
-        ),
-    }
-    return {
-        "passed": bool(all(checks.values())),
-        "checks": checks,
-        "result_size": result_size,
-        "base_size": base_size,
-        "engine": "v69305-researched-component-deterministic-nonblocking-qa",
-        "provider_calls": 0,
-        "publication_semantics_changed": False,
-    }
 
 
 def _graphic_v69301_cached_followup_structure(role_items):
@@ -31768,7 +31566,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         structure_started_v69301 = time.perf_counter()
         cached_structure_v69301 = (
             _graphic_v69301_cached_followup_structure(role_items)
-            if has_edit_base and pre_edit_kind_v69301 in {"localized_product_cleanup", "researched_component_edit"}
+            if has_edit_base and pre_edit_kind_v69301 == "localized_product_cleanup"
             else {}
         )
         structure_profile = cached_structure_v69301 or (_graphic_product_structure_profile_v4300(role_items) if has_product else {})
@@ -31825,7 +31623,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             reference_id=str((get_graphic_project_state() or {}).get("active_reference_id") or "")[:20],
         )
         saved_state = get_graphic_project_state()
-        if has_edit_base and edit_kind in {"local_copy", "local_layout", "localized_product_cleanup", "researched_component_edit"}:
+        if has_edit_base and edit_kind in {"local_copy", "local_layout", "localized_product_cleanup"}:
             reference_blueprint = dict(saved_state.get("last_reference_blueprint") or {})
             vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, dict(saved_state.get("last_vehicle_profile") or {}))
             geometry = _graphic_reference_geometry_v3300(reference_blueprint, prompt_text)
@@ -31984,104 +31782,6 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_progress_update_v3300(status, "The current artwork is preserved and ready to retry.", "error")
             raise RuntimeError(
                 "The localized follow-up edit did not return a usable image. The existing artwork was preserved; no broader recreation fallback was allowed."
-            )
-
-        if has_edit_base and edit_kind == "researched_component_edit":
-            researched_started_v69305 = time.perf_counter()
-            _graphic_progress_update_v3300(status, "Verifying the OEM component and applying the requested targeted edit…")
-            current_canvas = dict((get_graphic_project_state() or {}).get("latest_generated") or {})
-            if not current_canvas.get("data_url"):
-                diagnostic_log("graphic_v69305_followup_failed_closed", reason="missing_current_canvas")
-                _graphic_progress_update_v3300(status, "The current artwork is preserved and ready to retry.", "error")
-                raise RuntimeError("The requested researched component edit could not start because the current artwork was not available as the edit base.")
-            research_started_v69305 = time.perf_counter()
-            component_profile = _graphic_v69305_lookup_oem_component_profile(role_items, prompt_text, active_edit)
-            stage_times["component_research_seconds"] = time.perf_counter() - research_started_v69305
-            if not _graphic_v69305_component_research_available(component_profile):
-                diagnostic_log(
-                    "graphic_v69305_followup_failed_closed",
-                    reason="required_component_research_unavailable",
-                    component_focus=str((active_edit or {}).get("component_focus") or "")[:120],
-                    research_seconds=round(stage_times.get("component_research_seconds") or 0.0, 3),
-                )
-                _graphic_progress_update_v3300(status, "I couldn't verify the requested OEM component yet. The current artwork was preserved.", "error")
-                raise RuntimeError(
-                    "The requested researched component edit could not be verified yet, so the current artwork was preserved. Please try again or provide a clearer OEM/component reference image."
-                )
-            vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, component_profile or vehicle_profile or {})
-            correction = _graphic_followup_researched_component_correction_prompt_v69305(prompt_text, active_edit, component_profile)
-            diagnostic_log(
-                "graphic_v69305_followup_state_reused",
-                reference_blueprint=bool(reference_blueprint),
-                vehicle_profile=bool(vehicle_profile),
-                product_structure_reused=bool(cached_structure_v69301),
-                edit_base=bool(current_canvas.get("data_url")),
-                research_verified=True,
-                component_focus=str((active_edit or {}).get("component_focus") or "")[:120],
-            )
-            provider_started_v69305 = time.perf_counter()
-            researched_result = _graphic_safe_optional_call(
-                "graphic_v69305_researched_component_edit_failed",
-                lambda: _graphic_correction_result_v3300(
-                    current_canvas, prompt_text, role_items, output_size,
-                    reference_blueprint, vehicle_profile, rejected_guidance, correction,
-                ),
-                None,
-            )
-            provider_total_v69305 = time.perf_counter() - provider_started_v69305
-            diagnostic_log(
-                "graphic_v69305_followup_provider_completed",
-                success=bool(researched_result),
-                elapsed_seconds=round(provider_total_v69305, 3),
-            )
-            if researched_result:
-                finalize_started_v69305 = time.perf_counter()
-                researched_result = _graphic_finalize_result_v7100(
-                    researched_result, prompt_text=prompt_text, output_size=output_size, geometry=geometry,
-                    campaign_spec=campaign_spec, product_mode=product_mode,
-                    structure_profile=structure_profile, has_edit_base=has_edit_base,
-                )
-                researched_result["layer_stack"] = _graphic_layer_stack_v8000(
-                    researched_result, geometry=geometry, campaign_spec=campaign_spec, template_key=brand_template
-                )
-                researched_result["professional_qa"] = _graphic_v69305_researched_component_edit_qa(
-                    researched_result, current_canvas, active_edit, component_profile
-                )
-                diagnostic_log(
-                    "graphic_v69305_followup_preservation_check",
-                    passed=bool((researched_result.get("professional_qa") or {}).get("passed")),
-                    checks=(researched_result.get("professional_qa") or {}).get("checks") or {},
-                )
-                researched_result["runtime_audit"] = _graphic_runtime_audit_v10000(
-                    researched_result, route=edit_kind, provider_calls=1, retries=0, stages=stage_times
-                )
-                researched_result["graphic_v69305_researched_component_edit_path"] = True
-                researched_result["graphic_v69305_provider_total_seconds"] = round(provider_total_v69305, 3)
-                researched_result["graphic_v69305_finalize_seconds"] = round(time.perf_counter() - finalize_started_v69305, 3)
-                researched_result["graphic_v69305_component_research_summary"] = _graphic_v69305_component_research_text(component_profile)
-                state = get_graphic_project_state(); state["layer_stack"] = researched_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
-                total_researched_v69305 = time.perf_counter() - researched_started_v69305
-                diagnostic_log(
-                    "graphic_v69305_followup_finalize_completed",
-                    elapsed_seconds=round(time.perf_counter() - finalize_started_v69305, 3),
-                    total_cleanup_seconds=round(total_researched_v69305, 3),
-                )
-                _graphic_update_metrics_v8000(elapsed=time.perf_counter() - started_at, provider_calls=1, local_edit=True, route=edit_kind, stages=stage_times)
-                _graphic_progress_update_v3300(status, "Graphic researched component edit completed.", "complete")
-                diagnostic_log(
-                    "graphic_v69305_followup_published",
-                    total_cleanup_seconds=round(total_researched_v69305, 3),
-                    provider_total_seconds=round(provider_total_v69305, 3),
-                )
-                return [researched_result]
-            diagnostic_log(
-                "graphic_v69305_followup_failed_closed",
-                reason="researched_component_provider_returned_no_usable_image",
-                provider_total_seconds=round(provider_total_v69305, 3),
-            )
-            _graphic_progress_update_v3300(status, "The current artwork is preserved and ready to retry.", "error")
-            raise RuntimeError(
-                "The researched component follow-up edit did not return a usable image. The existing artwork was preserved; no broader recreation fallback was allowed."
             )
 
         # UI Replacement Mode modifies only the detected display aperture locally.
@@ -53160,6 +52860,236 @@ def generate_graphic_marketing_images(
         quality_retry=quality_retry, product_transform_mode=product_transform_mode,
         professional_layered_studio=professional_layered_studio,
     )
+
+# ============================================================
+# v69307 — exact v69304 first-image authority + follow-up-only researched component guard
+# ============================================================
+# CRITICAL PARITY RULE:
+# The v69304 final Graphic generator above is captured unchanged and remains the sole
+# authority for every first image and every ordinary follow-up.  The wrapper below
+# intercepts only a *post-generation* prompt that explicitly asks to verify/search an
+# original/OEM/factory component and apply it locally to the already-created artwork.
+# Nothing in the protected v69298/v69272/v69248 first-image path is mutated or rebound.
+_GRAPHIC_V69307_EXACT_V69304_GENERATOR = generate_graphic_marketing_images
+
+
+def _graphic_v69307_component_focus(prompt_text):
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    patterns = (
+        (r"\b(?:upper|top|center|centre)\s+(?:air\s*)?vent\b", "upper air vent"),
+        (r"\b(?:lower|bottom)\s+(?:air\s*)?vent\b", "lower air vent"),
+        (r"\b(?:air\s*)?vent\b", "air vent"),
+        (r"\b(?:hazard|warning)\s+button\b", "hazard button"),
+        (r"\b(?:climate|hvac|a/c|ac)\s+(?:control|button|panel|switch)\b", "climate control"),
+        (r"\b(?:original|oem|factory)\s+(?:trim|bezel|panel)\b", "trim panel"),
+        (r"\b(?:button|knob|switch|grille|trim|panel)\b", "requested OEM component"),
+    )
+    for pattern, label in patterns:
+        if re.search(pattern, value, flags=re.I):
+            return label
+    return ""
+
+
+def _graphic_v69307_is_researched_component_followup(prompt_text):
+    """Conservative admission gate; impossible on first generation by construction."""
+    state = get_graphic_project_state() or {}
+    latest = state.get("latest_generated") or {}
+    if not isinstance(latest, dict) or not str(latest.get("data_url") or "").strip():
+        return False
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    component = _graphic_v69307_component_focus(value)
+    if not component:
+        return False
+    research_signal = bool(re.search(r"\b(?:check|look\s*up|lookup|find|verify|search|reference|match)\b", value, flags=re.I))
+    oem_signal = bool(re.search(r"\b(?:original|oem|factory|stock|authentic)\b", value, flags=re.I))
+    apply_signal = bool(re.search(r"\b(?:implement|use|apply|insert|put|populate|add|restore|fill|place)\b", value, flags=re.I))
+    preserve_signal = bool(re.search(r"\b(?:preserve|keep)\b.{0,50}\b(?:everything else|all other|rest|unchanged|same)\b", value, flags=re.I))
+    return bool((research_signal and oem_signal) or (oem_signal and apply_signal and preserve_signal))
+
+
+def _graphic_v69307_research_component(role_items, prompt_text, component_focus):
+    product = next((x for x in (role_items or []) if isinstance(x, dict) and x.get("role") == "product_photo"), None)
+    image_url = _graphic_role_data_url(product) if product else ""
+    state = get_graphic_project_state() or {}
+    explicit_vehicle = dict(state.get("explicit_vehicle") or {})
+    saved_vehicle = dict(state.get("last_vehicle_profile") or {})
+    vehicle_hint = (
+        str(explicit_vehicle.get("display_name") or "").strip()
+        or str(saved_vehicle.get("explicit_display_name") or "").strip()
+        or ""
+    )
+    content = [{
+        "type": "input_text",
+        "text": (
+            "Verify the exact original/OEM/factory automotive component requested for this AutoTecPro product application. "
+            "Use live web search. Prefer OEM/manufacturer sources, official parts diagrams, established parts catalogs, and reputable automotive sources. "
+            "Return one JSON object only with keys: verified, make, model, generation, year_range, component_focus, component_description, component_location, "
+            "orientation, distinctive_visual_features, source_records, search_summary, confidence_score. "
+            "Do not guess. Set verified=false if the exact component cannot be supported. "
+            f"Known vehicle/application hint: {vehicle_hint or 'not locked'}. "
+            f"Requested component: {component_focus}. Staff instruction: {str(prompt_text or '')[:1800]}"
+        ),
+    }]
+    if image_url:
+        content.append({"type": "input_image", "image_url": image_url})
+    try:
+        bounded_client = client.with_options(timeout=55.0, max_retries=0)
+        response = bounded_client.responses.create(
+            model="gpt-5.5",
+            tools=[{"type": "web_search"}],
+            instructions=(
+                "Act as a cautious OEM automotive component researcher. Use live web search and return JSON only. "
+                "Never convert uncertainty into a visual fact."
+            ),
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=2000,
+        )
+        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        if not isinstance(payload, dict):
+            payload = {}
+    except Exception as error:
+        diagnostic_log(
+            "graphic_v69307_component_research_failed_closed",
+            component_focus=str(component_focus or "")[:120],
+            error_type=type(error).__name__,
+            error=str(error)[:600],
+        )
+        return {}
+    score = payload.get("confidence_score")
+    try:
+        score = float(score)
+    except Exception:
+        score = 0.0
+    verified = payload.get("verified") is True and score >= 70.0
+    records = payload.get("source_records")
+    description = str(payload.get("component_description") or "").strip()
+    if not verified or not description or records in (None, "", [], {}):
+        diagnostic_log(
+            "graphic_v69307_component_research_failed_closed",
+            component_focus=str(component_focus or "")[:120],
+            reason="insufficient_verified_component_authority",
+            confidence_score=score,
+        )
+        return {}
+    payload["confidence_score"] = score
+    payload["component_focus"] = str(payload.get("component_focus") or component_focus or "").strip()
+    return payload
+
+
+def _graphic_v69307_component_research_text(profile):
+    keys = (
+        "make", "model", "generation", "year_range", "component_focus", "component_description",
+        "component_location", "orientation", "distinctive_visual_features", "source_records", "search_summary", "confidence_score",
+    )
+    return "\n".join(
+        f"{key.replace('_', ' ').title()}: {profile.get(key)}"
+        for key in keys if isinstance(profile, dict) and profile.get(key) not in (None, "", [], {})
+    )
+
+
+def _graphic_v69307_researched_followup_result(
+    prompt_text, uploaded_files=None, *, style_strength="High", forced_upload_role="Auto-detect"
+):
+    """Edit current v69304 artwork only; verified research is mandatory and fail-closed."""
+    state = get_graphic_project_state() or {}
+    current_canvas = dict(state.get("latest_generated") or {})
+    if not str(current_canvas.get("data_url") or "").strip():
+        raise RuntimeError("The current Graphic artwork is unavailable. No researched follow-up edit was attempted.")
+
+    role_items = _graphic_project_role_items(uploaded_files or [], prompt_text, forced_upload_role)
+    component_focus = _graphic_v69307_component_focus(prompt_text) or "requested OEM component"
+    research_started = time.perf_counter()
+    component_profile = _graphic_v69307_research_component(role_items, prompt_text, component_focus)
+    diagnostic_log(
+        "graphic_v69307_component_research_completed",
+        component_focus=component_focus,
+        available=bool(component_profile),
+        elapsed_seconds=round(time.perf_counter() - research_started, 3),
+    )
+    if not component_profile:
+        raise RuntimeError(
+            "I couldn't verify the requested OEM/factory component reliably, so the existing v69304 artwork was preserved and no broader recreation was allowed."
+        )
+
+    reference_blueprint = dict(state.get("last_reference_blueprint") or {})
+    saved_vehicle = dict(state.get("last_vehicle_profile") or {})
+    research_vehicle = dict(component_profile)
+    vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, research_vehicle or saved_vehicle)
+    rejected_guidance = _graphic_safe_optional_call(
+        "graphic_v69307_rejection_guidance_failed_open", _graphic_session_rejection_guidance, ""
+    )
+    output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(prompt_text))
+    research_text = _graphic_v69307_component_research_text(component_profile)
+    correction = (
+        "V69307 RESEARCHED COMPONENT FOLLOW-UP — CURRENT CANVAS ONLY. "
+        "Use the current generated v69304 artwork as the sole base canvas. Preserve the exact headline, typography, logo, vehicle, background, feature grid, bottom benefit bar, "
+        "product scale, product position, screen UI, screen pixels, product perspective, outer housing, buttons, knobs, openings, shadows, and every other visible element. "
+        "DO NOT recreate the advertisement. DO NOT redraw the full product. DO NOT replace or regenerate the screen UI. DO NOT insert the uploaded product photo as a separate box/panel. "
+        "DO NOT change the vehicle or scenery. Edit ONLY the requested OEM/factory component inside its existing product region/opening. "
+        f"Requested component: {component_focus}. "
+        "Use only the verified research below as factual authority. If the component occupies an existing opening/hole, modify only pixels inside that local opening plus the minimum boundary pixels needed for natural integration. "
+        "Everything else must remain visually unchanged.\n\nVERIFIED COMPONENT RESEARCH:\n"
+        + research_text[:3200]
+        + "\n\nUSER REQUEST:\n"
+        + str(prompt_text or "")[:900]
+    )
+    edit_started = time.perf_counter()
+    result = _graphic_correction_result_v3300(
+        current_canvas, prompt_text, role_items, output_size,
+        reference_blueprint, vehicle_profile, rejected_guidance, correction,
+    )
+    if not isinstance(result, dict) or not str(result.get("data_url") or "").strip():
+        diagnostic_log("graphic_v69307_researched_followup_failed_closed", reason="provider_returned_no_image")
+        raise RuntimeError(
+            "The researched follow-up edit did not return a usable image. The existing v69304 artwork was preserved; no broader recreation fallback was allowed."
+        )
+    result["graphic_v69307_researched_component_followup"] = True
+    result["graphic_v69307_base_canvas_preserved"] = True
+    result["graphic_v69307_component_focus"] = component_focus
+    result["graphic_v69307_component_research"] = component_profile
+    result["generation_route"] = "v69307-current-canvas-researched-component-edit"
+    result["provider_route"] = str(result.get("provider_route") or "")
+    _graphic_save_latest_project_result(result)
+    state_after = get_graphic_project_state() or {}
+    state_after["stage"] = "generated"
+    state_after["last_generation_route"] = "v69307-current-canvas-researched-component-edit"
+    state_after["updated_at"] = datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state_after
+    diagnostic_log(
+        "graphic_v69307_researched_followup_published",
+        component_focus=component_focus,
+        elapsed_seconds=round(time.perf_counter() - edit_started, 3),
+        first_image_authority="exact_v69304_generator_untouched",
+    )
+    return [result]
+
+
+def generate_graphic_marketing_images(
+    prompt_text, uploaded_files=None, *, use_approved_style=True, preserve_product=True,
+    style_strength="High", forced_upload_role="Auto-detect", quality_retry=True,
+    product_transform_mode="Auto", professional_layered_studio=True,
+):
+    # The admission gate requires an already-generated current canvas. Therefore
+    # every first-image request falls straight through to the exact v69304 generator
+    # object captured above, with identical arguments and no additional mutation.
+    if _graphic_v69307_is_researched_component_followup(prompt_text):
+        diagnostic_log(
+            "graphic_v69307_researched_component_followup_intercepted",
+            component_focus=_graphic_v69307_component_focus(prompt_text),
+        )
+        return _graphic_v69307_researched_followup_result(
+            prompt_text, uploaded_files,
+            style_strength=style_strength,
+            forced_upload_role=forced_upload_role,
+        )
+    return _GRAPHIC_V69307_EXACT_V69304_GENERATOR(
+        prompt_text, uploaded_files,
+        use_approved_style=use_approved_style, preserve_product=preserve_product,
+        style_strength=style_strength, forced_upload_role=forced_upload_role,
+        quality_retry=quality_retry, product_transform_mode=product_transform_mode,
+        professional_layered_studio=professional_layered_studio,
+    )
+
 
 # v69272 durable display transport for generated Graphic PNGs. This is outside the
 # isolated engine and never changes image bytes. A private Storage object + fresh signed
