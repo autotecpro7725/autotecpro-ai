@@ -30829,6 +30829,68 @@ def _graphic_followup_cleanup_correction_prompt_v69300(prompt_text, edit_directi
     )
 
 
+def _graphic_v69301_cached_followup_structure(role_items):
+    """Reuse the first-generation product structure only for the same locked product.
+
+    This is a follow-up-localized-edit optimization only.  It never supplies a profile
+    when the product SHA changed, when no profile was saved, or when authority cannot
+    be proven.  All other routes keep the historical analyzer unchanged.
+    """
+    state = get_graphic_project_state() or {}
+    cached = dict(state.get("product_identity_profile") or {})
+    previous = dict(state.get("active_product_authority_v52000") or {})
+    if not cached or not str(previous.get("sha256") or ""):
+        return {}
+    current = _graphic_current_product_authority_v52000(role_items)
+    if not current.get("available"):
+        return {}
+    if str(current.get("sha256") or "") != str(previous.get("sha256") or ""):
+        return {}
+    return cached
+
+
+def _graphic_v69301_localized_cleanup_qa(result, current_canvas, edit_directive=None):
+    """Non-provider QA for a follow-up cleanup whose heavy QA was historically non-gating.
+
+    v69300 published the cleanup result regardless of the later professional-QA object.
+    v69301 therefore preserves the same publication semantics while replacing that
+    expensive non-blocking review with deterministic transport/state validation.
+    """
+    result_raw, _ = data_url_to_bytes(str((result or {}).get("data_url") or ""))
+    base_raw, _ = data_url_to_bytes(str((current_canvas or {}).get("data_url") or ""))
+    result_size = []
+    base_size = []
+    try:
+        if Image is not None and result_raw:
+            with Image.open(io.BytesIO(result_raw)) as im:
+                result_size = [int(im.width), int(im.height)]
+        if Image is not None and base_raw:
+            with Image.open(io.BytesIO(base_raw)) as im:
+                base_size = [int(im.width), int(im.height)]
+    except Exception:
+        pass
+    directive = dict(edit_directive or {})
+    checks = {
+        "image_valid": bool(result_raw),
+        "edit_base_present": bool(base_raw),
+        "canvas_size_preserved": bool(result_size and base_size and result_size == base_size),
+        "localized_scope_locked": bool(
+            directive.get("localized_product_cleanup")
+            and directive.get("strict_preservation")
+            and set(directive.get("change_targets") or []) == {"hero_product"}
+        ),
+    }
+    return {
+        "passed": bool(all(checks.values())),
+        "checks": checks,
+        "result_size": result_size,
+        "base_size": base_size,
+        "engine": "v69301-localized-cleanup-deterministic-nonblocking-qa",
+        "provider_calls": 0,
+        "publication_semantics_changed": False,
+    }
+
+
 
 def _graphic_update_metrics_v8000(*, elapsed=0.0, provider_calls=0, retries=0, local_edit=False, route="", stages=None):
     state=get_graphic_project_state(); metrics=dict(state.get("production_metrics") or {})
@@ -31526,7 +31588,21 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         product_mode = _graphic_product_mode_v7000(prompt_text, role_items, has_edit_base=has_edit_base)
         product_mode = _graphic_enforce_reference_exact_mode_v52000(product_mode, design_mode, has_product, has_style, prompt_text)
         product_mode["render_mode"] = product_mode.get("render_mode") or _graphic_render_mode_v9000(product_mode, has_style)
-        structure_profile = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
+        pre_edit_v69301 = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {})
+        pre_edit_kind_v69301 = _graphic_local_edit_kind_v8000(pre_edit_v69301) if has_edit_base else "new_generation"
+        structure_started_v69301 = time.perf_counter()
+        cached_structure_v69301 = (
+            _graphic_v69301_cached_followup_structure(role_items)
+            if has_edit_base and pre_edit_kind_v69301 == "localized_product_cleanup"
+            else {}
+        )
+        structure_profile = cached_structure_v69301 or (_graphic_product_structure_profile_v4300(role_items) if has_product else {})
+        diagnostic_log(
+            "graphic_v69301_followup_structure_authority",
+            edit_kind=pre_edit_kind_v69301,
+            reused=bool(cached_structure_v69301),
+            elapsed_seconds=round(time.perf_counter()-structure_started_v69301,3),
+        )
         _graphic_save_mode_state_v7000(product_mode, role_items, structure_profile)
         preliminary_vehicle = _graphic_resolve_vehicle_lock(prompt_text, dict((get_graphic_project_state() or {}).get("last_vehicle_profile") or {}))
         preliminary_spec = _graphic_verified_campaign_spec_v3300(prompt_text, preliminary_vehicle)
@@ -31553,7 +31629,11 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             mode=product_mode.get("mode"),
             product_count=product_mode.get("product_count"),
             style_count=product_mode.get("style_count"),
-            requested_view=(product_mode.get("recreation") or {}).get("requested_view"),
+            requested_view=(
+                (product_mode.get("recreation") or {}).get("requested_view")
+                if bool((product_mode.get("recreation") or {}).get("enabled"))
+                else ""
+            ),
         )
         if preserve_product and has_style and not has_product and not has_edit_base:
             raise RuntimeError("The references are saved, but the product source could not be identified. Please upload the product photo once more.")
@@ -31561,6 +31641,14 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         active_edit = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {})
         edit_kind = _graphic_local_edit_kind_v8000(active_edit) if has_edit_base else "new_generation"
         edit_kind = _graphic_v69264_lock_durable_edit_kind(edit_kind, has_edit_base)
+        diagnostic_log(
+            "graphic_v69301_followup_route_bound",
+            has_edit_base=bool(has_edit_base),
+            edit_kind=edit_kind,
+            localized_cleanup=bool(active_edit.get("localized_product_cleanup")),
+            product_sha256=str((get_graphic_project_state() or {}).get("active_product_source_sha256") or "")[:20],
+            reference_id=str((get_graphic_project_state() or {}).get("active_reference_id") or "")[:20],
+        )
         saved_state = get_graphic_project_state()
         if has_edit_base and edit_kind in {"local_copy", "local_layout", "localized_product_cleanup"}:
             reference_blueprint = dict(saved_state.get("last_reference_blueprint") or {})
@@ -31647,9 +31735,18 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 return [local_result]
 
         if has_edit_base and edit_kind == "localized_product_cleanup":
+            cleanup_started_v69301 = time.perf_counter()
             _graphic_progress_update_v3300(status, "Applying the requested localized cleanup to the current artwork…")
             current_canvas = dict((get_graphic_project_state() or {}).get("latest_generated") or {})
             correction = _graphic_followup_cleanup_correction_prompt_v69300(prompt_text, active_edit)
+            diagnostic_log(
+                "graphic_v69301_followup_state_reused",
+                reference_blueprint=bool(reference_blueprint),
+                vehicle_profile=bool(vehicle_profile),
+                product_structure_reused=bool(cached_structure_v69301),
+                edit_base=bool(current_canvas.get("data_url")),
+            )
+            provider_started_v69301 = time.perf_counter()
             cleanup_result = _graphic_safe_optional_call(
                 "graphic_v69300_localized_cleanup_failed",
                 lambda: _graphic_correction_result_v3300(
@@ -31658,7 +31755,14 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 ),
                 None,
             )
+            provider_total_v69301 = time.perf_counter()-provider_started_v69301
+            diagnostic_log(
+                "graphic_v69301_followup_provider_completed",
+                success=bool(cleanup_result),
+                elapsed_seconds=round(provider_total_v69301,3),
+            )
             if cleanup_result:
+                finalize_started_v69301 = time.perf_counter()
                 cleanup_result = _graphic_finalize_result_v7100(
                     cleanup_result, prompt_text=prompt_text, output_size=output_size, geometry=geometry,
                     campaign_spec=campaign_spec, product_mode=product_mode,
@@ -31667,17 +31771,45 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 cleanup_result["layer_stack"] = _graphic_layer_stack_v8000(
                     cleanup_result, geometry=geometry, campaign_spec=campaign_spec, template_key=brand_template
                 )
-                cleanup_result["professional_qa"] = _graphic_professional_qa_v8000(
-                    cleanup_result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile
+                cleanup_result["professional_qa"] = _graphic_v69301_localized_cleanup_qa(
+                    cleanup_result, current_canvas, active_edit
+                )
+                diagnostic_log(
+                    "graphic_v69301_followup_preservation_check",
+                    passed=bool((cleanup_result.get("professional_qa") or {}).get("passed")),
+                    checks=(cleanup_result.get("professional_qa") or {}).get("checks") or {},
                 )
                 cleanup_result["runtime_audit"] = _graphic_runtime_audit_v10000(
                     cleanup_result, route=edit_kind, provider_calls=1, retries=0, stages=stage_times
                 )
                 cleanup_result["graphic_v69300_followup_cleanup_path"] = True
+                cleanup_result["graphic_v69301_followup_performance_path"] = True
+                cleanup_result["graphic_v69301_provider_total_seconds"] = round(provider_total_v69301,3)
+                cleanup_result["graphic_v69301_finalize_seconds"] = round(time.perf_counter()-finalize_started_v69301,3)
                 state = get_graphic_project_state(); state["layer_stack"] = cleanup_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+                total_cleanup_v69301 = time.perf_counter()-cleanup_started_v69301
+                diagnostic_log(
+                    "graphic_v69301_followup_finalize_completed",
+                    elapsed_seconds=round(time.perf_counter()-finalize_started_v69301,3),
+                    total_cleanup_seconds=round(total_cleanup_v69301,3),
+                )
                 _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=1, local_edit=True, route=edit_kind, stages=stage_times)
                 _graphic_progress_update_v3300(status, "Graphic follow-up cleanup completed.", "complete")
+                diagnostic_log(
+                    "graphic_v69301_followup_published",
+                    total_cleanup_seconds=round(total_cleanup_v69301,3),
+                    provider_total_seconds=round(provider_total_v69301,3),
+                )
                 return [cleanup_result]
+            diagnostic_log(
+                "graphic_v69301_followup_failed_closed",
+                reason="localized_cleanup_provider_returned_no_usable_image",
+                provider_total_seconds=round(provider_total_v69301,3),
+            )
+            _graphic_progress_update_v3300(status, "The current artwork is preserved and ready to retry.", "error")
+            raise RuntimeError(
+                "The localized follow-up edit did not return a usable image. The existing artwork was preserved; no broader recreation fallback was allowed."
+            )
 
         # UI Replacement Mode modifies only the detected display aperture locally.
         if product_mode.get("ui_replacement") and not has_edit_base:
@@ -48458,7 +48590,19 @@ def _graphic_chatgpt_production_prompt(
     model = str((vehicle_profile or {}).get("model") or "").strip()
     year = str((vehicle_profile or {}).get("year_range") or "").strip()
     prohibited_terms = [str(x) for x in ((vehicle_profile or {}).get("prohibited_reference_vehicle_terms") or []) if str(x).strip()]
-    product_structure = _graphic_product_structure_profile_v4300(role_items) if has_product else {}
+    edit_directive_v69301 = dict((get_graphic_project_state() or {}).get("last_edit_directive") or {}) if has_edit_base else {}
+    edit_kind_v69301 = _graphic_local_edit_kind_v8000(edit_directive_v69301) if has_edit_base else "new_generation"
+    cached_product_structure_v69301 = (
+        _graphic_v69301_cached_followup_structure(role_items)
+        if has_product and has_edit_base and edit_kind_v69301 == "localized_product_cleanup"
+        else {}
+    )
+    product_structure = cached_product_structure_v69301 or (_graphic_product_structure_profile_v4300(role_items) if has_product else {})
+    if has_edit_base and edit_kind_v69301 == "localized_product_cleanup":
+        diagnostic_log(
+            "graphic_v69301_followup_prompt_structure_reused",
+            reused=bool(cached_product_structure_v69301),
+        )
     product_structure_text = _graphic_product_structure_text_v4300(product_structure)
     product_identity = _graphic_product_identity_v18000(role_items, product_structure) if has_product else {}
     vehicle_dna = _graphic_vehicle_dna_v18000(vehicle_profile)
