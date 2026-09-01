@@ -15624,6 +15624,11 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
     copy-only edits from product, vehicle, background and layout edits so a request
     such as ``change the vertical dash display to Tesla infotainment system`` changes
     the headline/campaign wording instead of hallucinating a different screen UI.
+
+    v69300: a later conversational cleanup such as "remove the background visible in
+    the bottom hole of the unit" is a *localized correction* to the already-created
+    artwork, not a request to recreate the physical product from a new angle. Keep
+    the edit isolated to the existing canvas and preserve all other layers.
     """
     value = re.sub(r"\s+", " ", str(text or "")).strip()
     lower = value.casefold()
@@ -15636,8 +15641,30 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
         "replacement_from": "",
         "replacement_to": "",
         "edit_mode": "object_edit",
+        "localized_product_cleanup": False,
+        "localized_cleanup_reason": "",
     }
     if not value:
+        return directive
+
+    localized_cleanup = bool(
+        re.search(r"\b(?:remove|clean|fix|erase|retouch|repair|hide|clear)\b", lower, flags=re.I)
+        and (
+            re.search(r"\b(?:hole|opening|cutout|gap|slot|cavity|inside|edge|artifact|shadow|background)\b", lower, flags=re.I)
+            or re.search(r"\bbackground\b", lower, flags=re.I)
+        )
+        and re.search(r"\b(?:unit|product|screen|device|housing|bottom|lower)\b", lower, flags=re.I)
+        and not re.search(r"\b(?:change|different|new)\s+(?:angle|view|perspective)\b", lower, flags=re.I)
+    )
+    if localized_cleanup:
+        directive["change_targets"] = ["hero_product"]
+        directive["preserve_targets"] = [
+            "headline", "vehicle", "background", "logo", "feature_matrix", "bottom_benefit_bar", "layout"
+        ]
+        directive["strict_preservation"] = True
+        directive["edit_mode"] = "localized_product_cleanup"
+        directive["localized_product_cleanup"] = True
+        directive["localized_cleanup_reason"] = "followup_existing_canvas_local_cleanup"
         return directive
 
     # Common replacement grammar.  Keep it deliberately conservative and bounded.
@@ -15703,7 +15730,7 @@ def _graphic_parse_followup_edit_v4200(text, existing_spec=None):
     }
     # For an explicit X -> Y replacement, the target was already resolved from X.
     # Do not scan unrelated words in the replacement value and unlock extra layers.
-    if not replacement:
+    if not replacement and not directive.get("localized_product_cleanup"):
         for target, terms in target_map.items():
             if any(term in lower for term in terms) and target not in directive["change_targets"]:
                 directive["change_targets"].append(target)
@@ -30764,6 +30791,8 @@ def _graphic_layer_stack_v8000(
 
 
 def _graphic_local_edit_kind_v8000(edit_directive):
+    if (edit_directive or {}).get("localized_product_cleanup"):
+        return "localized_product_cleanup"
     targets = set((edit_directive or {}).get("change_targets") or [])
     if not targets:
         return "provider_edit"
@@ -30778,6 +30807,26 @@ def _graphic_local_edit_kind_v8000(edit_directive):
     if "hero_product" in targets:
         return "product_recreation"
     return "provider_edit"
+
+
+def _graphic_followup_cleanup_correction_prompt_v69300(prompt_text, edit_directive=None):
+    """Build a bounded correction instruction for 2nd/3rd+ localized cleanups.
+
+    This helper is intentionally narrow: it edits the current generated artwork only,
+    preserves the established commercial composition, and forbids product recreation,
+    new angles, or broader scene changes.
+    """
+    user_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    instruction = str((edit_directive or {}).get("raw_instruction") or user_text or "localized cleanup")
+    return (
+        "LOCALIZED FOLLOW-UP EDIT ONLY. Use the current generated artwork as the base canvas. "
+        "Preserve the exact overall composition, headline, vehicle, background, icons, footer, product scale, product angle, "
+        "and the exact physical geometry of the AutoTecPro unit. "
+        "Do NOT recreate the product, do NOT change the camera angle, and do NOT redesign the advertisement. "
+        "Apply only the requested small cleanup to the existing product area. "
+        "If background or scenery is visible through a real opening/hole/cutout of the product, clean that local area so it looks intentional and polished while preserving the real opening shape and surrounding housing detail. "
+        f"Requested adjustment: {instruction[:700]}"
+    )
 
 
 
@@ -31513,7 +31562,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         edit_kind = _graphic_local_edit_kind_v8000(active_edit) if has_edit_base else "new_generation"
         edit_kind = _graphic_v69264_lock_durable_edit_kind(edit_kind, has_edit_base)
         saved_state = get_graphic_project_state()
-        if has_edit_base and edit_kind in {"local_copy", "local_layout"}:
+        if has_edit_base and edit_kind in {"local_copy", "local_layout", "localized_product_cleanup"}:
             reference_blueprint = dict(saved_state.get("last_reference_blueprint") or {})
             vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, dict(saved_state.get("last_vehicle_profile") or {}))
             geometry = _graphic_reference_geometry_v3300(reference_blueprint, prompt_text)
@@ -31596,6 +31645,39 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, local_edit=True, route=edit_kind, stages=stage_times)
                 _graphic_progress_update_v3300(status, "Graphic local edit completed.", "complete")
                 return [local_result]
+
+        if has_edit_base and edit_kind == "localized_product_cleanup":
+            _graphic_progress_update_v3300(status, "Applying the requested localized cleanup to the current artwork…")
+            current_canvas = dict((get_graphic_project_state() or {}).get("latest_generated") or {})
+            correction = _graphic_followup_cleanup_correction_prompt_v69300(prompt_text, active_edit)
+            cleanup_result = _graphic_safe_optional_call(
+                "graphic_v69300_localized_cleanup_failed",
+                lambda: _graphic_correction_result_v3300(
+                    current_canvas, prompt_text, role_items, output_size,
+                    reference_blueprint, vehicle_profile, rejected_guidance, correction,
+                ),
+                None,
+            )
+            if cleanup_result:
+                cleanup_result = _graphic_finalize_result_v7100(
+                    cleanup_result, prompt_text=prompt_text, output_size=output_size, geometry=geometry,
+                    campaign_spec=campaign_spec, product_mode=product_mode,
+                    structure_profile=structure_profile, has_edit_base=has_edit_base,
+                )
+                cleanup_result["layer_stack"] = _graphic_layer_stack_v8000(
+                    cleanup_result, geometry=geometry, campaign_spec=campaign_spec, template_key=brand_template
+                )
+                cleanup_result["professional_qa"] = _graphic_professional_qa_v8000(
+                    cleanup_result, role_items, prompt_text, vehicle_profile, product_mode, structure_profile
+                )
+                cleanup_result["runtime_audit"] = _graphic_runtime_audit_v10000(
+                    cleanup_result, route=edit_kind, provider_calls=1, retries=0, stages=stage_times
+                )
+                cleanup_result["graphic_v69300_followup_cleanup_path"] = True
+                state = get_graphic_project_state(); state["layer_stack"] = cleanup_result["layer_stack"]; st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state
+                _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=1, local_edit=True, route=edit_kind, stages=stage_times)
+                _graphic_progress_update_v3300(status, "Graphic follow-up cleanup completed.", "complete")
+                return [cleanup_result]
 
         # UI Replacement Mode modifies only the detected display aperture locally.
         if product_mode.get("ui_replacement") and not has_edit_base:
