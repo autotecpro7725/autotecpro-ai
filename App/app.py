@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69307"
-AUTOTECPRO_RELEASE_BUILD = "exact-v69304-first-image-researched-followup-only-v69307-20260901"
+AUTOTECPRO_RELEASE_VERSION = "v69309"
+AUTOTECPRO_RELEASE_BUILD = "live-binding-fixed-exact-v69304-first-image-v69309-20260901"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -52861,22 +52861,27 @@ def generate_graphic_marketing_images(
         professional_layered_studio=professional_layered_studio,
     )
 
-# ============================================================
-# v69307 — exact v69304 first-image authority + follow-up-only researched component guard
-# ============================================================
-# CRITICAL PARITY RULE:
-# The v69304 final Graphic generator above is captured unchanged and remains the sole
-# authority for every first image and every ordinary follow-up.  The wrapper below
-# intercepts only a *post-generation* prompt that explicitly asks to verify/search an
-# original/OEM/factory component and apply it locally to the already-created artwork.
-# Nothing in the protected v69298/v69272/v69248 first-image path is mutated or rebound.
-_GRAPHIC_V69307_EXACT_V69304_GENERATOR = generate_graphic_marketing_images
+_GRAPHIC_V69309_EXACT_V69304_GENERATOR = generate_graphic_marketing_images
 
 
-def _graphic_v69307_component_focus(prompt_text):
+def _graphic_v69309_normalize_followup_text(prompt_text):
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    # Normalize common operator/user spellings only for intent classification.
+    # The original user prompt is still passed unchanged to research and edit prompts.
+    replacements = {
+        "origianl": "original", "orginal": "original", "orignal": "original",
+        "origional": "original", "orignial": "original", "orginial": "original",
+        "airvent": "air vent", "air-vent": "air vent", "centre": "center",
+    }
+    for old, new in replacements.items():
+        value = re.sub(rf"\b{re.escape(old)}\b", new, value)
+    return value
+
+
+def _graphic_v69309_component_focus(prompt_text):
+    value = _graphic_v69309_normalize_followup_text(prompt_text)
     patterns = (
-        (r"\b(?:upper|top|center|centre)\s+(?:air\s*)?vent\b", "upper air vent"),
+        (r"\b(?:upper|top|center)\s+(?:air\s*)?vent\b", "upper air vent"),
         (r"\b(?:lower|bottom)\s+(?:air\s*)?vent\b", "lower air vent"),
         (r"\b(?:air\s*)?vent\b", "air vent"),
         (r"\b(?:hazard|warning)\s+button\b", "hazard button"),
@@ -52890,24 +52895,45 @@ def _graphic_v69307_component_focus(prompt_text):
     return ""
 
 
-def _graphic_v69307_is_researched_component_followup(prompt_text):
-    """Conservative admission gate; impossible on first generation by construction."""
+def _graphic_v69309_explicit_recreation_intent(prompt_text):
+    value = _graphic_v69309_normalize_followup_text(prompt_text)
+    return bool(re.search(
+        r"\b(?:recreate|rebuild|redesign|replace the whole|whole product|entire product|"
+        r"new angle|different angle|change (?:the )?(?:product )?angle|rotate (?:the )?(?:product|unit)|"
+        r"three[- ]?quarter|3/4|side view|rear view|top view|new perspective|different perspective|"
+        r"new product design|product variant|exploded view|3d render)\b",
+        value, flags=re.I,
+    ))
+
+
+def _graphic_v69309_is_researched_component_followup(prompt_text):
+    """Semantic post-generation admission gate; impossible on first image."""
     state = get_graphic_project_state() or {}
     latest = state.get("latest_generated") or {}
     if not isinstance(latest, dict) or not str(latest.get("data_url") or "").strip():
         return False
-    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    component = _graphic_v69307_component_focus(value)
+    if _graphic_v69309_explicit_recreation_intent(prompt_text):
+        return False
+    value = _graphic_v69309_normalize_followup_text(prompt_text)
+    component = _graphic_v69309_component_focus(value)
     if not component:
         return False
-    research_signal = bool(re.search(r"\b(?:check|look\s*up|lookup|find|verify|search|reference|match)\b", value, flags=re.I))
+    research_signal = bool(re.search(r"\b(?:check|look\s*up|lookup|find|verify|search|reference|match|research)\b", value, flags=re.I))
     oem_signal = bool(re.search(r"\b(?:original|oem|factory|stock|authentic)\b", value, flags=re.I))
-    apply_signal = bool(re.search(r"\b(?:implement|use|apply|insert|put|populate|add|restore|fill|place)\b", value, flags=re.I))
-    preserve_signal = bool(re.search(r"\b(?:preserve|keep)\b.{0,50}\b(?:everything else|all other|rest|unchanged|same)\b", value, flags=re.I))
-    return bool((research_signal and oem_signal) or (oem_signal and apply_signal and preserve_signal))
+    apply_signal = bool(re.search(r"\b(?:implement|use|apply|insert|put|populate|add|restore|fill|place|integrate)\b", value, flags=re.I))
+    preserve_signal = bool(
+        re.search(r"\b(?:preserve|keep|leave)\b.{0,80}\b(?:everything else|all other|the rest|unchanged|the same|same)\b", value, flags=re.I)
+        or re.search(r"\beverything else\b.{0,40}\b(?:same|unchanged)\b", value, flags=re.I)
+    )
+    # Research + apply + preserve is sufficient even if OEM/original was omitted or
+    # misspelled. OEM + apply + preserve is the secondary explicit path.
+    return bool(
+        (component and research_signal and apply_signal and preserve_signal)
+        or (component and oem_signal and apply_signal and preserve_signal)
+    )
 
 
-def _graphic_v69307_research_component(role_items, prompt_text, component_focus):
+def _graphic_v69309_research_component(role_items, prompt_text, component_focus):
     product = next((x for x in (role_items or []) if isinstance(x, dict) and x.get("role") == "product_photo"), None)
     image_url = _graphic_role_data_url(product) if product else ""
     state = get_graphic_project_state() or {}
@@ -52942,33 +52968,30 @@ def _graphic_v69307_research_component(role_items, prompt_text, component_focus)
                 "Never convert uncertainty into a visual fact."
             ),
             input=[{"role": "user", "content": content}],
-            max_output_tokens=2000,
+            max_output_tokens=2200,
         )
         payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
         if not isinstance(payload, dict):
             payload = {}
     except Exception as error:
         diagnostic_log(
-            "graphic_v69307_component_research_failed_closed",
+            "graphic_v69309_component_research_failed_closed",
             component_focus=str(component_focus or "")[:120],
-            error_type=type(error).__name__,
-            error=str(error)[:600],
+            error_type=type(error).__name__, error=str(error)[:600],
         )
         return {}
-    score = payload.get("confidence_score")
     try:
-        score = float(score)
+        score = float(payload.get("confidence_score") or 0.0)
     except Exception:
         score = 0.0
-    verified = payload.get("verified") is True and score >= 70.0
+    verified = payload.get("verified") is True and score >= 75.0
     records = payload.get("source_records")
     description = str(payload.get("component_description") or "").strip()
     if not verified or not description or records in (None, "", [], {}):
         diagnostic_log(
-            "graphic_v69307_component_research_failed_closed",
+            "graphic_v69309_component_research_failed_closed",
             component_focus=str(component_focus or "")[:120],
-            reason="insufficient_verified_component_authority",
-            confidence_score=score,
+            reason="insufficient_verified_component_authority", confidence_score=score,
         )
         return {}
     payload["confidence_score"] = score
@@ -52976,7 +52999,7 @@ def _graphic_v69307_research_component(role_items, prompt_text, component_focus)
     return payload
 
 
-def _graphic_v69307_component_research_text(profile):
+def _graphic_v69309_component_research_text(profile):
     keys = (
         "make", "model", "generation", "year_range", "component_focus", "component_description",
         "component_location", "orientation", "distinctive_visual_features", "source_records", "search_summary", "confidence_score",
@@ -52987,78 +53010,255 @@ def _graphic_v69307_component_research_text(profile):
     )
 
 
-def _graphic_v69307_researched_followup_result(
-    prompt_text, uploaded_files=None, *, style_strength="High", forced_upload_role="Auto-detect"
-):
-    """Edit current v69304 artwork only; verified research is mandatory and fail-closed."""
+def _graphic_v69309_parse_norm_box(value):
+    if not isinstance(value, (list, tuple)) or len(value) != 4:
+        return None
+    try:
+        x0, y0, x1, y1 = [float(v) for v in value]
+    except Exception:
+        return None
+    if max(x0, y0, x1, y1) > 1.5:
+        x0, y0, x1, y1 = [v / 1000.0 for v in (x0, y0, x1, y1)]
+    x0, y0 = max(0.0, x0), max(0.0, y0)
+    x1, y1 = min(1.0, x1), min(1.0, y1)
+    if not (x1 > x0 and y1 > y0):
+        return None
+    return [x0, y0, x1, y1]
+
+
+def _graphic_v69309_box_overlap(a, b):
+    if not a or not b:
+        return 0.0
+    x0=max(a[0],b[0]); y0=max(a[1],b[1]); x1=min(a[2],b[2]); y1=min(a[3],b[3])
+    if x1<=x0 or y1<=y0:
+        return 0.0
+    inter=(x1-x0)*(y1-y0)
+    area=max(1e-9,(a[2]-a[0])*(a[3]-a[1]))
+    return inter/area
+
+
+def _graphic_v69309_locate_component_region(current_data_url, prompt_text, component_focus):
+    """Vision-only locator. It does not edit pixels or provide component facts."""
+    if not str(current_data_url or "").strip():
+        return {}
+    content = [
+        {"type": "input_text", "text": (
+            "Locate one requested component region on this CURRENT generated automotive advertisement. Return JSON only with keys: "
+            "component_bbox, product_bbox, screen_bbox, confidence_score, reason. All boxes must be [x0,y0,x1,y1] normalized from 0 to 1. "
+            "component_bbox must tightly cover ONLY the existing local opening/region to be edited, not the whole product. product_bbox must cover the hero infotainment product. "
+            "screen_bbox must cover the visible product display/UI. Never include the screen in component_bbox unless the user explicitly asked to edit the screen. "
+            f"Requested component: {component_focus}. Staff instruction: {str(prompt_text or '')[:1000]}"
+        )},
+        {"type": "input_image", "image_url": str(current_data_url)},
+    ]
+    try:
+        bounded_client = client.with_options(timeout=35.0, max_retries=0)
+        response = bounded_client.responses.create(
+            model="gpt-5.5",
+            instructions="Act as a precise image-region locator. Do not redesign anything. Return JSON only.",
+            input=[{"role": "user", "content": content}],
+            max_output_tokens=900,
+        )
+        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
+        if not isinstance(payload, dict):
+            return {}
+    except Exception as error:
+        diagnostic_log("graphic_v69309_component_locator_failed_closed", error_type=type(error).__name__, error=str(error)[:500])
+        return {}
+    component_box = _graphic_v69309_parse_norm_box(payload.get("component_bbox"))
+    product_box = _graphic_v69309_parse_norm_box(payload.get("product_bbox"))
+    screen_box = _graphic_v69309_parse_norm_box(payload.get("screen_bbox"))
+    try:
+        confidence = float(payload.get("confidence_score") or 0.0)
+    except Exception:
+        confidence = 0.0
+    if not component_box or not product_box or not screen_box or confidence < 85.0:
+        return {}
+    area = (component_box[2]-component_box[0])*(component_box[3]-component_box[1])
+    if area <= 0.0002 or area > 0.12:
+        return {}
+    # Component must sit within the product footprint with small tolerance.
+    tol = 0.03
+    inside = (
+        component_box[0] >= product_box[0]-tol and component_box[1] >= product_box[1]-tol
+        and component_box[2] <= product_box[2]+tol and component_box[3] <= product_box[3]+tol
+    )
+    if not inside:
+        return {}
+    # UI is immutable for this route.
+    if _graphic_v69309_box_overlap(component_box, screen_box) > 0.001:
+        diagnostic_log("graphic_v69309_component_locator_failed_closed", reason="component_box_overlaps_screen_ui")
+        return {}
+    return {
+        "component_bbox": component_box, "product_bbox": product_box, "screen_bbox": screen_box,
+        "confidence_score": confidence, "reason": str(payload.get("reason") or "")[:500],
+    }
+
+
+def _graphic_v69309_pixel_box(norm_box, width, height, margin_ratio=0.006):
+    x0,y0,x1,y1 = norm_box
+    mx=max(2,int(width*margin_ratio)); my=max(2,int(height*margin_ratio))
+    return (
+        max(0,int(round(x0*width))-mx), max(0,int(round(y0*height))-my),
+        min(width,int(round(x1*width))+mx), min(height,int(round(y1*height))+my),
+    )
+
+
+def _graphic_v69309_masked_provider_edit(current_data_url, output_size, correction_prompt, norm_box):
+    """Use Images Edit with a transparent local mask. No broad-provider fallback."""
+    from PIL import ImageDraw
+    base_raw, base_mime = data_url_to_bytes(str(current_data_url or ""))
+    if not base_raw or Image is None:
+        return None, ""
+    try:
+        with Image.open(io.BytesIO(base_raw)) as im:
+            base = im.convert("RGBA")
+        px_box = _graphic_v69309_pixel_box(norm_box, base.width, base.height)
+        mask = Image.new("RGBA", base.size, (255,255,255,255))
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle(px_box, fill=(0,0,0,0))
+        base_buf=io.BytesIO(); base.save(base_buf, format="PNG"); base_buf.seek(0); base_buf.name="current_v69304_canvas.png"
+        mask_buf=io.BytesIO(); mask.save(mask_buf, format="PNG"); mask_buf.seek(0); mask_buf.name="component_edit_mask.png"
+        size = _graphic_normalize_output_size_v4000(output_size)
+        image_client = client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS, max_retries=0)
+        attempts = (
+            {"input_fidelity":"high", "quality":"high"},
+            {},
+        )
+        for idx, extras in enumerate(attempts, start=1):
+            try:
+                base_buf.seek(0); mask_buf.seek(0)
+                diagnostic_log("graphic_v69309_masked_edit_attempt", variant=idx, pixel_box=list(px_box), fields=sorted(extras))
+                response = image_client.images.edit(
+                    model=GRAPHIC_IMAGE_MODEL, image=base_buf, mask=mask_buf,
+                    prompt=str(correction_prompt or "")[:32000], n=1, size=size, **extras,
+                )
+                images = _graphic_collect_result_bytes(response)
+                if images:
+                    return images[0], f"images-edit-masked-v69309-{idx}"
+            except Exception as error:
+                diagnostic_log("graphic_v69309_masked_edit_attempt_failed", variant=idx, error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
+        return None, ""
+    except Exception as error:
+        diagnostic_log("graphic_v69309_mask_build_failed_closed", error_type=type(error).__name__, error=str(error)[:500])
+        return None, ""
+
+
+def _graphic_v69309_exact_local_composite(current_data_url, candidate_raw, norm_box):
+    """Return base canvas with candidate pixels admitted ONLY inside the local mask."""
+    from PIL import ImageDraw, ImageFilter, ImageChops
+    base_raw, _ = data_url_to_bytes(str(current_data_url or ""))
+    if not base_raw or not candidate_raw or Image is None:
+        return None, {}
+    try:
+        with Image.open(io.BytesIO(base_raw)) as im:
+            base = im.convert("RGBA")
+        with Image.open(io.BytesIO(candidate_raw)) as im:
+            candidate = im.convert("RGBA").resize(base.size, Image.Resampling.LANCZOS)
+        px_box = _graphic_v69309_pixel_box(norm_box, base.width, base.height)
+        # Hard zero outside the admitted box; feather only inward at the box edge.
+        mask = Image.new("L", base.size, 0)
+        draw = ImageDraw.Draw(mask)
+        draw.rectangle(px_box, fill=255)
+        feather=max(1,min(base.width,base.height)//300)
+        if feather > 1:
+            mask = mask.filter(ImageFilter.GaussianBlur(feather))
+            # Re-clip blur leakage to the exact admitted box.
+            clip=Image.new("L",base.size,0); ImageDraw.Draw(clip).rectangle(px_box,fill=255)
+            mask=ImageChops.multiply(mask,clip)
+        final = Image.composite(candidate, base, mask)
+        out=io.BytesIO(); final.convert("RGB").save(out,format="PNG",optimize=True)
+        final_raw=out.getvalue()
+        # Deterministic outside-mask parity proof against decoded RGBA pixels.
+        import numpy as _np_v69309
+        b=_np_v69309.asarray(base,dtype=_np_v69309.uint8)
+        f=_np_v69309.asarray(final,dtype=_np_v69309.uint8)
+        m=_np_v69309.asarray(mask,dtype=_np_v69309.uint8)>0
+        outside_equal=bool(_np_v69309.array_equal(b[~m],f[~m]))
+        report={
+            "pixel_box":list(px_box), "outside_mask_pixel_identity":outside_equal,
+            "outside_mask_changed_pixels":0 if outside_equal else int(_np_v69309.any(b[~m]!=f[~m],axis=1).sum()),
+            "canvas_size":[base.width,base.height], "engine":"v69309-exact-local-mask-compositor",
+        }
+        return final_raw, report
+    except Exception as error:
+        diagnostic_log("graphic_v69309_local_composite_failed_closed", error_type=type(error).__name__, error=str(error)[:500])
+        return None, {}
+
+
+def _graphic_v69309_researched_followup_result(prompt_text, uploaded_files=None, *, forced_upload_role="Auto-detect"):
     state = get_graphic_project_state() or {}
     current_canvas = dict(state.get("latest_generated") or {})
-    if not str(current_canvas.get("data_url") or "").strip():
-        raise RuntimeError("The current Graphic artwork is unavailable. No researched follow-up edit was attempted.")
+    current_data_url = str(current_canvas.get("data_url") or "").strip()
+    if not current_data_url:
+        raise RuntimeError("The current v69304 Graphic artwork is unavailable. No researched follow-up edit was attempted.")
 
     role_items = _graphic_project_role_items(uploaded_files or [], prompt_text, forced_upload_role)
-    component_focus = _graphic_v69307_component_focus(prompt_text) or "requested OEM component"
-    research_started = time.perf_counter()
-    component_profile = _graphic_v69307_research_component(role_items, prompt_text, component_focus)
-    diagnostic_log(
-        "graphic_v69307_component_research_completed",
-        component_focus=component_focus,
-        available=bool(component_profile),
-        elapsed_seconds=round(time.perf_counter() - research_started, 3),
-    )
+    component_focus = _graphic_v69309_component_focus(prompt_text) or "requested OEM component"
+    research_started=time.perf_counter()
+    component_profile = _graphic_v69309_research_component(role_items, prompt_text, component_focus)
+    diagnostic_log("graphic_v69309_component_research_completed", component_focus=component_focus, available=bool(component_profile), elapsed_seconds=round(time.perf_counter()-research_started,3))
     if not component_profile:
-        raise RuntimeError(
-            "I couldn't verify the requested OEM/factory component reliably, so the existing v69304 artwork was preserved and no broader recreation was allowed."
-        )
+        raise RuntimeError("I couldn't verify the requested OEM/factory component reliably, so the existing v69304 artwork was preserved and no recreation fallback was allowed.")
 
-    reference_blueprint = dict(state.get("last_reference_blueprint") or {})
-    saved_vehicle = dict(state.get("last_vehicle_profile") or {})
-    research_vehicle = dict(component_profile)
-    vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, research_vehicle or saved_vehicle)
-    rejected_guidance = _graphic_safe_optional_call(
-        "graphic_v69307_rejection_guidance_failed_open", _graphic_session_rejection_guidance, ""
+    locator_started=time.perf_counter()
+    region = _graphic_v69309_locate_component_region(current_data_url, prompt_text, component_focus)
+    diagnostic_log("graphic_v69309_component_region_resolved", component_focus=component_focus, available=bool(region), elapsed_seconds=round(time.perf_counter()-locator_started,3), component_bbox=(region or {}).get("component_bbox"))
+    if not region:
+        raise RuntimeError("I could verify the component, but I could not safely isolate its exact region in the current artwork. The existing image was preserved and no broad edit was allowed.")
+
+    research_text = _graphic_v69309_component_research_text(component_profile)
+    correction_prompt = (
+        "V69309 MASKED OEM COMPONENT EDIT. Edit ONLY the transparent masked component region of the supplied current artwork. "
+        "The current artwork is immutable outside the mask. Preserve the headline, typography, logo, feature icons, vehicle, background, footer, product position, product scale, product perspective, outer housing, all controls, and especially every screen/UI pixel exactly. "
+        "Do not create a new advertisement. Do not duplicate or inset the original product photo. Do not replace the full product. Do not change the vehicle or scenery. "
+        f"Inside the mask only, implement the verified {component_focus} in the existing product opening so it looks physically integrated. "
+        "Use only the verified research below. Do not infer unsupported geometry.\n\nVERIFIED OEM COMPONENT RESEARCH:\n"
+        + research_text[:3200] + "\n\nUSER REQUEST:\n" + str(prompt_text or "")[:900]
     )
     output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(prompt_text))
-    research_text = _graphic_v69307_component_research_text(component_profile)
-    correction = (
-        "V69307 RESEARCHED COMPONENT FOLLOW-UP — CURRENT CANVAS ONLY. "
-        "Use the current generated v69304 artwork as the sole base canvas. Preserve the exact headline, typography, logo, vehicle, background, feature grid, bottom benefit bar, "
-        "product scale, product position, screen UI, screen pixels, product perspective, outer housing, buttons, knobs, openings, shadows, and every other visible element. "
-        "DO NOT recreate the advertisement. DO NOT redraw the full product. DO NOT replace or regenerate the screen UI. DO NOT insert the uploaded product photo as a separate box/panel. "
-        "DO NOT change the vehicle or scenery. Edit ONLY the requested OEM/factory component inside its existing product region/opening. "
-        f"Requested component: {component_focus}. "
-        "Use only the verified research below as factual authority. If the component occupies an existing opening/hole, modify only pixels inside that local opening plus the minimum boundary pixels needed for natural integration. "
-        "Everything else must remain visually unchanged.\n\nVERIFIED COMPONENT RESEARCH:\n"
-        + research_text[:3200]
-        + "\n\nUSER REQUEST:\n"
-        + str(prompt_text or "")[:900]
-    )
-    edit_started = time.perf_counter()
-    result = _graphic_correction_result_v3300(
-        current_canvas, prompt_text, role_items, output_size,
-        reference_blueprint, vehicle_profile, rejected_guidance, correction,
-    )
-    if not isinstance(result, dict) or not str(result.get("data_url") or "").strip():
-        diagnostic_log("graphic_v69307_researched_followup_failed_closed", reason="provider_returned_no_image")
-        raise RuntimeError(
-            "The researched follow-up edit did not return a usable image. The existing v69304 artwork was preserved; no broader recreation fallback was allowed."
-        )
-    result["graphic_v69307_researched_component_followup"] = True
-    result["graphic_v69307_base_canvas_preserved"] = True
-    result["graphic_v69307_component_focus"] = component_focus
-    result["graphic_v69307_component_research"] = component_profile
-    result["generation_route"] = "v69307-current-canvas-researched-component-edit"
-    result["provider_route"] = str(result.get("provider_route") or "")
+    candidate_raw, provider_route = _graphic_v69309_masked_provider_edit(current_data_url, output_size, correction_prompt, region["component_bbox"])
+    if not candidate_raw:
+        diagnostic_log("graphic_v69309_researched_followup_failed_closed", reason="masked_provider_returned_no_image")
+        raise RuntimeError("The masked researched edit did not return a usable image. The existing v69304 artwork was preserved; no broad recreation fallback was allowed.")
+
+    final_raw, parity = _graphic_v69309_exact_local_composite(current_data_url, candidate_raw, region["component_bbox"])
+    if not final_raw or not parity.get("outside_mask_pixel_identity"):
+        diagnostic_log("graphic_v69309_researched_followup_failed_closed", reason="outside_mask_parity_not_proven", parity=parity)
+        raise RuntimeError("The edited image could not prove exact preservation outside the requested component region. The existing v69304 artwork was preserved.")
+
+    # IMPORTANT: do NOT pass the deterministic local composite through the normal
+    # v3000 result builder here. That builder re-applies the AutoTecPro logo and can
+    # therefore alter pixels outside the admitted component mask. Clone the already
+    # published v69304 result metadata and replace only the image payload/provenance.
+    created_at_v69309 = datetime.now(timezone.utc)
+    result = dict(current_canvas)
+    result["data_url"] = "data:image/png;base64," + base64.b64encode(final_raw).decode("ascii")
+    result["filename"] = graphic_image_filename(prompt_text, created_at_v69309)
+    result["name"] = result["filename"]
+    result["prompt"] = str(prompt_text or "")
+    result["created_at"] = created_at_v69309.isoformat()
+    result["provider_route"] = provider_route
+    result["corrected"] = True
+    result["graphic_v69309_researched_component_followup"] = True
+    result["graphic_v69309_base_canvas_preserved"] = True
+    result["graphic_v69309_outside_mask_pixel_identity"] = True
+    result["graphic_v69309_component_focus"] = component_focus
+    result["graphic_v69309_component_region"] = region
+    result["graphic_v69309_component_research"] = component_profile
+    result["graphic_v69309_local_composite_report"] = parity
+    result["generation_route"] = "v69309-masked-current-canvas-oem-component-edit"
+    result["verification_status"] = "verified_local_mask_preservation"
+    result["output_status"] = "completed_researched_component_edit_v69309"
     _graphic_save_latest_project_result(result)
-    state_after = get_graphic_project_state() or {}
-    state_after["stage"] = "generated"
-    state_after["last_generation_route"] = "v69307-current-canvas-researched-component-edit"
-    state_after["updated_at"] = datetime.now(timezone.utc).isoformat()
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state_after
+    state_after=get_graphic_project_state() or {}
+    state_after["stage"]="generated"
+    state_after["last_generation_route"]="v69309-masked-current-canvas-oem-component-edit"
+    state_after["updated_at"]=datetime.now(timezone.utc).isoformat()
+    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state_after
     diagnostic_log(
-        "graphic_v69307_researched_followup_published",
-        component_focus=component_focus,
-        elapsed_seconds=round(time.perf_counter() - edit_started, 3),
+        "graphic_v69309_researched_followup_published", component_focus=component_focus,
+        outside_mask_pixel_identity=True, pixel_box=parity.get("pixel_box"),
         first_image_authority="exact_v69304_generator_untouched",
     )
     return [result]
@@ -53069,20 +53269,19 @@ def generate_graphic_marketing_images(
     style_strength="High", forced_upload_role="Auto-detect", quality_retry=True,
     product_transform_mode="Auto", professional_layered_studio=True,
 ):
-    # The admission gate requires an already-generated current canvas. Therefore
-    # every first-image request falls straight through to the exact v69304 generator
-    # object captured above, with identical arguments and no additional mutation.
-    if _graphic_v69307_is_researched_component_followup(prompt_text):
+    # First-image invariant: admission requires a saved current image. With no current
+    # image, this wrapper performs no analysis, no mutation and calls the captured
+    # exact v69304 generator with the original arguments.
+    if _graphic_v69309_is_researched_component_followup(prompt_text):
         diagnostic_log(
-            "graphic_v69307_researched_component_followup_intercepted",
-            component_focus=_graphic_v69307_component_focus(prompt_text),
+            "graphic_v69309_researched_component_followup_intercepted",
+            component_focus=_graphic_v69309_component_focus(prompt_text),
+            normalized_prompt=_graphic_v69309_normalize_followup_text(prompt_text)[:500],
         )
-        return _graphic_v69307_researched_followup_result(
-            prompt_text, uploaded_files,
-            style_strength=style_strength,
-            forced_upload_role=forced_upload_role,
+        return _graphic_v69309_researched_followup_result(
+            prompt_text, uploaded_files, forced_upload_role=forced_upload_role,
         )
-    return _GRAPHIC_V69307_EXACT_V69304_GENERATOR(
+    return _GRAPHIC_V69309_EXACT_V69304_GENERATOR(
         prompt_text, uploaded_files,
         use_approved_style=use_approved_style, preserve_product=preserve_product,
         style_strength=style_strength, forced_upload_role=forced_upload_role,
