@@ -1,6 +1,6 @@
 # ============================================================
 # AutoTecPro AI — Final Production Application
-# Release: v69304 (cleanup-only; runtime behavior preserved from v69303)
+# Release: v69314 (stable baseline rebuild from exact v69304 protected production path)
 #
 # Protected production authorities:
 # - Graphic Reference first-generation: v69298 / isolated v69272-v69248
@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69313"
-AUTOTECPRO_RELEASE_BUILD = "exact-product-first-image-sync4-scalar-authority-v69310-20260902"
+AUTOTECPRO_RELEASE_VERSION = "v69314"
+AUTOTECPRO_RELEASE_BUILD = "stable-v69304-baseline-production-audit-v69314-20260902"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -52861,595 +52861,6 @@ def generate_graphic_marketing_images(
         professional_layered_studio=professional_layered_studio,
     )
 
-_GRAPHIC_V69309_EXACT_V69304_GENERATOR = generate_graphic_marketing_images
-
-
-def _graphic_v69309_normalize_followup_text(prompt_text):
-    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    # Normalize common operator/user spellings only for intent classification.
-    # The original user prompt is still passed unchanged to research and edit prompts.
-    replacements = {
-        "origianl": "original", "orginal": "original", "orignal": "original",
-        "origional": "original", "orignial": "original", "orginial": "original",
-        "airvent": "air vent", "air-vent": "air vent", "centre": "center",
-    }
-    for old, new in replacements.items():
-        value = re.sub(rf"\b{re.escape(old)}\b", new, value)
-    return value
-
-
-def _graphic_v69309_component_focus(prompt_text):
-    value = _graphic_v69309_normalize_followup_text(prompt_text)
-    patterns = (
-        (r"\b(?:upper|top|center)\s+(?:air\s*)?vent\b", "upper air vent"),
-        (r"\b(?:lower|bottom)\s+(?:air\s*)?vent\b", "lower air vent"),
-        (r"\b(?:air\s*)?vent\b", "air vent"),
-        (r"\b(?:hazard|warning)\s+button\b", "hazard button"),
-        (r"\b(?:climate|hvac|a/c|ac)\s+(?:control|button|panel|switch)\b", "climate control"),
-        (r"\b(?:original|oem|factory)\s+(?:trim|bezel|panel)\b", "trim panel"),
-        (r"\b(?:button|knob|switch|grille|trim|panel)\b", "requested OEM component"),
-    )
-    for pattern, label in patterns:
-        if re.search(pattern, value, flags=re.I):
-            return label
-    return ""
-
-
-def _graphic_v69309_explicit_recreation_intent(prompt_text):
-    value = _graphic_v69309_normalize_followup_text(prompt_text)
-    return bool(re.search(
-        r"\b(?:recreate|rebuild|redesign|replace the whole|whole product|entire product|"
-        r"new angle|different angle|change (?:the )?(?:product )?angle|rotate (?:the )?(?:product|unit)|"
-        r"three[- ]?quarter|3/4|side view|rear view|top view|new perspective|different perspective|"
-        r"new product design|product variant|exploded view|3d render)\b",
-        value, flags=re.I,
-    ))
-
-
-def _graphic_v69309_is_researched_component_followup(prompt_text):
-    """Semantic post-generation admission gate; impossible on first image."""
-    state = get_graphic_project_state() or {}
-    latest = state.get("latest_generated") or {}
-    if not isinstance(latest, dict) or not str(latest.get("data_url") or "").strip():
-        return False
-    if _graphic_v69309_explicit_recreation_intent(prompt_text):
-        return False
-    value = _graphic_v69309_normalize_followup_text(prompt_text)
-    component = _graphic_v69309_component_focus(value)
-    if not component:
-        return False
-    research_signal = bool(re.search(r"\b(?:check|look\s*up|lookup|find|verify|search|reference|match|research)\b", value, flags=re.I))
-    oem_signal = bool(re.search(r"\b(?:original|oem|factory|stock|authentic)\b", value, flags=re.I))
-    apply_signal = bool(re.search(r"\b(?:implement|use|apply|insert|put|populate|add|restore|fill|place|integrate)\b", value, flags=re.I))
-    preserve_signal = bool(
-        re.search(r"\b(?:preserve|keep|leave)\b.{0,80}\b(?:everything else|all other|the rest|unchanged|the same|same)\b", value, flags=re.I)
-        or re.search(r"\beverything else\b.{0,40}\b(?:same|unchanged)\b", value, flags=re.I)
-    )
-    # Research + apply + preserve is sufficient even if OEM/original was omitted or
-    # misspelled. OEM + apply + preserve is the secondary explicit path.
-    return bool(
-        (component and research_signal and apply_signal and preserve_signal)
-        or (component and oem_signal and apply_signal and preserve_signal)
-    )
-
-
-def _graphic_v69309_research_component(role_items, prompt_text, component_focus):
-    product = next((x for x in (role_items or []) if isinstance(x, dict) and x.get("role") == "product_photo"), None)
-    image_url = _graphic_role_data_url(product) if product else ""
-    state = get_graphic_project_state() or {}
-    explicit_vehicle = dict(state.get("explicit_vehicle") or {})
-    saved_vehicle = dict(state.get("last_vehicle_profile") or {})
-    vehicle_hint = (
-        str(explicit_vehicle.get("display_name") or "").strip()
-        or str(saved_vehicle.get("explicit_display_name") or "").strip()
-        or ""
-    )
-    content = [{
-        "type": "input_text",
-        "text": (
-            "Verify the exact original/OEM/factory automotive component requested for this AutoTecPro product application. "
-            "Use live web search. Prefer OEM/manufacturer sources, official parts diagrams, established parts catalogs, and reputable automotive sources. "
-            "Return one JSON object only with keys: verified, make, model, generation, year_range, component_focus, component_description, component_location, "
-            "orientation, distinctive_visual_features, source_records, search_summary, confidence_score. "
-            "Do not guess. Set verified=false if the exact component cannot be supported. "
-            f"Known vehicle/application hint: {vehicle_hint or 'not locked'}. "
-            f"Requested component: {component_focus}. Staff instruction: {str(prompt_text or '')[:1800]}"
-        ),
-    }]
-    if image_url:
-        content.append({"type": "input_image", "image_url": image_url})
-    try:
-        bounded_client = client.with_options(timeout=55.0, max_retries=0)
-        response = bounded_client.responses.create(
-            model="gpt-5.5",
-            tools=[{"type": "web_search"}],
-            instructions=(
-                "Act as a cautious OEM automotive component researcher. Use live web search and return JSON only. "
-                "Never convert uncertainty into a visual fact."
-            ),
-            input=[{"role": "user", "content": content}],
-            max_output_tokens=2200,
-        )
-        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
-        if not isinstance(payload, dict):
-            payload = {}
-    except Exception as error:
-        diagnostic_log(
-            "graphic_v69309_component_research_failed_closed",
-            component_focus=str(component_focus or "")[:120],
-            error_type=type(error).__name__, error=str(error)[:600],
-        )
-        return {}
-    try:
-        score = float(payload.get("confidence_score") or 0.0)
-    except Exception:
-        score = 0.0
-    verified = payload.get("verified") is True and score >= 75.0
-    records = payload.get("source_records")
-    description = str(payload.get("component_description") or "").strip()
-    if not verified or not description or records in (None, "", [], {}):
-        diagnostic_log(
-            "graphic_v69309_component_research_failed_closed",
-            component_focus=str(component_focus or "")[:120],
-            reason="insufficient_verified_component_authority", confidence_score=score,
-        )
-        return {}
-    payload["confidence_score"] = score
-    payload["component_focus"] = str(payload.get("component_focus") or component_focus or "").strip()
-    return payload
-
-
-def _graphic_v69309_component_research_text(profile):
-    keys = (
-        "make", "model", "generation", "year_range", "component_focus", "component_description",
-        "component_location", "orientation", "distinctive_visual_features", "source_records", "search_summary", "confidence_score",
-    )
-    return "\n".join(
-        f"{key.replace('_', ' ').title()}: {profile.get(key)}"
-        for key in keys if isinstance(profile, dict) and profile.get(key) not in (None, "", [], {})
-    )
-
-
-def _graphic_v69309_parse_norm_box(value):
-    if not isinstance(value, (list, tuple)) or len(value) != 4:
-        return None
-    try:
-        x0, y0, x1, y1 = [float(v) for v in value]
-    except Exception:
-        return None
-    if max(x0, y0, x1, y1) > 1.5:
-        x0, y0, x1, y1 = [v / 1000.0 for v in (x0, y0, x1, y1)]
-    x0, y0 = max(0.0, x0), max(0.0, y0)
-    x1, y1 = min(1.0, x1), min(1.0, y1)
-    if not (x1 > x0 and y1 > y0):
-        return None
-    return [x0, y0, x1, y1]
-
-
-def _graphic_v69309_box_overlap(a, b):
-    if not a or not b:
-        return 0.0
-    x0=max(a[0],b[0]); y0=max(a[1],b[1]); x1=min(a[2],b[2]); y1=min(a[3],b[3])
-    if x1<=x0 or y1<=y0:
-        return 0.0
-    inter=(x1-x0)*(y1-y0)
-    area=max(1e-9,(a[2]-a[0])*(a[3]-a[1]))
-    return inter/area
-
-
-def _graphic_v69309_locate_component_region(current_data_url, prompt_text, component_focus):
-    """Vision-only locator. It does not edit pixels or provide component facts."""
-    if not str(current_data_url or "").strip():
-        return {}
-    content = [
-        {"type": "input_text", "text": (
-            "Locate one requested component region on this CURRENT generated automotive advertisement. Return JSON only with keys: "
-            "component_bbox, product_bbox, screen_bbox, confidence_score, reason. All boxes must be [x0,y0,x1,y1] normalized from 0 to 1. "
-            "component_bbox must tightly cover ONLY the existing local opening/region to be edited, not the whole product. product_bbox must cover the hero infotainment product. "
-            "screen_bbox must cover the visible product display/UI. Never include the screen in component_bbox unless the user explicitly asked to edit the screen. "
-            f"Requested component: {component_focus}. Staff instruction: {str(prompt_text or '')[:1000]}"
-        )},
-        {"type": "input_image", "image_url": str(current_data_url)},
-    ]
-    try:
-        bounded_client = client.with_options(timeout=35.0, max_retries=0)
-        response = bounded_client.responses.create(
-            model="gpt-5.5",
-            instructions="Act as a precise image-region locator. Do not redesign anything. Return JSON only.",
-            input=[{"role": "user", "content": content}],
-            max_output_tokens=900,
-        )
-        payload = extract_json_object(str(getattr(response, "output_text", "") or ""))
-        if not isinstance(payload, dict):
-            return {}
-    except Exception as error:
-        diagnostic_log("graphic_v69309_component_locator_failed_closed", error_type=type(error).__name__, error=str(error)[:500])
-        return {}
-    component_box = _graphic_v69309_parse_norm_box(payload.get("component_bbox"))
-    product_box = _graphic_v69309_parse_norm_box(payload.get("product_bbox"))
-    screen_box = _graphic_v69309_parse_norm_box(payload.get("screen_bbox"))
-    try:
-        confidence = float(payload.get("confidence_score") or 0.0)
-    except Exception:
-        confidence = 0.0
-    if not component_box or not product_box or not screen_box or confidence < 85.0:
-        return {}
-    area = (component_box[2]-component_box[0])*(component_box[3]-component_box[1])
-    if area <= 0.0002 or area > 0.12:
-        return {}
-    # Component must sit within the product footprint with small tolerance.
-    tol = 0.03
-    inside = (
-        component_box[0] >= product_box[0]-tol and component_box[1] >= product_box[1]-tol
-        and component_box[2] <= product_box[2]+tol and component_box[3] <= product_box[3]+tol
-    )
-    if not inside:
-        return {}
-    # UI is immutable for this route.
-    if _graphic_v69309_box_overlap(component_box, screen_box) > 0.001:
-        diagnostic_log("graphic_v69309_component_locator_failed_closed", reason="component_box_overlaps_screen_ui")
-        return {}
-    return {
-        "component_bbox": component_box, "product_bbox": product_box, "screen_bbox": screen_box,
-        "confidence_score": confidence, "reason": str(payload.get("reason") or "")[:500],
-    }
-
-
-def _graphic_v69309_pixel_box(norm_box, width, height, margin_ratio=0.006):
-    x0,y0,x1,y1 = norm_box
-    mx=max(2,int(width*margin_ratio)); my=max(2,int(height*margin_ratio))
-    return (
-        max(0,int(round(x0*width))-mx), max(0,int(round(y0*height))-my),
-        min(width,int(round(x1*width))+mx), min(height,int(round(y1*height))+my),
-    )
-
-
-def _graphic_v69309_masked_provider_edit(current_data_url, output_size, correction_prompt, norm_box):
-    """Use Images Edit with a transparent local mask. No broad-provider fallback."""
-    from PIL import ImageDraw
-    base_raw, base_mime = data_url_to_bytes(str(current_data_url or ""))
-    if not base_raw or Image is None:
-        return None, ""
-    try:
-        with Image.open(io.BytesIO(base_raw)) as im:
-            base = im.convert("RGBA")
-        px_box = _graphic_v69309_pixel_box(norm_box, base.width, base.height)
-        mask = Image.new("RGBA", base.size, (255,255,255,255))
-        draw = ImageDraw.Draw(mask)
-        draw.rectangle(px_box, fill=(0,0,0,0))
-        base_buf=io.BytesIO(); base.save(base_buf, format="PNG"); base_buf.seek(0); base_buf.name="current_v69304_canvas.png"
-        mask_buf=io.BytesIO(); mask.save(mask_buf, format="PNG"); mask_buf.seek(0); mask_buf.name="component_edit_mask.png"
-        size = _graphic_normalize_output_size_v4000(output_size)
-        image_client = client.with_options(timeout=GRAPHIC_IMAGE_TIMEOUT_SECONDS, max_retries=0)
-        attempts = (
-            {"input_fidelity":"high", "quality":"high"},
-            {},
-        )
-        for idx, extras in enumerate(attempts, start=1):
-            try:
-                base_buf.seek(0); mask_buf.seek(0)
-                diagnostic_log("graphic_v69309_masked_edit_attempt", variant=idx, pixel_box=list(px_box), fields=sorted(extras))
-                response = image_client.images.edit(
-                    model=GRAPHIC_IMAGE_MODEL, image=base_buf, mask=mask_buf,
-                    prompt=str(correction_prompt or "")[:32000], n=1, size=size, **extras,
-                )
-                images = _graphic_collect_result_bytes(response)
-                if images:
-                    return images[0], f"images-edit-masked-v69309-{idx}"
-            except Exception as error:
-                diagnostic_log("graphic_v69309_masked_edit_attempt_failed", variant=idx, error_type=type(error).__name__, error=_graphic_compact_error_v4000(error))
-        return None, ""
-    except Exception as error:
-        diagnostic_log("graphic_v69309_mask_build_failed_closed", error_type=type(error).__name__, error=str(error)[:500])
-        return None, ""
-
-
-def _graphic_v69309_exact_local_composite(current_data_url, candidate_raw, norm_box):
-    """Return base canvas with candidate pixels admitted ONLY inside the local mask."""
-    from PIL import ImageDraw, ImageFilter, ImageChops
-    base_raw, _ = data_url_to_bytes(str(current_data_url or ""))
-    if not base_raw or not candidate_raw or Image is None:
-        return None, {}
-    try:
-        with Image.open(io.BytesIO(base_raw)) as im:
-            base = im.convert("RGBA")
-        with Image.open(io.BytesIO(candidate_raw)) as im:
-            candidate = im.convert("RGBA").resize(base.size, Image.Resampling.LANCZOS)
-        px_box = _graphic_v69309_pixel_box(norm_box, base.width, base.height)
-        # Hard zero outside the admitted box; feather only inward at the box edge.
-        mask = Image.new("L", base.size, 0)
-        draw = ImageDraw.Draw(mask)
-        draw.rectangle(px_box, fill=255)
-        feather=max(1,min(base.width,base.height)//300)
-        if feather > 1:
-            mask = mask.filter(ImageFilter.GaussianBlur(feather))
-            # Re-clip blur leakage to the exact admitted box.
-            clip=Image.new("L",base.size,0); ImageDraw.Draw(clip).rectangle(px_box,fill=255)
-            mask=ImageChops.multiply(mask,clip)
-        final = Image.composite(candidate, base, mask)
-        out=io.BytesIO(); final.convert("RGB").save(out,format="PNG",optimize=True)
-        final_raw=out.getvalue()
-        # Deterministic outside-mask parity proof against decoded RGBA pixels.
-        import numpy as _np_v69309
-        b=_np_v69309.asarray(base,dtype=_np_v69309.uint8)
-        f=_np_v69309.asarray(final,dtype=_np_v69309.uint8)
-        m=_np_v69309.asarray(mask,dtype=_np_v69309.uint8)>0
-        outside_equal=bool(_np_v69309.array_equal(b[~m],f[~m]))
-        report={
-            "pixel_box":list(px_box), "outside_mask_pixel_identity":outside_equal,
-            "outside_mask_changed_pixels":0 if outside_equal else int(_np_v69309.any(b[~m]!=f[~m],axis=1).sum()),
-            "canvas_size":[base.width,base.height], "engine":"v69309-exact-local-mask-compositor",
-        }
-        return final_raw, report
-    except Exception as error:
-        diagnostic_log("graphic_v69309_local_composite_failed_closed", error_type=type(error).__name__, error=str(error)[:500])
-        return None, {}
-
-
-def _graphic_v69309_researched_followup_result(prompt_text, uploaded_files=None, *, forced_upload_role="Auto-detect"):
-    state = get_graphic_project_state() or {}
-    current_canvas = dict(state.get("latest_generated") or {})
-    current_data_url = str(current_canvas.get("data_url") or "").strip()
-    if not current_data_url:
-        raise RuntimeError("The current v69304 Graphic artwork is unavailable. No researched follow-up edit was attempted.")
-
-    role_items = _graphic_project_role_items(uploaded_files or [], prompt_text, forced_upload_role)
-    component_focus = _graphic_v69309_component_focus(prompt_text) or "requested OEM component"
-    research_started=time.perf_counter()
-    component_profile = _graphic_v69309_research_component(role_items, prompt_text, component_focus)
-    diagnostic_log("graphic_v69309_component_research_completed", component_focus=component_focus, available=bool(component_profile), elapsed_seconds=round(time.perf_counter()-research_started,3))
-    if not component_profile:
-        raise RuntimeError("I couldn't verify the requested OEM/factory component reliably, so the existing v69304 artwork was preserved and no recreation fallback was allowed.")
-
-    locator_started=time.perf_counter()
-    region = _graphic_v69309_locate_component_region(current_data_url, prompt_text, component_focus)
-    diagnostic_log("graphic_v69309_component_region_resolved", component_focus=component_focus, available=bool(region), elapsed_seconds=round(time.perf_counter()-locator_started,3), component_bbox=(region or {}).get("component_bbox"))
-    if not region:
-        raise RuntimeError("I could verify the component, but I could not safely isolate its exact region in the current artwork. The existing image was preserved and no broad edit was allowed.")
-
-    research_text = _graphic_v69309_component_research_text(component_profile)
-    correction_prompt = (
-        "V69309 MASKED OEM COMPONENT EDIT. Edit ONLY the transparent masked component region of the supplied current artwork. "
-        "The current artwork is immutable outside the mask. Preserve the headline, typography, logo, feature icons, vehicle, background, footer, product position, product scale, product perspective, outer housing, all controls, and especially every screen/UI pixel exactly. "
-        "Do not create a new advertisement. Do not duplicate or inset the original product photo. Do not replace the full product. Do not change the vehicle or scenery. "
-        f"Inside the mask only, implement the verified {component_focus} in the existing product opening so it looks physically integrated. "
-        "Use only the verified research below. Do not infer unsupported geometry.\n\nVERIFIED OEM COMPONENT RESEARCH:\n"
-        + research_text[:3200] + "\n\nUSER REQUEST:\n" + str(prompt_text or "")[:900]
-    )
-    output_size = _graphic_normalize_output_size_v4000(choose_graphic_image_size(prompt_text))
-    candidate_raw, provider_route = _graphic_v69309_masked_provider_edit(current_data_url, output_size, correction_prompt, region["component_bbox"])
-    if not candidate_raw:
-        diagnostic_log("graphic_v69309_researched_followup_failed_closed", reason="masked_provider_returned_no_image")
-        raise RuntimeError("The masked researched edit did not return a usable image. The existing v69304 artwork was preserved; no broad recreation fallback was allowed.")
-
-    final_raw, parity = _graphic_v69309_exact_local_composite(current_data_url, candidate_raw, region["component_bbox"])
-    if not final_raw or not parity.get("outside_mask_pixel_identity"):
-        diagnostic_log("graphic_v69309_researched_followup_failed_closed", reason="outside_mask_parity_not_proven", parity=parity)
-        raise RuntimeError("The edited image could not prove exact preservation outside the requested component region. The existing v69304 artwork was preserved.")
-
-    # IMPORTANT: do NOT pass the deterministic local composite through the normal
-    # v3000 result builder here. That builder re-applies the AutoTecPro logo and can
-    # therefore alter pixels outside the admitted component mask. Clone the already
-    # published v69304 result metadata and replace only the image payload/provenance.
-    created_at_v69309 = datetime.now(timezone.utc)
-    result = dict(current_canvas)
-    result["data_url"] = "data:image/png;base64," + base64.b64encode(final_raw).decode("ascii")
-    result["filename"] = graphic_image_filename(prompt_text, created_at_v69309)
-    result["name"] = result["filename"]
-    result["prompt"] = str(prompt_text or "")
-    result["created_at"] = created_at_v69309.isoformat()
-    result["provider_route"] = provider_route
-    result["corrected"] = True
-    result["graphic_v69309_researched_component_followup"] = True
-    result["graphic_v69309_base_canvas_preserved"] = True
-    result["graphic_v69309_outside_mask_pixel_identity"] = True
-    result["graphic_v69309_component_focus"] = component_focus
-    result["graphic_v69309_component_region"] = region
-    result["graphic_v69309_component_research"] = component_profile
-    result["graphic_v69309_local_composite_report"] = parity
-    result["generation_route"] = "v69309-masked-current-canvas-oem-component-edit"
-    result["verification_status"] = "verified_local_mask_preservation"
-    result["output_status"] = "completed_researched_component_edit_v69309"
-    _graphic_save_latest_project_result(result)
-    state_after=get_graphic_project_state() or {}
-    state_after["stage"]="generated"
-    state_after["last_generation_route"]="v69309-masked-current-canvas-oem-component-edit"
-    state_after["updated_at"]=datetime.now(timezone.utc).isoformat()
-    st.session_state[GRAPHIC_PROJECT_STATE_KEY]=state_after
-    diagnostic_log(
-        "graphic_v69309_researched_followup_published", component_focus=component_focus,
-        outside_mask_pixel_identity=True, pixel_box=parity.get("pixel_box"),
-        first_image_authority="exact_v69304_generator_untouched",
-    )
-    return [result]
-
-
-def _graphic_v69313_reorder_reference_upper_slots(labels, semantics, columns=4):
-    labels = [str(x or "").strip() for x in list(labels or []) if str(x or "").strip()]
-    semantics = [str(x or "").strip().casefold() for x in list(semantics or [])]
-    if not labels:
-        return labels, semantics, {"applied": False, "reason": "empty-labels"}
-    if len(semantics) < len(labels):
-        semantics = (semantics + ["" for _ in range(len(labels) - len(semantics))])[:len(labels)]
-    car = next((i for i, sem in enumerate(semantics[:len(labels)]) if sem == "carplay"), None)
-    aa = next((i for i, sem in enumerate(semantics[:len(labels)]) if sem == "android_auto"), None)
-    if columns < 2 or car is None or aa is None or car == aa:
-        return labels, semantics[:len(labels)], {"applied": False, "reason": "anchor-not-applicable", "columns": int(columns)}
-    anchored = []
-    anchored_sem = []
-    for idx, (label, sem) in enumerate(zip(labels, semantics[:len(labels)])):
-        if idx in {car, aa}:
-            continue
-        anchored.append(label)
-        anchored_sem.append(sem)
-    first_row_normal = max(0, int(columns) - 2)
-    reordered_labels = (
-        anchored[:first_row_normal]
-        + [labels[car], labels[aa]]
-        + anchored[first_row_normal:]
-    )[:len(labels)]
-    reordered_semantics = (
-        anchored_sem[:first_row_normal]
-        + [semantics[car], semantics[aa]]
-        + anchored_sem[first_row_normal:]
-    )[:len(labels)]
-    report = {
-        "applied": reordered_labels != labels or reordered_semantics != semantics[:len(labels)],
-        "columns": int(columns),
-        "row1_last_two": reordered_semantics[max(0, int(columns) - 2):int(columns)],
-        "carplay_index": reordered_semantics.index("carplay") if "carplay" in reordered_semantics else -1,
-        "android_auto_index": reordered_semantics.index("android_auto") if "android_auto" in reordered_semantics else -1,
-    }
-    return reordered_labels, reordered_semantics, report
-
-
-def _graphic_v69313_reference_slot_lock_result(image_result, prompt_text=""):
-    """Narrow post-generator repair that restores the approved upper-right feature-grid slots.
-
-    This does NOT replace the v69304 first-image generator. It only redraws the
-    reference feature matrix locally when a reference manifest exists, preserving the
-    rest of the published artwork. CarPlay and Android Auto are deterministically
-    locked to the far-right of row 1, matching the approved 69301/69302/69304 behavior.
-    """
-    if Image is None or not isinstance(image_result, dict):
-        return image_result
-    manifest = dict(image_result.get("graphic_v68995_reference_icon_manifest") or {})
-    if not manifest or not manifest.get("carplay_android_anchor"):
-        return image_result
-    upper_labels = [str(x or "").strip() for x in list(manifest.get("upper_labels") or []) if str(x or "").strip()]
-    upper_semantics = [str(x or "").strip().casefold() for x in list(manifest.get("upper_semantics") or [])]
-    if not upper_labels or "carplay" not in upper_semantics or "android_auto" not in upper_semantics:
-        return image_result
-    raw_bytes, _mime = data_url_to_bytes(str(image_result.get("data_url") or ""))
-    if not raw_bytes:
-        return image_result
-    try:
-        base = Image.open(io.BytesIO(raw_bytes)).convert("RGBA")
-    except Exception:
-        return image_result
-
-    W, H = base.size
-    bp = _graphic_safe_reference_blueprint_v16000(dict(image_result.get("reference_blueprint") or {}))
-    topology = _graphic_reference_grid_topology_v68876(bp, "reference_template")
-    columns = max(1, int(topology.get("columns") or 4))
-    rows = max(1, int(topology.get("rows") or 2))
-    if len(upper_labels) < max(2, rows * columns):
-        # Preserve existing manifest ordering but pad safely when older runs store fewer labels.
-        while len(upper_labels) < rows * columns:
-            upper_labels.append(f"Feature {len(upper_labels) + 1}")
-        while len(upper_semantics) < len(upper_labels):
-            upper_semantics.append(_graphic_v68994_icon_semantic(upper_labels[len(upper_semantics)]))
-    upper_labels = upper_labels[: rows * columns]
-    upper_semantics = upper_semantics[: len(upper_labels)]
-    upper_labels, upper_semantics, slot_report = _graphic_v69313_reorder_reference_upper_slots(upper_labels, upper_semantics, columns=columns)
-
-    feature_box = dict(bp.get("normalized_boxes") or {}).get("feature_matrix_box") or [0.57, 0.035, 0.395, 0.285]
-    grid_x, grid_y = int(W * float(feature_box[0])), int(H * float(feature_box[1]))
-    grid_w, grid_h = int(W * float(feature_box[2])), int(H * float(feature_box[3]))
-    if grid_w < 40 or grid_h < 40:
-        return image_result
-    grid_region = (grid_x, grid_y, min(W, grid_x + grid_w), min(H, grid_y + grid_h))
-    crop = base.crop(grid_region).filter(ImageFilter.GaussianBlur(radius=max(6, int(min(grid_w, grid_h) * 0.028))))
-    base.paste(crop, grid_region)
-
-    draw = ImageDraw.Draw(base)
-    navy = (12, 36, 82, 255)
-    divider = (70, 94, 128, 160)
-    cell_w, cell_h = grid_w / float(columns), grid_h / float(rows)
-    feature_font = _graphic_font(max(18, int(H * 0.0225)), False)
-    for idx, label in enumerate(upper_labels):
-        row, col = divmod(idx, columns)
-        x0 = int(grid_x + col * cell_w)
-        y0 = int(grid_y + row * cell_h)
-        if col:
-            draw.line((x0, y0 + int(H * 0.010), x0, y0 + int(cell_h) - int(H * 0.010)), fill=divider, width=1)
-        if row:
-            draw.line((x0 + int(cell_w * 0.04), y0, x0 + int(cell_w * 0.96), y0), fill=divider, width=1)
-        icon_box = (
-            int(x0 + cell_w * 0.29), int(y0 + cell_h * 0.055),
-            int(x0 + cell_w * 0.71), int(y0 + cell_h * 0.43),
-        )
-        semantic = upper_semantics[idx] if idx < len(upper_semantics) else _graphic_v68994_icon_semantic(label)
-        if not _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic, navy):
-            _graphic_draw_semantic_feature_icon_v68866(draw, icon_box, semantic, navy, fallback_index=idx)
-        lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
-        ty = int(y0 + cell_h * 0.57)
-        for line in lines:
-            try:
-                tw = text_width(line, feature_font)
-            except Exception:
-                tw = int(len(str(line or "")) * max(8, int(H * 0.0115)))
-            draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
-            ty += int(H * 0.0225)
-
-    output = io.BytesIO()
-    base.convert("RGBA").save(output, format="PNG", optimize=True)
-    fixed = dict(image_result)
-    fixed["data_url"] = "data:image/png;base64," + base64.b64encode(output.getvalue()).decode("ascii")
-    fixed["graphic_v69313_reference_slot_lock_applied"] = True
-    fixed["graphic_v69313_reference_slot_lock_report"] = {
-        "applied": True,
-        "upper_labels": upper_labels,
-        "upper_semantics": upper_semantics,
-        "rows": int(rows),
-        "columns": int(columns),
-        "slot_report": slot_report,
-        "first_image_authority": "exact-v69304-generator-plus-local-grid-slot-lock",
-    }
-    fixed["provider_route"] = str(image_result.get("provider_route") or "") + "+v69313-reference-slot-lock"
-    diagnostic_log(
-        "graphic_v69313_reference_slot_lock_applied",
-        rows=int(rows), columns=int(columns),
-        upper_semantics=upper_semantics[:min(len(upper_semantics), 8)],
-        first_row_right=upper_semantics[max(0, columns - 2):columns],
-    )
-    return fixed
-
-
-def _graphic_v69313_apply_reference_slot_lock_batch(images, prompt_text=""):
-    results = []
-    for image in images or []:
-        results.append(_graphic_v69313_reference_slot_lock_result(image, prompt_text))
-    return results
-
-
-def generate_graphic_marketing_images(
-    prompt_text, uploaded_files=None, *, use_approved_style=True, preserve_product=True,
-    style_strength="High", forced_upload_role="Auto-detect", quality_retry=True,
-    product_transform_mode="Auto", professional_layered_studio=True,
-):
-    # v69313 Graphic authority rule:
-    # - First-image generation still delegates to the exact v69304 production generator.
-    # - Only researched component FOLLOW-UP edits may be intercepted.
-    # - After a successful first-image result, a narrow local-only reference slot lock
-    #   may redraw the upper-right feature matrix so CarPlay + Android Auto match the
-    #   approved 69301/69302/69304 layout. No other zones are regenerated.
-    if _graphic_v69309_is_researched_component_followup(prompt_text):
-        diagnostic_log(
-            "graphic_v69313_researched_component_followup_intercepted",
-            component_focus=_graphic_v69309_component_focus(prompt_text),
-            normalized_prompt=_graphic_v69309_normalize_followup_text(prompt_text)[:500],
-            first_image_authority="exact-v69304",
-        )
-        return _graphic_v69309_researched_followup_result(
-            prompt_text, uploaded_files, forced_upload_role=forced_upload_role,
-        )
-
-    diagnostic_log(
-        "graphic_v69313_exact_v69304_generator_delegated",
-        researched_followup=False,
-        post_publication_slot_lock=True,
-    )
-    images = _GRAPHIC_V69309_EXACT_V69304_GENERATOR(
-        prompt_text, uploaded_files,
-        use_approved_style=use_approved_style, preserve_product=preserve_product,
-        style_strength=style_strength, forced_upload_role=forced_upload_role,
-        quality_retry=quality_retry, product_transform_mode=product_transform_mode,
-        professional_layered_studio=professional_layered_studio,
-    )
-    return _graphic_v69313_apply_reference_slot_lock_batch(images, prompt_text)
-
-
 # v69272 durable display transport for generated Graphic PNGs. This is outside the
 # isolated engine and never changes image bytes. A private Storage object + fresh signed
 # URL avoids multi-megabyte data URLs inside Streamlit Markdown.
@@ -57553,12 +56964,12 @@ def _website_identity_systems_v69022(value):
     systems = set()
 
     negative_patterns = (
-        r"\bno[-\s]?sync(?:\s*[1234])?\b",
-        r"\bnon[-\s]?sync(?:\s*[1234])?\b",
-        r"\bwithout(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
-        r"\b(?:does\s+not|doesn't|do\s+not|don't)\s+(?:have|come\s+with|include|support)(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
-        r"\bnot\s+(?:equipped\s+with|with|using)(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
-        r"\b(?:vehicles?|trucks?|cars?)\s+without(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
+        r"\bno[-\s]?sync(?:\s*[123])?\b",
+        r"\bnon[-\s]?sync(?:\s*[123])?\b",
+        r"\bwithout(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
+        r"\b(?:does\s+not|doesn't|do\s+not|don't)\s+(?:have|come\s+with|include|support)(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
+        r"\bnot\s+(?:equipped\s+with|with|using)(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
+        r"\b(?:vehicles?|trucks?|cars?)\s+without(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
     )
     positive_text = text
     for pattern in negative_patterns:
@@ -57566,7 +56977,7 @@ def _website_identity_systems_v69022(value):
             systems.add("no_sync")
         positive_text = re.sub(pattern, " ", positive_text, flags=re.I)
 
-    for number in re.findall(r"\bsync\s*([1234])\b", positive_text):
+    for number in re.findall(r"\bsync\s*([123])\b", positive_text):
         systems.add("sync_" + number)
 
     if "5th generation" in text or "5th-gen" in text or "5th gen" in text or "new body" in text or "new-body" in text:
@@ -63859,7 +63270,7 @@ def _technical_intent_roles_v69152(prompt_text):
         roles.add("car_model_protocol")
     if re.search(r"\ba\s*/?\s*c\b|\bac\b|\bclimate\b|\bheating\b|\btemperature\b", q):
         roles.add("climate")
-    if re.search(r"\bsync\s*[1234]?\b", q):
+    if re.search(r"\bsync\s*[123]?\b", q):
         roles.add("sync")
     if re.search(r"\bonstar\b", q):
         roles.add("onstar")
@@ -63993,7 +63404,7 @@ def _technical_hierarchy_excerpt_v69152(package_text, prompt_text):
     # the matching branch. Otherwise preserve all structurally relevant branches
     # inside the selected configuration section.
     structural_discriminator = bool(re.search(
-        r"(?i)\b(?:sync\s*[1234]|onstar\s*(?:type|version)?\s*[a-z0-9]|"
+        r"(?i)\b(?:sync\s*[123]|onstar\s*(?:type|version)?\s*[a-z0-9]|"
         r"type\s*[a-z0-9]|option\s*[a-z0-9]|\d+(?:\.\d+)?\s*(?:inch|\"))\b",
         str(prompt_text or ""),
     ))
@@ -64041,7 +63452,7 @@ def _technical_configuration_query_v69155(prompt_text):
         return False
     return bool(re.search(
         r"\bcar\s*model\b|\bcanbus\b|\bcan\s*bus\b|\bprotocol\b|"
-        r"\bsync\s*[1234]?\b|\bonstar\b|\bfactory\s+radio\b|\bradio\s+type\b|"
+        r"\bsync\s*[123]?\b|\bonstar\b|\bfactory\s+radio\b|\bradio\s+type\b|"
         r"\bscreen\s+size\b|\bfactory\s+screen\b|\bclimate\b|\ba\s*/?\s*c\b|"
         r"\bcamera\s+(?:type|setting)\b|\bfactory\s+camera\b|"
         r"\bamplifier\b|\bfactory\s+amp\b|\bsetting(?:s)?\b",
@@ -64054,7 +63465,7 @@ def _technical_branch_discriminators_v69155(prompt_text):
     q = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     output = []
     patterns = (
-        ("sync", r"\bsync\s*[-:#]?\s*([1234])\b"),
+        ("sync", r"\bsync\s*[-:#]?\s*([123])\b"),
         ("onstar", r"\bonstar\s*(?:type|version)?\s*[-:#]?\s*([a-z0-9]+)\b"),
         ("screen", r"\b(\d+(?:\.\d+)?)\s*(?:inch|inches|\")\b"),
         ("type", r"\btype\s*[-:#]?\s*([a-z0-9]+)\b"),
@@ -64560,11 +63971,11 @@ def _technical_segment_conflicts_discriminator_v69156(label, prompt_text):
         return False
     for kind, value in _technical_branch_discriminators_v69155(prompt_text):
         if kind == "sync":
-            found = set(re.findall(r"\bsync\s*[-:#]?\s*([1234])\b", label_cf))
+            found = set(re.findall(r"\bsync\s*[-:#]?\s*([123])\b", label_cf))
             if found and value not in found:
                 return True
         elif kind == "no_sync":
-            if re.search(r"\bsync\s*[1234]\b", label_cf) and not re.search(r"\bno[\s-]*sync\b", label_cf):
+            if re.search(r"\bsync\s*[123]\b", label_cf) and not re.search(r"\bno[\s-]*sync\b", label_cf):
                 return True
         elif kind == "manual":
             if re.search(r"\b(?:automatic|auto)\s+(?:a/?c|climate)\b", label_cf):
@@ -64892,9 +64303,9 @@ def _technical_literal_configuration_v69156(prompt_text, authority):
 
     # Generic SYNC + climate mapping rows. Preserve exact page labels and values.
     mapping_pattern = re.compile(
-        r"(SYNC\s*[1234]\s*\([^)]*\)\s*\|\s*(?:Manual|Automatic|Auto)\s+Climate\s+Control)"
+        r"(SYNC\s*[123]\s*\([^)]*\)\s*\|\s*(?:Manual|Automatic|Auto)\s+Climate\s+Control)"
         r"\s*(?:→|->|=>)\s*(.*?)"
-        r"(?=\s+SYNC\s*[1234]\s*\(|\s+BRANCH:|\Z)",
+        r"(?=\s+SYNC\s*[123]\s*\(|\s+BRANCH:|\Z)",
         flags=re.I,
     )
     mappings = []
@@ -64987,7 +64398,9 @@ def _technical_model_field_relation_v69156(field, value, authority):
 
 def _technical_literal_is_sufficient_v69156(prompt_text, literal):
     literal = dict(literal or {})
-    q = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    roles = _technical_intent_roles_v69152(prompt_text)
+    if "car_model_protocol" not in roles:
+        return False
     common = {
         str(row.get("field") or "").strip().casefold()
         for row in (literal.get("fields") or []) if isinstance(row, dict)
@@ -64997,23 +64410,6 @@ def _technical_literal_is_sufficient_v69156(prompt_text, literal):
         for branch in (literal.get("branches") or []) if isinstance(branch, dict)
         for row in (branch.get("fields") or []) if isinstance(row, dict)
     }
-
-    # v69310: exact scalar questions are complete when their exact authored scalar
-    # exists. They must not require an unrelated Car Model menu value.
-    if re.search(r"\b(?:password|passcode|code)\b", q, flags=re.I):
-        if re.search(r"\bfactory\s+(?:setting|settings)\b", q, flags=re.I):
-            return "factory setting password" in common
-        if (
-            re.search(r"\bsetting\s+guide\b", q, flags=re.I)
-            or re.search(r"\bcar\s*model\b", q, flags=re.I)
-            or re.search(r"\ba\s*/?\s*c\b", q, flags=re.I)
-        ):
-            return "setting guide password" in common
-        return bool({"setting guide password", "factory setting password"} & common)
-
-    roles = _technical_intent_roles_v69152(prompt_text)
-    if "car_model_protocol" not in roles:
-        return False
     return bool(
         "protocol" in common
         and ("car model" in common or "car model" in branch_fields)
@@ -65088,7 +64484,7 @@ def _technical_merge_structured_v69156(literal, model_structured):
     ]
     sync_values = {
         m.group(1) for label in labels_cf
-        for m in re.finditer(r"\bsync\s*([1234])\b", label)
+        for m in re.finditer(r"\bsync\s*([123])\b", label)
     }
     screen_values = {
         m.group(1) for label in labels_cf
@@ -66626,34 +66022,6 @@ def _technical_verified_configuration_answer_v69158(prompt_text, authority):
     rows = _technical_table_rows_from_structured_v69156(structured)
     if not rows:
         return ""
-
-    q_v69310 = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    if re.search(r"\b(?:password|passcode|code)\b", q_v69310, flags=re.I):
-        row_map_v69310 = {
-            re.sub(r"\s+", " ", str(field or "")).strip().casefold(): str(value or "").strip()
-            for field, value in rows
-        }
-        wanted_v69310 = ""
-        if re.search(r"\bfactory\s+(?:setting|settings)\b", q_v69310, flags=re.I):
-            wanted_v69310 = "factory setting password"
-        elif (
-            re.search(r"\bsetting\s+guide\b", q_v69310, flags=re.I)
-            or re.search(r"\bcar\s*model\b", q_v69310, flags=re.I)
-            or re.search(r"\ba\s*/?\s*c\b", q_v69310, flags=re.I)
-        ):
-            wanted_v69310 = "setting guide password"
-        if wanted_v69310 and row_map_v69310.get(wanted_v69310):
-            label_v69310 = "Setting Guide" if wanted_v69310 == "setting guide password" else "Factory Setting"
-            diagnostic_log(
-                "technical_v69310_exact_scalar_password_answer",
-                field=wanted_v69310,
-                source_url=str(authority.get("source_url") or "")[:700],
-            )
-            return (
-                f"## {label_v69310} Password\n\n"
-                f"**{row_map_v69310[wanted_v69310]}**\n\n"
-                "Verified from the current AutoTecPro Technical source."
-            )
 
     title = _technical_request_display_label_v69158(prompt_text, authority)
     lines = [
@@ -71508,13 +70876,6 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
     if root:
         carriers_v69196.append(root)
 
-    # v69310 scalar setting authority: password facts are exact root metadata and
-    # must not be blocked by the full Car Model/A-C profile completeness gate.
-    # Keep the two password domains distinct.
-    if root:
-        add_field("Setting Guide Password", root.get("data-atp-setting-guide-password"))
-        add_field("Factory Setting Password", root.get("data-atp-factory-setting-password"))
-
     # Protocol is an exact literal element attribute.
     for carrier_v69196 in carriers_v69196:
         protocol_v69196 = str(
@@ -71617,7 +70978,7 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
         # could retain several Manual profiles and where SYNC 3 4.3 vs 8-inch
         # could remain ambiguous.
         requested_sync_v69228 = ""
-        sync_match_v69228 = re.search(r"\bsync\s*([1234])\b", prompt_cf_v69207)
+        sync_match_v69228 = re.search(r"\bsync\s*([123])\b", prompt_cf_v69207)
         if sync_match_v69228:
             requested_sync_v69228 = "sync " + sync_match_v69228.group(1)
         requested_screen_v69228 = ""
@@ -72273,22 +71634,6 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
     if not systems:
         systems = set(_website_identity_systems_v69022(identity_text))
 
-    # v69310: authored ATP root system metadata is the primary discriminator.
-    # Body text may legitimately mention another generation (for example
-    # "SYNC 3 style audio switching") and must never override a root-declared SYNC 4.
-    semantics_v69310 = _technical_package_atp_semantics_v69178(text)
-    root_v69310 = dict((semantics_v69310 or {}).get("root") or {})
-    authored_system_v69310 = str(
-        root_v69310.get("data-atp-factory-system")
-        or root_v69310.get("data-atp-system")
-        or root_v69310.get("data-atp-system-group-scope")
-        or ""
-    ).strip()
-    if authored_system_v69310:
-        authored_tokens_v69310 = set(_website_identity_systems_v69022(authored_system_v69310))
-        if authored_tokens_v69310:
-            systems = authored_tokens_v69310
-
     product_codes = set(_website_image_product_codes_v69020(identity_text))
     return {
         "file_id": str(file_id or ""),
@@ -72303,7 +71648,7 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
         "years": sorted(years),
         "systems": sorted(systems),
         "product_codes": sorted(product_codes),
-        "atp_semantics_v69178": semantics_v69310,
+        "atp_semantics_v69178": _technical_package_atp_semantics_v69178(text),
     }
 
 
@@ -73042,7 +72387,6 @@ def _technical_package_exact_discriminators_v69243(package):
     system_token = ""
     authored_system = str(
         root.get("data-atp-factory-system")
-        or root.get("data-atp-system")
         or root.get("data-atp-system-group-scope")
         or ""
     ).strip()
@@ -73059,7 +72403,7 @@ def _technical_package_exact_discriminators_v69243(package):
         if len(tokens) == 1:
             system_token = next(iter(tokens))
     system_label = {
-        "no_sync": "No SYNC", "sync1": "SYNC 1", "sync2": "SYNC 2", "sync3": "SYNC 3", "sync4": "SYNC 4"
+        "no_sync": "No SYNC", "sync1": "SYNC 1", "sync2": "SYNC 2", "sync3": "SYNC 3"
     }.get(system_token, system_token.replace("_", " ") if system_token else "")
 
     climate_hint = ""
@@ -75507,7 +74851,7 @@ def _technical_explicit_factory_system_v69228(value):
     norm = _technical_contract_norm_v69198(value)
     if re.search(r"\b(?:no|non)\s+sync\b|\bnosync\b", norm, flags=re.I):
         return "no_sync"
-    match = re.search(r"\bsync\s*([1234])\b", norm, flags=re.I)
+    match = re.search(r"\bsync\s*([123])\b", norm, flags=re.I)
     if match:
         return "sync" + match.group(1)
     return ""
@@ -75519,7 +74863,7 @@ def _technical_factory_system_tokens_v69231(value, systems=None):
     norm = _technical_contract_norm_v69198(value)
     if re.search(r"\b(?:no|non)\s+sync\b|\bnosync\b", norm, flags=re.I):
         tokens.add("no_sync")
-    for match in re.finditer(r"\bsync\s*([1234])\b", norm, flags=re.I):
+    for match in re.finditer(r"\bsync\s*([123])\b", norm, flags=re.I):
         tokens.add("sync" + match.group(1))
     for raw_system in (systems or []):
         token = _technical_explicit_factory_system_v69228(str(raw_system or ""))
@@ -81867,7 +81211,7 @@ def _technical_short_clarification_v68879(prompt_text):
         facets.get("screen_sizes")
         or facets.get("sync_versions")
         or facets.get("climate_terms")
-        or re.fullmatch(r"(?:manual|automatic|auto|sync\s*[1234])", value)
+        or re.fullmatch(r"(?:manual|automatic|auto|sync\s*[123])", value)
     )
 
 
