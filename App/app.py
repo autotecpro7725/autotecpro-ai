@@ -1,6 +1,6 @@
 # ============================================================
 # AutoTecPro AI — Final Production Application
-# Release: v69318 (v69316 + follow-up StopException durable resume repair)
+# Release: v69319 (v69318 + controlled current-turn edit assets + deterministic feature-slot alignment + preservation QA)
 #
 # Protected production authorities:
 # - Graphic Reference first-generation: v69298 / isolated v69272-v69248
@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69318"
-AUTOTECPRO_RELEASE_BUILD = "stable-v69317-exclusive-followup-canvas-v69318-20260902"
+AUTOTECPRO_RELEASE_VERSION = "v69319"
+AUTOTECPRO_RELEASE_BUILD = "stable-v69318-controlled-edit-assets-slot-lock-v69319-20260902"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -16705,6 +16705,17 @@ def remember_graphic_project_assets(uploaded_files, prompt_text=""):
         # an explicit new-product upload can replace an existing active product
         # after a reference has already been locked.
         role = _infer_graphic_asset_role(prompt_text, state)
+        # v69319 follow-up edit assets: a current-turn image explicitly marked as
+        # supporting must not replace the active Product/Reference authority merely
+        # because its prompt contains words such as screen/unit/reference. Explicit
+        # product replacement remains authoritative and bypasses this guard.
+        uploaded_role_v69319 = str(getattr(uploaded, "graphic_role", "") or "").casefold()
+        if (
+            uploaded_role_v69319 in {"supporting", "supporting_image"}
+            and (state.get("latest_generated") or {}).get("data_url")
+            and not _graphic_v69319_explicit_product_replacement(prompt_text)
+        ):
+            role = "supporting"
         has_reference = any(
             str(item.get("role") or "").casefold() == "reference"
             and bytes(item.get("data") or b"")
@@ -31030,6 +31041,319 @@ def _graphic_followup_exclusive_correction_prompt_v69318(prompt_text, edit_direc
     )
 
 
+
+def _graphic_v69319_current_turn_edit_asset_ids():
+    values = st.session_state.get("_graphic_v69319_current_turn_edit_asset_ids") or []
+    return {str(x or "").strip() for x in values if str(x or "").strip()}
+
+
+def _graphic_v69319_uploaded_item_digest(item):
+    try:
+        raw = bytes(item.getvalue() or b"")
+    except Exception:
+        return "", b""
+    return (hashlib.sha256(raw).hexdigest() if raw else ""), raw
+
+
+def _graphic_v69319_icon_like_request(prompt_text, name=""):
+    filename = str(name or "").casefold()
+    prompt = str(prompt_text or "").casefold()
+    if re.search(r"\b(icon|logo|badge|emblem|symbol|4xe|carplay|android[ _-]?auto)\b", filename, flags=re.I):
+        return True
+    # Generic filenames such as image.png are treated as icon assets only when the
+    # user's wording explicitly links the attached/uploaded image to an icon/logo.
+    return bool(re.search(
+        r"(?:replace|use|insert|implement|apply).{0,80}(?:attached|uploaded|this) .{0,30}(?:icon|logo|badge|emblem|symbol)|"
+        r"(?:icon|logo|badge|emblem|symbol).{0,80}(?:attached|uploaded|this image)",
+        prompt, flags=re.I,
+    ))
+
+
+def _graphic_v69319_explicit_product_replacement(prompt_text):
+    value = str(prompt_text or "").casefold()
+    return bool(re.search(
+        r"\b(?:replace|swap|change|use)\b.{0,80}\b(?:product|unit|head unit|screen unit|radio unit|hero product)\b|"
+        r"\b(?:new product|new unit|replacement product|replacement unit)\b",
+        value, flags=re.I,
+    ))
+
+
+def _graphic_v69319_remove_uniform_background(raw, name="edit-asset"):
+    """Deterministically isolate a logo/icon from a light or uniform border background.
+
+    Returns original bytes unchanged when the asset is already transparent or when a
+    safe border-connected background cannot be established. The result dictionary
+    records whether alpha isolation was proven.
+    """
+    result = {"bytes": bytes(raw or b""), "mime": "image/png", "removed": False, "confidence": 0.0, "bbox": None}
+    if not raw or Image is None:
+        return result
+    try:
+        import numpy as np
+        from collections import deque
+        im = Image.open(io.BytesIO(raw)).convert("RGBA")
+        a = np.asarray(im.getchannel("A"), dtype=np.uint8)
+        if int((a < 250).sum()) > max(16, int(a.size * 0.002)):
+            # Existing alpha is already meaningful.
+            buf = io.BytesIO(); im.save(buf, format="PNG", optimize=True)
+            result.update({"bytes": buf.getvalue(), "removed": True, "confidence": 1.0, "bbox": im.getbbox()})
+            return result
+        rgb = np.asarray(im.convert("RGB"), dtype=np.int16)
+        h, w = rgb.shape[:2]
+        border = np.concatenate([rgb[0,:,:], rgb[-1,:,:], rgb[:,0,:], rgb[:,-1,:]], axis=0)
+        bg = np.median(border, axis=0)
+        dist = np.sqrt(((rgb - bg.reshape(1,1,3)) ** 2).sum(axis=2))
+        # Require a reasonably uniform border; this prevents accidental removal from photos.
+        border_dist = np.sqrt(((border - bg.reshape(1,3)) ** 2).sum(axis=1))
+        uniform_fraction = float((border_dist <= 34.0).mean()) if border_dist.size else 0.0
+        if uniform_fraction < 0.72:
+            return result
+        candidate_bg = dist <= 38.0
+        seen = np.zeros((h,w), dtype=bool)
+        q = deque()
+        for x in range(w):
+            if candidate_bg[0,x]: seen[0,x]=True; q.append((0,x))
+            if candidate_bg[h-1,x] and not seen[h-1,x]: seen[h-1,x]=True; q.append((h-1,x))
+        for y in range(h):
+            if candidate_bg[y,0] and not seen[y,0]: seen[y,0]=True; q.append((y,0))
+            if candidate_bg[y,w-1] and not seen[y,w-1]: seen[y,w-1]=True; q.append((y,w-1))
+        while q:
+            y,x=q.popleft()
+            for ny,nx in ((y-1,x),(y+1,x),(y,x-1),(y,x+1)):
+                if 0<=ny<h and 0<=nx<w and candidate_bg[ny,nx] and not seen[ny,nx]:
+                    seen[ny,nx]=True; q.append((ny,nx))
+        alpha = np.where(seen, 0, 255).astype(np.uint8)
+        fg_fraction = float((alpha > 0).mean())
+        if not (0.01 <= fg_fraction <= 0.92):
+            return result
+        out = im.copy(); out.putalpha(Image.fromarray(alpha, mode="L"))
+        bbox = out.getbbox()
+        if not bbox:
+            return result
+        pad = max(2, int(min(w,h)*0.015))
+        x0,y0,x1,y1=bbox
+        bbox=(max(0,x0-pad),max(0,y0-pad),min(w,x1+pad),min(h,y1+pad))
+        out = out.crop(bbox)
+        buf=io.BytesIO(); out.save(buf,format="PNG",optimize=True)
+        confidence = max(0.0,min(1.0,uniform_fraction * (1.0 if fg_fraction < 0.80 else 0.9)))
+        result.update({"bytes":buf.getvalue(),"removed":True,"confidence":round(confidence,4),"bbox":list(bbox)})
+        return result
+    except Exception as error:
+        diagnostic_log("graphic_v69319_edit_asset_background_remove_failed", error_type=type(error).__name__, error=str(error)[:400], name=str(name or ""))
+        return result
+
+
+def _graphic_v69319_current_turn_edit_items(role_items, prompt_text):
+    """Return only images uploaded on THIS user turn, never historical product/reference assets.
+
+    If a durable Streamlit resume lost the process-local current-turn marker, recover
+    only non-authority images from the exact resumed job inputs. Active Product and
+    Reference SHA values remain excluded deterministically.
+    """
+    wanted = _graphic_v69319_current_turn_edit_asset_ids()
+    state = get_graphic_project_state() or {}
+    active_ids = {str(state.get("active_product_id") or ""), str(state.get("active_reference_id") or "")} - {""}
+    if not wanted:
+        recoverable=set()
+        for candidate in role_items or []:
+            if not isinstance(candidate,dict):
+                continue
+            digest,_raw=_graphic_v69319_uploaded_item_digest(candidate.get("file")) if candidate.get("file") is not None else ("",b"")
+            role=str(candidate.get("role") or "").casefold()
+            if digest and digest not in active_ids and role != "edit_base":
+                recoverable.add(digest)
+        if recoverable:
+            wanted=recoverable
+            diagnostic_log("graphic_v69319_current_turn_edit_assets_resume_recovered", count=len(wanted), ids=[x[:20] for x in sorted(wanted)])
+    output=[]
+    for item in role_items or []:
+        if not isinstance(item,dict):
+            continue
+        file_obj=item.get("file")
+        digest, raw = _graphic_v69319_uploaded_item_digest(file_obj) if file_obj is not None else ("",b"")
+        if not digest or digest not in wanted or not raw:
+            continue
+        name=str(item.get("name") or getattr(file_obj,"name","edit_asset.png") or "edit_asset.png")
+        mime=str(getattr(file_obj,"type","") or "image/png")
+        removal={"bytes":raw,"mime":mime,"removed":False,"confidence":0.0,"bbox":None}
+        if _graphic_v69319_icon_like_request(prompt_text,name):
+            removal=_graphic_v69319_remove_uniform_background(raw,name)
+            # An icon/logo replacement with an opaque uniform background must be isolated safely.
+            if not removal.get("removed"):
+                raise _GraphicProtectedFollowupStop(
+                    "The newly uploaded icon/logo could not be isolated from its background safely. The previous artwork remains authoritative.",
+                    preserved_images=_graphic_v69316_preserved_followup_images((get_graphic_project_state() or {}).get("latest_generated") or {}, route="exclusive_followup_current_canvas_v69319", message="current-turn edit asset background isolation failed"),
+                    route="exclusive_followup_current_canvas_v69319", stage="edit_asset_background_isolation_failed",
+                )
+        prepared=ManagedUploadedFile(
+            bytes(removal.get("bytes") or raw),
+            Path(name).stem + "_transparent_v69319.png" if removal.get("removed") else name,
+            "image/png" if removal.get("removed") else mime,
+            graphic_role="supporting",
+            graphic_asset_id=digest,
+        )
+        output.append({
+            "file":prepared,"name":prepared.name,"role":"supporting_image",
+            "reason":"v69319 current-turn edit asset only",
+            "current_turn_edit_asset_v69319":True,
+            "source_sha256_v69319":digest,
+            "background_removed_v69319":bool(removal.get("removed")),
+            "background_removal_confidence_v69319":float(removal.get("confidence") or 0.0),
+        })
+    return output
+
+
+def _graphic_v69319_feature_labels(campaign_spec, prompt_text=""):
+    labels=[str(x or "").strip() for x in list((campaign_spec or {}).get("feature_labels") or []) if str(x or "").strip()][:8]
+    state=get_graphic_project_state() or {}
+    if len(labels) < 4:
+        stored_spec=dict(state.get("campaign_spec") or {})
+        stored_labels=[str(x or "").strip() for x in list(stored_spec.get("feature_labels") or []) if str(x or "").strip()][:8]
+        if len(stored_labels) >= len(labels):
+            labels=stored_labels
+    if not labels:
+        active_ref=str(state.get("active_reference_id") or "")
+        manifests=dict(state.get("reference_icon_manifests_v68995") or {})
+        candidates=[dict(v) for v in manifests.values() if isinstance(v,dict) and (not active_ref or str(v.get("active_reference_id") or "")==active_ref)]
+        if candidates:
+            labels=[str(x or "").strip() for x in list(candidates[-1].get("upper_labels") or []) if str(x or "").strip()][:8]
+    return labels
+
+
+def _graphic_v69319_force_connectivity_slots(labels):
+    labels=list(labels or [])[:8]
+    if len(labels)<4:
+        return labels
+    sem=[_graphic_v68994_icon_semantic(x) for x in labels]
+    car=next((i for i,s in enumerate(sem) if s=="carplay"),None)
+    aa=next((i for i,s in enumerate(sem) if s=="android_auto"),None)
+    if car is None or aa is None or car==aa:
+        return labels
+    anchors=[labels[car],labels[aa]]
+    remaining=[x for i,x in enumerate(labels) if i not in {car,aa}]
+    while len(remaining)<6:
+        remaining.append("")
+    # Reference contract: row 1, columns 3 and 4 are CarPlay + Android Auto.
+    result=remaining[:2]+anchors+remaining[2:6]
+    return result[:8]
+
+
+def _graphic_v69319_asset_matches_label(item,label,prompt_text=""):
+    value=(str(label or "")+" "+str(prompt_text or "")+" "+str((item or {}).get("name") or "")).casefold()
+    if "4xe" in str(label or "").casefold() and "4xe" in value:
+        return True
+    tokens=[t for t in re.findall(r"[a-z0-9]+",str(label or "").casefold()) if len(t)>=3]
+    name=str((item or {}).get("name") or "").casefold()
+    return bool(tokens and any(t in name for t in tokens))
+
+
+def _graphic_v69319_feature_grid_repair(result, campaign_spec, reference_blueprint, edit_items, prompt_text=""):
+    """Deterministically redraw only the reference feature grid for requested icon/slot edits."""
+    if Image is None or not isinstance(result,dict):
+        return result,{"applied":False,"reason":"no-image-engine"}
+    labels=_graphic_v69319_force_connectivity_slots(_graphic_v69319_feature_labels(campaign_spec,prompt_text))
+    if len(labels)<4:
+        return result,{"applied":False,"reason":"feature-labels-unavailable"}
+    raw,_=data_url_to_bytes(str(result.get("data_url") or ""))
+    if not raw:
+        return result,{"applied":False,"reason":"result-bytes-unavailable"}
+    try:
+        base=Image.open(io.BytesIO(raw)).convert("RGBA")
+        W,H=base.size
+        bp=_graphic_safe_reference_blueprint_v16000(reference_blueprint or {})
+        box=list((bp.get("normalized_boxes") or {}).get("feature_matrix_box") or [0.57,0.035,0.395,0.285])
+        x,y,w,h=[int(round(v*s)) for v,s in zip(box,(W,H,W,H))]
+        x=max(0,min(W-1,x)); y=max(0,min(H-1,y)); w=max(20,min(W-x,w)); h=max(20,min(H-y,h))
+        # Locally neutralize only the feature-grid area; all pixels outside remain exact.
+        region=base.crop((x,y,x+w,y+h)).filter(ImageFilter.GaussianBlur(radius=max(5,int(min(w,h)*0.035))))
+        overlay=Image.new("RGBA",(w,h),(255,255,255,0)); od=ImageDraw.Draw(overlay)
+        od.rounded_rectangle((0,0,w-1,h-1),radius=max(8,int(H*0.012)),fill=(248,250,253,220),outline=(18,42,78,90),width=1)
+        region=Image.alpha_composite(region,overlay)
+        base.paste(region,(x,y))
+        draw=ImageDraw.Draw(base)
+        cols,rows=4,2; cw=w/cols; ch=h/rows
+        navy=(12,36,82,255); divider=(70,94,128,120)
+        font=_graphic_font(max(15,int(H*0.020)),False)
+        asset_usage=[]
+        for idx,label in enumerate(labels[:8]):
+            r,c=divmod(idx,cols); x0=int(x+c*cw); y0=int(y+r*ch)
+            if c: draw.line((x0,y0+8,x0,y0+int(ch)-8),fill=divider,width=1)
+            if r: draw.line((x0+5,y0,x0+int(cw)-5,y0),fill=divider,width=1)
+            ib=(int(x0+cw*0.28),int(y0+ch*0.06),int(x0+cw*0.72),int(y0+ch*0.43))
+            matched=next((it for it in edit_items or [] if _graphic_v69319_asset_matches_label(it,label,prompt_text)),None)
+            used_asset=False
+            if matched:
+                try:
+                    ar,_=_graphic_v69319_uploaded_item_digest(matched.get("file"))
+                    img=Image.open(io.BytesIO((matched.get("file").getvalue()))).convert("RGBA")
+                    maxw,maxh=max(1,ib[2]-ib[0]),max(1,ib[3]-ib[1]); img.thumbnail((maxw,maxh),Image.Resampling.LANCZOS)
+                    px=ib[0]+(maxw-img.width)//2; py=ib[1]+(maxh-img.height)//2
+                    base.alpha_composite(img,(px,py)); used_asset=True
+                    asset_usage.append({"label":label,"asset":str(matched.get("name") or ""),"sha256":str(matched.get("source_sha256_v69319") or ar)[:20],"background_removed":bool(matched.get("background_removed_v69319"))})
+                except Exception:
+                    used_asset=False
+            if not used_asset:
+                sem=_graphic_v68994_icon_semantic(label)
+                if not _graphic_draw_reference_connectivity_icon_v68853(draw,ib,sem,navy):
+                    _graphic_draw_semantic_feature_icon_v68866(draw,ib,sem,navy,fallback_index=idx)
+            lines=_graphic_wrap_text_v3200(draw,label,font,int(cw*0.90),2)
+            ty=int(y0+ch*0.57)
+            for line in lines:
+                tw=text_width(line,font)
+                draw.text((int(x0+(cw-tw)/2),ty),line,font=font,fill=navy)
+                ty+=max(16,int(H*0.021))
+        buf=io.BytesIO(); base.save(buf,format="PNG",optimize=True)
+        fixed=dict(result); fixed["data_url"]="data:image/png;base64,"+base64.b64encode(buf.getvalue()).decode("ascii")
+        report={"applied":True,"box_px":[x,y,w,h],"labels":labels[:8],"carplay_index":next((i for i,l in enumerate(labels) if _graphic_v68994_icon_semantic(l)=="carplay"),-1),"android_auto_index":next((i for i,l in enumerate(labels) if _graphic_v68994_icon_semantic(l)=="android_auto"),-1),"asset_usage":asset_usage}
+        fixed["graphic_v69319_feature_grid_repair"]=report
+        return fixed,report
+    except Exception as error:
+        diagnostic_log("graphic_v69319_feature_grid_repair_failed",error_type=type(error).__name__,error=str(error)[:500])
+        return result,{"applied":False,"reason":type(error).__name__}
+
+
+def _graphic_v69319_pixel_preservation_qa(result,current_canvas,edit_directive,reference_blueprint=None):
+    """Visual-independent guard: compare protected pixels outside explicitly editable zones."""
+    if Image is None:
+        return {"available":False,"passed":False,"reason":"no-image-engine"}
+    rr,_=data_url_to_bytes(str((result or {}).get("data_url") or "")); br,_=data_url_to_bytes(str((current_canvas or {}).get("data_url") or ""))
+    if not rr or not br:
+        return {"available":False,"passed":False,"reason":"missing-bytes"}
+    try:
+        import numpy as np
+        a=np.asarray(Image.open(io.BytesIO(br)).convert("RGB"),dtype=np.int16)
+        b=np.asarray(Image.open(io.BytesIO(rr)).convert("RGB"),dtype=np.int16)
+        if a.shape!=b.shape:
+            return {"available":True,"passed":False,"reason":"size-changed"}
+        H,W=a.shape[:2]; mask=np.ones((H,W),dtype=bool)
+        bp=_graphic_safe_reference_blueprint_v16000(reference_blueprint or {}); boxes=dict(bp.get("normalized_boxes") or {})
+        target_map={"feature_matrix":["feature_matrix_box"],"headline":["headline_box","compatibility_box","tagline_box"],"logo":["logo_box"],"bottom_benefit_bar":["bottom_bar_box"],"vehicle":["vehicle_box"],"hero_product":["hero_product_box"],"layout":["headline_box","compatibility_box","tagline_box","feature_matrix_box","hero_product_box","vehicle_box","bottom_bar_box","logo_box"]}
+        targets=set((edit_directive or {}).get("change_targets") or [])
+        if "background" in targets:
+            # Protect every foreground zone; background itself is editable.
+            mask[:]=False
+            protected=["headline_box","compatibility_box","tagline_box","feature_matrix_box","hero_product_box","vehicle_box","bottom_bar_box","logo_box"]
+            for key in protected:
+                box=boxes.get(key)
+                if not box: continue
+                x,y,w,h=box; x0=max(0,int(x*W)); y0=max(0,int(y*H)); x1=min(W,int((x+w)*W)); y1=min(H,int((y+h)*H)); mask[y0:y1,x0:x1]=True
+        else:
+            for target in targets:
+                for key in target_map.get(target,[]):
+                    box=boxes.get(key)
+                    if not box: continue
+                    x,y,w,h=box; pad=0.012
+                    x0=max(0,int((x-pad)*W)); y0=max(0,int((y-pad)*H)); x1=min(W,int((x+w+pad)*W)); y1=min(H,int((y+h+pad)*H)); mask[y0:y1,x0:x1]=False
+        if not mask.any():
+            return {"available":False,"passed":False,"reason":"no-protected-pixels"}
+        d=np.abs(a-b).mean(axis=2)[mask]
+        mean=float(d.mean()); changed=float((d>28.0).mean()); p95=float(np.percentile(d,95))
+        passed=bool(mean<=13.5 and changed<=0.22 and p95<=40.0)
+        return {"available":True,"passed":passed,"mean_delta":round(mean,4),"changed_fraction":round(changed,4),"p95_delta":round(p95,4),"protected_pixel_count":int(mask.sum())}
+    except Exception as error:
+        return {"available":False,"passed":False,"reason":type(error).__name__}
+
+
 def _graphic_v69318_followup_transport_qa(result, current_canvas, edit_directive=None):
     result_raw, _ = data_url_to_bytes(str((result or {}).get("data_url") or ""))
     base_raw, _ = data_url_to_bytes(str((current_canvas or {}).get("data_url") or ""))
@@ -32116,10 +32440,18 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 raise _GraphicProtectedFollowupStop(
                     "The latest generated artwork is unavailable for this follow-up. No broad regeneration fallback is allowed.",
                     preserved_images=[],
-                    route="exclusive_followup_current_canvas_v69318",
+                    route="exclusive_followup_current_canvas_v69319",
                     stage="missing_latest_generated",
                 )
             correction_v69318 = _graphic_followup_exclusive_correction_prompt_v69318(prompt_text, active_edit)
+            current_turn_edit_items_v69319 = _graphic_v69319_current_turn_edit_items(role_items, prompt_text)
+            if current_turn_edit_items_v69319:
+                correction_v69318 += (
+                    "\n\nCURRENT-TURN EDIT ASSETS: These attached images were uploaded specifically for THIS edit. "
+                    "Use them only for the requested replacement/insertion. They are not product or style authorities. "
+                    "If an asset is an icon/logo, its background has already been removed deterministically. "
+                    "Preserve its visible artwork and aspect ratio exactly."
+                )
             current_raw_v69318, current_mime_v69318 = data_url_to_bytes(current_canvas_v69318.get("data_url"))
             current_upload_v69318 = ManagedUploadedFile(
                 current_raw_v69318,
@@ -32138,17 +32470,60 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 "graphic_v69318_exclusive_followup_intercepted",
                 edit_kind=edit_kind,
                 has_edit_base=bool(current_raw_v69318),
-                generation_role_count=len(exclusive_items_v69318),
+                generation_role_count=len(exclusive_items_v69318) + len(current_turn_edit_items_v69319),
                 original_product_images_sent=0,
                 original_style_references_sent=0,
+                current_turn_edit_assets_sent=len(current_turn_edit_items_v69319),
+                current_turn_edit_asset_names=[str(x.get("name") or "") for x in current_turn_edit_items_v69319],
+                current_turn_edit_asset_background_removed=[bool(x.get("background_removed_v69319")) for x in current_turn_edit_items_v69319],
                 change_targets=list(active_edit.get("change_targets") or []),
                 edit_base_sha256=(hashlib.sha256(current_raw_v69318).hexdigest()[:20] if current_raw_v69318 else ""),
             )
+            feature_only_v69319 = set(active_edit.get("change_targets") or []) == {"feature_matrix"}
+            if feature_only_v69319:
+                local_feature_result_v69319, local_feature_report_v69319 = _graphic_v69319_feature_grid_repair(
+                    dict(current_canvas_v69318), campaign_spec, reference_blueprint, current_turn_edit_items_v69319, prompt_text
+                )
+                diagnostic_log("graphic_v69319_feature_only_local_repair", **local_feature_report_v69319)
+                local_pixel_qa_v69319 = _graphic_v69319_pixel_preservation_qa(
+                    local_feature_result_v69319, current_canvas_v69318, active_edit, reference_blueprint
+                )
+                if not local_feature_report_v69319.get("applied") or not local_pixel_qa_v69319.get("passed"):
+                    raise _GraphicProtectedFollowupStop(
+                        "The requested feature-grid edit could not be applied deterministically. The previous artwork remains authoritative.",
+                        preserved_images=_graphic_v69316_preserved_followup_images(current_canvas_v69318, route="feature_grid_local_v69319", message="deterministic feature grid edit failed"),
+                        route="feature_grid_local_v69319", stage="feature_grid_local_failed",
+                    )
+                local_feature_result_v69319["graphic_v69319_feature_only_local_path"] = True
+                local_feature_result_v69319["graphic_v69319_pixel_preservation_qa"] = local_pixel_qa_v69319
+                local_feature_result_v69319["professional_qa"] = _graphic_v69318_followup_transport_qa(local_feature_result_v69319, current_canvas_v69318, active_edit)
+                local_feature_result_v69319["graphic_v69318_generation_inputs"] = {
+                    "edit_base_only": not bool(current_turn_edit_items_v69319),
+                    "original_product_images_sent": 0,
+                    "original_style_references_sent": 0,
+                    "current_turn_edit_assets_sent": len(current_turn_edit_items_v69319),
+                    "current_turn_edit_asset_names": [str(x.get("name") or "") for x in current_turn_edit_items_v69319],
+                    "feature_grid_repair_v69319": local_feature_report_v69319,
+                }
+                local_feature_result_v69319["runtime_audit"] = _graphic_runtime_audit_v10000(
+                    local_feature_result_v69319, route="feature_grid_local_v69319", provider_calls=0, retries=0, stages=stage_times
+                )
+                _graphic_update_metrics_v8000(elapsed=time.perf_counter()-started_at, provider_calls=0, local_edit=True, route="feature_grid_local_v69319", stages=stage_times)
+                diagnostic_log(
+                    "graphic_v69319_feature_only_local_published",
+                    current_turn_edit_assets_sent=len(current_turn_edit_items_v69319),
+                    carplay_index=local_feature_report_v69319.get("carplay_index"),
+                    android_auto_index=local_feature_report_v69319.get("android_auto_index"),
+                    asset_usage=local_feature_report_v69319.get("asset_usage") or [],
+                )
+                _graphic_progress_update_v3300(status, "Feature-grid follow-up completed from the current artwork.", "complete")
+                return [local_feature_result_v69319]
+
             provider_started_v69318 = time.perf_counter()
             followup_result_v69318 = _graphic_safe_optional_call(
                 "graphic_v69318_exclusive_followup_provider_failed",
                 lambda: _graphic_correction_result_v3300(
-                    current_canvas_v69318, prompt_text, [], output_size,
+                    current_canvas_v69318, prompt_text, current_turn_edit_items_v69319, output_size,
                     {}, vehicle_profile, rejected_guidance, correction_v69318,
                 ),
                 None,
@@ -32165,10 +32540,30 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     geometry=geometry, campaign_spec=campaign_spec, product_mode=product_mode,
                     structure_profile=structure_profile, has_edit_base=True,
                 )
+                feature_grid_report_v69319 = {"applied": False}
+                feature_request_v69319 = bool(
+                    "feature_matrix" in set(active_edit.get("change_targets") or [])
+                    or re.search(r"\b(carplay|android auto|4xe|icon|icons|feature grid|upper[- ]?right)\b", str(prompt_text or ""), flags=re.I)
+                )
+                if feature_request_v69319:
+                    followup_result_v69318, feature_grid_report_v69319 = _graphic_v69319_feature_grid_repair(
+                        followup_result_v69318, campaign_spec, reference_blueprint, current_turn_edit_items_v69319, prompt_text
+                    )
+                    diagnostic_log("graphic_v69319_feature_grid_repair", **feature_grid_report_v69319)
+                    if not feature_grid_report_v69319.get("applied"):
+                        raise _GraphicProtectedFollowupStop(
+                            "The feature-grid edit could not be aligned deterministically to the reference layout. The previous artwork remains authoritative.",
+                            preserved_images=_graphic_v69316_preserved_followup_images(current_canvas_v69318, route="exclusive_followup_current_canvas_v69319", message="feature grid deterministic repair unavailable"),
+                            route="exclusive_followup_current_canvas_v69319", stage="feature_grid_repair_failed",
+                        )
                 followup_result_v69318["professional_qa"] = _graphic_v69318_followup_transport_qa(
                     followup_result_v69318, current_canvas_v69318, active_edit
                 )
                 deterministic_pass_v69318 = bool((followup_result_v69318.get("professional_qa") or {}).get("passed"))
+                pixel_preservation_v69319 = _graphic_v69319_pixel_preservation_qa(
+                    followup_result_v69318, current_canvas_v69318, active_edit, reference_blueprint
+                )
+                followup_result_v69318["graphic_v69319_pixel_preservation_qa"] = pixel_preservation_v69319
                 # Visual preservation review uses original assets for QA only; they are
                 # never passed into the generation call above.
                 visual_review_v69318 = _graphic_safe_optional_call(
@@ -32196,33 +32591,37 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     scores=visual_scores_v69318,
                     missing=visual_missing_v69318,
                 )
-                # Fail closed on deterministic failure. If visual QA is available, it
-                # is also gating. If it is unavailable, generation is still safe from
-                # reference-unit contamination because generation received only edit_base.
-                if (not deterministic_pass_v69318) or (visual_available_v69318 and visual_failed_v69318):
+                # v69319: visual QA unavailable is no longer publish-open. When provider
+                # visual review is unavailable, deterministic protected-pixel comparison
+                # becomes the release gate. This prevents silent whole-ad redraws.
+                pixel_pass_v69319 = bool(pixel_preservation_v69319.get("available") and pixel_preservation_v69319.get("passed"))
+                if (not deterministic_pass_v69318) or (visual_available_v69318 and visual_failed_v69318) or ((not visual_available_v69318) and (not pixel_pass_v69319)):
                     raise _GraphicProtectedFollowupStop(
                         "The protected follow-up did not preserve the current artwork closely enough. The previous artwork remains authoritative.",
                         preserved_images=_graphic_v69316_preserved_followup_images(
                             current_canvas_v69318,
-                            route="exclusive_followup_current_canvas_v69318",
+                            route="exclusive_followup_current_canvas_v69319",
                             message="v69318 follow-up preservation gate failed",
                         ),
-                        route="exclusive_followup_current_canvas_v69318",
+                        route="exclusive_followup_current_canvas_v69319",
                         stage="preservation_gate_failed",
                     )
                 followup_result_v69318["graphic_v69318_exclusive_followup_path"] = True
                 followup_result_v69318["graphic_v69318_generation_inputs"] = {
-                    "edit_base_only": True,
+                    "edit_base_only": not bool(current_turn_edit_items_v69319),
                     "original_product_images_sent": 0,
                     "original_style_references_sent": 0,
+                    "current_turn_edit_assets_sent": len(current_turn_edit_items_v69319),
+                    "current_turn_edit_asset_names": [str(x.get("name") or "") for x in current_turn_edit_items_v69319],
+                    "feature_grid_repair_v69319": feature_grid_report_v69319,
                 }
                 followup_result_v69318["runtime_audit"] = _graphic_runtime_audit_v10000(
-                    followup_result_v69318, route="exclusive_followup_current_canvas_v69318",
+                    followup_result_v69318, route="exclusive_followup_current_canvas_v69319",
                     provider_calls=1, retries=0, stages=stage_times,
                 )
                 _graphic_update_metrics_v8000(
                     elapsed=time.perf_counter()-started_at, provider_calls=1, local_edit=True,
-                    route="exclusive_followup_current_canvas_v69318", stages=stage_times,
+                    route="exclusive_followup_current_canvas_v69319", stages=stage_times,
                 )
                 diagnostic_log(
                     "graphic_v69318_exclusive_followup_published",
@@ -32236,10 +32635,10 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                 "The protected follow-up provider returned no usable image. The previous artwork remains authoritative.",
                 preserved_images=_graphic_v69316_preserved_followup_images(
                     current_canvas_v69318,
-                    route="exclusive_followup_current_canvas_v69318",
+                    route="exclusive_followup_current_canvas_v69319",
                     message="v69318 provider returned no usable image",
                 ),
-                route="exclusive_followup_current_canvas_v69318",
+                route="exclusive_followup_current_canvas_v69319",
                 stage="provider_returned_no_image",
             )
 
@@ -86717,9 +87116,36 @@ else:
             graphic_asset_role_prompt_v68620 = (
                 "" if attachment_only_mode else interaction_prompt
             )
-            remember_graphic_project_assets(
+            project_before_current_upload_v69319 = get_graphic_project_state() or {}
+            if (project_before_current_upload_v69319.get("latest_generated") or {}).get("data_url") and not _graphic_v69319_explicit_product_replacement(graphic_asset_role_prompt_v68620):
+                for current_edit_upload_v69319 in (effective_uploaded_files or []):
+                    if not str(getattr(current_edit_upload_v69319, "type", "") or "").casefold().startswith("image/"):
+                        continue
+                    try:
+                        current_edit_upload_v69319.graphic_role = "supporting"
+                    except Exception:
+                        pass
+                diagnostic_log("graphic_v69319_current_turn_assets_protected_from_product_authority", upload_count=sum(1 for x in (effective_uploaded_files or []) if str(getattr(x,"type","") or "").casefold().startswith("image/")))
+            added_assets_v69319 = remember_graphic_project_assets(
                 effective_uploaded_files,
                 graphic_asset_role_prompt_v68620,
+            )
+            current_turn_ids_v69319 = []
+            for current_upload_v69319 in (effective_uploaded_files or []):
+                if not str(getattr(current_upload_v69319, "type", "") or "").casefold().startswith("image/"):
+                    continue
+                try:
+                    current_raw_v69319 = bytes(current_upload_v69319.getvalue() or b"")
+                except Exception:
+                    current_raw_v69319 = b""
+                if current_raw_v69319:
+                    current_turn_ids_v69319.append(hashlib.sha256(current_raw_v69319).hexdigest())
+            st.session_state["_graphic_v69319_current_turn_edit_asset_ids"] = list(dict.fromkeys(current_turn_ids_v69319))
+            diagnostic_log(
+                "graphic_v69319_current_turn_edit_assets_recorded",
+                count=len(st.session_state.get("_graphic_v69319_current_turn_edit_asset_ids") or []),
+                newly_added_count=len(added_assets_v69319 or []),
+                ids=[str(x)[:20] for x in (st.session_state.get("_graphic_v69319_current_turn_edit_asset_ids") or [])],
             )
         graphic_generation_files = (
             graphic_project_uploaded_files(effective_uploaded_files)
