@@ -1,6 +1,6 @@
 # ============================================================
 # AutoTecPro AI — Final Production Application
-# Release: v69319 (v69318 + controlled current-turn edit assets + deterministic feature-slot alignment + preservation QA)
+# Release: v69320 (v69319 + first-image interruption recovery + protected-stop hardening + edit-asset runtime fixes)
 #
 # Protected production authorities:
 # - Graphic Reference first-generation: v69298 / isolated v69272-v69248
@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69319"
-AUTOTECPRO_RELEASE_BUILD = "stable-v69318-controlled-edit-assets-slot-lock-v69319-20260902"
+AUTOTECPRO_RELEASE_VERSION = "v69320"
+AUTOTECPRO_RELEASE_BUILD = "v69320-runtime-recovery-edit-asset-hardening-20260902"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -50,6 +50,31 @@ class _GraphicProtectedFollowupStop(RuntimeError):
         self.preserved_images = list(preserved_images or [])
         self.route = str(route or "")
         self.stage = str(stage or "")
+
+
+def _graphic_v69320_is_protected_followup_stop(error):
+    """Recognize protected follow-up stop signals even across isolated namespaces.
+
+    Some protected Graphic engines execute in isolated module-style namespaces, so
+    class identity can differ even when the exception contract is the same. This
+    predicate is intentionally narrow: exact class-name match, or the complete
+    protected-stop attribute contract.
+    """
+    if error is None:
+        return False
+    try:
+        if isinstance(error, _GraphicProtectedFollowupStop):
+            return True
+    except Exception:
+        pass
+    if type(error).__name__ == "_GraphicProtectedFollowupStop":
+        return True
+    return bool(
+        hasattr(error, "preserved_images")
+        and hasattr(error, "route")
+        and hasattr(error, "stage")
+        and str(getattr(error, "route", "") or "").strip()
+    )
 
 
 def _graphic_v69316_preserved_followup_images(current_canvas, *, route="", message=""):
@@ -14929,6 +14954,29 @@ def _graphic_v68848_upload_objects(records):
     return result
 
 
+def _graphic_v69320_interrupted_job_reclaim_allowed(job, existing_lease):
+    """Allow only the exact interrupted Graphic job to reclaim its pre-interruption lease.
+
+    v69320 extends the proven v69317 follow-up protection to first-image generation
+    without changing any generation/provider behavior. The lease must predate the
+    exact interruption checkpoint; a resumed lease can therefore never be stolen.
+    """
+    if not isinstance(job, dict) or not isinstance(existing_lease, dict):
+        return False
+    if str(job.get("status") or "").strip().lower() != "retryable":
+        return False
+    if str(job.get("intent") or "").strip().lower() not in {"edit", "generate"}:
+        return False
+    if not bool(job.get("interrupted_graphic_reclaim_v69320")):
+        return False
+    try:
+        interrupted_at = float(job.get("interrupted_at_v69320") or 0.0)
+        claimed_at = float(existing_lease.get("claimed_at") or 0.0)
+    except Exception:
+        return False
+    return bool(interrupted_at > 0.0 and claimed_at > 0.0 and claimed_at <= interrupted_at)
+
+
 def _graphic_v69317_interrupted_followup_reclaim_allowed(job, existing_lease):
     """Allow only the exact interrupted follow-up job to reclaim its pre-interruption lease.
 
@@ -14980,6 +15028,26 @@ def _graphic_v68848_claim_lease(job):
                 _graphic_v68848_remove_paths([lease_path])
                 _graphic_v68848_upload_bytes(lease_path, payload, "application/json", upsert=False)
                 return token
+            if _graphic_v69320_interrupted_job_reclaim_allowed(job, existing):
+                try:
+                    _graphic_v68848_storage_bucket().remove([lease_path])
+                    _graphic_v68848_upload_bytes(lease_path, payload, "application/json", upsert=False)
+                    diagnostic_log(
+                        "graphic_v69320_interrupted_job_lease_reclaimed",
+                        job_id=str(job.get("job_id") or ""),
+                        intent=str(job.get("intent") or ""),
+                        old_claimed_at=float(existing.get("claimed_at") or 0.0),
+                        interrupted_at=float(job.get("interrupted_at_v69320") or 0.0),
+                    )
+                    return token
+                except Exception as reclaim_error_v69320:
+                    diagnostic_log(
+                        "graphic_v69320_interrupted_job_lease_reclaim_failed",
+                        job_id=str(job.get("job_id") or ""),
+                        error_type=type(reclaim_error_v69320).__name__,
+                        error=str(reclaim_error_v69320)[:500],
+                    )
+                    return None
             if _graphic_v69317_interrupted_followup_reclaim_allowed(job, existing):
                 # v69317: the previous script already checkpointed this exact edit as
                 # interrupted/retryable before rerun. Its old lease is therefore not
@@ -15012,6 +15080,10 @@ def _graphic_v68848_claim_lease(job):
         lease_key = f"lease:{job.get('job_id')}"
         existing = cache.setdefault("leases", {}).get(lease_key) or {}
         if float(existing.get("expires_at") or 0.0) >= now:
+            if _graphic_v69320_interrupted_job_reclaim_allowed(job, existing) or _graphic_v69317_interrupted_followup_reclaim_allowed(job, existing):
+                cache["leases"][lease_key] = lease
+                diagnostic_log("graphic_v69320_local_interrupted_lease_reclaimed", job_id=str(job.get("job_id") or ""))
+                return token
             return None
         cache["leases"][lease_key] = lease
         diagnostic_log("graphic_v68848_local_lease_fallback", job_id=str(job.get("job_id") or ""))
@@ -31166,12 +31238,44 @@ def _graphic_v69319_current_turn_edit_items(role_items, prompt_text):
             wanted=recoverable
             diagnostic_log("graphic_v69319_current_turn_edit_assets_resume_recovered", count=len(wanted), ids=[x[:20] for x in sorted(wanted)])
     output=[]
+    emitted=set()
+    snapshot = st.session_state.get("_graphic_v69320_current_turn_edit_asset_snapshot") or []
+    for record in snapshot:
+        if not isinstance(record, dict):
+            continue
+        digest=str(record.get("id") or "").strip(); raw=bytes(record.get("data") or b"")
+        if not digest or digest in active_ids or not raw or (wanted and digest not in wanted):
+            continue
+        name=str(record.get("name") or "edit_asset.png"); mime=str(record.get("type") or "image/png")
+        removal={"bytes":raw,"mime":mime,"removed":False,"confidence":0.0,"bbox":None}
+        if _graphic_v69319_icon_like_request(prompt_text,name):
+            removal=_graphic_v69319_remove_uniform_background(raw,name)
+            if not removal.get("removed"):
+                raise _GraphicProtectedFollowupStop(
+                    "The newly uploaded icon/logo could not be isolated from its background safely. The previous artwork remains authoritative.",
+                    preserved_images=_graphic_v69316_preserved_followup_images((get_graphic_project_state() or {}).get("latest_generated") or {}, route="exclusive_followup_current_canvas_v69320", message="current-turn edit asset background isolation failed"),
+                    route="exclusive_followup_current_canvas_v69320", stage="edit_asset_background_isolation_failed",
+                )
+        prepared=ManagedUploadedFile(
+            bytes(removal.get("bytes") or raw),
+            Path(name).stem + "_transparent_v69320.png" if removal.get("removed") else name,
+            "image/png" if removal.get("removed") else mime,
+            graphic_role="supporting", graphic_asset_id=digest,
+        )
+        output.append({
+            "file":prepared,"name":prepared.name,"role":"supporting_image",
+            "reason":"v69320 current-turn edit asset snapshot",
+            "current_turn_edit_asset_v69319":True,"source_sha256_v69319":digest,
+            "background_removed_v69319":bool(removal.get("removed")),
+            "background_remove_confidence_v69319":float(removal.get("confidence") or 0.0),
+        })
+        emitted.add(digest)
     for item in role_items or []:
         if not isinstance(item,dict):
             continue
         file_obj=item.get("file")
         digest, raw = _graphic_v69319_uploaded_item_digest(file_obj) if file_obj is not None else ("",b"")
-        if not digest or digest not in wanted or not raw:
+        if not digest or digest not in wanted or digest in emitted or not raw:
             continue
         name=str(item.get("name") or getattr(file_obj,"name","edit_asset.png") or "edit_asset.png")
         mime=str(getattr(file_obj,"type","") or "image/png")
@@ -31258,6 +31362,7 @@ def _graphic_v69319_feature_grid_repair(result, campaign_spec, reference_bluepri
     if not raw:
         return result,{"applied":False,"reason":"result-bytes-unavailable"}
     try:
+        from PIL import ImageDraw, ImageFilter
         base=Image.open(io.BytesIO(raw)).convert("RGBA")
         W,H=base.size
         bp=_graphic_safe_reference_blueprint_v16000(reference_blueprint or {})
@@ -36593,6 +36698,17 @@ def generate_graphic_marketing_images(
             reason=reason,
         )
     except Exception as error:
+        # v69320: protected follow-up stops are terminal even when they originate
+        # from an isolated Graphic namespace with a different Python class identity.
+        # Never convert them into v3200/emergency broad-regeneration recovery.
+        if _graphic_v69320_is_protected_followup_stop(error):
+            diagnostic_log(
+                "graphic_v69320_protected_followup_terminal_rethrow",
+                error_type=type(error).__name__,
+                route=str(getattr(error, "route", "") or ""),
+                stage=str(getattr(error, "stage", "") or ""),
+            )
+            raise
         reason = (
             f"{type(error).__name__}:"
             f"{_graphic_compact_error_v4000(error)}"
@@ -87141,6 +87257,27 @@ else:
                 if current_raw_v69319:
                     current_turn_ids_v69319.append(hashlib.sha256(current_raw_v69319).hexdigest())
             st.session_state["_graphic_v69319_current_turn_edit_asset_ids"] = list(dict.fromkeys(current_turn_ids_v69319))
+            # v69320: preserve the exact bytes of current-turn edit assets separately
+            # from Product/Reference role classification. This snapshot exists only
+            # for the active turn and cannot become product/reference authority.
+            current_turn_snapshot_v69320 = []
+            if (project_before_current_upload_v69319.get("latest_generated") or {}).get("data_url") and not _graphic_v69319_explicit_product_replacement(graphic_asset_role_prompt_v68620):
+                for current_upload_v69320 in (effective_uploaded_files or []):
+                    if not str(getattr(current_upload_v69320, "type", "") or "").casefold().startswith("image/"):
+                        continue
+                    try:
+                        raw_v69320 = bytes(current_upload_v69320.getvalue() or b"")
+                    except Exception:
+                        raw_v69320 = b""
+                    if not raw_v69320:
+                        continue
+                    current_turn_snapshot_v69320.append({
+                        "id": hashlib.sha256(raw_v69320).hexdigest(),
+                        "name": str(getattr(current_upload_v69320, "name", "edit_asset.png") or "edit_asset.png"),
+                        "type": str(getattr(current_upload_v69320, "type", "image/png") or "image/png"),
+                        "data": raw_v69320,
+                    })
+            st.session_state["_graphic_v69320_current_turn_edit_asset_snapshot"] = current_turn_snapshot_v69320
             diagnostic_log(
                 "graphic_v69319_current_turn_edit_assets_recorded",
                 count=len(st.session_state.get("_graphic_v69319_current_turn_edit_asset_ids") or []),
@@ -88223,59 +88360,59 @@ else:
                 )
                 generated_images = []
 
-                # v69317 is deliberately follow-up-only. First-image interruption
-                # behavior remains byte-for-byte on the legacy path. For a second/
-                # third/later edit, checkpoint retryability and release the lease
-                # immediately inside the StopException handler, before Streamlit can
-                # terminate this script context. This closes the hosted v69315 race
-                # where post-catch cleanup never completed and the next rerun was
-                # blocked for the full 720-second lease TTL.
+                # v69320: checkpoint EVERY Graphic StopException immediately, including
+                # first-image generation. This is orchestration-only: provider payload,
+                # Graphic engine, product/reference authority and image bytes are unchanged.
+                # One interruption may resume once; repeated interruption remains bounded.
+                interrupted_at_v69320 = time.time()
+                max_attempts_v68844 = max(max_attempts_v68844, 2)
+                durable_job_v68844["max_attempts"] = max_attempts_v68844
+                durable_job_v68844["interrupted_graphic_reclaim_v69320"] = True
+                durable_job_v68844["interrupted_at_v69320"] = interrupted_at_v69320
+                durable_job_v68844["interrupted_from_attempt_v69320"] = current_attempt_v68844 + 1
                 if automatic_followup_edit_retry_v68843:
-                    interrupted_at_v69317 = time.time()
-                    # Follow-up jobs already receive a two-attempt budget. Preserve
-                    # that bounded behavior: one interrupted attempt may resume once,
-                    # but repeated StopException events cannot create an infinite rerun loop.
-                    max_attempts_v68844 = max(max_attempts_v68844, 2)
-                    durable_job_v68844["max_attempts"] = max_attempts_v68844
+                    # Retain v69317 fields for backward-compatible follow-up reclaim.
                     durable_job_v68844["interrupted_followup_reclaim_v69317"] = True
-                    durable_job_v68844["interrupted_at_v69317"] = interrupted_at_v69317
+                    durable_job_v68844["interrupted_at_v69317"] = interrupted_at_v69320
                     durable_job_v68844["interrupted_from_attempt_v69317"] = current_attempt_v68844 + 1
-                    _graphic_v68848_release_lease(durable_job_v68844)
-                    if current_attempt_v68844 + 1 < max_attempts_v68844:
-                        durable_job_v68844 = _graphic_update_durable_job_v68844(
-                            durable_job_v68844,
-                            status="retryable",
-                            attempt=current_attempt_v68844 + 1,
-                            error=generation_error_v68837,
-                        )
-                        diagnostic_log(
-                            "graphic_v69317_followup_interruption_checkpoint_committed",
-                            job_id=str(durable_job_v68844.get("job_id") or ""),
-                            next_attempt=current_attempt_v68844 + 2,
-                            max_attempts=max_attempts_v68844,
-                            interrupted_at=round(interrupted_at_v69317, 3),
-                        )
-                        _graphic_store_failure_notice_v69257(
-                            generation_error_v68837,
-                            "streamlit_interruption",
-                            will_retry=True,
-                        )
-                        st.session_state["current_assistant"] = "🎨 Graphic Marketing"
-                        st.rerun()
-                    else:
-                        followup_interruption_retry_exhausted_v69317 = True
-                        durable_job_v68844 = _graphic_update_durable_job_v68844(
-                            durable_job_v68844,
-                            status="failed",
-                            attempt=current_attempt_v68844 + 1,
-                            error=generation_error_v68837,
-                        )
-                        diagnostic_log(
-                            "graphic_v69317_followup_interruption_retry_exhausted",
-                            job_id=str(durable_job_v68844.get("job_id") or ""),
-                            attempt=current_attempt_v68844 + 1,
-                            max_attempts=max_attempts_v68844,
-                        )
+                _graphic_v68848_release_lease(durable_job_v68844)
+                if current_attempt_v68844 + 1 < max_attempts_v68844:
+                    durable_job_v68844 = _graphic_update_durable_job_v68844(
+                        durable_job_v68844,
+                        status="retryable",
+                        attempt=current_attempt_v68844 + 1,
+                        error=generation_error_v68837,
+                    )
+                    diagnostic_log(
+                        "graphic_v69320_interruption_checkpoint_committed",
+                        job_id=str(durable_job_v68844.get("job_id") or ""),
+                        intent=str(durable_job_v68844.get("intent") or ""),
+                        next_attempt=current_attempt_v68844 + 2,
+                        max_attempts=max_attempts_v68844,
+                        interrupted_at=round(interrupted_at_v69320, 3),
+                    )
+                    _graphic_store_failure_notice_v69257(
+                        generation_error_v68837,
+                        "streamlit_interruption",
+                        will_retry=True,
+                    )
+                    st.session_state["current_assistant"] = "🎨 Graphic Marketing"
+                    st.rerun()
+                else:
+                    followup_interruption_retry_exhausted_v69317 = True
+                    durable_job_v68844 = _graphic_update_durable_job_v68844(
+                        durable_job_v68844,
+                        status="failed",
+                        attempt=current_attempt_v68844 + 1,
+                        error=generation_error_v68837,
+                    )
+                    diagnostic_log(
+                        "graphic_v69320_interruption_retry_exhausted",
+                        job_id=str(durable_job_v68844.get("job_id") or ""),
+                        intent=str(durable_job_v68844.get("intent") or ""),
+                        attempt=current_attempt_v68844 + 1,
+                        max_attempts=max_attempts_v68844,
+                    )
             finally:
                 _graphic_v68874_release_transient_memory("after_graphic_generation")
                 st.session_state.pop("_graphic_v69264_durable_job_context", None)
@@ -88288,12 +88425,11 @@ else:
                 and retry_reason_v68848 == "streamlit_interruption"
                 and not automatic_followup_edit_retry_v68843
             ):
-                # v69253 legacy interruption behavior remains unchanged for first-image
-                # and non-follow-up jobs. v69317 handles follow-up interruption above.
-                max_attempts_v68844 = max(max_attempts_v68844, current_attempt_v68844 + 2)
-                durable_job_v68844["max_attempts"] = max_attempts_v68844
+                # v69320 handles first-image interruption inside the StopException
+                # handler before Streamlit can terminate the script context. Keep this
+                # legacy branch observational only to avoid a second retry-budget mutation.
                 diagnostic_log(
-                    "graphic_v69253_interruption_retry_budget_extended",
+                    "graphic_v69320_first_image_interruption_already_checkpointed",
                     job_id=str(durable_job_v68844.get("job_id") or ""),
                     current_attempt=current_attempt_v68844 + 1,
                     max_attempts=max_attempts_v68844,
