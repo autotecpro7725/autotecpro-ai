@@ -1,6 +1,6 @@
 # ============================================================
 # AutoTecPro AI — Final Production Application
-# Release: v69317 (v69316 + follow-up StopException durable resume repair)
+# Release: v69318 (v69316 + follow-up StopException durable resume repair)
 #
 # Protected production authorities:
 # - Graphic Reference first-generation: v69298 / isolated v69272-v69248
@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69317"
-AUTOTECPRO_RELEASE_BUILD = "stable-v69316-followup-interrupt-resume-v69317-20260902"
+AUTOTECPRO_RELEASE_VERSION = "v69318"
+AUTOTECPRO_RELEASE_BUILD = "stable-v69317-exclusive-followup-canvas-v69318-20260902"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -31005,6 +31005,61 @@ def _graphic_v69315_background_followup_qa(result, current_canvas, edit_directiv
     }
 
 
+def _graphic_followup_exclusive_correction_prompt_v69318(prompt_text, edit_directive=None):
+    """Build a current-canvas-only instruction for ordinary 2nd/3rd/later edits.
+
+    The latest successfully generated artwork is the sole visual authority. The
+    original style reference and original product upload remain available only to
+    non-generation QA/state code and are intentionally not supplied to the image
+    provider on this route.
+    """
+    user_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    directive = dict(edit_directive or {})
+    targets = [str(x or "").strip() for x in (directive.get("change_targets") or []) if str(x or "").strip()]
+    target_text = ", ".join(targets) if targets else "only the explicitly requested elements"
+    return (
+        "PROTECTED FOLLOW-UP EDIT. EDIT THE CURRENT GENERATED ARTWORK ONLY. "
+        "The current generated artwork is the sole visual source and sole layout/product authority for this turn. "
+        "Do not reconstruct the advertisement from memory, prior references, prior product photos, or a template. "
+        "Do not replace the hero product unless the user explicitly requests replacing the product itself. "
+        "Preserve all non-requested product geometry, screen/UI, vehicle identity and position, logo, headline, typography, feature matrix, bottom bar, crop, perspective, shadows, background, and overall composition. "
+        "Apply only these requested target areas: " + target_text + ". "
+        "If the request changes text/year or icon positions, modify only those visible elements while keeping the rest of the current artwork unchanged. "
+        "Never import the unit, vehicle, text, or layout from the original style-reference advertisement. "
+        "Requested follow-up: " + user_text[:1200]
+    )
+
+
+def _graphic_v69318_followup_transport_qa(result, current_canvas, edit_directive=None):
+    result_raw, _ = data_url_to_bytes(str((result or {}).get("data_url") or ""))
+    base_raw, _ = data_url_to_bytes(str((current_canvas or {}).get("data_url") or ""))
+    result_size = []
+    base_size = []
+    try:
+        if Image is not None and result_raw:
+            with Image.open(io.BytesIO(result_raw)) as im:
+                result_size = [int(im.width), int(im.height)]
+        if Image is not None and base_raw:
+            with Image.open(io.BytesIO(base_raw)) as im:
+                base_size = [int(im.width), int(im.height)]
+    except Exception:
+        pass
+    checks = {
+        "image_valid": bool(result_raw),
+        "edit_base_present": bool(base_raw),
+        "canvas_size_preserved": bool(result_size and base_size and result_size == base_size),
+        "followup_scope_present": bool((edit_directive or {}).get("change_targets") or str((edit_directive or {}).get("raw_instruction") or "").strip()),
+    }
+    return {
+        "passed": bool(all(checks.values())),
+        "checks": checks,
+        "result_size": result_size,
+        "base_size": base_size,
+        "engine": "v69318-exclusive-followup-transport-qa",
+        "provider_calls": 0,
+    }
+
+
 def _graphic_update_metrics_v8000(*, elapsed=0.0, provider_calls=0, retries=0, local_edit=False, route="", stages=None):
     state=get_graphic_project_state(); metrics=dict(state.get("production_metrics") or {})
     metrics["generation_count"]=int(metrics.get("generation_count") or 0)+1
@@ -31763,12 +31818,12 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             reference_id=str((get_graphic_project_state() or {}).get("active_reference_id") or "")[:20],
         )
         saved_state = get_graphic_project_state()
-        if has_edit_base and edit_kind in {"local_copy", "local_layout", "localized_product_cleanup", "scene_regeneration"}:
+        if has_edit_base:
             reference_blueprint = dict(saved_state.get("last_reference_blueprint") or {})
             vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, dict(saved_state.get("last_vehicle_profile") or {}))
             geometry = _graphic_reference_geometry_v3300(reference_blueprint, prompt_text)
             campaign_spec = _graphic_verified_campaign_spec_v3300(prompt_text, vehicle_profile)
-            diagnostic_log("graphic_v8200_early_local_route", edit_kind=edit_kind)
+            diagnostic_log("graphic_v69318_early_followup_state_route", edit_kind=edit_kind, exclusive_current_canvas=True)
         else:
             _graphic_progress_update_v3300(status, "Reading locked reference geometry and verified product facts…")
             locked_blueprint = dict(saved_state.get("last_reference_blueprint") or {})
@@ -32046,6 +32101,145 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
                     message="background-only follow-up provider returned no usable image",
                 ),
                 route="scene_regeneration_v69315_bounded_current_canvas",
+                stage="provider_returned_no_image",
+            )
+
+        if has_edit_base:
+            # v69318 terminal authority for every remaining normal follow-up kind
+            # (provider_edit, vehicle_regeneration, product_recreation, etc.).
+            # The latest generated artwork is the ONLY image sent to the provider.
+            # Original style/product assets are intentionally excluded from generation
+            # so the original reference unit cannot re-enter as a competing authority.
+            followup_started_v69318 = time.perf_counter()
+            current_canvas_v69318 = dict((get_graphic_project_state() or {}).get("latest_generated") or {})
+            if not current_canvas_v69318.get("data_url"):
+                raise _GraphicProtectedFollowupStop(
+                    "The latest generated artwork is unavailable for this follow-up. No broad regeneration fallback is allowed.",
+                    preserved_images=[],
+                    route="exclusive_followup_current_canvas_v69318",
+                    stage="missing_latest_generated",
+                )
+            correction_v69318 = _graphic_followup_exclusive_correction_prompt_v69318(prompt_text, active_edit)
+            current_raw_v69318, current_mime_v69318 = data_url_to_bytes(current_canvas_v69318.get("data_url"))
+            current_upload_v69318 = ManagedUploadedFile(
+                current_raw_v69318,
+                "current_generated_artwork_v69318.png",
+                current_mime_v69318 or "image/png",
+                graphic_role="edit_base",
+                graphic_asset_id=hashlib.sha256(current_raw_v69318).hexdigest(),
+            ) if current_raw_v69318 else None
+            exclusive_items_v69318 = ([{
+                "file": current_upload_v69318,
+                "name": current_upload_v69318.name,
+                "role": "edit_base",
+                "reason": "v69318 sole visual authority for follow-up generation",
+            }] if current_upload_v69318 else [])
+            diagnostic_log(
+                "graphic_v69318_exclusive_followup_intercepted",
+                edit_kind=edit_kind,
+                has_edit_base=bool(current_raw_v69318),
+                generation_role_count=len(exclusive_items_v69318),
+                original_product_images_sent=0,
+                original_style_references_sent=0,
+                change_targets=list(active_edit.get("change_targets") or []),
+                edit_base_sha256=(hashlib.sha256(current_raw_v69318).hexdigest()[:20] if current_raw_v69318 else ""),
+            )
+            provider_started_v69318 = time.perf_counter()
+            followup_result_v69318 = _graphic_safe_optional_call(
+                "graphic_v69318_exclusive_followup_provider_failed",
+                lambda: _graphic_correction_result_v3300(
+                    current_canvas_v69318, prompt_text, [], output_size,
+                    {}, vehicle_profile, rejected_guidance, correction_v69318,
+                ),
+                None,
+            )
+            provider_total_v69318 = time.perf_counter() - provider_started_v69318
+            diagnostic_log(
+                "graphic_v69318_exclusive_followup_provider_completed",
+                success=bool(followup_result_v69318),
+                elapsed_seconds=round(provider_total_v69318, 3),
+            )
+            if followup_result_v69318:
+                followup_result_v69318 = _graphic_finalize_result_v7100(
+                    followup_result_v69318, prompt_text=prompt_text, output_size=output_size,
+                    geometry=geometry, campaign_spec=campaign_spec, product_mode=product_mode,
+                    structure_profile=structure_profile, has_edit_base=True,
+                )
+                followup_result_v69318["professional_qa"] = _graphic_v69318_followup_transport_qa(
+                    followup_result_v69318, current_canvas_v69318, active_edit
+                )
+                deterministic_pass_v69318 = bool((followup_result_v69318.get("professional_qa") or {}).get("passed"))
+                # Visual preservation review uses original assets for QA only; they are
+                # never passed into the generation call above.
+                visual_review_v69318 = _graphic_safe_optional_call(
+                    "graphic_v69318_followup_visual_review_unavailable",
+                    lambda: review_graphic_output_accuracy(
+                        followup_result_v69318.get("data_url"),
+                        role_items,
+                        "FOLLOW-UP PRESERVATION AUDIT. The current generated artwork is the baseline. "
+                        "Only the user's requested elements may change. Reject a different product/unit, reference-ad unit, wrong vehicle identity, layout recreation, unrelated text changes, or non-requested structural changes. "
+                        + str(prompt_text or "")[:900],
+                        "v69318 Exclusive Follow-up Preservation Audit",
+                        reference_blueprint=reference_blueprint,
+                    ),
+                    {},
+                ) or {}
+                visual_scores_v69318, visual_failed_v69318, visual_missing_v69318 = _graphic_review_scores_v3300(
+                    visual_review_v69318, bool(has_product), bool(has_style), bool((vehicle_profile or {}).get("hard_vehicle_lock"))
+                )
+                visual_available_v69318 = bool(visual_review_v69318) and not bool(visual_missing_v69318)
+                diagnostic_log(
+                    "graphic_v69318_exclusive_followup_preservation_check",
+                    deterministic_passed=deterministic_pass_v69318,
+                    visual_available=visual_available_v69318,
+                    visual_failed=bool(visual_failed_v69318),
+                    scores=visual_scores_v69318,
+                    missing=visual_missing_v69318,
+                )
+                # Fail closed on deterministic failure. If visual QA is available, it
+                # is also gating. If it is unavailable, generation is still safe from
+                # reference-unit contamination because generation received only edit_base.
+                if (not deterministic_pass_v69318) or (visual_available_v69318 and visual_failed_v69318):
+                    raise _GraphicProtectedFollowupStop(
+                        "The protected follow-up did not preserve the current artwork closely enough. The previous artwork remains authoritative.",
+                        preserved_images=_graphic_v69316_preserved_followup_images(
+                            current_canvas_v69318,
+                            route="exclusive_followup_current_canvas_v69318",
+                            message="v69318 follow-up preservation gate failed",
+                        ),
+                        route="exclusive_followup_current_canvas_v69318",
+                        stage="preservation_gate_failed",
+                    )
+                followup_result_v69318["graphic_v69318_exclusive_followup_path"] = True
+                followup_result_v69318["graphic_v69318_generation_inputs"] = {
+                    "edit_base_only": True,
+                    "original_product_images_sent": 0,
+                    "original_style_references_sent": 0,
+                }
+                followup_result_v69318["runtime_audit"] = _graphic_runtime_audit_v10000(
+                    followup_result_v69318, route="exclusive_followup_current_canvas_v69318",
+                    provider_calls=1, retries=0, stages=stage_times,
+                )
+                _graphic_update_metrics_v8000(
+                    elapsed=time.perf_counter()-started_at, provider_calls=1, local_edit=True,
+                    route="exclusive_followup_current_canvas_v69318", stages=stage_times,
+                )
+                diagnostic_log(
+                    "graphic_v69318_exclusive_followup_published",
+                    edit_kind=edit_kind,
+                    total_seconds=round(time.perf_counter()-followup_started_v69318, 3),
+                    provider_total_seconds=round(provider_total_v69318, 3),
+                )
+                _graphic_progress_update_v3300(status, "Graphic follow-up completed from the current artwork.", "complete")
+                return [followup_result_v69318]
+            raise _GraphicProtectedFollowupStop(
+                "The protected follow-up provider returned no usable image. The previous artwork remains authoritative.",
+                preserved_images=_graphic_v69316_preserved_followup_images(
+                    current_canvas_v69318,
+                    route="exclusive_followup_current_canvas_v69318",
+                    message="v69318 provider returned no usable image",
+                ),
+                route="exclusive_followup_current_canvas_v69318",
                 stage="provider_returned_no_image",
             )
 
