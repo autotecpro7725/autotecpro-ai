@@ -1,9 +1,9 @@
 # ============================================================
 # AutoTecPro AI — Final Production Application
-# Release: v69304 (cleanup-only; runtime behavior preserved from v69303)
+# Release: v69311 (segmented exact-product first-image authority + v69310 Technical authority)
 #
 # Protected production authorities:
-# - Graphic Reference first-generation: v69298 / isolated v69272-v69248
+# - Graphic Reference first-generation: v69311 segmented exact-source product authority over v69310/v69298 style pipeline
 # - Graphic localized follow-up edits: v69301 behavior preserved
 # - Multi-account / durable-job isolation: v69303 behavior preserved
 # - Technical universal inquiry authority: v69299 behavior preserved
@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69310"
-AUTOTECPRO_RELEASE_BUILD = "exact-product-first-image-sync4-scalar-authority-v69310-20260902"
+AUTOTECPRO_RELEASE_VERSION = "v69311"
+AUTOTECPRO_RELEASE_BUILD = "segmented-exact-product-sync4-authority-v69311-20260902"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -53264,12 +53264,280 @@ def _graphic_v69309_researched_followup_result(prompt_text, uploaded_files=None,
     return [result]
 
 
+
+# ============================================================
+# v69311 — Opaque studio-photo product-only segmentation authority
+# ============================================================
+# v69310 correctly prevented provider redraws but an opaque product JPEG could
+# still reach the historical untouched-master-card fallback, which preserved the
+# studio background/logos along with the product. v69311 adds a fail-closed,
+# session-local segmentation override used only during exact first-image Reference
+# generation. Source RGB inside the product mask is never repainted or resampled.
+
+_GRAPHIC_V69311_BASE_OPEN_PRODUCT_LAYER = _graphic_open_product_layer_v3300
+
+def _graphic_v69311_source_data_url(raw_bytes, mime_type="image/jpeg"):
+    if not raw_bytes:
+        return ""
+    mime=str(mime_type or "image/jpeg")
+    return f"data:{mime};base64," + base64.b64encode(raw_bytes).decode("ascii")
+
+def _graphic_v69311_parse_box(value):
+    if not isinstance(value,(list,tuple)) or len(value)!=4:
+        return None
+    try:
+        x0,y0,x1,y1=[float(v) for v in value]
+    except Exception:
+        return None
+    if max(x0,y0,x1,y1)>1.5:
+        x0,y0,x1,y1=[v/1000.0 for v in (x0,y0,x1,y1)]
+    x0=max(0.0,min(1.0,x0)); y0=max(0.0,min(1.0,y0))
+    x1=max(0.0,min(1.0,x1)); y1=max(0.0,min(1.0,y1))
+    if x1<=x0 or y1<=y0:
+        return None
+    return [x0,y0,x1,y1]
+
+def _graphic_v69311_locate_physical_product(uploaded_file):
+    raw=_graphic_uploaded_file_bytes(uploaded_file)
+    if not raw:
+        return {}
+    mime=str(getattr(uploaded_file,"type","") or "image/jpeg")
+    image_url=_graphic_v69311_source_data_url(raw,mime)
+    content=[
+        {"type":"input_text","text":(
+            "Locate ONLY the physical AutoTecPro infotainment product/unit in this source photo. "
+            "Exclude every separate logo, badge, trademark, disclaimer, studio background, CarPlay/Android Auto logo, Qualcomm badge, and surrounding text. "
+            "The product bbox must tightly enclose the complete physical unit including bezel, top air-vent region, side controls/brackets, bottom mounting structure, and the full visible screen. "
+            "Return JSON only with keys: product_bbox, screen_bbox, top_vent_bbox, confidence_score, product_complete, excluded_non_product_content, reason. "
+            "All boxes are [x0,y0,x1,y1] normalized 0..1. Set product_complete=false if any physical product edge is uncertain."
+        )},
+        {"type":"input_image","image_url":image_url},
+    ]
+    try:
+        bounded=client.with_options(timeout=35.0,max_retries=0)
+        response=bounded.responses.create(
+            model="gpt-5.5",
+            instructions="Act as a strict product-region locator. Do not edit or infer hidden product geometry. Return JSON only.",
+            input=[{"role":"user","content":content}],
+            max_output_tokens=900,
+        )
+        payload=extract_json_object(str(getattr(response,"output_text","") or ""))
+        if not isinstance(payload,dict):
+            payload={}
+    except Exception as error:
+        diagnostic_log("graphic_v69311_product_bbox_failed_closed",error_type=type(error).__name__,error=str(error)[:500])
+        return {}
+    product_box=_graphic_v69311_parse_box(payload.get("product_bbox"))
+    screen_box=_graphic_v69311_parse_box(payload.get("screen_bbox"))
+    vent_box=_graphic_v69311_parse_box(payload.get("top_vent_bbox"))
+    try:
+        confidence=float(payload.get("confidence_score") or 0.0)
+    except Exception:
+        confidence=0.0
+    if not product_box or payload.get("product_complete") is not True or confidence<90.0:
+        diagnostic_log("graphic_v69311_product_bbox_failed_closed",reason="low_confidence_or_incomplete",confidence_score=confidence,product_bbox=product_box)
+        return {}
+    area=(product_box[2]-product_box[0])*(product_box[3]-product_box[1])
+    if area<0.08 or area>0.72:
+        diagnostic_log("graphic_v69311_product_bbox_failed_closed",reason="bbox_area_guard",bbox_area=round(area,4),product_bbox=product_box)
+        return {}
+    return {
+        "product_bbox":product_box,"screen_bbox":screen_box,"top_vent_bbox":vent_box,
+        "confidence_score":confidence,"reason":str(payload.get("reason") or ""),
+        "excluded_non_product_content":payload.get("excluded_non_product_content"),
+    }
+
+def _graphic_v69311_box_to_pixels(box,width,height,pad_x=0,pad_y=0):
+    x0,y0,x1,y1=box
+    return (
+        max(0,int(round(x0*width))-pad_x), max(0,int(round(y0*height))-pad_y),
+        min(width,int(round(x1*width))+pad_x), min(height,int(round(y1*height))+pad_y),
+    )
+
+def _graphic_v69311_region_alpha_coverage(alpha_img, original_box, crop_box, source_size):
+    if not original_box or alpha_img is None:
+        return None
+    sw,sh=source_size; cx0,cy0,cx1,cy1=crop_box
+    ox0,oy0,ox1,oy1=_graphic_v69311_box_to_pixels(original_box,sw,sh)
+    rx0=max(0,ox0-cx0); ry0=max(0,oy0-cy0); rx1=min(alpha_img.width,ox1-cx0); ry1=min(alpha_img.height,oy1-cy0)
+    if rx1<=rx0 or ry1<=ry0:
+        return 0.0
+    region=alpha_img.crop((rx0,ry0,rx1,ry1))
+    hist=region.histogram(); total=max(1,region.width*region.height)
+    covered=sum(hist[16:])/total
+    return float(covered)
+
+def _graphic_v69311_segment_opaque_product(uploaded_file):
+    """Create a product-only alpha layer from an opaque studio source.
+
+    v69311 deliberately does NOT use the historical full-card fallback. A high-
+    confidence vision locator establishes the physical product envelope, then
+    GrabCut operates only inside that envelope. The visible screen and, when
+    present, the top vent are seeded as certain foreground so UI/vent pixels cannot
+    be removed as studio background. Final RGB comes byte-for-byte from the source.
+    """
+    raw=_graphic_uploaded_file_bytes(uploaded_file)
+    if not raw or Image is None:
+        return b"",{}
+    try:
+        source=ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGBA")
+    except Exception as error:
+        return b"",{"reason":f"source_open_failed:{type(error).__name__}"}
+    alpha0=source.getchannel("A")
+    extrema=alpha0.getextrema()
+    if extrema and extrema[0]<250:
+        return b"",{"already_transparent":True,"source_rgb_untouched":True}
+    locator=_graphic_v69311_locate_physical_product(uploaded_file)
+    if not locator:
+        return b"",{"reason":"product_bbox_unavailable"}
+    try:
+        import cv2
+        import numpy as np
+    except Exception as error:
+        diagnostic_log("graphic_v69311_product_segmentation_failed_closed",reason="opencv_unavailable",error_type=type(error).__name__)
+        return b"",{"reason":"opencv_unavailable"}
+    rgb=np.asarray(source.convert("RGB"),dtype=np.uint8)
+    h,w=rgb.shape[:2]
+    pb=locator.get("product_bbox")
+    if not pb:
+        return b"",{"reason":"product_bbox_unavailable"}
+    px0,py0,px1,py1=_graphic_v69311_box_to_pixels(pb,w,h)
+    pw=max(1,px1-px0); ph=max(1,py1-py0)
+    pad_x=max(3,int(w*0.018)); pad_y=max(3,int(h*0.018))
+    ex0=max(0,px0-pad_x); ey0=max(0,py0-pad_y); ex1=min(w,px1+pad_x); ey1=min(h,py1+pad_y)
+    gc_mask=np.full((h,w),cv2.GC_BGD,dtype=np.uint8)
+    gc_mask[ey0:ey1,ex0:ex1]=cv2.GC_PR_BGD
+    gc_mask[py0:py1,px0:px1]=cv2.GC_PR_FGD
+    def seed_box(box,required=False):
+        if not box:
+            return not required
+        x0,y0,x1,y1=_graphic_v69311_box_to_pixels(box,w,h)
+        if x1<=x0 or y1<=y0:
+            return not required
+        # Seed a slightly inset core to avoid forcing uncertain box boundaries.
+        ix=max(1,(x1-x0)//30); iy=max(1,(y1-y0)//30)
+        gc_mask[y0+iy:max(y0+iy+1,y1-iy),x0+ix:max(x0+ix+1,x1-ix)]=cv2.GC_FGD
+        return True
+    if not seed_box(locator.get("screen_bbox"),required=True):
+        diagnostic_log("graphic_v69311_product_segmentation_failed_closed",reason="screen_bbox_missing")
+        return b"",{"reason":"screen_bbox_missing","locator":locator}
+    seed_box(locator.get("top_vent_bbox"),required=False)
+    try:
+        bg_model=np.zeros((1,65),np.float64); fg_model=np.zeros((1,65),np.float64)
+        cv2.grabCut(cv2.cvtColor(rgb,cv2.COLOR_RGB2BGR),gc_mask,None,bg_model,fg_model,7,cv2.GC_INIT_WITH_MASK)
+    except Exception as error:
+        diagnostic_log("graphic_v69311_product_segmentation_failed_closed",reason="grabcut_failed",error_type=type(error).__name__,error=str(error)[:400])
+        return b"",{"reason":"grabcut_failed","locator":locator}
+    foreground=((gc_mask==cv2.GC_FGD)|(gc_mask==cv2.GC_PR_FGD)).astype(np.uint8)
+    # Hard clip to the high-confidence physical-product envelope. This makes it
+    # impossible for source logos/disclaimers outside the product bbox to survive.
+    envelope=np.zeros_like(foreground,dtype=np.uint8); envelope[py0:py1,px0:px1]=1
+    foreground &= envelope
+    # Keep only the connected product component containing the screen center. This
+    # rejects detached badges/text even if GrabCut considered them foreground.
+    count,labels,stats,_centroids=cv2.connectedComponentsWithStats(foreground,8)
+    sb=locator.get("screen_bbox")
+    sx0,sy0,sx1,sy1=_graphic_v69311_box_to_pixels(sb,w,h)
+    scx=max(0,min(w-1,(sx0+sx1)//2)); scy=max(0,min(h-1,(sy0+sy1)//2))
+    target_label=int(labels[scy,scx]) if count>1 else 0
+    if target_label<=0:
+        diagnostic_log("graphic_v69311_product_segmentation_failed_closed",reason="screen_not_in_foreground_component")
+        return b"",{"reason":"screen_not_in_foreground_component","locator":locator}
+    binary=np.where(labels==target_label,255,0).astype(np.uint8)
+    area=int((binary>0).sum()); envelope_area=max(1,pw*ph); fill_ratio=area/envelope_area
+    ys,xs=np.where(binary>0)
+    if not len(xs):
+        return b"",{"reason":"empty_product_component"}
+    mb=(int(xs.min()),int(ys.min()),int(xs.max())+1,int(ys.max())+1)
+    # Product completeness: extracted extents must remain close to the authoritative
+    # vision envelope, while still allowing a small locator margin.
+    extent={
+        "left":max(0,mb[0]-px0)/pw,"right":max(0,px1-mb[2])/pw,
+        "top":max(0,mb[1]-py0)/ph,"bottom":max(0,py1-mb[3])/ph,
+    }
+    if fill_ratio<0.28 or fill_ratio>0.93 or any(v>0.075 for v in extent.values()):
+        diagnostic_log("graphic_v69311_product_segmentation_failed_closed",reason="product_completeness_guard",fill_ratio=round(fill_ratio,4),extent_losses={k:round(v,4) for k,v in extent.items()})
+        return b"",{"reason":"product_completeness_guard","fill_ratio":fill_ratio,"extent_losses":extent,"locator":locator}
+    mask=Image.fromarray(binary,mode="L")
+    screen_cov=_graphic_v69311_region_alpha_coverage(mask,locator.get("screen_bbox"),(0,0,w,h),(w,h))
+    vent_cov=_graphic_v69311_region_alpha_coverage(mask,locator.get("top_vent_bbox"),(0,0,w,h),(w,h))
+    if screen_cov is None or screen_cov<0.96:
+        diagnostic_log("graphic_v69311_product_segmentation_failed_closed",reason="screen_not_preserved",screen_alpha_coverage=None if screen_cov is None else round(screen_cov,4))
+        return b"",{"reason":"screen_not_preserved","screen_alpha_coverage":screen_cov}
+    if vent_cov is not None and vent_cov<0.90:
+        diagnostic_log("graphic_v69311_product_segmentation_failed_closed",reason="top_vent_not_preserved",top_vent_alpha_coverage=round(vent_cov,4))
+        return b"",{"reason":"top_vent_not_preserved","top_vent_alpha_coverage":vent_cov}
+    # Crop to the extracted component without resampling any RGB pixels.
+    trim_pad=max(2,min(w,h)//220)
+    trim=(max(0,mb[0]-trim_pad),max(0,mb[1]-trim_pad),min(w,mb[2]+trim_pad),min(h,mb[3]+trim_pad))
+    exact=source.copy(); exact.putalpha(mask); exact=exact.crop(trim)
+    out=io.BytesIO(); exact.save(out,format="PNG",optimize=True)
+    report={
+        "passed":True,"engine":"v69311-grabcut-product-only-exact-rgb-segmentation",
+        "source_size":[w,h],"locator":locator,"product_component_bbox":list(mb),"trim_box":list(trim),
+        "foreground_fill_ratio":round(fill_ratio,6),"extent_losses":{k:round(v,6) for k,v in extent.items()},
+        "screen_alpha_coverage":screen_cov,"top_vent_alpha_coverage":vent_cov,
+        "source_rgb_untouched":True,"excluded_source_card_background":True,
+        "detached_content_rejected":True,"provider_product_redraw_allowed":False,
+    }
+    diagnostic_log("graphic_v69311_product_segmentation_verified",screen_alpha_coverage=round(screen_cov,4),top_vent_alpha_coverage=None if vent_cov is None else round(vent_cov,4),fill_ratio=round(fill_ratio,4),trim_box=list(trim))
+    return out.getvalue(),report
+
+
+def _graphic_v69311_prepare_first_image_segmentation(prompt_text, uploaded_files, forced_upload_role="Auto-detect"):
+    role_items=_graphic_project_role_items(uploaded_files or [],prompt_text,forced_upload_role)
+    product=next((x for x in role_items if isinstance(x,dict) and x.get("role")=="product_photo"),None)
+    if not product:
+        return {"required":False,"prepared":False,"reason":"no_product"}
+    product_file=product.get("file")
+    raw=_graphic_uploaded_file_bytes(product_file)
+    if not raw:
+        return {"required":True,"prepared":False,"reason":"product_bytes_unavailable"}
+    try:
+        source=ImageOps.exif_transpose(Image.open(io.BytesIO(raw))).convert("RGBA")
+        ext=source.getchannel("A").getextrema()
+    except Exception:
+        return {"required":True,"prepared":False,"reason":"product_open_failed"}
+    if ext and ext[0]<250:
+        return {"required":False,"prepared":True,"reason":"authoritative_source_alpha"}
+    segmented,report=_graphic_v69311_segment_opaque_product(product_file)
+    if not segmented:
+        return {"required":True,"prepared":False,"reason":report.get("reason") or "segmentation_failed","report":report}
+    digest=hashlib.sha256(raw).hexdigest()
+    override=ManagedUploadedFile(segmented,Path(str(getattr(product_file,"name","product.jpg"))).stem+"_PRODUCT_ONLY_v69311.png","image/png",graphic_role="product_photo",graphic_asset_id=str(getattr(product_file,"graphic_asset_id","") or product.get("asset_id") or product.get("id") or ""))
+    mapping=st.session_state.setdefault("_graphic_v69311_product_layer_override",{})
+    mapping[digest]={"file":override,"report":report}
+    st.session_state["_graphic_v69311_product_layer_override"]=mapping
+    return {"required":True,"prepared":True,"reason":"opaque_studio_product_segmented","sha256":digest,"report":report}
+
+def _graphic_v69311_clear_segmentation_override():
+    st.session_state.pop("_graphic_v69311_product_layer_override",None)
+
+def _graphic_open_product_layer_v3300(uploaded_file):
+    raw=_graphic_uploaded_file_bytes(uploaded_file)
+    if raw:
+        digest=hashlib.sha256(raw).hexdigest()
+        mapping=st.session_state.get("_graphic_v69311_product_layer_override") or {}
+        record=mapping.get(digest) if isinstance(mapping,dict) else None
+        override_file=record.get("file") if isinstance(record,dict) else None
+        if override_file is not None:
+            override_raw=_graphic_uploaded_file_bytes(override_file)
+            try:
+                layer=ImageOps.exif_transpose(Image.open(io.BytesIO(override_raw))).convert("RGBA")
+                diagnostic_log("graphic_v69311_product_layer_override_used",source_sha256=digest[:20],segmentation_engine=str((record.get("report") or {}).get("engine") or ""))
+                return layer,True
+            except Exception as error:
+                diagnostic_log("graphic_v69311_product_layer_override_failed_closed",source_sha256=digest[:20],error_type=type(error).__name__,error=str(error)[:400])
+                return None,False
+    return _GRAPHIC_V69311_BASE_OPEN_PRODUCT_LAYER(uploaded_file)
+
+
 def generate_graphic_marketing_images(
     prompt_text, uploaded_files=None, *, use_approved_style=True, preserve_product=True,
     style_strength="High", forced_upload_role="Auto-detect", quality_retry=True,
     product_transform_mode="Auto", professional_layered_studio=True,
 ):
-    # v69310 FIRST-IMAGE HARD PRODUCT AUTHORITY. Admission is based on the actual
+    # v69311 FIRST-IMAGE HARD PRODUCT AUTHORITY. Admission is based on the actual
     # resolved role contract, not merely on whether stale project state happens to
     # contain a previous canvas. `_graphic_v68000_exact_reference_context` requires
     # Product + Style Reference and no edit_base, so real follow-up edits cannot enter.
@@ -53281,38 +53549,47 @@ def generate_graphic_marketing_images(
         exact_context_v69310 = {}
     if bool(exact_context_v69310.get("exact_reference")):
         diagnostic_log(
-            "graphic_v69310_first_image_exact_source_intercepted",
+            "graphic_v69311_first_image_exact_source_intercepted",
             product_present=bool(exact_context_v69310.get("has_product")),
             reference_present=bool(exact_context_v69310.get("has_style")),
             provider_product_redraw_allowed=False,
         )
+        segmentation_v69311={}
         try:
-            images_v69310 = _graphic_v68000_exact_local_recovery(
+            segmentation_v69311=_graphic_v69311_prepare_first_image_segmentation(prompt_text,uploaded_files,forced_upload_role)
+            if segmentation_v69311.get("required") and not segmentation_v69311.get("prepared"):
+                diagnostic_log("graphic_v69311_first_image_segmentation_failed_closed",reason=str(segmentation_v69311.get("reason") or ""),report=segmentation_v69311.get("report") or {})
+                raise RuntimeError("Opaque product source could not be isolated as a product-only exact-pixel layer.")
+            images_v69311 = _graphic_v68000_exact_local_recovery(
                 prompt_text, uploaded_files,
                 forced_upload_role=forced_upload_role,
                 style_strength=style_strength,
             )
-        except Exception as error_v69310:
+        except Exception as error_v69311:
             diagnostic_log(
-                "graphic_v69310_first_image_exact_source_failed_closed",
-                error_type=type(error_v69310).__name__,
-                error=str(error_v69310)[:700],
+                "graphic_v69311_first_image_exact_source_failed_closed",
+                error_type=type(error_v69311).__name__,
+                error=str(error_v69311)[:700],
             )
             raise RuntimeError(
-                "The exact uploaded product could not be preserved safely for this Reference image. "
-                "No full-product provider redraw was allowed; the source product/UI remains unchanged."
-            ) from error_v69310
-        for image_v69310 in images_v69310 or []:
-            if isinstance(image_v69310, dict):
-                image_v69310["graphic_v69310_exact_first_image"] = True
-                image_v69310["graphic_v69310_provider_product_redraw_allowed"] = False
-                image_v69310["graphic_v69310_screen_ui_source_locked"] = True
+                "The exact uploaded product could not be isolated and preserved safely for this Reference image. "
+                "No full-card fallback and no full-product provider redraw was allowed; the source product/UI remains unchanged."
+            ) from error_v69311
+        finally:
+            _graphic_v69311_clear_segmentation_override()
+        for image_v69311 in images_v69311 or []:
+            if isinstance(image_v69311, dict):
+                image_v69311["graphic_v69311_exact_first_image"] = True
+                image_v69311["graphic_v69311_provider_product_redraw_allowed"] = False
+                image_v69311["graphic_v69311_screen_ui_source_locked"] = True
+                image_v69311["graphic_v69311_product_only_segmentation"] = segmentation_v69311
         diagnostic_log(
-            "graphic_v69310_first_image_exact_source_returned",
-            image_count=len(images_v69310 or []),
-            first_image_authority="exact-uploaded-product-pixels",
+            "graphic_v69311_first_image_exact_source_returned",
+            image_count=len(images_v69311 or []),
+            first_image_authority="segmented-exact-uploaded-product-pixels",
+            segmentation_reason=str(segmentation_v69311.get("reason") or ""),
         )
-        return images_v69310
+        return images_v69311
 
     # Existing researched follow-up remains masked/current-canvas only.
     if _graphic_v69309_is_researched_component_followup(prompt_text):
