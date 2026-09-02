@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69309"
-AUTOTECPRO_RELEASE_BUILD = "live-binding-fixed-exact-v69304-first-image-v69309-20260901"
+AUTOTECPRO_RELEASE_VERSION = "v69310"
+AUTOTECPRO_RELEASE_BUILD = "exact-product-first-image-sync4-scalar-authority-v69310-20260902"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -53269,9 +53269,52 @@ def generate_graphic_marketing_images(
     style_strength="High", forced_upload_role="Auto-detect", quality_retry=True,
     product_transform_mode="Auto", professional_layered_studio=True,
 ):
-    # First-image invariant: admission requires a saved current image. With no current
-    # image, this wrapper performs no analysis, no mutation and calls the captured
-    # exact v69304 generator with the original arguments.
+    # v69310 FIRST-IMAGE HARD PRODUCT AUTHORITY. Admission is based on the actual
+    # resolved role contract, not merely on whether stale project state happens to
+    # contain a previous canvas. `_graphic_v68000_exact_reference_context` requires
+    # Product + Style Reference and no edit_base, so real follow-up edits cannot enter.
+    try:
+        exact_context_v69310 = _graphic_v68000_exact_reference_context(
+            prompt_text, uploaded_files, forced_upload_role
+        )
+    except Exception:
+        exact_context_v69310 = {}
+    if bool(exact_context_v69310.get("exact_reference")):
+        diagnostic_log(
+            "graphic_v69310_first_image_exact_source_intercepted",
+            product_present=bool(exact_context_v69310.get("has_product")),
+            reference_present=bool(exact_context_v69310.get("has_style")),
+            provider_product_redraw_allowed=False,
+        )
+        try:
+            images_v69310 = _graphic_v68000_exact_local_recovery(
+                prompt_text, uploaded_files,
+                forced_upload_role=forced_upload_role,
+                style_strength=style_strength,
+            )
+        except Exception as error_v69310:
+            diagnostic_log(
+                "graphic_v69310_first_image_exact_source_failed_closed",
+                error_type=type(error_v69310).__name__,
+                error=str(error_v69310)[:700],
+            )
+            raise RuntimeError(
+                "The exact uploaded product could not be preserved safely for this Reference image. "
+                "No full-product provider redraw was allowed; the source product/UI remains unchanged."
+            ) from error_v69310
+        for image_v69310 in images_v69310 or []:
+            if isinstance(image_v69310, dict):
+                image_v69310["graphic_v69310_exact_first_image"] = True
+                image_v69310["graphic_v69310_provider_product_redraw_allowed"] = False
+                image_v69310["graphic_v69310_screen_ui_source_locked"] = True
+        diagnostic_log(
+            "graphic_v69310_first_image_exact_source_returned",
+            image_count=len(images_v69310 or []),
+            first_image_authority="exact-uploaded-product-pixels",
+        )
+        return images_v69310
+
+    # Existing researched follow-up remains masked/current-canvas only.
     if _graphic_v69309_is_researched_component_followup(prompt_text):
         diagnostic_log(
             "graphic_v69309_researched_component_followup_intercepted",
@@ -53281,6 +53324,8 @@ def generate_graphic_marketing_images(
         return _graphic_v69309_researched_followup_result(
             prompt_text, uploaded_files, forced_upload_role=forced_upload_role,
         )
+
+    # Every non-Reference-first-image and ordinary edit remains exact v69309/v69304 behavior.
     return _GRAPHIC_V69309_EXACT_V69304_GENERATOR(
         prompt_text, uploaded_files,
         use_approved_style=use_approved_style, preserve_product=preserve_product,
@@ -57393,12 +57438,12 @@ def _website_identity_systems_v69022(value):
     systems = set()
 
     negative_patterns = (
-        r"\bno[-\s]?sync(?:\s*[123])?\b",
-        r"\bnon[-\s]?sync(?:\s*[123])?\b",
-        r"\bwithout(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
-        r"\b(?:does\s+not|doesn't|do\s+not|don't)\s+(?:have|come\s+with|include|support)(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
-        r"\bnot\s+(?:equipped\s+with|with|using)(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
-        r"\b(?:vehicles?|trucks?|cars?)\s+without(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
+        r"\bno[-\s]?sync(?:\s*[1234])?\b",
+        r"\bnon[-\s]?sync(?:\s*[1234])?\b",
+        r"\bwithout(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
+        r"\b(?:does\s+not|doesn't|do\s+not|don't)\s+(?:have|come\s+with|include|support)(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
+        r"\bnot\s+(?:equipped\s+with|with|using)(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
+        r"\b(?:vehicles?|trucks?|cars?)\s+without(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
     )
     positive_text = text
     for pattern in negative_patterns:
@@ -57406,7 +57451,7 @@ def _website_identity_systems_v69022(value):
             systems.add("no_sync")
         positive_text = re.sub(pattern, " ", positive_text, flags=re.I)
 
-    for number in re.findall(r"\bsync\s*([123])\b", positive_text):
+    for number in re.findall(r"\bsync\s*([1234])\b", positive_text):
         systems.add("sync_" + number)
 
     if "5th generation" in text or "5th-gen" in text or "5th gen" in text or "new body" in text or "new-body" in text:
@@ -63699,7 +63744,7 @@ def _technical_intent_roles_v69152(prompt_text):
         roles.add("car_model_protocol")
     if re.search(r"\ba\s*/?\s*c\b|\bac\b|\bclimate\b|\bheating\b|\btemperature\b", q):
         roles.add("climate")
-    if re.search(r"\bsync\s*[123]?\b", q):
+    if re.search(r"\bsync\s*[1234]?\b", q):
         roles.add("sync")
     if re.search(r"\bonstar\b", q):
         roles.add("onstar")
@@ -63833,7 +63878,7 @@ def _technical_hierarchy_excerpt_v69152(package_text, prompt_text):
     # the matching branch. Otherwise preserve all structurally relevant branches
     # inside the selected configuration section.
     structural_discriminator = bool(re.search(
-        r"(?i)\b(?:sync\s*[123]|onstar\s*(?:type|version)?\s*[a-z0-9]|"
+        r"(?i)\b(?:sync\s*[1234]|onstar\s*(?:type|version)?\s*[a-z0-9]|"
         r"type\s*[a-z0-9]|option\s*[a-z0-9]|\d+(?:\.\d+)?\s*(?:inch|\"))\b",
         str(prompt_text or ""),
     ))
@@ -63881,7 +63926,7 @@ def _technical_configuration_query_v69155(prompt_text):
         return False
     return bool(re.search(
         r"\bcar\s*model\b|\bcanbus\b|\bcan\s*bus\b|\bprotocol\b|"
-        r"\bsync\s*[123]?\b|\bonstar\b|\bfactory\s+radio\b|\bradio\s+type\b|"
+        r"\bsync\s*[1234]?\b|\bonstar\b|\bfactory\s+radio\b|\bradio\s+type\b|"
         r"\bscreen\s+size\b|\bfactory\s+screen\b|\bclimate\b|\ba\s*/?\s*c\b|"
         r"\bcamera\s+(?:type|setting)\b|\bfactory\s+camera\b|"
         r"\bamplifier\b|\bfactory\s+amp\b|\bsetting(?:s)?\b",
@@ -63894,7 +63939,7 @@ def _technical_branch_discriminators_v69155(prompt_text):
     q = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     output = []
     patterns = (
-        ("sync", r"\bsync\s*[-:#]?\s*([123])\b"),
+        ("sync", r"\bsync\s*[-:#]?\s*([1234])\b"),
         ("onstar", r"\bonstar\s*(?:type|version)?\s*[-:#]?\s*([a-z0-9]+)\b"),
         ("screen", r"\b(\d+(?:\.\d+)?)\s*(?:inch|inches|\")\b"),
         ("type", r"\btype\s*[-:#]?\s*([a-z0-9]+)\b"),
@@ -64400,11 +64445,11 @@ def _technical_segment_conflicts_discriminator_v69156(label, prompt_text):
         return False
     for kind, value in _technical_branch_discriminators_v69155(prompt_text):
         if kind == "sync":
-            found = set(re.findall(r"\bsync\s*[-:#]?\s*([123])\b", label_cf))
+            found = set(re.findall(r"\bsync\s*[-:#]?\s*([1234])\b", label_cf))
             if found and value not in found:
                 return True
         elif kind == "no_sync":
-            if re.search(r"\bsync\s*[123]\b", label_cf) and not re.search(r"\bno[\s-]*sync\b", label_cf):
+            if re.search(r"\bsync\s*[1234]\b", label_cf) and not re.search(r"\bno[\s-]*sync\b", label_cf):
                 return True
         elif kind == "manual":
             if re.search(r"\b(?:automatic|auto)\s+(?:a/?c|climate)\b", label_cf):
@@ -64732,9 +64777,9 @@ def _technical_literal_configuration_v69156(prompt_text, authority):
 
     # Generic SYNC + climate mapping rows. Preserve exact page labels and values.
     mapping_pattern = re.compile(
-        r"(SYNC\s*[123]\s*\([^)]*\)\s*\|\s*(?:Manual|Automatic|Auto)\s+Climate\s+Control)"
+        r"(SYNC\s*[1234]\s*\([^)]*\)\s*\|\s*(?:Manual|Automatic|Auto)\s+Climate\s+Control)"
         r"\s*(?:→|->|=>)\s*(.*?)"
-        r"(?=\s+SYNC\s*[123]\s*\(|\s+BRANCH:|\Z)",
+        r"(?=\s+SYNC\s*[1234]\s*\(|\s+BRANCH:|\Z)",
         flags=re.I,
     )
     mappings = []
@@ -64827,9 +64872,7 @@ def _technical_model_field_relation_v69156(field, value, authority):
 
 def _technical_literal_is_sufficient_v69156(prompt_text, literal):
     literal = dict(literal or {})
-    roles = _technical_intent_roles_v69152(prompt_text)
-    if "car_model_protocol" not in roles:
-        return False
+    q = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     common = {
         str(row.get("field") or "").strip().casefold()
         for row in (literal.get("fields") or []) if isinstance(row, dict)
@@ -64839,6 +64882,23 @@ def _technical_literal_is_sufficient_v69156(prompt_text, literal):
         for branch in (literal.get("branches") or []) if isinstance(branch, dict)
         for row in (branch.get("fields") or []) if isinstance(row, dict)
     }
+
+    # v69310: exact scalar questions are complete when their exact authored scalar
+    # exists. They must not require an unrelated Car Model menu value.
+    if re.search(r"\b(?:password|passcode|code)\b", q, flags=re.I):
+        if re.search(r"\bfactory\s+(?:setting|settings)\b", q, flags=re.I):
+            return "factory setting password" in common
+        if (
+            re.search(r"\bsetting\s+guide\b", q, flags=re.I)
+            or re.search(r"\bcar\s*model\b", q, flags=re.I)
+            or re.search(r"\ba\s*/?\s*c\b", q, flags=re.I)
+        ):
+            return "setting guide password" in common
+        return bool({"setting guide password", "factory setting password"} & common)
+
+    roles = _technical_intent_roles_v69152(prompt_text)
+    if "car_model_protocol" not in roles:
+        return False
     return bool(
         "protocol" in common
         and ("car model" in common or "car model" in branch_fields)
@@ -64913,7 +64973,7 @@ def _technical_merge_structured_v69156(literal, model_structured):
     ]
     sync_values = {
         m.group(1) for label in labels_cf
-        for m in re.finditer(r"\bsync\s*([123])\b", label)
+        for m in re.finditer(r"\bsync\s*([1234])\b", label)
     }
     screen_values = {
         m.group(1) for label in labels_cf
@@ -66451,6 +66511,34 @@ def _technical_verified_configuration_answer_v69158(prompt_text, authority):
     rows = _technical_table_rows_from_structured_v69156(structured)
     if not rows:
         return ""
+
+    q_v69310 = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if re.search(r"\b(?:password|passcode|code)\b", q_v69310, flags=re.I):
+        row_map_v69310 = {
+            re.sub(r"\s+", " ", str(field or "")).strip().casefold(): str(value or "").strip()
+            for field, value in rows
+        }
+        wanted_v69310 = ""
+        if re.search(r"\bfactory\s+(?:setting|settings)\b", q_v69310, flags=re.I):
+            wanted_v69310 = "factory setting password"
+        elif (
+            re.search(r"\bsetting\s+guide\b", q_v69310, flags=re.I)
+            or re.search(r"\bcar\s*model\b", q_v69310, flags=re.I)
+            or re.search(r"\ba\s*/?\s*c\b", q_v69310, flags=re.I)
+        ):
+            wanted_v69310 = "setting guide password"
+        if wanted_v69310 and row_map_v69310.get(wanted_v69310):
+            label_v69310 = "Setting Guide" if wanted_v69310 == "setting guide password" else "Factory Setting"
+            diagnostic_log(
+                "technical_v69310_exact_scalar_password_answer",
+                field=wanted_v69310,
+                source_url=str(authority.get("source_url") or "")[:700],
+            )
+            return (
+                f"## {label_v69310} Password\n\n"
+                f"**{row_map_v69310[wanted_v69310]}**\n\n"
+                "Verified from the current AutoTecPro Technical source."
+            )
 
     title = _technical_request_display_label_v69158(prompt_text, authority)
     lines = [
@@ -71305,6 +71393,13 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
     if root:
         carriers_v69196.append(root)
 
+    # v69310 scalar setting authority: password facts are exact root metadata and
+    # must not be blocked by the full Car Model/A-C profile completeness gate.
+    # Keep the two password domains distinct.
+    if root:
+        add_field("Setting Guide Password", root.get("data-atp-setting-guide-password"))
+        add_field("Factory Setting Password", root.get("data-atp-factory-setting-password"))
+
     # Protocol is an exact literal element attribute.
     for carrier_v69196 in carriers_v69196:
         protocol_v69196 = str(
@@ -71407,7 +71502,7 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
         # could retain several Manual profiles and where SYNC 3 4.3 vs 8-inch
         # could remain ambiguous.
         requested_sync_v69228 = ""
-        sync_match_v69228 = re.search(r"\bsync\s*([123])\b", prompt_cf_v69207)
+        sync_match_v69228 = re.search(r"\bsync\s*([1234])\b", prompt_cf_v69207)
         if sync_match_v69228:
             requested_sync_v69228 = "sync " + sync_match_v69228.group(1)
         requested_screen_v69228 = ""
@@ -72063,6 +72158,22 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
     if not systems:
         systems = set(_website_identity_systems_v69022(identity_text))
 
+    # v69310: authored ATP root system metadata is the primary discriminator.
+    # Body text may legitimately mention another generation (for example
+    # "SYNC 3 style audio switching") and must never override a root-declared SYNC 4.
+    semantics_v69310 = _technical_package_atp_semantics_v69178(text)
+    root_v69310 = dict((semantics_v69310 or {}).get("root") or {})
+    authored_system_v69310 = str(
+        root_v69310.get("data-atp-factory-system")
+        or root_v69310.get("data-atp-system")
+        or root_v69310.get("data-atp-system-group-scope")
+        or ""
+    ).strip()
+    if authored_system_v69310:
+        authored_tokens_v69310 = set(_website_identity_systems_v69022(authored_system_v69310))
+        if authored_tokens_v69310:
+            systems = authored_tokens_v69310
+
     product_codes = set(_website_image_product_codes_v69020(identity_text))
     return {
         "file_id": str(file_id or ""),
@@ -72077,7 +72188,7 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
         "years": sorted(years),
         "systems": sorted(systems),
         "product_codes": sorted(product_codes),
-        "atp_semantics_v69178": _technical_package_atp_semantics_v69178(text),
+        "atp_semantics_v69178": semantics_v69310,
     }
 
 
@@ -72816,6 +72927,7 @@ def _technical_package_exact_discriminators_v69243(package):
     system_token = ""
     authored_system = str(
         root.get("data-atp-factory-system")
+        or root.get("data-atp-system")
         or root.get("data-atp-system-group-scope")
         or ""
     ).strip()
@@ -72832,7 +72944,7 @@ def _technical_package_exact_discriminators_v69243(package):
         if len(tokens) == 1:
             system_token = next(iter(tokens))
     system_label = {
-        "no_sync": "No SYNC", "sync1": "SYNC 1", "sync2": "SYNC 2", "sync3": "SYNC 3"
+        "no_sync": "No SYNC", "sync1": "SYNC 1", "sync2": "SYNC 2", "sync3": "SYNC 3", "sync4": "SYNC 4"
     }.get(system_token, system_token.replace("_", " ") if system_token else "")
 
     climate_hint = ""
@@ -75280,7 +75392,7 @@ def _technical_explicit_factory_system_v69228(value):
     norm = _technical_contract_norm_v69198(value)
     if re.search(r"\b(?:no|non)\s+sync\b|\bnosync\b", norm, flags=re.I):
         return "no_sync"
-    match = re.search(r"\bsync\s*([123])\b", norm, flags=re.I)
+    match = re.search(r"\bsync\s*([1234])\b", norm, flags=re.I)
     if match:
         return "sync" + match.group(1)
     return ""
@@ -75292,7 +75404,7 @@ def _technical_factory_system_tokens_v69231(value, systems=None):
     norm = _technical_contract_norm_v69198(value)
     if re.search(r"\b(?:no|non)\s+sync\b|\bnosync\b", norm, flags=re.I):
         tokens.add("no_sync")
-    for match in re.finditer(r"\bsync\s*([123])\b", norm, flags=re.I):
+    for match in re.finditer(r"\bsync\s*([1234])\b", norm, flags=re.I):
         tokens.add("sync" + match.group(1))
     for raw_system in (systems or []):
         token = _technical_explicit_factory_system_v69228(str(raw_system or ""))
@@ -81640,7 +81752,7 @@ def _technical_short_clarification_v68879(prompt_text):
         facets.get("screen_sizes")
         or facets.get("sync_versions")
         or facets.get("climate_terms")
-        or re.fullmatch(r"(?:manual|automatic|auto|sync\s*[123])", value)
+        or re.fullmatch(r"(?:manual|automatic|auto|sync\s*[1234])", value)
     )
 
 
