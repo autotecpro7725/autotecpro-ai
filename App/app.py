@@ -1,6 +1,6 @@
 # ============================================================
 # AutoTecPro AI — Final Production Application
-# Release: v69314 (stable baseline rebuild from exact v69304 protected production path)
+# Release: v69315 (v69304-stable baseline + Technical scalar authority + bounded background follow-up)
 #
 # Protected production authorities:
 # - Graphic Reference first-generation: v69298 / isolated v69272-v69248
@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69314"
-AUTOTECPRO_RELEASE_BUILD = "stable-v69304-baseline-production-audit-v69314-20260902"
+AUTOTECPRO_RELEASE_VERSION = "v69315"
+AUTOTECPRO_RELEASE_BUILD = "stable-v69304-tech-scalar-background-followup-v69315-20260902"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -30865,6 +30865,65 @@ def _graphic_v69301_localized_cleanup_qa(result, current_canvas, edit_directive=
 
 
 
+def _graphic_background_only_correction_prompt_v69315(prompt_text, edit_directive=None):
+    """Bound a 2nd/3rd+ background request to the current generated artwork.
+
+    The first-image v69304/v69301 authority is untouched. This instruction exists
+    only after an edit_base has been recovered and the parser resolved exactly one
+    target: background.
+    """
+    user_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    instruction = str((edit_directive or {}).get("raw_instruction") or user_text or "change background")
+    return (
+        "BACKGROUND-ONLY FOLLOW-UP EDIT. Use the CURRENT GENERATED ARTWORK as the base canvas. "
+        "Change ONLY the scenery/background requested by the user. Preserve the existing AutoTecPro product unit, "
+        "all bezel/housing geometry, every real vent/opening/gap, screen aperture and screen UI, product scale and angle, "
+        "vehicle identity and position, headline/copy, logo, feature icons, feature-grid positions, bottom benefit bar, "
+        "crop, perspective, and overall commercial layout. Do NOT recreate or redesign the product, vehicle, typography, "
+        "icons, or advertisement. Do NOT move or resize protected foreground objects. Integrate the new background naturally "
+        "around the existing foreground edges and preserve everything else. "
+        f"Requested background adjustment: {instruction[:700]}"
+    )
+
+
+def _graphic_v69315_background_followup_qa(result, current_canvas, edit_directive=None):
+    """Deterministic transport/scope QA for a background-only follow-up.
+
+    This gate verifies that the route really had a current edit base, preserved canvas
+    dimensions, and remained background-only. Visual semantic fidelity is still
+    provider-dependent, so a hosted image replay remains the final visual proof.
+    """
+    result_raw, _ = data_url_to_bytes(str((result or {}).get("data_url") or ""))
+    base_raw, _ = data_url_to_bytes(str((current_canvas or {}).get("data_url") or ""))
+    result_size = []
+    base_size = []
+    try:
+        if Image is not None and result_raw:
+            with Image.open(io.BytesIO(result_raw)) as im:
+                result_size = [int(im.width), int(im.height)]
+        if Image is not None and base_raw:
+            with Image.open(io.BytesIO(base_raw)) as im:
+                base_size = [int(im.width), int(im.height)]
+    except Exception:
+        pass
+    directive = dict(edit_directive or {})
+    checks = {
+        "image_valid": bool(result_raw),
+        "edit_base_present": bool(base_raw),
+        "canvas_size_preserved": bool(result_size and base_size and result_size == base_size),
+        "background_only_scope": set(directive.get("change_targets") or []) == {"background"},
+        "strict_preservation": bool(directive.get("strict_preservation")),
+    }
+    return {
+        "passed": bool(all(checks.values())),
+        "checks": checks,
+        "result_size": result_size,
+        "base_size": base_size,
+        "engine": "v69315-background-followup-deterministic-route-qa",
+        "provider_calls": 0,
+    }
+
+
 def _graphic_update_metrics_v8000(*, elapsed=0.0, provider_calls=0, retries=0, local_edit=False, route="", stages=None):
     state=get_graphic_project_state(); metrics=dict(state.get("production_metrics") or {})
     metrics["generation_count"]=int(metrics.get("generation_count") or 0)+1
@@ -31566,7 +31625,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
         structure_started_v69301 = time.perf_counter()
         cached_structure_v69301 = (
             _graphic_v69301_cached_followup_structure(role_items)
-            if has_edit_base and pre_edit_kind_v69301 == "localized_product_cleanup"
+            if has_edit_base and pre_edit_kind_v69301 in {"localized_product_cleanup", "scene_regeneration"}
             else {}
         )
         structure_profile = cached_structure_v69301 or (_graphic_product_structure_profile_v4300(role_items) if has_product else {})
@@ -31623,7 +31682,7 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             reference_id=str((get_graphic_project_state() or {}).get("active_reference_id") or "")[:20],
         )
         saved_state = get_graphic_project_state()
-        if has_edit_base and edit_kind in {"local_copy", "local_layout", "localized_product_cleanup"}:
+        if has_edit_base and edit_kind in {"local_copy", "local_layout", "localized_product_cleanup", "scene_regeneration"}:
             reference_blueprint = dict(saved_state.get("last_reference_blueprint") or {})
             vehicle_profile = _graphic_resolve_vehicle_lock(prompt_text, dict(saved_state.get("last_vehicle_profile") or {}))
             geometry = _graphic_reference_geometry_v3300(reference_blueprint, prompt_text)
@@ -31782,6 +31841,112 @@ def _generate_graphic_marketing_images_advanced(prompt_text, uploaded_files=None
             _graphic_progress_update_v3300(status, "The current artwork is preserved and ready to retry.", "error")
             raise RuntimeError(
                 "The localized follow-up edit did not return a usable image. The existing artwork was preserved; no broader recreation fallback was allowed."
+            )
+
+        if has_edit_base and edit_kind == "scene_regeneration":
+            scene_started_v69315 = time.perf_counter()
+            _graphic_progress_update_v3300(status, "Changing only the background of the current artwork…")
+            current_canvas_v69315 = dict((get_graphic_project_state() or {}).get("latest_generated") or {})
+            correction_v69315 = _graphic_background_only_correction_prompt_v69315(prompt_text, active_edit)
+            diagnostic_log(
+                "graphic_v69315_background_followup_intercepted",
+                has_edit_base=bool(current_canvas_v69315.get("data_url")),
+                product_structure_reused=bool(cached_structure_v69301),
+                reference_blueprint_reused=bool(reference_blueprint),
+                vehicle_profile_reused=bool(vehicle_profile),
+                change_targets=list(active_edit.get("change_targets") or []),
+            )
+            provider_started_v69315 = time.perf_counter()
+            scene_result_v69315 = _graphic_safe_optional_call(
+                "graphic_v69315_background_followup_provider_failed",
+                lambda: _graphic_correction_result_v3300(
+                    current_canvas_v69315, prompt_text, role_items, output_size,
+                    reference_blueprint, vehicle_profile, rejected_guidance, correction_v69315,
+                ),
+                None,
+            )
+            provider_total_v69315 = time.perf_counter() - provider_started_v69315
+            diagnostic_log(
+                "graphic_v69315_background_followup_provider_completed",
+                success=bool(scene_result_v69315),
+                elapsed_seconds=round(provider_total_v69315, 3),
+            )
+            if scene_result_v69315:
+                scene_result_v69315 = _graphic_finalize_result_v7100(
+                    scene_result_v69315, prompt_text=prompt_text, output_size=output_size,
+                    geometry=geometry, campaign_spec=campaign_spec, product_mode=product_mode,
+                    structure_profile=structure_profile, has_edit_base=has_edit_base,
+                )
+                scene_result_v69315["layer_stack"] = _graphic_layer_stack_v8000(
+                    scene_result_v69315, geometry=geometry, campaign_spec=campaign_spec, template_key=brand_template
+                )
+                scene_result_v69315["professional_qa"] = _graphic_v69315_background_followup_qa(
+                    scene_result_v69315, current_canvas_v69315, active_edit
+                )
+                preservation_review_v69315 = _graphic_safe_optional_call(
+                    "graphic_v69315_background_visual_preservation_review_unavailable",
+                    lambda: review_graphic_output_accuracy(
+                        scene_result_v69315.get("data_url"),
+                        role_items,
+                        "BACKGROUND-ONLY PRESERVATION AUDIT. Compare this result against the current edit-base artwork. "
+                        "The background/scenery is allowed to change. The AutoTecPro product geometry, every vent/opening/gap, "
+                        "screen aperture/UI, vehicle identity/position, headline, logo, feature icons and their positions, bottom bar, "
+                        "crop and overall layout must remain materially unchanged. Reject any product recreation, UI drift, missing vent, "
+                        "vehicle replacement, text/icon relocation, or layout redesign. " + str(prompt_text or "")[:700],
+                        "v69315 Background-Only Preservation Audit",
+                        reference_blueprint=reference_blueprint,
+                    ),
+                    {},
+                ) or {}
+                preservation_scores_v69315, preservation_failed_v69315, preservation_missing_v69315 = _graphic_review_scores_v3300(
+                    preservation_review_v69315, bool(has_product), bool(has_style), bool((vehicle_profile or {}).get("hard_vehicle_lock"))
+                )
+                scene_result_v69315["background_visual_preservation_review_v69315"] = preservation_review_v69315
+                scene_result_v69315["background_visual_preservation_scores_v69315"] = preservation_scores_v69315
+                deterministic_pass_v69315 = bool((scene_result_v69315.get("professional_qa") or {}).get("passed"))
+                visual_pass_v69315 = bool(preservation_review_v69315) and not preservation_failed_v69315
+                diagnostic_log(
+                    "graphic_v69315_background_followup_preservation_check",
+                    deterministic_passed=deterministic_pass_v69315,
+                    visual_passed=visual_pass_v69315,
+                    checks=(scene_result_v69315.get("professional_qa") or {}).get("checks") or {},
+                    scores=preservation_scores_v69315,
+                    missing=preservation_missing_v69315,
+                )
+                if not deterministic_pass_v69315 or not visual_pass_v69315:
+                    _graphic_progress_update_v3300(status, "The current artwork is preserved and ready to retry.", "error")
+                    raise RuntimeError(
+                        "The background-only follow-up failed its strict preservation gate. "
+                        "The previous artwork remains authoritative; no broader recreation fallback was allowed."
+                    )
+                scene_result_v69315["runtime_audit"] = _graphic_runtime_audit_v10000(
+                    scene_result_v69315, route="scene_regeneration_v69315_bounded_current_canvas",
+                    provider_calls=1, retries=0, stages=stage_times,
+                )
+                scene_result_v69315["graphic_v69315_background_followup_path"] = True
+                state_v69315 = get_graphic_project_state()
+                state_v69315["layer_stack"] = scene_result_v69315["layer_stack"]
+                st.session_state[GRAPHIC_PROJECT_STATE_KEY] = state_v69315
+                _graphic_update_metrics_v8000(
+                    elapsed=time.perf_counter()-started_at, provider_calls=1,
+                    local_edit=True, route="scene_regeneration_v69315_bounded_current_canvas", stages=stage_times,
+                )
+                diagnostic_log(
+                    "graphic_v69315_background_followup_published",
+                    total_seconds=round(time.perf_counter()-scene_started_v69315, 3),
+                    provider_total_seconds=round(provider_total_v69315, 3),
+                )
+                _graphic_progress_update_v3300(status, "Background-only follow-up completed.", "complete")
+                return [scene_result_v69315]
+            diagnostic_log(
+                "graphic_v69315_background_followup_failed_closed",
+                reason="provider_returned_no_usable_image",
+                provider_total_seconds=round(provider_total_v69315, 3),
+            )
+            _graphic_progress_update_v3300(status, "The current artwork is preserved and ready to retry.", "error")
+            raise RuntimeError(
+                "The background-only follow-up did not return a usable image. "
+                "The existing artwork was preserved; no broad scene-recreation fallback was allowed."
             )
 
         # UI Replacement Mode modifies only the detected display aperture locally.
@@ -56964,12 +57129,12 @@ def _website_identity_systems_v69022(value):
     systems = set()
 
     negative_patterns = (
-        r"\bno[-\s]?sync(?:\s*[123])?\b",
-        r"\bnon[-\s]?sync(?:\s*[123])?\b",
-        r"\bwithout(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
-        r"\b(?:does\s+not|doesn't|do\s+not|don't)\s+(?:have|come\s+with|include|support)(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
-        r"\bnot\s+(?:equipped\s+with|with|using)(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
-        r"\b(?:vehicles?|trucks?|cars?)\s+without(?:\s+original|\s+factory)?\s+sync(?:\s*[123])?\b",
+        r"\bno[-\s]?sync(?:\s*[1234])?\b",
+        r"\bnon[-\s]?sync(?:\s*[1234])?\b",
+        r"\bwithout(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
+        r"\b(?:does\s+not|doesn't|do\s+not|don't)\s+(?:have|come\s+with|include|support)(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
+        r"\bnot\s+(?:equipped\s+with|with|using)(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
+        r"\b(?:vehicles?|trucks?|cars?)\s+without(?:\s+original|\s+factory)?\s+sync(?:\s*[1234])?\b",
     )
     positive_text = text
     for pattern in negative_patterns:
@@ -56977,7 +57142,7 @@ def _website_identity_systems_v69022(value):
             systems.add("no_sync")
         positive_text = re.sub(pattern, " ", positive_text, flags=re.I)
 
-    for number in re.findall(r"\bsync\s*([123])\b", positive_text):
+    for number in re.findall(r"\bsync\s*([1234])\b", positive_text):
         systems.add("sync_" + number)
 
     if "5th generation" in text or "5th-gen" in text or "5th gen" in text or "new body" in text or "new-body" in text:
@@ -63270,7 +63435,7 @@ def _technical_intent_roles_v69152(prompt_text):
         roles.add("car_model_protocol")
     if re.search(r"\ba\s*/?\s*c\b|\bac\b|\bclimate\b|\bheating\b|\btemperature\b", q):
         roles.add("climate")
-    if re.search(r"\bsync\s*[123]?\b", q):
+    if re.search(r"\bsync\s*[1234]?\b", q):
         roles.add("sync")
     if re.search(r"\bonstar\b", q):
         roles.add("onstar")
@@ -63404,7 +63569,7 @@ def _technical_hierarchy_excerpt_v69152(package_text, prompt_text):
     # the matching branch. Otherwise preserve all structurally relevant branches
     # inside the selected configuration section.
     structural_discriminator = bool(re.search(
-        r"(?i)\b(?:sync\s*[123]|onstar\s*(?:type|version)?\s*[a-z0-9]|"
+        r"(?i)\b(?:sync\s*[1234]|onstar\s*(?:type|version)?\s*[a-z0-9]|"
         r"type\s*[a-z0-9]|option\s*[a-z0-9]|\d+(?:\.\d+)?\s*(?:inch|\"))\b",
         str(prompt_text or ""),
     ))
@@ -63452,7 +63617,7 @@ def _technical_configuration_query_v69155(prompt_text):
         return False
     return bool(re.search(
         r"\bcar\s*model\b|\bcanbus\b|\bcan\s*bus\b|\bprotocol\b|"
-        r"\bsync\s*[123]?\b|\bonstar\b|\bfactory\s+radio\b|\bradio\s+type\b|"
+        r"\bsync\s*[1234]?\b|\bonstar\b|\bfactory\s+radio\b|\bradio\s+type\b|"
         r"\bscreen\s+size\b|\bfactory\s+screen\b|\bclimate\b|\ba\s*/?\s*c\b|"
         r"\bcamera\s+(?:type|setting)\b|\bfactory\s+camera\b|"
         r"\bamplifier\b|\bfactory\s+amp\b|\bsetting(?:s)?\b",
@@ -63465,7 +63630,7 @@ def _technical_branch_discriminators_v69155(prompt_text):
     q = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     output = []
     patterns = (
-        ("sync", r"\bsync\s*[-:#]?\s*([123])\b"),
+        ("sync", r"\bsync\s*[-:#]?\s*([1234])\b"),
         ("onstar", r"\bonstar\s*(?:type|version)?\s*[-:#]?\s*([a-z0-9]+)\b"),
         ("screen", r"\b(\d+(?:\.\d+)?)\s*(?:inch|inches|\")\b"),
         ("type", r"\btype\s*[-:#]?\s*([a-z0-9]+)\b"),
@@ -63971,11 +64136,11 @@ def _technical_segment_conflicts_discriminator_v69156(label, prompt_text):
         return False
     for kind, value in _technical_branch_discriminators_v69155(prompt_text):
         if kind == "sync":
-            found = set(re.findall(r"\bsync\s*[-:#]?\s*([123])\b", label_cf))
+            found = set(re.findall(r"\bsync\s*[-:#]?\s*([1234])\b", label_cf))
             if found and value not in found:
                 return True
         elif kind == "no_sync":
-            if re.search(r"\bsync\s*[123]\b", label_cf) and not re.search(r"\bno[\s-]*sync\b", label_cf):
+            if re.search(r"\bsync\s*[1234]\b", label_cf) and not re.search(r"\bno[\s-]*sync\b", label_cf):
                 return True
         elif kind == "manual":
             if re.search(r"\b(?:automatic|auto)\s+(?:a/?c|climate)\b", label_cf):
@@ -64209,6 +64374,14 @@ def _technical_literal_configuration_v69156(prompt_text, authority):
     It learns values from the selected source. It contains no vehicle-specific values.
     """
     authority = dict(authority or {})
+    scalar_password_v69315 = _technical_scalar_password_literal_v69315(prompt_text, authority)
+    if scalar_password_v69315 and _technical_literal_is_sufficient_v69156(prompt_text, scalar_password_v69315):
+        diagnostic_log(
+            "technical_scalar_password_fastpath_v69315",
+            domain=str(scalar_password_v69315.get("scalar_domain_v69315") or ""),
+            source_url=str(authority.get("source_url") or "")[:500],
+        )
+        return scalar_password_v69315
     semantic_literal_v69178 = _technical_metadata_literal_configuration_v69178(prompt_text, authority)
     if _technical_literal_is_sufficient_v69156(prompt_text, semantic_literal_v69178):
         return semantic_literal_v69178
@@ -64303,9 +64476,9 @@ def _technical_literal_configuration_v69156(prompt_text, authority):
 
     # Generic SYNC + climate mapping rows. Preserve exact page labels and values.
     mapping_pattern = re.compile(
-        r"(SYNC\s*[123]\s*\([^)]*\)\s*\|\s*(?:Manual|Automatic|Auto)\s+Climate\s+Control)"
+        r"(SYNC\s*[1234]\s*\([^)]*\)\s*\|\s*(?:Manual|Automatic|Auto)\s+Climate\s+Control)"
         r"\s*(?:→|->|=>)\s*(.*?)"
-        r"(?=\s+SYNC\s*[123]\s*\(|\s+BRANCH:|\Z)",
+        r"(?=\s+SYNC\s*[1234]\s*\(|\s+BRANCH:|\Z)",
         flags=re.I,
     )
     mappings = []
@@ -64396,15 +64569,115 @@ def _technical_model_field_relation_v69156(field, value, authority):
     return False
 
 
+def _technical_password_intent_v69315(prompt_text):
+    """Return the exact Technical password domain requested by the user.
+
+    This is intentionally generic and source-driven. It never contains a vehicle-
+    specific password value. It only decides which authored scalar domain the user
+    asked for, so the selected current source remains the factual authority.
+    """
+    q = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not q or not re.search(r"\b(?:password|passcode|pin|access\s*code)\b", q):
+        return ""
+    if re.search(r"\bfactory\s+(?:data\s+)?reset\b|\breset\s+password\b", q):
+        return "factory-reset"
+    if re.search(r"\bfactory\s+setting(?:s)?\b", q):
+        return "factory-setting"
+    if re.search(r"\bsetting\s+guide\b|\bcar\s*model\b|\ba\s*/?\s*c\s*model\b|\bac\s*model\b|\bprotocol\b", q):
+        return "setting-guide"
+    return ""
+
+
+def _technical_scalar_password_literal_v69315(prompt_text, authority):
+    """Resolve an exact password scalar from the already-selected current source.
+
+    The current family/year/source lock must already be established by the existing
+    Technical pipeline. This helper cannot search older records or cross scope.
+    """
+    domain = _technical_password_intent_v69315(prompt_text)
+    if not domain:
+        return {}
+    authority = dict(authority or {})
+    semantics = dict(authority.get("atp_semantics_v69178") or {})
+    if not semantics:
+        semantics = _technical_package_atp_semantics_v69178(authority.get("package_text") or "")
+    root = dict(semantics.get("root") or {}) if isinstance(semantics, dict) else {}
+    headings = [dict(x) for x in (semantics.get("headings") or []) if isinstance(x, dict)] if isinstance(semantics, dict) else []
+    key_map = {
+        "setting-guide": "data-atp-setting-guide-password",
+        "factory-setting": "data-atp-factory-setting-password",
+        "factory-reset": "data-atp-factory-reset-password",
+    }
+    field_map = {
+        "setting-guide": "Setting Guide Password",
+        "factory-setting": "Factory Setting Password",
+        "factory-reset": "Factory Reset Password",
+    }
+    key = key_map.get(domain) or ""
+    candidates = []
+    if root:
+        candidates.append(("root", root))
+    # Exact section metadata outranks unrelated headings, but the value must still
+    # be explicitly publishable and current-source scoped.
+    for row in headings:
+        topic = str(row.get("data-atp-topic") or "").casefold()
+        section = str(row.get("id") or row.get("data-atp-section") or "").casefold()
+        if domain == "setting-guide" and ("protocol" in topic or "protocol" in section or "car-model" in topic or "car-model" in section):
+            candidates.insert(0, ("section", row))
+        elif domain == "factory-reset" and "reset" in (topic + " " + section):
+            candidates.insert(0, ("section", row))
+        elif domain == "factory-setting" and "factory" in (topic + " " + section):
+            candidates.append(("section", row))
+    for source_kind, row in candidates:
+        raw = re.sub(r"\s+", " ", str(row.get(key) or "")).strip()
+        if not raw:
+            continue
+        if raw.casefold() in {"source-not-defined", "not-defined", "unknown", "n/a", "none", "false"}:
+            continue
+        publishable_key = "data-atp-publishable-factory-setting-password" if domain == "factory-setting" else ""
+        if publishable_key and str(row.get(publishable_key) or "").strip().casefold() in {"false", "0", "no"}:
+            continue
+        # Password scalars are intentionally narrow numeric/access-code literals.
+        if not re.fullmatch(r"[A-Za-z0-9_-]{3,24}", raw):
+            continue
+        diagnostic_log(
+            "technical_scalar_password_resolved_v69315",
+            domain=domain,
+            field=field_map.get(domain),
+            source_kind=source_kind,
+            value_length=len(raw),
+            source_url=str(authority.get("source_url") or "")[:500],
+        )
+        return {
+            "status": "verified",
+            "summary": "",
+            "fields": [{"field": field_map.get(domain), "value": raw, "branch": ""}],
+            "branches": [],
+            "required_clarification": "",
+            "authority": "exact_current_source_scalar_v69315",
+            "scalar_domain_v69315": domain,
+        }
+    return {}
+
+
 def _technical_literal_is_sufficient_v69156(prompt_text, literal):
     literal = dict(literal or {})
-    roles = _technical_intent_roles_v69152(prompt_text)
-    if "car_model_protocol" not in roles:
-        return False
     common = {
         str(row.get("field") or "").strip().casefold()
         for row in (literal.get("fields") or []) if isinstance(row, dict)
     }
+    password_domain_v69315 = _technical_password_intent_v69315(prompt_text)
+    if password_domain_v69315:
+        required_field_v69315 = {
+            "setting-guide": "setting guide password",
+            "factory-setting": "factory setting password",
+            "factory-reset": "factory reset password",
+        }.get(password_domain_v69315, "")
+        return bool(required_field_v69315 and required_field_v69315 in common)
+
+    roles = _technical_intent_roles_v69152(prompt_text)
+    if "car_model_protocol" not in roles:
+        return False
     branch_fields = {
         str(row.get("field") or "").strip().casefold()
         for branch in (literal.get("branches") or []) if isinstance(branch, dict)
@@ -64484,7 +64757,7 @@ def _technical_merge_structured_v69156(literal, model_structured):
     ]
     sync_values = {
         m.group(1) for label in labels_cf
-        for m in re.finditer(r"\bsync\s*([123])\b", label)
+        for m in re.finditer(r"\bsync\s*([1234])\b", label)
     }
     screen_values = {
         m.group(1) for label in labels_cf
@@ -70978,7 +71251,7 @@ def _technical_metadata_literal_configuration_v69178(prompt_text, authority):
         # could retain several Manual profiles and where SYNC 3 4.3 vs 8-inch
         # could remain ambiguous.
         requested_sync_v69228 = ""
-        sync_match_v69228 = re.search(r"\bsync\s*([123])\b", prompt_cf_v69207)
+        sync_match_v69228 = re.search(r"\bsync\s*([1234])\b", prompt_cf_v69207)
         if sync_match_v69228:
             requested_sync_v69228 = "sync " + sync_match_v69228.group(1)
         requested_screen_v69228 = ""
@@ -71633,6 +71906,27 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
     }
     if not systems:
         systems = set(_website_identity_systems_v69022(identity_text))
+
+    # v69315: exact ATP root system metadata outranks broad page prose. A SYNC 4
+    # page may legitimately mention "SYNC 3 style audio switching"; that phrase
+    # must never downgrade the package identity from authored SYNC 4 to SYNC 3.
+    semantics_v69315 = _technical_package_atp_semantics_v69178(text)
+    root_v69315 = dict((semantics_v69315 or {}).get("root") or {})
+    authored_system_v69315 = str(
+        root_v69315.get("data-atp-factory-system")
+        or root_v69315.get("data-atp-system")
+        or root_v69315.get("data-atp-system-group-scope")
+        or ""
+    ).strip()
+    explicit_system_v69315 = _technical_explicit_factory_system_v69228(authored_system_v69315)
+    if explicit_system_v69315:
+        systems = {"sync_" + explicit_system_v69315[-1]} if explicit_system_v69315.startswith("sync") else {explicit_system_v69315}
+        diagnostic_log(
+            "technical_package_root_system_authority_v69315",
+            authored_system=authored_system_v69315,
+            normalized_system=next(iter(systems)),
+            file_id=str(file_id or "")[:160],
+        )
 
     product_codes = set(_website_image_product_codes_v69020(identity_text))
     return {
@@ -72403,7 +72697,7 @@ def _technical_package_exact_discriminators_v69243(package):
         if len(tokens) == 1:
             system_token = next(iter(tokens))
     system_label = {
-        "no_sync": "No SYNC", "sync1": "SYNC 1", "sync2": "SYNC 2", "sync3": "SYNC 3"
+        "no_sync": "No SYNC", "sync1": "SYNC 1", "sync2": "SYNC 2", "sync3": "SYNC 3", "sync4": "SYNC 4"
     }.get(system_token, system_token.replace("_", " ") if system_token else "")
 
     climate_hint = ""
@@ -74851,7 +75145,7 @@ def _technical_explicit_factory_system_v69228(value):
     norm = _technical_contract_norm_v69198(value)
     if re.search(r"\b(?:no|non)\s+sync\b|\bnosync\b", norm, flags=re.I):
         return "no_sync"
-    match = re.search(r"\bsync\s*([123])\b", norm, flags=re.I)
+    match = re.search(r"\bsync\s*([1234])\b", norm, flags=re.I)
     if match:
         return "sync" + match.group(1)
     return ""
@@ -74863,7 +75157,7 @@ def _technical_factory_system_tokens_v69231(value, systems=None):
     norm = _technical_contract_norm_v69198(value)
     if re.search(r"\b(?:no|non)\s+sync\b|\bnosync\b", norm, flags=re.I):
         tokens.add("no_sync")
-    for match in re.finditer(r"\bsync\s*([123])\b", norm, flags=re.I):
+    for match in re.finditer(r"\bsync\s*([1234])\b", norm, flags=re.I):
         tokens.add("sync" + match.group(1))
     for raw_system in (systems or []):
         token = _technical_explicit_factory_system_v69228(str(raw_system or ""))
@@ -81211,7 +81505,7 @@ def _technical_short_clarification_v68879(prompt_text):
         facets.get("screen_sizes")
         or facets.get("sync_versions")
         or facets.get("climate_terms")
-        or re.fullmatch(r"(?:manual|automatic|auto|sync\s*[123])", value)
+        or re.fullmatch(r"(?:manual|automatic|auto|sync\s*[1234])", value)
     )
 
 
@@ -81339,7 +81633,7 @@ def _product_library_candidate_facets(candidate):
     code_compact = _product_library_normalize_code(code)
 
     sync_versions = set()
-    for match in re.findall(r"\bsync\s*([123])\b", normalized):
+    for match in re.findall(r"\bsync\s*([1234])\b", normalized):
         sync_versions.add(match)
     # AutoTecPro Ford 732 family conventions: QS1/S2/S3 map to SYNC 1/2/3.
     if re.search(r"(?:^|pro)qs1$", code_compact) or code_compact.endswith("qs1"):
@@ -81376,10 +81670,10 @@ def _product_library_reply_facets(prompt):
     value = re.sub(r"\s+", " ", str(prompt or "")).strip().casefold()
     normalized = re.sub(r"[^a-z0-9.]+", " ", value).strip()
 
-    sync_versions = set(re.findall(r"\bsync\s*([123])\b", normalized))
+    sync_versions = set(re.findall(r"\bsync\s*([1234])\b", normalized))
     if not sync_versions:
         compact = re.sub(r"[^a-z0-9]+", "", value)
-        compact_match = re.search(r"sync([123])", compact)
+        compact_match = re.search(r"sync([1234])", compact)
         if compact_match:
             sync_versions.add(compact_match.group(1))
 
