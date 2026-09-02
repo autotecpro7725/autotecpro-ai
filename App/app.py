@@ -13,7 +13,7 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69312"
+AUTOTECPRO_RELEASE_VERSION = "v69313"
 AUTOTECPRO_RELEASE_BUILD = "exact-product-first-image-sync4-scalar-authority-v69310-20260902"
 
 # ============================================================
@@ -53264,19 +53264,169 @@ def _graphic_v69309_researched_followup_result(prompt_text, uploaded_files=None,
     return [result]
 
 
+def _graphic_v69313_reorder_reference_upper_slots(labels, semantics, columns=4):
+    labels = [str(x or "").strip() for x in list(labels or []) if str(x or "").strip()]
+    semantics = [str(x or "").strip().casefold() for x in list(semantics or [])]
+    if not labels:
+        return labels, semantics, {"applied": False, "reason": "empty-labels"}
+    if len(semantics) < len(labels):
+        semantics = (semantics + ["" for _ in range(len(labels) - len(semantics))])[:len(labels)]
+    car = next((i for i, sem in enumerate(semantics[:len(labels)]) if sem == "carplay"), None)
+    aa = next((i for i, sem in enumerate(semantics[:len(labels)]) if sem == "android_auto"), None)
+    if columns < 2 or car is None or aa is None or car == aa:
+        return labels, semantics[:len(labels)], {"applied": False, "reason": "anchor-not-applicable", "columns": int(columns)}
+    anchored = []
+    anchored_sem = []
+    for idx, (label, sem) in enumerate(zip(labels, semantics[:len(labels)])):
+        if idx in {car, aa}:
+            continue
+        anchored.append(label)
+        anchored_sem.append(sem)
+    first_row_normal = max(0, int(columns) - 2)
+    reordered_labels = (
+        anchored[:first_row_normal]
+        + [labels[car], labels[aa]]
+        + anchored[first_row_normal:]
+    )[:len(labels)]
+    reordered_semantics = (
+        anchored_sem[:first_row_normal]
+        + [semantics[car], semantics[aa]]
+        + anchored_sem[first_row_normal:]
+    )[:len(labels)]
+    report = {
+        "applied": reordered_labels != labels or reordered_semantics != semantics[:len(labels)],
+        "columns": int(columns),
+        "row1_last_two": reordered_semantics[max(0, int(columns) - 2):int(columns)],
+        "carplay_index": reordered_semantics.index("carplay") if "carplay" in reordered_semantics else -1,
+        "android_auto_index": reordered_semantics.index("android_auto") if "android_auto" in reordered_semantics else -1,
+    }
+    return reordered_labels, reordered_semantics, report
+
+
+def _graphic_v69313_reference_slot_lock_result(image_result, prompt_text=""):
+    """Narrow post-generator repair that restores the approved upper-right feature-grid slots.
+
+    This does NOT replace the v69304 first-image generator. It only redraws the
+    reference feature matrix locally when a reference manifest exists, preserving the
+    rest of the published artwork. CarPlay and Android Auto are deterministically
+    locked to the far-right of row 1, matching the approved 69301/69302/69304 behavior.
+    """
+    if Image is None or not isinstance(image_result, dict):
+        return image_result
+    manifest = dict(image_result.get("graphic_v68995_reference_icon_manifest") or {})
+    if not manifest or not manifest.get("carplay_android_anchor"):
+        return image_result
+    upper_labels = [str(x or "").strip() for x in list(manifest.get("upper_labels") or []) if str(x or "").strip()]
+    upper_semantics = [str(x or "").strip().casefold() for x in list(manifest.get("upper_semantics") or [])]
+    if not upper_labels or "carplay" not in upper_semantics or "android_auto" not in upper_semantics:
+        return image_result
+    raw_bytes, _mime = data_url_to_bytes(str(image_result.get("data_url") or ""))
+    if not raw_bytes:
+        return image_result
+    try:
+        base = Image.open(io.BytesIO(raw_bytes)).convert("RGBA")
+    except Exception:
+        return image_result
+
+    W, H = base.size
+    bp = _graphic_safe_reference_blueprint_v16000(dict(image_result.get("reference_blueprint") or {}))
+    topology = _graphic_reference_grid_topology_v68876(bp, "reference_template")
+    columns = max(1, int(topology.get("columns") or 4))
+    rows = max(1, int(topology.get("rows") or 2))
+    if len(upper_labels) < max(2, rows * columns):
+        # Preserve existing manifest ordering but pad safely when older runs store fewer labels.
+        while len(upper_labels) < rows * columns:
+            upper_labels.append(f"Feature {len(upper_labels) + 1}")
+        while len(upper_semantics) < len(upper_labels):
+            upper_semantics.append(_graphic_v68994_icon_semantic(upper_labels[len(upper_semantics)]))
+    upper_labels = upper_labels[: rows * columns]
+    upper_semantics = upper_semantics[: len(upper_labels)]
+    upper_labels, upper_semantics, slot_report = _graphic_v69313_reorder_reference_upper_slots(upper_labels, upper_semantics, columns=columns)
+
+    feature_box = dict(bp.get("normalized_boxes") or {}).get("feature_matrix_box") or [0.57, 0.035, 0.395, 0.285]
+    grid_x, grid_y = int(W * float(feature_box[0])), int(H * float(feature_box[1]))
+    grid_w, grid_h = int(W * float(feature_box[2])), int(H * float(feature_box[3]))
+    if grid_w < 40 or grid_h < 40:
+        return image_result
+    grid_region = (grid_x, grid_y, min(W, grid_x + grid_w), min(H, grid_y + grid_h))
+    crop = base.crop(grid_region).filter(ImageFilter.GaussianBlur(radius=max(6, int(min(grid_w, grid_h) * 0.028))))
+    base.paste(crop, grid_region)
+
+    draw = ImageDraw.Draw(base)
+    navy = (12, 36, 82, 255)
+    divider = (70, 94, 128, 160)
+    cell_w, cell_h = grid_w / float(columns), grid_h / float(rows)
+    feature_font = _graphic_font(max(18, int(H * 0.0225)), False)
+    for idx, label in enumerate(upper_labels):
+        row, col = divmod(idx, columns)
+        x0 = int(grid_x + col * cell_w)
+        y0 = int(grid_y + row * cell_h)
+        if col:
+            draw.line((x0, y0 + int(H * 0.010), x0, y0 + int(cell_h) - int(H * 0.010)), fill=divider, width=1)
+        if row:
+            draw.line((x0 + int(cell_w * 0.04), y0, x0 + int(cell_w * 0.96), y0), fill=divider, width=1)
+        icon_box = (
+            int(x0 + cell_w * 0.29), int(y0 + cell_h * 0.055),
+            int(x0 + cell_w * 0.71), int(y0 + cell_h * 0.43),
+        )
+        semantic = upper_semantics[idx] if idx < len(upper_semantics) else _graphic_v68994_icon_semantic(label)
+        if not _graphic_draw_reference_connectivity_icon_v68853(draw, icon_box, semantic, navy):
+            _graphic_draw_semantic_feature_icon_v68866(draw, icon_box, semantic, navy, fallback_index=idx)
+        lines = _graphic_wrap_text_v3200(draw, label, feature_font, int(cell_w * 0.90), 2)
+        ty = int(y0 + cell_h * 0.57)
+        for line in lines:
+            try:
+                tw = text_width(line, feature_font)
+            except Exception:
+                tw = int(len(str(line or "")) * max(8, int(H * 0.0115)))
+            draw.text((int(x0 + (cell_w - tw) / 2), ty), line, font=feature_font, fill=navy)
+            ty += int(H * 0.0225)
+
+    output = io.BytesIO()
+    base.convert("RGBA").save(output, format="PNG", optimize=True)
+    fixed = dict(image_result)
+    fixed["data_url"] = "data:image/png;base64," + base64.b64encode(output.getvalue()).decode("ascii")
+    fixed["graphic_v69313_reference_slot_lock_applied"] = True
+    fixed["graphic_v69313_reference_slot_lock_report"] = {
+        "applied": True,
+        "upper_labels": upper_labels,
+        "upper_semantics": upper_semantics,
+        "rows": int(rows),
+        "columns": int(columns),
+        "slot_report": slot_report,
+        "first_image_authority": "exact-v69304-generator-plus-local-grid-slot-lock",
+    }
+    fixed["provider_route"] = str(image_result.get("provider_route") or "") + "+v69313-reference-slot-lock"
+    diagnostic_log(
+        "graphic_v69313_reference_slot_lock_applied",
+        rows=int(rows), columns=int(columns),
+        upper_semantics=upper_semantics[:min(len(upper_semantics), 8)],
+        first_row_right=upper_semantics[max(0, columns - 2):columns],
+    )
+    return fixed
+
+
+def _graphic_v69313_apply_reference_slot_lock_batch(images, prompt_text=""):
+    results = []
+    for image in images or []:
+        results.append(_graphic_v69313_reference_slot_lock_result(image, prompt_text))
+    return results
+
+
 def generate_graphic_marketing_images(
     prompt_text, uploaded_files=None, *, use_approved_style=True, preserve_product=True,
     style_strength="High", forced_upload_role="Auto-detect", quality_retry=True,
     product_transform_mode="Auto", professional_layered_studio=True,
 ):
-    # v69312 Graphic authority rule:
-    # - First-image generation is restored to the exact v69304 production generator.
+    # v69313 Graphic authority rule:
+    # - First-image generation still delegates to the exact v69304 production generator.
     # - Only researched component FOLLOW-UP edits may be intercepted.
-    # - No first-image segmentation, exact-source override, product-mask path, or
-    #   alternative first-image compositor is permitted here.
+    # - After a successful first-image result, a narrow local-only reference slot lock
+    #   may redraw the upper-right feature matrix so CarPlay + Android Auto match the
+    #   approved 69301/69302/69304 layout. No other zones are regenerated.
     if _graphic_v69309_is_researched_component_followup(prompt_text):
         diagnostic_log(
-            "graphic_v69312_researched_component_followup_intercepted",
+            "graphic_v69313_researched_component_followup_intercepted",
             component_focus=_graphic_v69309_component_focus(prompt_text),
             normalized_prompt=_graphic_v69309_normalize_followup_text(prompt_text)[:500],
             first_image_authority="exact-v69304",
@@ -53286,16 +53436,18 @@ def generate_graphic_marketing_images(
         )
 
     diagnostic_log(
-        "graphic_v69312_exact_v69304_generator_delegated",
+        "graphic_v69313_exact_v69304_generator_delegated",
         researched_followup=False,
+        post_publication_slot_lock=True,
     )
-    return _GRAPHIC_V69309_EXACT_V69304_GENERATOR(
+    images = _GRAPHIC_V69309_EXACT_V69304_GENERATOR(
         prompt_text, uploaded_files,
         use_approved_style=use_approved_style, preserve_product=preserve_product,
         style_strength=style_strength, forced_upload_role=forced_upload_role,
         quality_retry=quality_retry, product_transform_mode=product_transform_mode,
         professional_layered_studio=professional_layered_studio,
     )
+    return _graphic_v69313_apply_reference_slot_lock_batch(images, prompt_text)
 
 
 # v69272 durable display transport for generated Graphic PNGs. This is outside the
