@@ -1,6 +1,6 @@
 # ============================================================
 # AutoTecPro AI — Final Production Application
-# Release: v69320 (v69319 + first-image interruption recovery + protected-stop hardening + edit-asset runtime fixes)
+# Release: v69321 (v69320 + durable Graphic History signed-URL refresh)
 #
 # Protected production authorities:
 # - Graphic Reference first-generation: v69298 / isolated v69272-v69248
@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69320"
-AUTOTECPRO_RELEASE_BUILD = "v69320-runtime-recovery-edit-asset-hardening-20260902"
+AUTOTECPRO_RELEASE_VERSION = "v69321"
+AUTOTECPRO_RELEASE_BUILD = "v69321-graphic-history-signed-url-refresh-20260905"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -6007,21 +6007,34 @@ def render_chat_message(
 
     if role != "user" and generated_transport_images_v69271:
         for image_index_v69271, image_v69271 in enumerate(generated_transport_images_v69271):
-            display_url_v69271 = str(image_v69271.get("graphic_display_url_v69271") or "").strip()
-            storage_path_v69271 = str(image_v69271.get("graphic_display_storage_path_v69271") or "").strip()
-            if storage_path_v69271 and not display_url_v69271:
-                display_url_v69271 = _graphic_v69271_signed_job_url(storage_path_v69271, expires=86400)
-            raw_v69271 = b""
-            if not display_url_v69271:
-                raw_v69271, _mime_v69271 = data_url_to_bytes(image_v69271.get("data_url"))
+            source_v69271, transport_v69321, raw_v69271 = (
+                _graphic_v69321_generated_display_source(image_v69271)
+            )
             try:
-                source_v69271 = display_url_v69271 or raw_v69271
                 if source_v69271:
                     try:
                         st.image(source_v69271, use_container_width=True)
                     except TypeError:
                         st.image(source_v69271, width="stretch")
-                    diagnostic_log("graphic_v69271_generated_image_rendered", image_index=image_index_v69271, transport=("signed-storage" if display_url_v69271 else "binary"), bytes=(len(raw_v69271) if raw_v69271 else 0))
+                    diagnostic_log(
+                        "graphic_v69271_generated_image_rendered",
+                        image_index=image_index_v69271,
+                        transport=transport_v69321,
+                        bytes=(len(raw_v69271) if raw_v69271 else 0),
+                    )
+                    if transport_v69321 == "signed-storage-refreshed":
+                        diagnostic_log(
+                            "graphic_v69321_history_display_resigned",
+                            image_index=image_index_v69271,
+                            storage_path_present=bool(
+                                str(
+                                    image_v69271.get(
+                                        "graphic_display_storage_path_v69271"
+                                    )
+                                    or ""
+                                ).strip()
+                            ),
+                        )
                     continue
             except Exception as render_error_v69271:
                 diagnostic_log("graphic_v69271_generated_image_render_failed", image_index=image_index_v69271, error_type=type(render_error_v69271).__name__, error=str(render_error_v69271)[:500])
@@ -53895,6 +53908,68 @@ def _graphic_v69271_signed_job_url(storage_path, expires=86400):
     except Exception as error_v69271:
         diagnostic_log("graphic_v69271_signed_display_url_failed", error_type=type(error_v69271).__name__, error=str(error_v69271)[:500])
     return ""
+
+# v69321: Durable Graphic History display hydration.
+#
+# Generated Graphic messages persist both the private Storage object path and the
+# signed URL that was valid at publication time.  The latter expires (normally
+# after 24 hours), so History must never treat the persisted signed URL as durable
+# authority.  Re-sign from the immutable Storage path on render.  This is a
+# display-transport-only change: it does not touch generation, image bytes,
+# prompts, provider routing, Graphic authority, persistence, or any other workspace.
+@st.cache_data(ttl=300, max_entries=512, show_spinner=False)
+def _graphic_v69321_fresh_signed_display_url(storage_path, expires=86400):
+    path_v69321 = str(storage_path or "").strip()
+    if not path_v69321:
+        return ""
+    return _graphic_v69271_signed_job_url(path_v69321, expires=int(expires))
+
+
+def _graphic_v69321_generated_display_source(image):
+    """Return a durable display source for one persisted generated Graphic image.
+
+    Authority order is intentionally strict:
+    1. private Storage path -> newly signed URL (durable History path),
+    2. embedded persisted data_url -> verified binary bytes,
+    3. old signed URL -> last-resort backward-compatible fallback only.
+
+    The old signed URL is never preferred over a re-signable Storage path because
+    it is time-limited and can silently fail in the browser without st.image()
+    raising a Python exception.
+    """
+    image_v69321 = image if isinstance(image, dict) else {}
+    storage_path_v69321 = str(
+        image_v69321.get("graphic_display_storage_path_v69271") or ""
+    ).strip()
+    persisted_url_v69321 = str(
+        image_v69321.get("graphic_display_url_v69271") or ""
+    ).strip()
+
+    if storage_path_v69321:
+        try:
+            fresh_url_v69321 = _graphic_v69321_fresh_signed_display_url(
+                storage_path_v69321, 86400
+            )
+            if fresh_url_v69321:
+                return fresh_url_v69321, "signed-storage-refreshed", b""
+        except Exception as error_v69321:
+            diagnostic_log(
+                "graphic_v69321_history_resign_failed",
+                error_type=type(error_v69321).__name__,
+                error=str(error_v69321)[:500],
+            )
+
+    raw_v69321, _mime_v69321 = data_url_to_bytes(
+        image_v69321.get("data_url")
+    )
+    if raw_v69321:
+        return raw_v69321, "binary-persisted-fallback", raw_v69321
+
+    if persisted_url_v69321:
+        return persisted_url_v69321, "signed-storage-legacy-fallback", b""
+
+    return b"", "unavailable", b""
+
 
 def _graphic_v69271_prepare_generated_display(images):
     job_ctx_v69271 = st.session_state.get("_graphic_v69264_durable_job_context") or {}
