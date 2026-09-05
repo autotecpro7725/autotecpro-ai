@@ -1,6 +1,6 @@
 # ============================================================
 # AutoTecPro AI — Final Production Application
-# Release: v69322 (v69321 + safe History/workspace/UI performance optimizations)
+# Release: v69323 (v69322 + isolated website primary-image / YouTube authority fix)
 #
 # Protected production authorities:
 # - Graphic Reference first-generation: v69298 / isolated v69272-v69248
@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69322"
-AUTOTECPRO_RELEASE_BUILD = "v69322-safe-history-workspace-ui-smoothness-20260905"
+AUTOTECPRO_RELEASE_VERSION = "v69323"
+AUTOTECPRO_RELEASE_BUILD = "v69323-website-primary-media-authority-20260905"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -54390,7 +54390,16 @@ def _website_extract_atp_semantics_v69178(page_html, page_url=""):
                 self.headings.append({"tag": tag, "id": a.get("id", ""), **atp})
             if tag == "img" and atp:
                 src = ""
-                for key in ("data-orig-file","data-large-file","data-full","data-full-src","src"):
+                # v69323: ATP-authored canonical/full-resolution image authority is
+                # stronger than a presentation src/srcset derivative. This is metadata
+                # recovery only and does not alter visible HTML or image bytes.
+                for key in (
+                    "data-atp-canonical-image-url",
+                    "data-atp-full-resolution-url",
+                    "data-atp-primary-product-image-url",
+                    "data-orig-file", "data-large-file", "data-full",
+                    "data-full-src", "src",
+                ):
                     if a.get(key):
                         src = a.get(key); break
                 self.images.append({
@@ -54461,15 +54470,47 @@ def _website_apply_atp_image_metadata_v69178(image_candidates, semantics):
         if not meta:
             continue
         row["atp_semantic_image_v69178"] = True
-        row["atp_image_role_v69178"] = str(meta.get("data-atp-image-role") or "")
+        role = str(meta.get("data-atp-image-role") or "").strip()
+        authority = str(
+            meta.get("data-atp-authority")
+            or meta.get("data-atp-authority-level")
+            or ""
+        ).strip()
+        row["atp_image_role_v69178"] = role
         row["atp_section_v69178"] = str(meta.get("data-atp-section") or "")
         row["atp_topic_v69178"] = str(meta.get("data-atp-topic") or "")
-        row["atp_authority_v69178"] = str(meta.get("data-atp-authority") or "")
+        row["atp_authority_v69178"] = authority
         row["atp_auto_display_v69178"] = str(meta.get("data-atp-auto-display") or "")
         try:
-            row["atp_priority_v69178"] = int(float(meta.get("data-atp-priority") or 0))
+            row["atp_priority_v69178"] = int(float(
+                meta.get("data-atp-priority")
+                or meta.get("data-atp-ai-priority")
+                or meta.get("data-atp-seo-priority")
+                or 0
+            ))
         except Exception:
             row["atp_priority_v69178"] = 0
+
+        primary_flags_v69323 = (
+            str(meta.get("data-atp-is-primary-product-image") or "").strip().casefold() == "true",
+            str(meta.get("data-atp-main-product-photo") or "").strip().casefold() == "true",
+            str(meta.get("data-atp-primary-media") or "").strip().casefold() == "true",
+        )
+        row["atp_primary_product_image_v69323"] = bool(
+            role.casefold() == "primary-product-image"
+            or authority.casefold() == "primary"
+            or any(primary_flags_v69323)
+        )
+        row["atp_product_identity_key_v69323"] = str(
+            meta.get("data-atp-product-identity-key") or ""
+        ).strip()
+        row["atp_canonical_image_url_v69323"] = str(
+            meta.get("data-atp-canonical-image-url")
+            or meta.get("data-atp-full-resolution-url")
+            or meta.get("data-atp-primary-product-image-url")
+            or ""
+        ).strip()
+
         # Exact author-provided section/topic metadata outranks proximity inference.
         if row.get("atp_section_v69178"):
             row["nearest_heading"] = row.get("nearest_heading") or row["atp_section_v69178"]
@@ -54477,6 +54518,49 @@ def _website_apply_atp_image_metadata_v69178(image_candidates, semantics):
             row["context_score"] = int(row.get("context_score") or 0) + 100
             row["technical_context"] = True
     return rows
+
+
+def _website_rank_atp_primary_images_v69323(image_candidates):
+    """Stable website-only ranking: explicit ATP primary media outranks heuristics.
+
+    Non-ATP pages retain their exact prior order. This function never removes an image,
+    changes its URL, changes QA, or changes any Graphic/Technical runtime path.
+    """
+    rows = [dict(x) for x in (image_candidates or []) if isinstance(x, dict)]
+    if not any(bool(x.get("atp_semantic_image_v69178")) for x in rows):
+        return rows
+    indexed = list(enumerate(rows))
+    def key(pair):
+        index, row = pair
+        authority = str(row.get("atp_authority_v69178") or "").strip().casefold()
+        role = str(row.get("atp_image_role_v69178") or "").strip().casefold()
+        return (
+            int(bool(row.get("atp_primary_product_image_v69323"))),
+            int(role == "primary-product-image"),
+            int(authority in {"primary", "authoritative", "exact"}),
+            int(row.get("atp_priority_v69178") or 0),
+            -index,
+        )
+    indexed.sort(key=key, reverse=True)
+    return [row for _, row in indexed]
+
+
+def _website_linked_image_matches_nested_asset_v69323(link_url, nested_url):
+    """True only when an image href is a representation of the same nested asset.
+
+    v69322 treated every image-looking <a href> as the full-size version of its nested
+    <img>. Product HTML can instead link a different compatibility image around the main
+    product photo. Keep those assets separate unless their logical WordPress/CDN identity
+    actually matches.
+    """
+    left = str(link_url or "").strip()
+    right = str(nested_url or "").strip()
+    if not left or not right:
+        return False
+    try:
+        return _website_asset_identity_v68999(left) == _website_asset_identity_v68999(right)
+    except Exception:
+        return left.casefold() == right.casefold()
 
 
 class KnowledgePageHTMLParser(HTMLParser):
@@ -54676,7 +54760,15 @@ class KnowledgePageHTMLParser(HTMLParser):
 
             anchor_href = self._anchor_stack[-1] if self._anchor_stack else ""
             if anchor_href and self._looks_image_like(anchor_href):
-                urls.insert(0, (anchor_href, "linked-full-image", True))
+                # v69323: an image link is a full-size variant only when it resolves
+                # to the same logical asset as the nested image. A compatibility/lightbox
+                # link to a different file must never replace the main product photo.
+                nested_sources_v69323 = [str(item[0] or "").strip() for item in urls]
+                if any(
+                    _website_linked_image_matches_nested_asset_v69323(anchor_href, nested)
+                    for nested in nested_sources_v69323 if nested
+                ):
+                    urls.insert(0, (anchor_href, "linked-full-image", True))
 
             seen_local = set()
             for candidate_src, source_kind, full_size in urls:
@@ -56624,6 +56716,7 @@ def build_website_knowledge_package_document(
         f"PAGE_IDENTITY_JSON_V69024: {json.dumps(extraction.get('page_identity_v69024') or {}, ensure_ascii=False, separators=(',', ':'))}",
         f"ATP_SEMANTIC_METADATA_JSON_V69178: {_website_atp_semantic_package_json_v69178(extraction)}",
         f"Useful website images analyzed: {len(images)}",
+        f"Useful website video links: {len(list(extraction.get('media_links_v69323') or []))}",
         "APPROVED_IMAGE_ORIGINS_V69040: " + ",".join(approved_image_origins_v69040),
         "",
         "WEBPAGE TEXT",
@@ -56631,6 +56724,27 @@ def build_website_knowledge_package_document(
         content,
         "",
     ]
+
+    media_links_v69323 = [
+        dict(item) for item in (extraction.get("media_links_v69323") or [])
+        if isinstance(item, dict) and str(item.get("url") or "").startswith("https://")
+    ]
+    if media_links_v69323:
+        lines.extend([
+            "WEBSITE VIDEO LINKS",
+            "===================",
+            "These are exact current-page video links extracted from authoritative content zones.",
+            "",
+        ])
+        for index, item in enumerate(media_links_v69323, start=1):
+            lines.extend([
+                f"VIDEO {index}",
+                f"VIDEO_PLATFORM: {str(item.get('platform') or '').strip()}",
+                f"VIDEO_ID: {str(item.get('video_id') or '').strip()}",
+                f"VIDEO_URL: {str(item.get('url') or '').strip()}",
+                f"VIDEO_SOURCE_ZONE: {str(item.get('source_zone_v69024') or '').strip()}",
+                "",
+            ])
 
     # v69142: durable generic section/image binding for Technical learning only.
     # Sales/Marketing package content remains byte-for-byte on its prior path.
@@ -71117,6 +71231,11 @@ def extract_public_webpage(url, page_password=""):
         image_candidates = _website_apply_atp_image_metadata_v69178(
             image_candidates, atp_semantic_metadata_v69178
         )
+        image_candidates = _website_rank_atp_primary_images_v69323(image_candidates)
+        media_links_v69323 = (
+            _website_extract_media_links_v69323(page_text, final_url, page_type_v69024)
+            if "text/plain" not in content_type else []
+        )
         # v69029: some WooCommerce/theme combinations expose the real current-product
         # gallery in markup forms that the strict zone-aware parser does not surface.
         # Recover only from the bounded current-product root, and only when the normal
@@ -71167,8 +71286,117 @@ def extract_public_webpage(url, page_password=""):
             "password_protected_access": bool(clean_page_password),
             "technical_hierarchy_v69143": technical_hierarchy_v69143,
             "atp_semantic_metadata_v69178": atp_semantic_metadata_v69178,
+            "media_links_v69323": media_links_v69323,
+            "youtube_url_count_v69323": sum(
+                1 for item in media_links_v69323
+                if str((item or {}).get("platform") or "").casefold() == "youtube"
+            ),
         }
 
+
+
+def _website_youtube_video_identity_v69323(raw_url, page_url=""):
+    """Return one canonical YouTube video record, or {} for non-video/social URLs."""
+    value = html.unescape(str(raw_url or "").strip()).replace("\\/", "/")
+    if not value:
+        return {}
+    if value.startswith("//"):
+        value = "https:" + value
+    elif value.startswith("/"):
+        value = urljoin(str(page_url or ""), value)
+    try:
+        parsed = urlparse(value)
+    except Exception:
+        return {}
+    host = str(parsed.hostname or "").strip().casefold()
+    if host.startswith("www."):
+        host = host[4:]
+    video_id = ""
+    path = str(parsed.path or "").strip("/")
+    if host == "youtu.be":
+        video_id = path.split("/", 1)[0]
+    elif host in {"youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com"}:
+        if path == "watch":
+            for pair in str(parsed.query or "").split("&"):
+                if pair.startswith("v="):
+                    video_id = pair.split("=", 1)[1].strip(); break
+        else:
+            match = re.match(r"(?:embed|shorts|live)/([A-Za-z0-9_-]{6,20})", path, flags=re.I)
+            if match:
+                video_id = match.group(1)
+    video_id = re.sub(r"[^A-Za-z0-9_-]", "", str(video_id or ""))
+    if not re.fullmatch(r"[A-Za-z0-9_-]{6,20}", video_id):
+        return {}
+    return {
+        "platform": "YouTube",
+        "video_id": video_id,
+        "url": f"https://youtu.be/{video_id}",
+        "source_url": value,
+    }
+
+
+def _website_extract_media_links_v69323(page_html, page_url="", page_type=""):
+    """Extract current-content YouTube video links without admitting site-chrome media."""
+    class _MediaParser(HTMLParser):
+        VOID = {"area","base","br","col","embed","hr","img","input","link","meta","param","source","track","wbr"}
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            base = "product_content" if str(page_type or "") == "woocommerce_product" else "article_body"
+            self.stack = [{"tag":"__root__","zone":base,"excluded":False}]
+            self.rows = []
+        def state(self):
+            return self.stack[-1] if self.stack else {"zone":"article_body","excluded":False}
+        def add(self, candidate, kind):
+            if self.state().get("excluded"):
+                return
+            record = _website_youtube_video_identity_v69323(candidate, page_url)
+            if record:
+                record["source_kind"] = str(kind or "html")
+                record["source_zone_v69024"] = str(self.state().get("zone") or "")
+                self.rows.append(record)
+        def handle_starttag(self, tag, attrs):
+            tag = str(tag or "").casefold()
+            parent = self.state()
+            zone = _website_dom_zone_v69024(tag, attrs, page_type, parent.get("zone"))
+            excluded = bool(parent.get("excluded")) or _website_source_zone_is_excluded_v69024(zone)
+            if tag not in self.VOID:
+                self.stack.append({"tag":tag,"zone":zone,"excluded":excluded})
+            if excluded:
+                return
+            a = {str(k or "").casefold(): str(v or "") for k, v in (attrs or []) if k}
+            for name in ("href", "src", "data-src", "data-url"):
+                if a.get(name):
+                    self.add(a.get(name), f"{tag}-{name}")
+        def handle_endtag(self, tag):
+            tag = str(tag or "").casefold()
+            if len(self.stack) > 1 and str(self.state().get("tag") or "") == tag:
+                self.stack.pop()
+        def handle_data(self, data):
+            if self.state().get("excluded"):
+                return
+            text = html.unescape(str(data or "")).replace("\\/", "/")
+            for match in re.finditer(
+                r"https?://(?:www\.)?(?:youtu\.be/[A-Za-z0-9_-]{6,20}|(?:m\.|music\.)?youtube(?:-nocookie)?\.com/(?:watch\?[^\s<>'\"]*?v=[A-Za-z0-9_-]{6,20}|(?:embed|shorts|live)/[A-Za-z0-9_-]{6,20}))[^\s<>'\"]*",
+                text, flags=re.I,
+            ):
+                self.add(match.group(0), "bare-text")
+    parser = _MediaParser()
+    try:
+        parser.feed(str(page_html or ""))
+        parser.close()
+    except Exception:
+        return []
+    output = []
+    seen = set()
+    for row in parser.rows:
+        key = (str(row.get("platform") or ""), str(row.get("video_id") or ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append(dict(row))
+        if len(output) >= 32:
+            break
+    return output
 
 
 def _website_knowledge_url_identity_v68892(extraction):
@@ -71231,6 +71459,16 @@ def _website_knowledge_version_hash_v68892(
         "ingestion_authority_version_v69024": WEBSITE_INGESTION_AUTHORITY_VERSION_V69024,
         "technical_hierarchy_v69143": dict(extraction.get("technical_hierarchy_v69143") or {}),
         "atp_semantic_metadata_v69178": dict(extraction.get("atp_semantic_metadata_v69178") or {}),
+        "media_links_v69323": [
+            {
+                "platform": str((item or {}).get("platform") or ""),
+                "video_id": str((item or {}).get("video_id") or ""),
+                "url": str((item or {}).get("url") or ""),
+                "source_zone_v69024": str((item or {}).get("source_zone_v69024") or ""),
+            }
+            for item in (extraction.get("media_links_v69323") or [])
+            if isinstance(item, dict)
+        ],
         "images": stable_images,
     }
     packed = json.dumps(
@@ -77866,7 +78104,8 @@ def render_learn_from_website(database_choice):
         f"Source: {extraction.get('source_url')}  |  "
         f"{extraction.get('word_count', 0):,} words  |  "
         f"{extraction.get('character_count', 0):,} characters  |  "
-        f"{extraction.get('image_candidate_count', 0):,} candidate images"
+        f"{extraction.get('image_candidate_count', 0):,} candidate images  |  "
+        f"{extraction.get('youtube_url_count_v69323', 0):,} YouTube video link(s)"
     )
 
     include_website_images = st.checkbox(
