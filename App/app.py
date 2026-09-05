@@ -1,6 +1,6 @@
 # ============================================================
 # AutoTecPro AI — Final Production Application
-# Release: v69321 (v69320 + durable Graphic History signed-URL refresh)
+# Release: v69322 (v69321 + safe History/workspace/UI performance optimizations)
 #
 # Protected production authorities:
 # - Graphic Reference first-generation: v69298 / isolated v69272-v69248
@@ -13,8 +13,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69321"
-AUTOTECPRO_RELEASE_BUILD = "v69321-graphic-history-signed-url-refresh-20260905"
+AUTOTECPRO_RELEASE_VERSION = "v69322"
+AUTOTECPRO_RELEASE_BUILD = "v69322-safe-history-workspace-ui-smoothness-20260905"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -48061,6 +48061,174 @@ def update_conversation_ai_title(
 
 
 
+# v69322: History-only pooled REST transport and sidebar snapshot.
+#
+# This performance layer is deliberately isolated from Graphic generation, Technical,
+# Sales/Marketing retrieval, Auth, persistence semantics, and workspace authority.
+# It reduces History sidebar network round-trips while preserving the exact visible
+# conversation set, ordering, pin state, storage count, and pagination behavior.
+@st.cache_resource(show_spinner=False)
+def _history_http_session_v69322():
+    session_v69322 = requests.Session()
+    try:
+        adapter_v69322 = requests.adapters.HTTPAdapter(
+            pool_connections=8,
+            pool_maxsize=16,
+            max_retries=0,
+            pool_block=False,
+        )
+        session_v69322.mount("https://", adapter_v69322)
+        session_v69322.mount("http://", adapter_v69322)
+    except Exception:
+        pass
+    return session_v69322
+
+
+def _history_rest_get_v69322(table_name, params, *, timeout_seconds=6.0, prefer_exact_count=False):
+    table_v69322 = str(table_name or "").strip()
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table_v69322):
+        raise ValueError("Invalid Supabase table name")
+    supabase_url_v69322, server_key_v69322 = _supabase_rest_context_v69189()
+    timeout_v69322 = max(1.0, float(timeout_seconds or 6.0))
+    headers_v69322 = {
+        "apikey": server_key_v69322,
+        "Authorization": f"Bearer {server_key_v69322}",
+        "Accept": "application/json",
+    }
+    if prefer_exact_count:
+        headers_v69322["Prefer"] = "count=exact"
+    response_v69322 = _history_http_session_v69322().get(
+        f"{supabase_url_v69322}/rest/v1/{table_v69322}",
+        headers=headers_v69322,
+        params=dict(params or {}),
+        timeout=(min(3.0, timeout_v69322), timeout_v69322),
+    )
+    response_v69322.raise_for_status()
+    payload_v69322 = response_v69322.json()
+    if not isinstance(payload_v69322, list):
+        payload_v69322 = []
+    rows_v69322 = [dict(row) for row in payload_v69322 if isinstance(row, dict)]
+    return rows_v69322, response_v69322
+
+
+def _history_content_range_total_v69322(response):
+    try:
+        content_range_v69322 = str(response.headers.get("Content-Range") or "").strip()
+        if "/" in content_range_v69322:
+            total_v69322 = content_range_v69322.rsplit("/", 1)[-1].strip()
+            if total_v69322.isdigit():
+                return int(total_v69322)
+    except Exception:
+        pass
+    return None
+
+
+@st.cache_data(ttl=60, max_entries=512, show_spinner=False)
+def _history_sidebar_snapshot_cached_v69322(username, assistant_name, unpinned_limit):
+    """Return sidebar rows + exact totals using two pooled REST reads.
+
+    The three legacy logical reads (pinned rows, unpinned rows, exact active count)
+    are preserved so nullable legacy pin records keep identical counting semantics.
+    They now share one pooled HTTP session and one unified cache entry, eliminating
+    repeated TLS setup and independent-cache refresh skew without changing data.
+    """
+    username_v69322 = str(username or "").strip()
+    workspace_v69322 = clean_assistant_label(str(assistant_name or "").strip())
+    if not username_v69322:
+        return {"conversations": [], "storage_count": 0, "pinned_count": 0, "total_unpinned_count": 0}
+    try:
+        clean_limit_v69322 = int(unpinned_limit)
+    except (TypeError, ValueError):
+        clean_limit_v69322 = INITIAL_HISTORY_PAGE_SIZE
+    clean_limit_v69322 = max(
+        INITIAL_HISTORY_PAGE_SIZE,
+        min(clean_limit_v69322, MAX_UNPINNED_CONVERSATIONS_PER_USER),
+    )
+    selected_columns_v69322 = "id,username,assistant,title,archived,pinned,created_at,updated_at"
+    common_v69322 = {
+        "select": selected_columns_v69322,
+        "username": f"eq.{username_v69322}",
+        "or": "(archived.is.null,archived.eq.false)",
+        "order": "updated_at.desc",
+    }
+    if workspace_v69322:
+        common_v69322["assistant"] = f"eq.{workspace_v69322}"
+
+    pinned_params_v69322 = dict(common_v69322)
+    pinned_params_v69322["pinned"] = "eq.true"
+    pinned_rows_v69322, _ = _history_rest_get_v69322(
+        "conversations", pinned_params_v69322, timeout_seconds=6.0
+    )
+
+    unpinned_params_v69322 = dict(common_v69322)
+    unpinned_params_v69322["pinned"] = "eq.false"
+    unpinned_params_v69322["limit"] = str(clean_limit_v69322)
+    unpinned_rows_v69322, _ = _history_rest_get_v69322(
+        "conversations",
+        unpinned_params_v69322,
+        timeout_seconds=6.0,
+    )
+
+    # Preserve v69321 Storage-count semantics exactly: count every active row,
+    # including any legacy record whose pinned value is NULL.  The visible row
+    # queries intentionally retain their original pinned=true / pinned=false filters.
+    total_params_v69322 = {
+        "select": "id",
+        "username": f"eq.{username_v69322}",
+        "or": "(archived.is.null,archived.eq.false)",
+        "limit": "1",
+    }
+    if workspace_v69322:
+        total_params_v69322["assistant"] = f"eq.{workspace_v69322}"
+    _, total_response_v69322 = _history_rest_get_v69322(
+        "conversations",
+        total_params_v69322,
+        timeout_seconds=6.0,
+        prefer_exact_count=True,
+    )
+    storage_count_v69322 = _history_content_range_total_v69322(total_response_v69322)
+    if storage_count_v69322 is None:
+        storage_count_v69322 = _bounded_active_conversation_count_v69189(
+            username_v69322, workspace_v69322, timeout_seconds=6.0
+        )
+    total_unpinned_v69322 = max(
+        0, int(storage_count_v69322) - len(pinned_rows_v69322)
+    )
+
+    conversations_v69322 = list(pinned_rows_v69322) + list(unpinned_rows_v69322)
+    return {
+        "conversations": conversations_v69322,
+        "storage_count": int(storage_count_v69322),
+        "pinned_count": len(pinned_rows_v69322),
+        "total_unpinned_count": int(total_unpinned_v69322),
+    }
+
+
+@st.cache_data(ttl=45, max_entries=512, show_spinner=False)
+def _history_messages_after_workspace_proof_cached_v69322(username, conversation_id):
+    """Load messages after the caller has already proved workspace ownership.
+
+    This avoids immediately repeating the same ownership lookup inside
+    _bounded_conversation_messages_v69189.  The caller must perform the existing
+    username + workspace proof first; this helper only executes after that proof.
+    """
+    username_v69322 = str(username or "").strip()
+    conversation_v69322 = str(conversation_id or "").strip()
+    if not username_v69322 or not conversation_v69322:
+        return []
+    rows_v69322, _ = _history_rest_get_v69322(
+        "messages",
+        {
+            "select": "*",
+            "conversation_id": f"eq.{conversation_v69322}",
+            "order": "created_at.asc",
+            "limit": "2000",
+        },
+        timeout_seconds=6.0,
+    )
+    return rows_v69322
+
+
 def get_conversation_storage_count(username, role=None, assistant_name=None):
     """Count active saved conversations with bounded REST reads only."""
     username = str(username or "").strip()
@@ -48515,6 +48683,10 @@ def invalidate_history_cache(
             _active_conversation_count_cached.clear()
         except Exception:
             pass
+        try:
+            _history_sidebar_snapshot_cached_v69322.clear()
+        except Exception:
+            pass
 
     if messages:
         try:
@@ -48523,6 +48695,10 @@ def invalidate_history_cache(
             pass
         try:
             _conversation_owned_by_user_cached.clear()
+        except Exception:
+            pass
+        try:
+            _history_messages_after_workspace_proof_cached_v69322.clear()
         except Exception:
             pass
 
@@ -49060,9 +49236,20 @@ def render_history_cards(conversations, *, history_workspace="", search_value=No
                             _rerun_fragment_or_app()
                             return
 
+                        history_open_started_v69322 = time.perf_counter()
                         st.session_state.conversation_id = conversation_id
-                        st.session_state.messages = load_messages(
-                            conversation_id
+                        st.session_state.messages = [
+                            dict(message_v69322)
+                            for message_v69322 in _history_messages_after_workspace_proof_cached_v69322(
+                                history_username_v69190, conversation_id
+                            )
+                        ]
+                        _remember_owned_conversation_v68960(conversation_id)
+                        diagnostic_log(
+                            "history_open_messages_loaded_v69322",
+                            conversation_id=conversation_id,
+                            message_count=len(st.session_state.messages),
+                            elapsed_seconds=round(time.perf_counter() - history_open_started_v69322, 3),
                         )
                         st.session_state.rename_conversation_id = None
                         st.session_state.scroll_to_bottom = True
@@ -49213,17 +49400,25 @@ def render_history_sidebar_fragment():
                 or INITIAL_HISTORY_PAGE_SIZE
             )
         )
-        conversations = load_conversations(
+        history_snapshot_started_v69322 = time.perf_counter()
+        history_snapshot_v69322 = _history_sidebar_snapshot_cached_v69322(
             st.session_state.username,
-            st.session_state.role,
-            unpinned_limit=effective_history_limit,
-            assistant_name=active_history_workspace_v69177,
+            active_history_workspace_v69177,
+            effective_history_limit,
         )
-
-        storage_count = get_conversation_storage_count(
-            st.session_state.username,
-            st.session_state.role,
-            assistant_name=active_history_workspace_v69177,
+        conversations = [
+            dict(conversation_v69322)
+            for conversation_v69322 in history_snapshot_v69322.get("conversations", [])
+            if isinstance(conversation_v69322, dict)
+        ]
+        _remember_owned_conversations_v68960(conversations)
+        storage_count = int(history_snapshot_v69322.get("storage_count", 0) or 0)
+        diagnostic_log(
+            "history_sidebar_snapshot_ready_v69322",
+            workspace=history_label_v69190,
+            row_count=len(conversations),
+            storage_count=storage_count,
+            elapsed_seconds=round(time.perf_counter() - history_snapshot_started_v69322, 3),
         )
         st.sidebar.markdown(
             (
@@ -49348,9 +49543,8 @@ def render_history_sidebar_fragment():
             1 for conversation in conversations
             if bool(conversation.get("pinned", False))
         )
-        total_unpinned_count = max(
-            0,
-            int(storage_count) - loaded_pinned_count,
+        total_unpinned_count = int(
+            history_snapshot_v69322.get("total_unpinned_count", 0) or 0
         )
 
         if (
