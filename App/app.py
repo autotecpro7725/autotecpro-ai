@@ -27,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69339"
-AUTOTECPRO_RELEASE_BUILD = "v69338-exact-v69325-plus-current-product-recovery-and-second-question-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69340"
+AUTOTECPRO_RELEASE_BUILD = "v69340-second-question-exact-price-rest-first-page-fallback-20260907"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -1759,6 +1759,184 @@ def _woocommerce_price_label_v69326(result):
     except Exception:
         return ""
     currency = _woocommerce_store_currency_v69326() or "store currency"
+    if abs(high - low) < 0.005:
+        return f"{currency} {low:,.2f}"
+    return f"{currency} {low:,.2f}–{high:,.2f}"
+
+
+@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
+def _current_product_page_price_by_exact_url_v69340(source_url):
+    """Read the current price only from the exact matched product page.
+
+    Safe fallback for Sales follow-up pricing when WooCommerce REST cannot verify a
+    price. The request may follow ordinary same-product redirects, but the final URL
+    must canonicalize to the exact learned source identity. Price extraction is limited
+    to product-scoped structured data / WooCommerce variation payloads; generic body
+    currency text is intentionally ignored to prevent cross-product price leakage.
+    """
+    source_url = str(source_url or "").strip()
+    if not source_url:
+        return {"status": "unavailable", "reason": "missing_source_url"}
+    try:
+        source_identity = canonical_website_url_identity(source_url)
+    except Exception:
+        source_identity = source_url.rstrip("/").casefold()
+
+    try:
+        response = http_session.get(
+            source_url,
+            headers={
+                "Accept": "text/html,application/xhtml+xml",
+                "User-Agent": "AutoTecPro-AI/1.0",
+            },
+            timeout=LIVE_HTTP_TIMEOUT,
+            allow_redirects=True,
+        )
+        response.raise_for_status()
+    except Exception as error:
+        return {
+            "status": "unavailable",
+            "reason": "exact_product_page_fetch_failed",
+            "error_type": type(error).__name__,
+            "error": str(error)[:500],
+        }
+
+    final_url = str(getattr(response, "url", "") or source_url).strip()
+    try:
+        final_identity = canonical_website_url_identity(final_url)
+    except Exception:
+        final_identity = final_url.rstrip("/").casefold()
+    if final_identity != source_identity:
+        return {
+            "status": "unavailable",
+            "reason": "exact_product_page_redirect_identity_mismatch",
+            "final_url": final_url,
+        }
+
+    html_text = str(getattr(response, "text", "") or "")
+    if not html_text:
+        return {"status": "unavailable", "reason": "empty_product_page"}
+
+    def _num(value):
+        try:
+            cleaned = re.sub(r"[^0-9.\-]", "", str(value or "").replace(",", ""))
+            return float(cleaned) if cleaned else None
+        except Exception:
+            return None
+
+    prices = []
+    currencies = []
+
+    def _add_price(value):
+        number = _num(value)
+        if number is not None and number >= 0:
+            prices.append(number)
+
+    def _walk_jsonld(node):
+        if isinstance(node, list):
+            for child in node:
+                _walk_jsonld(child)
+            return
+        if not isinstance(node, dict):
+            return
+        node_type = node.get("@type")
+        types = {str(x).casefold() for x in (node_type if isinstance(node_type, list) else [node_type]) if x}
+        if "product" in types:
+            offers = node.get("offers")
+            offer_rows = offers if isinstance(offers, list) else [offers]
+            for offer in offer_rows:
+                if not isinstance(offer, dict):
+                    continue
+                for key in ("price", "lowPrice", "highPrice"):
+                    _add_price(offer.get(key))
+                cur = str(offer.get("priceCurrency") or "").strip().upper()
+                if cur:
+                    currencies.append(cur)
+        graph = node.get("@graph")
+        if isinstance(graph, (list, dict)):
+            _walk_jsonld(graph)
+
+    for match in re.finditer(
+        r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        html_text,
+        flags=re.I | re.S,
+    ):
+        raw = html.unescape(match.group(1)).strip()
+        if not raw:
+            continue
+        try:
+            _walk_jsonld(json.loads(raw))
+        except Exception:
+            continue
+
+    # WooCommerce variable-product payload is exact-page scoped and contains the
+    # active display price for each variation. Use it only when JSON-LD did not
+    # already provide a current product offer.
+    if not prices:
+        for attr_match in re.finditer(r'data-product_variations=["\'](.*?)["\']', html_text, flags=re.I | re.S):
+            raw = html.unescape(attr_match.group(1)).strip()
+            try:
+                variations = json.loads(raw)
+            except Exception:
+                continue
+            if not isinstance(variations, list):
+                continue
+            for variation in variations:
+                if not isinstance(variation, dict):
+                    continue
+                _add_price(variation.get("display_price"))
+            if prices:
+                break
+
+    # Product meta tags are also product-scoped and are a safe final parser fallback.
+    if not prices:
+        amount_patterns = [
+            r'<meta[^>]+property=["\']product:price:amount["\'][^>]+content=["\']([^"\']+)',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']product:price:amount["\']',
+            r'<meta[^>]+itemprop=["\']price["\'][^>]+content=["\']([^"\']+)',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+itemprop=["\']price["\']',
+        ]
+        for pattern in amount_patterns:
+            for match in re.finditer(pattern, html_text, flags=re.I):
+                _add_price(match.group(1))
+    currency_patterns = [
+        r'<meta[^>]+property=["\']product:price:currency["\'][^>]+content=["\']([^"\']+)',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']product:price:currency["\']',
+        r'<meta[^>]+itemprop=["\']priceCurrency["\'][^>]+content=["\']([^"\']+)',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+itemprop=["\']priceCurrency["\']',
+    ]
+    for pattern in currency_patterns:
+        for match in re.finditer(pattern, html_text, flags=re.I):
+            cur = str(match.group(1) or "").strip().upper()
+            if cur:
+                currencies.append(cur)
+
+    if not prices:
+        return {"status": "unavailable", "reason": "current_product_page_price_missing", "source_url": source_url}
+
+    unique_prices = sorted({round(float(x), 4) for x in prices})
+    currency = next((x for x in currencies if re.fullmatch(r"[A-Z]{3}", x)), "")
+    return {
+        "status": "verified",
+        "source": "exact_current_product_page",
+        "source_url": source_url,
+        "final_url": final_url,
+        "min_price": min(unique_prices),
+        "max_price": max(unique_prices),
+        "currency": currency,
+    }
+
+
+def _current_product_page_price_label_v69340(result):
+    result = dict(result or {})
+    if str(result.get("status") or "") != "verified":
+        return ""
+    try:
+        low = float(result.get("min_price"))
+        high = float(result.get("max_price"))
+    except Exception:
+        return ""
+    currency = str(result.get("currency") or "").strip().upper() or (_woocommerce_store_currency_v69326() or "store currency")
     if abs(high - low) < 0.005:
         return f"{currency} {low:,.2f}"
     return f"{currency} {low:,.2f}–{high:,.2f}"
@@ -61937,10 +62115,22 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                         note_v69326 = f"Live sale price; regular price {(_woocommerce_store_currency_v69326() or 'store currency')} {regular_v69326}"
                     live_rows_v69326.append((str(product_v69326.get("name") or title_v69326), price_label_v69326, note_v69326))
                 else:
-                    live_rows_v69326.append((title_v69326, "Not verified", "Current WooCommerce price could not be verified; I will not guess"))
+                    # v69340: exact matched URL page fallback only after WooCommerce REST
+                    # fails. Product identity/order/image authority are unchanged.
+                    page_lookup_v69340 = _current_product_page_price_by_exact_url_v69340(source_v69326)
+                    page_price_label_v69340 = _current_product_page_price_label_v69340(page_lookup_v69340)
+                    if page_price_label_v69340:
+                        verified_count_v69326 += 1
+                        live_rows_v69326.append((
+                            title_v69326,
+                            page_price_label_v69340,
+                            "Verified from exact current product page (WooCommerce REST unavailable for this price)",
+                        ))
+                    else:
+                        live_rows_v69326.append((title_v69326, "Not verified", "Current price could not be verified from WooCommerce REST or the exact current product page; I will not guess"))
 
             diagnostic_log(
-                "workspace_sales_live_multi_price_v69338",
+                "workspace_sales_live_multi_price_v69340",
                 requested=len(selected_rows_v69326),
                 verified=verified_count_v69326,
                 failed=max(0, len(selected_rows_v69326) - verified_count_v69326),
@@ -61954,7 +62144,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
             for title_v69326, price_v69326, note_v69326 in live_rows_v69326:
                 lines_v69326.append(f"| {title_v69326} | {price_v69326} | {note_v69326} |")
             if verified_count_v69326 != len(selected_rows_v69326):
-                lines_v69326.append("\nI only quote prices that can be read back from the exact current WooCommerce product record.")
+                lines_v69326.append("\nI only quote prices verified from the exact current WooCommerce product record or, if REST cannot verify it, that exact current product page.")
             return "\n".join(lines_v69326)
 
         if fitment_intent_v69325 and rows_v69325:
