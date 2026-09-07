@@ -209,8 +209,8 @@ if Image is not None and LOGO_FILE.exists():
 api_key = st.secrets["OPENAI_API_KEY"]
 
 
-AUTOTECPRO_RELEASE_VERSION = "v69329"
-AUTOTECPRO_RELEASE_BUILD = "v69329-rollback-v69325-durable-sales-coldstart-followup-price-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69330"
+AUTOTECPRO_RELEASE_BUILD = "v69330-v69329-schema-adaptive-durable-snapshot-20260907"
 
 
 @st.cache_resource(show_spinner=False)
@@ -61132,9 +61132,17 @@ def _workspace_durable_snapshot_commit_verified_v69329(package, vector_store_id=
     else:
         safe_insert_row("learned_knowledge", row_payload)
 
+    # v69330: learned_knowledge is deployed with multiple schema generations.
+    # Never request optional columns that the live table does not expose; a single
+    # missing optional column must not disable the entire durable cold-start path.
+    verified_wanted_v69330 = [
+        x for x in ("id", key_col, value_col, "solution", "approved_answer",
+                    "source_type", time_col)
+        if x and (not columns or x in columns)
+    ]
     verified_rows = list(
         supabase.table("learned_knowledge")
-        .select(",".join(dict.fromkeys(["id", key_col, value_col, "solution", "approved_answer", "source_type", time_col])))
+        .select(",".join(dict.fromkeys(verified_wanted_v69330)))
         .eq(key_col, key)
         .order(time_col, desc=True)
         .limit(1)
@@ -61175,7 +61183,24 @@ def _workspace_durable_snapshot_packages_v69329(destination, vector_store_id="")
     if not prefix:
         return []
     mode, columns, key_col, value_col, time_col = _technical_active_authority_schema_v69164()
-    wanted = [x for x in ("id", key_col, value_col, "solution", "approved_answer", "source_type", time_col) if x]
+    # v69330 schema compatibility: source_type/solution/approved_answer are
+    # optional across deployed learned_knowledge generations. Select only columns
+    # confirmed by the live schema contract returned above.
+    wanted = [
+        x for x in ("id", key_col, value_col, "solution", "approved_answer",
+                    "source_type", time_col)
+        if x and (not columns or x in columns)
+    ]
+    missing_optional_v69330 = [
+        x for x in ("source_type", "solution", "approved_answer")
+        if columns and x not in columns
+    ]
+    if missing_optional_v69330:
+        diagnostic_log(
+            "workspace_durable_snapshot_schema_adapted_v69330",
+            destination=target,
+            missing_columns=missing_optional_v69330,
+        )
     try:
         rows = list(
             supabase.table("learned_knowledge")
