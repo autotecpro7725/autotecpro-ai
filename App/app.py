@@ -1,3 +1,4 @@
+# v69347 — v69343 output + live USD equivalent + exact-only repeat-image suppression hardening
 # ============================================================
 # v69324 — Website learning concurrency + targeted durability verification
 # ============================================================
@@ -3203,6 +3204,117 @@ def get_live_exchange_rate(base_currency, quote_currency):
         ),
     }
 
+
+
+def _workspace_price_label_parts_v69347(price_label):
+    """Parse only an already-verified display price label into currency/value(s)."""
+    label = re.sub(r"\s+", " ", str(price_label or "")).strip()
+    match = re.fullmatch(
+        r"([A-Z]{3})\s+([0-9][0-9,]*(?:\.[0-9]{1,2})?)(?:\s*[–-]\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?))?",
+        label,
+    )
+    if not match:
+        return {}
+    try:
+        low = float(match.group(2).replace(",", ""))
+        high = float((match.group(3) or match.group(2)).replace(",", ""))
+    except Exception:
+        return {}
+    if low < 0 or high < 0:
+        return {}
+    if high < low:
+        low, high = high, low
+    return {"currency": match.group(1), "low": low, "high": high}
+
+
+def _workspace_sales_usd_rate_v69347(base_currency):
+    """Return a bounded-session cached reference FX rate from base currency to USD."""
+    base = str(base_currency or "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", base):
+        return {}
+    if base == "USD":
+        return {
+            "base": "USD", "quote": "USD", "rate": 1.0,
+            "date": datetime.now(timezone.utc).date().isoformat(),
+            "source": "identity", "fetched_at": time.time(), "cache_hit": True,
+        }
+
+    cache_key = "_workspace_sales_usd_fx_cache_v69347"
+    now = time.time()
+    try:
+        cache = dict(st.session_state.get(cache_key) or {})
+    except Exception:
+        cache = {}
+    try:
+        cache_rate = float(cache.get("rate") or 0)
+        cache_age = now - float(cache.get("fetched_at") or 0)
+    except Exception:
+        cache_rate, cache_age = 0.0, 10**9
+    if (
+        str(cache.get("base") or "").upper() == base
+        and str(cache.get("quote") or "").upper() == "USD"
+        and cache_rate > 0
+        and 0 <= cache_age < 3600
+    ):
+        cache["cache_hit"] = True
+        return cache
+
+    try:
+        fx = dict(get_live_exchange_rate(base, "USD") or {})
+        rate = float(fx.get("rate") or 0)
+        if rate <= 0:
+            return {}
+        result = {
+            "base": base,
+            "quote": "USD",
+            "rate": rate,
+            "date": str(fx.get("date") or "").strip(),
+            "source": str(fx.get("source") or "Frankfurter").strip(),
+            "fetched_at": now,
+            "cache_hit": False,
+        }
+        try:
+            st.session_state[cache_key] = dict(result)
+        except Exception:
+            pass
+        return result
+    except Exception as error_v69347:
+        diagnostic_log(
+            "workspace_sales_usd_fx_failed_v69347",
+            base=base,
+            error_type=type(error_v69347).__name__,
+            error=str(error_v69347)[:400],
+        )
+        return {}
+
+
+def _workspace_usd_equivalent_label_v69347(price_label, fx_by_currency):
+    """Format an approximate USD equivalent for an already-verified store price."""
+    parts = _workspace_price_label_parts_v69347(price_label)
+    if not parts:
+        return ""
+    currency = str(parts.get("currency") or "").upper()
+    if currency == "USD":
+        rate = 1.0
+    else:
+        fx = dict((fx_by_currency or {}).get(currency) or {})
+        try:
+            rate = float(fx.get("rate") or 0)
+        except Exception:
+            rate = 0.0
+        if rate <= 0:
+            return ""
+    low = float(parts.get("low") or 0) * rate
+    high = float(parts.get("high") or 0) * rate
+    if abs(low - high) < 0.005:
+        return f"USD {low:,.2f}"
+    return f"USD {low:,.2f}–{high:,.2f}"
+
+
+def _workspace_markdown_table_cell_v69347(value):
+    """Keep deterministic Sales table rows valid when source text contains pipes/newlines."""
+    value = re.sub(r"\s+", " ", str(value or "")).strip()
+    return value.replace("|", r"\|")
 
 
 def cached_oauth_token(cache_key, token_url, client_id, client_secret, *,
@@ -12253,20 +12365,8 @@ def _workspace_product_image_identity_v69346(image):
                 return f"product:{host}{path.casefold()}"
         except Exception:
             pass
-    sha = str(image.get("website_image_sha256") or "").strip().casefold()
-    if sha:
-        return "image-sha:" + sha
-    archive = str(image.get("archive_web_url") or "").strip()
-    if archive:
-        try:
-            parsed = urlparse(archive)
-            return "image-url:" + urlunparse((
-                (parsed.scheme or "https").casefold(),
-                (parsed.netloc or "").casefold(),
-                parsed.path, "", "", ""
-            ))
-        except Exception:
-            return "image-url:" + archive
+    # v69347: suppress repeats only when exact product-page identity is proven.
+    # Image SHA/URL can legitimately be reused by a different product/model.
     return ""
 
 
@@ -62325,23 +62425,81 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 labels=[str(row[2])[:120] for row in live_rows_v69326],
                 variants=[str(row[1])[:80] for row in live_rows_v69326],
             )
+
+            # v69347: preserve v69343's output structure and add only a live USD
+            # equivalent. The store-currency amount remains the verified authority.
+            currencies_v69347 = set()
+            for _title_v69347, _variant_v69347, price_v69347, _note_v69347 in live_rows_v69326:
+                parsed_price_v69347 = _workspace_price_label_parts_v69347(price_v69347)
+                currency_v69347 = str(parsed_price_v69347.get("currency") or "").upper()
+                if currency_v69347 and currency_v69347 != "USD":
+                    currencies_v69347.add(currency_v69347)
+
+            fx_by_currency_v69347 = {}
+            for currency_v69347 in sorted(currencies_v69347):
+                fx_v69347 = _workspace_sales_usd_rate_v69347(currency_v69347)
+                if fx_v69347:
+                    fx_by_currency_v69347[currency_v69347] = fx_v69347
+
+            display_rows_v69347 = []
+            for title_v69347, variant_v69347, price_v69347, note_v69347 in live_rows_v69326:
+                usd_v69347 = _workspace_usd_equivalent_label_v69347(price_v69347, fx_by_currency_v69347)
+                display_price_v69347 = str(price_v69347)
+                if usd_v69347 and not display_price_v69347.startswith("USD "):
+                    display_price_v69347 += f" (≈ {usd_v69347})"
+                display_rows_v69347.append(
+                    (title_v69347, variant_v69347, display_price_v69347, note_v69347, usd_v69347)
+                )
+
+            diagnostic_log(
+                "workspace_sales_usd_price_output_v69347",
+                rows=len(display_rows_v69347),
+                converted=sum(1 for row_v69347 in display_rows_v69347 if str(row_v69347[4] or "")),
+                currencies=sorted(currencies_v69347),
+                fx_dates=sorted({
+                    str(v.get("date") or "")
+                    for v in fx_by_currency_v69347.values()
+                    if str(v.get("date") or "")
+                }),
+            )
+
             lines_v69326 = [
                 "## Current price check",
                 "",
             ]
-            # v69343: verified monetary values are printed as plain text before the
-            # table so the price cannot disappear because of table/render formatting.
-            # Product selection and the v69342 live-price resolver are unchanged.
-            for _title_v69343, variant_v69343, price_v69343, _note_v69343 in live_rows_v69326:
+            for _title_v69343, variant_v69343, display_price_v69347, _note_v69343, _usd_v69347 in display_rows_v69347:
                 variant_label_v69343 = str(variant_v69343 or "Current product").strip()
-                lines_v69326.append(f"**{variant_label_v69343} — {price_v69343}**")
+                lines_v69326.append(f"**{variant_label_v69343} — {display_price_v69347}**")
             lines_v69326.extend([
                 "",
                 "| Product | Variant | Current price | Verification |",
                 "|---|---|---:|---|",
             ])
-            for title_v69326, variant_v69326, price_v69326, note_v69326 in live_rows_v69326:
-                lines_v69326.append(f"| {title_v69326} | {variant_v69326} | {price_v69326} | {note_v69326} |")
+            for title_v69347, variant_v69347, display_price_v69347, note_v69347, _usd_v69347 in display_rows_v69347:
+                lines_v69326.append(
+                    "| "
+                    + " | ".join([
+                        _workspace_markdown_table_cell_v69347(title_v69347),
+                        _workspace_markdown_table_cell_v69347(variant_v69347),
+                        _workspace_markdown_table_cell_v69347(display_price_v69347),
+                        _workspace_markdown_table_cell_v69347(note_v69347),
+                    ])
+                    + " |"
+                )
+            if fx_by_currency_v69347:
+                fx_dates_v69347 = sorted({
+                    str(v.get("date") or "")
+                    for v in fx_by_currency_v69347.values()
+                    if str(v.get("date") or "")
+                })
+                fx_date_note_v69347 = f" ({', '.join(fx_dates_v69347)})" if fx_dates_v69347 else ""
+                lines_v69326.append(
+                    f"\nUSD equivalents are approximate and use the latest available Frankfurter reference exchange rate{fx_date_note_v69347}; the verified product price remains the store-currency amount."
+                )
+            elif currencies_v69347:
+                lines_v69326.append(
+                    "\nUSD conversion is temporarily unavailable; I will not guess an exchange rate."
+                )
             if verified_count_v69326 != len(selected_rows_v69326):
                 lines_v69326.append("\nI only quote prices verified from the exact current WooCommerce product record or, if REST cannot verify it, that exact current product page.")
             return "\n".join(lines_v69326)
