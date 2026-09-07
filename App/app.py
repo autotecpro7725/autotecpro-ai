@@ -27,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69335"
-AUTOTECPRO_RELEASE_BUILD = "v69335-exact-v69325-plus-second-question-only-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69336"
+AUTOTECPRO_RELEASE_BUILD = "v69336-exact-v69325-durable-workspace-authority-plus-second-question-20260907"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -61024,6 +61024,184 @@ def _workspace_atp_package_inject_v69180(file_id, filename, package_text, destin
     return True
 
 
+
+ATP_WORKSPACE_SNAPSHOT_PREFIX_V69336 = "AUTOTECPRO_ATP_WORKSPACE_SNAPSHOT_V69336:"
+ATP_WORKSPACE_SNAPSHOT_QUESTION_PREFIX_V69336 = "atp-workspace-snapshot-v69336:"
+
+
+def _workspace_atp_snapshot_identity_v69336(destination, package):
+    target = str(destination or "").strip()
+    source = str((package or {}).get("source_url") or "").strip()
+    try:
+        canonical = canonical_website_url_identity(source) if source else ""
+    except Exception:
+        canonical = ""
+    stable = canonical or str((package or {}).get("file_id") or (package or {}).get("filename") or "").strip()
+    if not target or not stable:
+        return ""
+    return hashlib.sha256(f"{target}|{stable}".encode("utf-8")).hexdigest()[:40]
+
+
+def _workspace_atp_snapshot_encode_v69336(destination, package):
+    if not isinstance(package, dict):
+        return ""
+    keep_keys = (
+        "file_id", "filename", "destination", "source_url", "title", "extracted_at",
+        "page_identity", "atp_semantics_v69178", "vehicle_families", "years",
+        "systems", "product_codes",
+    )
+    compact_package = {k: package.get(k) for k in keep_keys if k in package}
+    # v69325 direct multi-product answer reads page_title first; preserve the exact learned title
+    # without carrying the full searchable package text into the durable snapshot.
+    compact_package["page_title"] = str(package.get("page_title") or package.get("title") or "")
+    payload = {
+        "schema": "autotecpro-atp-workspace-snapshot-v69336",
+        "destination": str(destination or "").strip(),
+        "saved_at": now_iso(),
+        "package": compact_package,
+    }
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    digest = hashlib.sha256(raw).hexdigest()
+    packed = base64.urlsafe_b64encode(zlib.compress(raw, 9)).decode("ascii")
+    return ATP_WORKSPACE_SNAPSHOT_PREFIX_V69336 + digest + ":" + packed
+
+
+def _workspace_atp_snapshot_decode_v69336(value, destination=""):
+    text = str(value or "")
+    if not text.startswith(ATP_WORKSPACE_SNAPSHOT_PREFIX_V69336):
+        return None
+    body = text[len(ATP_WORKSPACE_SNAPSHOT_PREFIX_V69336):]
+    try:
+        digest, packed = body.split(":", 1)
+        raw = zlib.decompress(base64.urlsafe_b64decode(packed.encode("ascii")))
+        if not hmac.compare_digest(hashlib.sha256(raw).hexdigest(), str(digest or "")):
+            return None
+        payload = json.loads(raw.decode("utf-8"))
+    except Exception:
+        return None
+    if str(payload.get("schema") or "") != "autotecpro-atp-workspace-snapshot-v69336":
+        return None
+    target = str(destination or "").strip()
+    if target and str(payload.get("destination") or "").strip() != target:
+        return None
+    package = payload.get("package")
+    if not isinstance(package, dict):
+        return None
+    if target and str(package.get("destination") or "").strip() != target:
+        return None
+    return dict(package)
+
+
+def _workspace_atp_snapshot_columns_v69336():
+    profile = dict(_website_image_index_schema_profile_v69129() or {})
+    available = set(profile.get("columns") or [])
+    mode = str(profile.get("mode") or "")
+    if not profile.get("ready"):
+        return {}, set(), ""
+    if mode == "modern" and "issue" in available and ("solution" in available or "approved_answer" in available):
+        return profile, available, "issue"
+    if "question" in available and "approved_answer" in available:
+        return profile, available, "question"
+    return profile, available, ""
+
+
+def _workspace_atp_snapshot_commit_v69336(destination, package):
+    """Durably persist one verified Sales/Marketing ATP package using only live schema columns."""
+    target = str(destination or "").strip()
+    if target not in {"Sales Database", "Marketing Database"} or not isinstance(package, dict):
+        return False
+    identity = _workspace_atp_snapshot_identity_v69336(target, package)
+    encoded = _workspace_atp_snapshot_encode_v69336(target, package)
+    if not identity or not encoded:
+        return False
+    profile, available, lookup = _workspace_atp_snapshot_columns_v69336()
+    if not lookup:
+        diagnostic_log("workspace_atp_snapshot_schema_unavailable_v69336", destination=target)
+        return False
+    marker = ATP_WORKSPACE_SNAPSHOT_QUESTION_PREFIX_V69336 + hashlib.sha256(target.encode("utf-8")).hexdigest()[:12] + ":" + identity
+    if lookup == "issue":
+        base = {"issue": marker, "solution": encoded, "approved_answer": encoded, "question": marker, "keywords": "autotecpro, atp, workspace, snapshot, " + target, "updated_at": now_iso()}
+    else:
+        base = {"question": marker, "approved_answer": encoded, "keywords": "autotecpro, atp, workspace, snapshot, " + target, "updated_at": now_iso()}
+    row = {k:v for k,v in base.items() if k in available}
+    if lookup not in row or not any(k in row for k in ("solution","approved_answer")):
+        diagnostic_log("workspace_atp_snapshot_schema_columns_missing_v69336", destination=target, lookup=lookup)
+        return False
+    try:
+        existing = supabase.table("learned_knowledge").select("id").eq(lookup, marker).limit(1).execute().data or []
+        if existing:
+            supabase.table("learned_knowledge").update(row).eq("id", existing[0]["id"]).execute()
+        else:
+            supabase.table("learned_knowledge").insert(row).execute()
+        # Required read-after-write verification.
+        select = [x for x in ("id", lookup, "solution", "approved_answer") if x in available or x == lookup]
+        verified = None
+        for delay in (0.0, 0.08, 0.18, 0.35):
+            if delay: time.sleep(delay)
+            rows = supabase.table("learned_knowledge").select(",".join(dict.fromkeys(select))).eq(lookup, marker).limit(2).execute().data or []
+            for candidate in rows:
+                raw = str((candidate or {}).get("solution") or (candidate or {}).get("approved_answer") or "")
+                decoded = _workspace_atp_snapshot_decode_v69336(raw, target)
+                if isinstance(decoded, dict) and _workspace_atp_snapshot_identity_v69336(target, decoded) == identity:
+                    verified = decoded
+                    break
+            if verified: break
+        if not verified:
+            diagnostic_log("workspace_atp_snapshot_readback_failed_v69336", destination=target, identity=identity)
+            return False
+    except Exception as error:
+        diagnostic_log("workspace_atp_snapshot_commit_failed_v69336", destination=target, error_type=type(error).__name__, error=str(error)[:500])
+        return False
+    diagnostic_log("workspace_atp_snapshot_committed_v69336", destination=target, source_url=str(package.get("source_url") or "")[:700])
+    return True
+
+
+def _workspace_atp_snapshot_load_v69336(destination, store):
+    """Load only durable verified ATP package contracts; never download assistants-purpose files."""
+    target = str(destination or "").strip()
+    if target not in {"Sales Database", "Marketing Database"}:
+        return []
+    profile, available, lookup = _workspace_atp_snapshot_columns_v69336()
+    if not lookup:
+        return []
+    prefix = ATP_WORKSPACE_SNAPSHOT_QUESTION_PREFIX_V69336 + hashlib.sha256(target.encode("utf-8")).hexdigest()[:12] + ":%"
+    value_cols = [x for x in ("solution", "approved_answer") if x in available]
+    select = ["id", lookup] + value_cols
+    try:
+        rows = supabase.table("learned_knowledge").select(",".join(dict.fromkeys(select))).like(lookup, prefix).limit(1000).execute().data or []
+    except Exception as error:
+        diagnostic_log("workspace_atp_snapshot_load_failed_v69336", destination=target, error_type=type(error).__name__, error=str(error)[:500])
+        return []
+    packages = []
+    for row in rows:
+        raw = str((row or {}).get("solution") or (row or {}).get("approved_answer") or "")
+        package = _workspace_atp_snapshot_decode_v69336(raw, target)
+        if isinstance(package, dict):
+            packages.append(package)
+    # Validate that snapshot files are still attached to the CURRENT vector store.
+    try:
+        current_rows = list(_website_vector_store_file_rows_v68892(store) or [])
+        current_ids = {str(r.get("file_id") or "").strip() for r in current_rows if isinstance(r, dict)}
+        if current_ids:
+            packages = [p for p in packages if str(p.get("file_id") or "").strip() in current_ids]
+    except Exception as error:
+        diagnostic_log("workspace_atp_snapshot_store_validation_failed_v69336", destination=target, error_type=type(error).__name__, error=str(error)[:400])
+        return []
+    # Same canonical-source newest-wins semantics as v69325 warm cache.
+    best = {}
+    for item in packages:
+        source = str(item.get("source_url") or "").strip()
+        try: canon = canonical_website_url_identity(source) if source else ""
+        except Exception: canon = ""
+        identity = "url:" + canon if canon else "file:" + str(item.get("file_id") or item.get("filename") or "")
+        prior = best.get(identity)
+        if prior is None or (str(item.get("extracted_at") or ""), str(item.get("filename") or "")) > (str(prior.get("extracted_at") or ""), str(prior.get("filename") or "")):
+            best[identity] = dict(item)
+    output = sorted(best.values(), key=lambda x:(str(x.get("extracted_at") or ""),str(x.get("filename") or "")), reverse=True)
+    diagnostic_log("workspace_atp_snapshot_loaded_v69336", destination=target, package_count=len(output))
+    return output
+
+
 def _workspace_atp_package_prewarm_start_v69180(destination):
     """Background-load ATP packages for one Sales/Marketing destination; never blocks ordinary fallback."""
     target = str(destination or "").strip()
@@ -61055,37 +61233,14 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
         bucket.update({"key":key,"status":"stale_ready" if last_good else "running","packages":last_good,"future":None,"executor":executor,"error":"","attempted_at":time.monotonic()})
 
         def _build():
-            packages=[]
             try:
-                rows=[dict(r) for r in (_website_vector_store_file_rows_v68892(store) or []) if isinstance(r,dict) and str(r.get("file_id") or "").strip() and str(r.get("filename") or "").startswith("website_")]
-                # Concurrent file reads keep cold-start bounded without serial N-file latency.
-                from concurrent.futures import ThreadPoolExecutor as Pool, as_completed
-                workers=max(2,min(4,len(rows) or 2))
-                with Pool(max_workers=workers,thread_name_prefix="atp-workspace-files-v69180") as pool:
-                    futures={
-                        pool.submit(
-                            _technical_exact_file_text_v69182,
-                            str(r.get("file_id") or ""),
-                            timeout_seconds=2.5,
-                        ): r
-                        for r in rows
-                    }
-                    for future in as_completed(futures):
-                        row=futures[future]
-                        try: raw=str(future.result() or "")
-                        except Exception: continue
-                        package=_workspace_atp_package_from_text_v69180(str(row.get("file_id") or ""),str(row.get("filename") or ""),raw,target)
-                        if isinstance(package,dict): packages.append(package)
+                packages = _workspace_atp_snapshot_load_v69336(target, store)
             except Exception as error:
-                with state["lock"]:
-                    if bucket.get("key") == key:
-                        bucket["status"] = "stale_ready" if bucket.get("packages") else "failed"
-                        bucket["error"] = type(error).__name__
-                diagnostic_log("workspace_atp_prewarm_failed_v69180",destination=target,error_type=type(error).__name__,error=str(error)[:500])
-                return []
+                packages = []
+                diagnostic_log("workspace_atp_snapshot_prewarm_failed_v69336", destination=target, error_type=type(error).__name__, error=str(error)[:500])
             with state["lock"]:
                 if bucket.get("key") == key:
-                    merged=[dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]+packages
+                    merged=[dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)] + [dict(x) for x in packages if isinstance(x,dict)]
                     best={}
                     for item in merged:
                         source=str(item.get("source_url") or "").strip()
@@ -61097,7 +61252,8 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
                             best[identity]=item
                     bucket["packages"]=sorted(best.values(),key=lambda x:(str(x.get("extracted_at") or ""),str(x.get("filename") or "")),reverse=True)
                     bucket["status"]="ready" if bucket["packages"] else "failed"
-                    bucket["error"]="" if bucket["packages"] else "EMPTY"
+                    bucket["error"]="" if bucket["packages"] else "NO_DURABLE_SNAPSHOT"
+            diagnostic_log("workspace_atp_prewarm_durable_only_v69336", destination=target, package_count=len(packages))
             return packages
         bucket["future"] = executor.submit(_build)
     return True
@@ -61569,7 +61725,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     live_rows_v69326.append((title_v69326, "Not verified", "Current WooCommerce price could not be verified; I will not guess"))
 
             diagnostic_log(
-                "workspace_sales_live_multi_price_v69326",
+                "workspace_sales_live_multi_price_v69336",
                 requested=len(selected_rows_v69326),
                 verified=verified_count_v69326,
                 failed=max(0, len(selected_rows_v69326) - verified_count_v69326),
@@ -64533,6 +64689,20 @@ def save_website_knowledge_package(
                     "safely; no stale authority was retired."
                 ) from technical_commit_error_v69192
 
+    # v69336: Sales/Marketing current product authority must survive process restart.
+    # Persist the exact already-verified package BEFORE retiring any prior vector authority.
+    if database_choice in {"Sales Database", "Marketing Database"} and file_id:
+        durable_package_v69336 = _workspace_atp_package_from_text_v69180(
+            file_id, filename, package_text, database_choice
+        )
+        if not isinstance(durable_package_v69336, dict) or not _workspace_atp_snapshot_commit_v69336(
+            database_choice, durable_package_v69336
+        ):
+            raise RuntimeError(
+                "Sales/Marketing knowledge indexed, but durable ATP product-authority verification is incomplete. "
+                "The prior authority was preserved; retry the learning operation before using this page in production."
+            )
+
     # COMMIT: replacement vector + images + required Technical active source are proven.
     # Only now retire stale authority.
     replaced_file_count = _website_remove_superseded_vectors_v69109(
@@ -64587,6 +64757,12 @@ def save_website_knowledge_package(
 
     _website_image_schema_profile_reset_v69176()
     _website_invalidate_learning_caches_v69109([database_choice])
+    if database_choice in {"Sales Database", "Marketing Database"} and file_id:
+        try:
+            _workspace_atp_package_inject_v69180(file_id, filename, package_text, database_choice)
+            diagnostic_log("workspace_atp_post_revision_rebound_v69336", destination=database_choice, file_id=str(file_id)[:160])
+        except Exception as error:
+            diagnostic_log("workspace_atp_post_revision_rebound_failed_v69336", destination=database_choice, error_type=type(error).__name__, error=str(error)[:500])
 
     # v69195: after the successful Technical transaction has committed every
     # family/year pointer and the learning revision has been bumped, publish those
@@ -91275,7 +91451,7 @@ else:
                                         if exact_rows_v69326:
                                             st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69326
                                         diagnostic_log(
-                                            "workspace_atp_followup_multi_authority_reused_v69326",
+                                            "workspace_atp_followup_multi_authority_reused_v69336",
                                             workspace=str(assistant),
                                             destination=str(workspace_atp_authority_v69180.get("destination") or ""),
                                             product_count=len(workspace_atp_authority_v69180.get("packages") or []),
