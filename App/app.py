@@ -27,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69324"
-AUTOTECPRO_RELEASE_BUILD = "v69324-website-learning-concurrency-targeted-durability-20260906"
+AUTOTECPRO_RELEASE_VERSION = "v69325"
+AUTOTECPRO_RELEASE_BUILD = "v69325-sales-multi-model-primary-image-authority-20260907"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -61274,7 +61274,7 @@ def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cache
         return {}
 
     authority = dict(record.get("authority") or {})
-    if str(authority.get("status") or "") != "recovered":
+    if str(authority.get("status") or "") not in {"recovered", "recovered_multi"}:
         return {}
     if str(authority.get("destination") or "") != destination:
         return {}
@@ -61293,16 +61293,120 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
     if not (is_sales_workspace(workspace) or is_marketing_workspace(workspace)) or is_graphic_workspace(workspace):
         return ""
     authority = dict(authority or {})
-    if str(authority.get("status") or "") != "recovered":
+    authority_status_v69325 = str(authority.get("status") or "")
+    if authority_status_v69325 not in {"recovered", "recovered_multi"}:
         return ""
-    package = dict(authority.get("package") or {})
     destination = "Sales Database" if is_sales_workspace(workspace) else "Marketing Database"
-    if str(package.get("destination") or "").strip() != destination:
-        return ""
 
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     p = prompt.casefold()
     if not p:
+        return ""
+
+    # v69325 Sales multi-product authority: when multiple distinct current product
+    # pages tie on the exact same make/model/year fitment, preserve every sellable
+    # current product instead of collapsing the tie into an ambiguous fallback.
+    # This branch is Sales-only and deterministic; Marketing retains its prior
+    # single-product behavior.
+    if authority_status_v69325 == "recovered_multi":
+        if not is_sales_workspace(workspace):
+            return ""
+        multi_packages_v69325 = [
+            dict(x) for x in (authority.get("packages") or [])
+            if isinstance(x, dict) and str(x.get("destination") or "").strip() == destination
+        ]
+        if not multi_packages_v69325:
+            return ""
+
+        fitment_intent_v69325 = bool(re.search(
+            r"\b(fit|fits|compatible|compatibility|work with|works with|for my|support(?:s|ed)?|which years?|what years?|which model|what model)\b",
+            p,
+        ))
+        visual_intent_v69325 = bool(re.search(r"\b(show|send|display|photo|image|picture)\b", p))
+        requested_years_v69325 = sorted(_website_identity_years_v69022(prompt))
+
+        def _multi_title_v69325(pkg, contract):
+            title = str(pkg.get("page_title") or "").strip()
+            if not title:
+                try:
+                    title = str(_technical_package_header_value_v69113(
+                        str(pkg.get("package_text") or ""), "Page title"
+                    ) or "").strip()
+                except Exception:
+                    title = ""
+            if title:
+                return re.sub(r"\s+", " ", title).strip()
+            source = str(pkg.get("source_url") or "").strip()
+            try:
+                slug = urllib.parse.urlsplit(source).path.rstrip("/").split("/")[-1]
+            except Exception:
+                slug = ""
+            if slug:
+                label = re.sub(r"[-_]+", " ", slug)
+                return re.sub(r"\s+", " ", label).strip().title()
+            screen = str(contract.get("screen_size") or "").strip()
+            make = str(contract.get("make") or "").strip()
+            family = re.sub(r"[-_]+", " ", str(contract.get("product_family") or "product")).strip()
+            return " ".join(x for x in (screen, make, family) if x).strip() or "Current product"
+
+        rows_v69325 = []
+        seen_sources_v69325 = set()
+        for pkg in multi_packages_v69325:
+            source = str(pkg.get("source_url") or "").strip()
+            try:
+                source_identity = canonical_website_url_identity(source) if source else source
+            except Exception:
+                source_identity = source
+            if source_identity in seen_sources_v69325:
+                continue
+            seen_sources_v69325.add(source_identity)
+            contract = _workspace_atp_product_contract_v69205(pkg)
+            branches = list(contract.get("compatibility_branches") or [])
+            if requested_years_v69325:
+                requested_set = set(requested_years_v69325)
+                matching = [b for b in branches if requested_set & set(b.get("years") or [])]
+                if not matching:
+                    continue
+                fit_parts = []
+                for branch in matching:
+                    years = sorted(requested_set & set(branch.get("years") or []))
+                    if not years:
+                        continue
+                    year_label = ", ".join(str(y) for y in years)
+                    trim = str(branch.get("trim") or "").strip()
+                    fit_parts.append(year_label + (f" — {trim} only" if trim else ""))
+                fit_label = "; ".join(dict.fromkeys(fit_parts)) or ", ".join(map(str, requested_years_v69325))
+            else:
+                fit_parts = []
+                for branch in branches:
+                    years = sorted(set(branch.get("years") or []))
+                    if not years:
+                        continue
+                    span = str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}"
+                    trim = str(branch.get("trim") or "").strip()
+                    fit_parts.append(span + (f" — {trim} only" if trim else ""))
+                fit_label = "; ".join(dict.fromkeys(fit_parts))
+            rows_v69325.append((_multi_title_v69325(pkg, contract), fit_label, source))
+
+        if fitment_intent_v69325 and rows_v69325:
+            intro_year = f" for **{', '.join(map(str, requested_years_v69325))}**" if requested_years_v69325 else ""
+            lines = [
+                f"We have **{len(rows_v69325)} current AutoTecPro models** that match your vehicle{intro_year}:",
+                "",
+                "| Compatible AutoTecPro model | Fitment from current source |",
+                "|---|---|",
+            ]
+            for title, fit_label, _source in rows_v69325:
+                lines.append(f"| {title} | {fit_label or 'Compatible per current source'} |")
+            lines.append(
+                "\nThese are separate current product pages, so I am keeping them as distinct sellable options rather than collapsing them into one model."
+            )
+            if visual_intent_v69325:
+                lines.append("Their authoritative primary product images are shown first below.")
+            return "\n".join(lines)
+
+    package = dict(authority.get("package") or {})
+    if str(package.get("destination") or "").strip() != destination:
         return ""
 
     if re.search(
@@ -61609,7 +61713,10 @@ def _workspace_atp_compact_context_v69181(package, prompt_text):
             or authority == "primary"
         )
         ranked_images.append((overlap, primary, priority, row))
-    ranked_images.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    if is_sales_workspace(workspace_label):
+        ranked_images.sort(key=lambda x: (x[1], x[0], x[2]), reverse=True)
+    else:
+        ranked_images.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
     for _, _, _, row in ranked_images[:8]:
         policy, authority, priority = _workspace_atp_workspace_image_policy_v69205(row, workspace_label)
         compact_images.append({
@@ -61887,13 +61994,67 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
     ranked.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
     top = ranked[0]
     if len(ranked) > 1 and ranked[1][0] == top[0]:
-        s1 = str(top[3].get("source_url") or "")
-        s2 = str(ranked[1][3].get("source_url") or "")
-        try:
-            same = canonical_website_url_identity(s1) == canonical_website_url_identity(s2)
-        except Exception:
-            same = s1 == s2
-        if not same:
+        tied_v69325 = [row for row in ranked if row[0] == top[0]]
+        distinct_v69325 = []
+        seen_source_ids_v69325 = set()
+        for score_v69325, extracted_v69325, filename_v69325, package_v69325 in tied_v69325:
+            source_v69325 = str(package_v69325.get("source_url") or "").strip()
+            try:
+                source_id_v69325 = canonical_website_url_identity(source_v69325) if source_v69325 else source_v69325
+            except Exception:
+                source_id_v69325 = source_v69325
+            if source_id_v69325 in seen_source_ids_v69325:
+                continue
+            seen_source_ids_v69325.add(source_id_v69325)
+            distinct_v69325.append((score_v69325, extracted_v69325, filename_v69325, dict(package_v69325)))
+
+        if len(distinct_v69325) > 1:
+            if is_sales_workspace(workspace):
+                multi_packages_v69325 = [dict(row[3]) for row in distinct_v69325[:8]]
+                multi_rows_v69325 = []
+                multi_context_parts_v69325 = [
+                    "\n\nAUTOTECPRO MULTI-PRODUCT CURRENT FITMENT AUTHORITY (v69325)\n",
+                    "Multiple distinct current Sales product pages match the same requested vehicle/year with equal deterministic authority. ",
+                    "Treat every listed page as a separate sellable model. Do not collapse them into one product merely because fitment, screen size, or vehicle family overlap. ",
+                    "Preserve each current source URL and its own primary image authority.\n",
+                ]
+                for index_v69325, package_v69325 in enumerate(multi_packages_v69325, start=1):
+                    contract_v69325 = _workspace_atp_product_contract_v69205(package_v69325)
+                    semantic_json_v69325, excerpt_v69325 = _workspace_atp_compact_context_v69181(package_v69325, prompt)
+                    source_v69325 = str(package_v69325.get("source_url") or "")
+                    multi_context_parts_v69325.append(
+                        f"\n[CURRENT PRODUCT OPTION {index_v69325}]\nSource URL: {source_v69325}\n"
+                        f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json_v69325}\n"
+                        f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n{excerpt_v69325[:9000]}\n"
+                    )
+                    multi_rows_v69325.append({
+                        "file_id": str(package_v69325.get("file_id") or ""),
+                        "filename": str(package_v69325.get("filename") or ""),
+                        "score": 1.0,
+                        "text": str(package_v69325.get("package_text") or ""),
+                        "workspace_atp_metadata_first_v69180": True,
+                        "workspace_atp_product_fast_v69205": True,
+                        "workspace_atp_multi_product_v69325": True,
+                    })
+                diagnostic_log(
+                    "workspace_atp_metadata_multi_match_v69325",
+                    workspace=workspace,
+                    destination=destination,
+                    score=int(top[0]),
+                    product_count=len(multi_packages_v69325),
+                )
+                return {
+                    "status": "recovered_multi",
+                    "destination": destination,
+                    "context": "".join(multi_context_parts_v69325),
+                    "rows": multi_rows_v69325,
+                    "packages": multi_packages_v69325,
+                    "score": top[0],
+                    "source_urls": [str(pkg.get("source_url") or "") for pkg in multi_packages_v69325],
+                    "product_contracts_v69325": [
+                        _workspace_atp_product_contract_v69205(pkg) for pkg in multi_packages_v69325
+                    ],
+                }
             diagnostic_log(
                 "workspace_atp_metadata_fast_ambiguous_v69207",
                 workspace=workspace,
@@ -61945,9 +62106,15 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
 def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, max_images=3):
     """Publish destination-owned exact product images using workspace-native ATP policy.
 
-    v69207 removes vehicle-specific topic-token exclusions. Make/model identity tokens are
-    derived from the exact current product contract so the same image path works for any
-    learned brand/model without per-vehicle Python changes.
+    v69325 Sales behavior:
+    - once exact product authority exists, inject that product's authoritative primary
+      image before inquiry-specific supporting images;
+    - for recovered_multi authority, preserve one primary image per distinct current
+      product before supporting images;
+    - never bypass the existing destination, durability, fitment, provenance, or
+      final publication gates.
+
+    Marketing keeps the v69207 topic-first behavior unchanged.
     """
     workspace = str(workspace_label or "")
     destination = (
@@ -61958,113 +62125,200 @@ def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, 
     if not destination or is_graphic_workspace(workspace):
         return []
     authority = dict(authority or {})
-    package = dict(authority.get("package") or {})
-    if str(authority.get("status") or "") != "recovered" or str(authority.get("destination") or "") != destination:
-        return []
-    if str(package.get("destination") or "").strip() != destination:
+    status_v69325 = str(authority.get("status") or "")
+    if status_v69325 not in {"recovered", "recovered_multi"} or str(authority.get("destination") or "") != destination:
         return []
 
-    source = str(package.get("source_url") or "").strip()
-    try:
-        source_identity = canonical_website_url_identity(source) if source else ""
-    except Exception:
-        source_identity = ""
-
-    semantics = dict(package.get("atp_semantics_v69178") or {})
-    semantic_images = [dict(x) for x in (semantics.get("images") or []) if isinstance(x, dict)]
-    prompt_tokens = set(_website_image_tokens_v68883(str(prompt_text or "")))
-    contract = _workspace_atp_product_contract_v69205(package)
-
-    identity_noise = {
-        "autotecpro", "product", "infotainment", "system", "feature", "overview",
-    }
-    for value in (
-        contract.get("brand"), contract.get("make"), contract.get("product_family"),
-        contract.get("product_type"),
-    ):
-        identity_noise.update(_website_image_tokens_v68883(str(value or "")))
-    for model in contract.get("models") or []:
-        identity_noise.update(_website_image_tokens_v68883(str(model or "")))
-
-    wanted = []
-    for meta in semantic_images:
-        url = str(meta.get("src") or "").strip()
-        if not url.startswith("https://") or "video-icon" in url.casefold():
-            continue
-        policy, auth, priority = _workspace_atp_workspace_image_policy_v69205(meta, workspace)
-        if policy not in {"true", "topic-only"}:
-            continue
-        topic_evidence = " ".join(str(meta.get(k) or "") for k in (
-            "data-atp-topic", "data-atp-image-role",
-        ))
-        topic_tokens = set(_website_image_tokens_v68883(topic_evidence)) - identity_noise
-        overlap = len(prompt_tokens & topic_tokens)
-        if policy == "topic-only" and overlap <= 0:
-            continue
-
-        role = str(meta.get("data-atp-image-role") or "").strip().casefold()
-        primary = int(role == "primary-product-image" or auth == "primary")
-        if auth in {"navigation-only", "non-authoritative", "none", "decorative"}:
-            continue
-        wanted.append((overlap, primary, priority, url, meta))
-
-    if not wanted:
-        return []
-
-    wanted.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
-
-    top_overlap = int(wanted[0][0] or 0)
-    if top_overlap > 0:
-        wanted = [row for row in wanted if int(row[0] or 0) == top_overlap]
+    authority_packages_v69325 = []
+    if status_v69325 == "recovered_multi":
+        authority_packages_v69325 = [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
     else:
-        primaries = [row for row in wanted if int(row[1] or 0) > 0]
-        if len(primaries) == 1:
-            wanted = primaries
-        elif len(wanted) > 1:
-            return []
+        pkg = dict(authority.get("package") or {})
+        if pkg:
+            authority_packages_v69325 = [pkg]
+    authority_packages_v69325 = [
+        pkg for pkg in authority_packages_v69325
+        if str(pkg.get("destination") or "").strip() == destination
+    ]
+    if not authority_packages_v69325:
+        return []
 
-    durable = []
-    by_url = {}
-    for payload in _workspace_durable_image_payloads_v69041(destination):
-        url = str(payload.get("image_url") or "").strip()
-        page = str(payload.get("source_page") or "").strip()
+    prompt_tokens = set(_website_image_tokens_v68883(str(prompt_text or "")))
+    durable_payloads = _workspace_durable_image_payloads_v69041(destination)
+
+    def _same_page_payloads(pkg):
+        source = str(pkg.get("source_url") or "").strip()
         try:
-            same_page = bool(source_identity and page and canonical_website_url_identity(page) == source_identity)
+            source_identity = canonical_website_url_identity(source) if source else ""
         except Exception:
-            same_page = False
-        if same_page and url:
-            by_url[url] = dict(payload)
+            source_identity = ""
+        rows = {}
+        for payload in durable_payloads:
+            url = str(payload.get("image_url") or "").strip()
+            page = str(payload.get("source_page") or "").strip()
+            try:
+                same_page = bool(source_identity and page and canonical_website_url_identity(page) == source_identity)
+            except Exception:
+                same_page = False
+            if same_page and url:
+                rows[url] = dict(payload)
+        return rows
 
-    seen = set()
-    for overlap, primary, priority, url, meta in wanted:
-        payload = by_url.get(url)
-        if not payload:
-            continue
-        if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
-            continue
-        record = _website_image_record_for_chat_v68883(payload)
-        if not record:
-            continue
-        ident = str(record.get("website_image_sha256") or record.get("data_url") or "")
-        if ident in seen:
-            continue
-        seen.add(ident)
-        record["website_workspace_destination_v69180"] = destination
-        record["website_atp_metadata_exact_v69180"] = True
-        record["website_atp_workspace_policy_v69205"] = str(
-            meta.get("data-atp-sales-auto-display")
-            if is_sales_workspace(workspace)
-            else meta.get("data-atp-marketing-auto-display")
-            or meta.get("data-atp-auto-display")
-            or ""
+    def _records_for_package(pkg, sales_primary_first):
+        semantics = dict(pkg.get("atp_semantics_v69178") or {})
+        semantic_images = [dict(x) for x in (semantics.get("images") or []) if isinstance(x, dict)]
+        contract = _workspace_atp_product_contract_v69205(pkg)
+        identity_noise = {
+            "autotecpro", "product", "infotainment", "system", "feature", "overview",
+        }
+        for value in (
+            contract.get("brand"), contract.get("make"), contract.get("product_family"),
+            contract.get("product_type"),
+        ):
+            identity_noise.update(_website_image_tokens_v68883(str(value or "")))
+        for model in contract.get("models") or []:
+            identity_noise.update(_website_image_tokens_v68883(str(model or "")))
+
+        primary_rows = []
+        supporting_rows = []
+        legacy_rows = []
+        for meta in semantic_images:
+            url = str(meta.get("src") or "").strip()
+            if not url.startswith("https://") or "video-icon" in url.casefold():
+                continue
+            policy, auth, priority = _workspace_atp_workspace_image_policy_v69205(meta, workspace)
+            if policy not in {"true", "topic-only"}:
+                continue
+            role = str(meta.get("data-atp-image-role") or "").strip().casefold()
+            primary = int(
+                role == "primary-product-image"
+                or auth == "primary"
+                or str(meta.get("data-atp-is-primary-product-image") or "").strip().casefold() == "true"
+                or str(meta.get("data-atp-main-product-photo") or "").strip().casefold() == "true"
+                or str(meta.get("data-atp-primary-media") or "").strip().casefold() == "true"
+            )
+            if auth in {"navigation-only", "non-authoritative", "none", "decorative"}:
+                continue
+            topic_evidence = " ".join(str(meta.get(k) or "") for k in (
+                "data-atp-topic", "data-atp-image-role",
+            ))
+            topic_tokens = set(_website_image_tokens_v68883(topic_evidence)) - identity_noise
+            overlap = len(prompt_tokens & topic_tokens)
+
+            if sales_primary_first:
+                if primary:
+                    # Primary Sales image is exact-product authority and is not required
+                    # to repeat the inquiry topic token. It still passes all durable and
+                    # vehicle/fitment gates below.
+                    primary_rows.append((priority, url, meta))
+                    continue
+                if policy == "topic-only" and overlap <= 0:
+                    continue
+                supporting_rows.append((overlap, priority, url, meta))
+            else:
+                if policy == "topic-only" and overlap <= 0:
+                    continue
+                legacy_rows.append((overlap, primary, priority, url, meta))
+
+        by_url = _same_page_payloads(pkg)
+        output = []
+        seen = set()
+
+        def _append(url, meta, overlap=0, primary=0, priority=0):
+            payload = by_url.get(url)
+            if not payload:
+                return
+            if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
+                return
+            record = _website_image_record_for_chat_v68883(payload)
+            if not record:
+                return
+            ident = str(record.get("website_image_sha256") or record.get("data_url") or "")
+            if ident in seen:
+                return
+            seen.add(ident)
+            record["website_workspace_destination_v69180"] = destination
+            record["website_atp_metadata_exact_v69180"] = True
+            record["website_atp_workspace_policy_v69205"] = str(
+                meta.get("data-atp-sales-auto-display")
+                if is_sales_workspace(workspace)
+                else meta.get("data-atp-marketing-auto-display")
+                or meta.get("data-atp-auto-display")
+                or ""
+            )
+            record["website_atp_primary_product_image_v69325"] = bool(primary)
+            record["website_atp_product_identity_key_v69325"] = str(meta.get("data-atp-product-identity-key") or contract.get("product_identity_key") or "")
+            record["website_workspace_match_score_v69040"] = float(
+                1000 + priority + overlap * 10 + primary * 500
+            )
+            output.append(record)
+
+        if sales_primary_first:
+            primary_rows.sort(key=lambda x: x[0], reverse=True)
+            # Exactly one primary per product page. Multiple current products each
+            # contribute their own primary through the outer package loop.
+            if primary_rows:
+                priority, url, meta = primary_rows[0]
+                _append(url, meta, overlap=0, primary=1, priority=priority)
+            supporting_rows.sort(key=lambda x: (x[0], x[1]), reverse=True)
+            for overlap, priority, url, meta in supporting_rows:
+                _append(url, meta, overlap=overlap, primary=0, priority=priority)
+                if len(output) >= max(1, int(max_images or 1)):
+                    break
+        else:
+            legacy_rows.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+            if not legacy_rows:
+                return []
+            top_overlap = int(legacy_rows[0][0] or 0)
+            if top_overlap > 0:
+                legacy_rows = [row for row in legacy_rows if int(row[0] or 0) == top_overlap]
+            else:
+                primaries = [row for row in legacy_rows if int(row[1] or 0) > 0]
+                if len(primaries) == 1:
+                    legacy_rows = primaries
+                elif len(legacy_rows) > 1:
+                    return []
+            for overlap, primary, priority, url, meta in legacy_rows:
+                _append(url, meta, overlap=overlap, primary=primary, priority=priority)
+                if len(output) >= max(1, int(max_images or 1)):
+                    break
+        return output
+
+    # Sales: primary images for all exact matched products first, then supporting
+    # images. This preserves product ordering even when one topical image scores
+    # more strongly than the primary photo.
+    if is_sales_workspace(workspace):
+        per_package = [
+            _records_for_package(pkg, sales_primary_first=True)
+            for pkg in authority_packages_v69325
+        ]
+        primaries = []
+        supporting = []
+        for records in per_package:
+            for record in records:
+                if bool(record.get("website_atp_primary_product_image_v69325")):
+                    primaries.append(record)
+                else:
+                    supporting.append(record)
+        ordered = _dedupe_website_chat_images_v68883(primaries + supporting)
+        limit = max(1, int(max_images or 1))
+        # Never truncate away a distinct product's primary image. If more exact
+        # products than max_images match, preserve all primaries and omit support.
+        if len(primaries) >= limit:
+            ordered = _dedupe_website_chat_images_v68883(primaries)
+        else:
+            ordered = ordered[:limit]
+        diagnostic_log(
+            "workspace_sales_primary_first_images_v69325",
+            product_count=len(authority_packages_v69325),
+            primary_count=len(primaries),
+            supporting_count=len(supporting),
+            published=len(ordered),
         )
-        record["website_workspace_match_score_v69040"] = float(
-            1000 + priority + overlap * 10 + primary * 500
-        )
-        durable.append(record)
-        if len(durable) >= max(1, int(max_images or 1)):
-            break
-    return durable
+        return ordered
+
+    # Marketing remains the prior single-product topic-first behavior.
+    return _records_for_package(authority_packages_v69325[0], sales_primary_first=False)
 
 
 
@@ -90776,11 +91030,15 @@ else:
                             workspace_atp_authority_v69180 = _workspace_atp_metadata_fast_authority_v69180(
                                 assistant, interaction_prompt
                             )
-                            if str(workspace_atp_authority_v69180.get("status") or "") == "recovered":
+                            if str(workspace_atp_authority_v69180.get("status") or "") in {"recovered", "recovered_multi"}:
                                 ai_request_prompt += str(workspace_atp_authority_v69180.get("context") or "")
-                                exact_row_v69180 = dict(workspace_atp_authority_v69180.get("row") or {})
-                                if exact_row_v69180:
-                                    st.session_state["_workspace_file_search_results_v69040"] = [exact_row_v69180]
+                                if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi":
+                                    exact_rows_v69180 = [dict(x) for x in (workspace_atp_authority_v69180.get("rows") or []) if isinstance(x, dict)]
+                                else:
+                                    exact_row_v69180 = dict(workspace_atp_authority_v69180.get("row") or {})
+                                    exact_rows_v69180 = [exact_row_v69180] if exact_row_v69180 else []
+                                if exact_rows_v69180:
+                                    st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69180
                                 destination_v69205 = str(workspace_atp_authority_v69180.get("destination") or "")
                                 st.session_state["_workspace_last_atp_authority_v69205"] = {
                                     "workspace": str(assistant),
@@ -90798,6 +91056,7 @@ else:
                                     destination=destination_v69205,
                                     source_url=str(workspace_atp_authority_v69180.get("source_url") or "")[:600],
                                     score=int(workspace_atp_authority_v69180.get("score") or 0),
+                                    product_count=len(workspace_atp_authority_v69180.get("packages") or []) if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi" else 1,
                                 )
                             else:
                                 followup_authority_v69205 = _workspace_atp_followup_authority_v69205(
@@ -90830,7 +91089,7 @@ else:
                     workspace_atp_direct_answer_v69205 = ""
                     if (
                         (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
-                        and str((workspace_atp_authority_v69180 or {}).get("status") or "") == "recovered"
+                        and str((workspace_atp_authority_v69180 or {}).get("status") or "") in {"recovered", "recovered_multi"}
                     ):
                         try:
                             workspace_atp_direct_answer_v69205 = _workspace_atp_product_direct_answer_v69205(
@@ -91764,7 +92023,7 @@ else:
         workspace_atp_images_v69180 = []
         if (is_sales_workspace(assistant) or is_marketing_workspace(assistant)) and str(
             (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
-        ) == "recovered":
+        ) in {"recovered", "recovered_multi"}:
             try:
                 workspace_atp_images_v69180 = _workspace_atp_exact_images_v69180(
                     assistant, interaction_prompt, workspace_atp_authority_v69180, max_images=3
