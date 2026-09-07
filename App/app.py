@@ -27,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69328"
-AUTOTECPRO_RELEASE_BUILD = "v69328-hidden-path-audit-concurrency-cache-followup-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69325"
+AUTOTECPRO_RELEASE_BUILD = "v69325-sales-multi-model-primary-image-authority-20260907"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -207,6 +207,10 @@ if Image is not None and LOGO_FILE.exists():
         PAGE_ICON = "🚗"
 
 api_key = st.secrets["OPENAI_API_KEY"]
+
+
+AUTOTECPRO_RELEASE_VERSION = "v69329"
+AUTOTECPRO_RELEASE_BUILD = "v69329-rollback-v69325-durable-sales-coldstart-followup-price-20260907"
 
 
 @st.cache_resource(show_spinner=False)
@@ -391,18 +395,20 @@ def _heavy_work_guard_v69188(operation, timeout_seconds=900):
 
 
 @st.cache_resource(show_spinner=False)
-def _website_learning_exact_lock_registry_v69328():
-    """Exact-key process-local lock registry with waiter-safe cleanup.
+def _website_learning_lock_shards_v69324():
+    """Bounded process-wide lock pool for same-page transactional learning.
 
-    v69324's 32 shards allowed unrelated URLs to collide on one lock. Production
-    showed different page hashes waiting on shard 12 for minutes. v69328 locks only
-    the exact canonical page identity and removes inactive entries. Same-page destination
-    commits remain serialized because they can share archive objects and rollback cleanup.
+    v69188 used one global RLock for every website-learning page and destination.
+    A long image/vector transaction therefore blocked unrelated pages for up to the
+    900-second admission timeout. v69324 keeps transactional exclusion for the same
+    canonical page while allowing unrelated pages to make progress concurrently.
+    The fixed shard count prevents an unbounded lock registry. Hash collisions only
+    serialize extra work; they cannot weaken correctness.
     """
-    return {"guard": threading.RLock(), "locks": {}}
+    return [threading.RLock() for _ in range(32)]
 
 
-def _website_learning_page_lock_key_v69328(args, kwargs):
+def _website_learning_page_lock_key_v69324(args, kwargs):
     extraction = args[0] if args else kwargs.get("extraction")
     source = dict(extraction or {}) if isinstance(extraction, dict) else {}
     raw = str(
@@ -421,73 +427,59 @@ def _website_learning_page_lock_key_v69328(args, kwargs):
             except Exception:
                 raw = raw.rstrip("/").casefold()
     if not raw:
+        # Fail-safe fallback: unknown identity is deliberately serialized together.
         raw = "unknown-website-page"
     return raw
 
 
-class _WebsiteLearningExactGuardV69328:
-    def __init__(self, lock_key, operation="website-learning-package", timeout_seconds=900):
-        self.lock_key = str(lock_key or "unknown-website-page")
+class _WebsiteLearningPageGuardV69324:
+    def __init__(self, page_key, operation="website-learning-package", timeout_seconds=900):
+        self.page_key = str(page_key or "unknown-website-page")
         self.operation = str(operation or "website-learning-package")
         self.timeout_seconds = max(1.0, float(timeout_seconds or 900))
         self.lock = None
         self.acquired = False
         self.wait_started = 0.0
         self.acquired_at = 0.0
-
-    def _drop_ref(self):
-        registry = _website_learning_exact_lock_registry_v69328()
-        with registry["guard"]:
-            entry = registry["locks"].get(self.lock_key)
-            if not isinstance(entry, dict) or entry.get("lock") is not self.lock:
-                return
-            entry["refs"] = max(0, int(entry.get("refs") or 0) - 1)
-            if int(entry.get("refs") or 0) <= 0:
-                registry["locks"].pop(self.lock_key, None)
+        self.shard = 0
 
     def __enter__(self):
-        registry = _website_learning_exact_lock_registry_v69328()
-        with registry["guard"]:
-            entry = registry["locks"].get(self.lock_key)
-            if not isinstance(entry, dict):
-                entry = {"lock": threading.RLock(), "refs": 0}
-                registry["locks"][self.lock_key] = entry
-            entry["refs"] = int(entry.get("refs") or 0) + 1
-            self.lock = entry["lock"]
+        shards = _website_learning_lock_shards_v69324()
+        digest = hashlib.sha256(self.page_key.encode("utf-8")).digest()
+        self.shard = int.from_bytes(digest[:4], "big") % max(1, len(shards))
+        self.lock = shards[self.shard]
         self.wait_started = time.monotonic()
         self.acquired = bool(self.lock.acquire(timeout=self.timeout_seconds))
         waited = max(0.0, time.monotonic() - self.wait_started)
-        key_hash = hashlib.sha256(self.lock_key.encode("utf-8")).hexdigest()[:16]
         if not self.acquired:
-            self._drop_ref()
             diagnostic_log(
-                "website_learning_exact_admission_timeout_v69328",
-                operation=self.operation, waited_seconds=round(waited, 3), lock_key_sha256=key_hash,
+                "website_learning_page_admission_timeout_v69324",
+                operation=self.operation, shard=self.shard, waited_seconds=round(waited, 3),
+                page_key_sha256=hashlib.sha256(self.page_key.encode("utf-8")).hexdigest()[:16],
             )
             raise RuntimeError(
-                "This exact website page/destination is already being committed by another session. "
-                "Please retry after that commit finishes."
+                "This same website page is already being committed by another session. "
+                "Please retry after that page finishes."
             )
         self.acquired_at = time.monotonic()
         diagnostic_log(
-            "website_learning_exact_admitted_v69328",
-            operation=self.operation, waited_seconds=round(waited, 3), lock_key_sha256=key_hash,
+            "website_learning_page_admitted_v69324",
+            operation=self.operation, shard=self.shard, waited_seconds=round(waited, 3),
+            page_key_sha256=hashlib.sha256(self.page_key.encode("utf-8")).hexdigest()[:16],
         )
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         held = max(0.0, time.monotonic() - (self.acquired_at or self.wait_started))
-        key_hash = hashlib.sha256(self.lock_key.encode("utf-8")).hexdigest()[:16]
         try:
             if self.acquired and self.lock is not None:
                 self.lock.release()
         finally:
-            self._drop_ref()
             diagnostic_log(
-                "website_learning_exact_released_v69328",
-                operation=self.operation, held_seconds=round(held, 3),
+                "website_learning_page_released_v69324",
+                operation=self.operation, shard=self.shard, held_seconds=round(held, 3),
                 error_type=(exc_type.__name__ if exc_type is not None else ""),
-                lock_key_sha256=key_hash,
+                page_key_sha256=hashlib.sha256(self.page_key.encode("utf-8")).hexdigest()[:16],
             )
         return False
 
@@ -508,8 +500,8 @@ def _serialize_heavy_work_v69188(operation):
                 diagnostic_log("website_learning_outer_serialization_bypassed_v69324")
                 return function(*args, **kwargs)
             if op == "website-learning-package":
-                lock_key = _website_learning_page_lock_key_v69328(args, kwargs)
-                with _WebsiteLearningExactGuardV69328(lock_key, operation=op):
+                page_key = _website_learning_page_lock_key_v69324(args, kwargs)
+                with _WebsiteLearningPageGuardV69324(page_key, operation=op):
                     return function(*args, **kwargs)
             with _heavy_work_guard_v69188(op):
                 return function(*args, **kwargs)
@@ -1617,153 +1609,6 @@ def woocommerce_api_request(endpoint, params=None):
         timeout=LIVE_HTTP_TIMEOUT,
     )
     return safe_json_response(response)
-
-
-@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
-def _woocommerce_product_by_source_url_v69326(source_url):
-    """Resolve exactly one current published WooCommerce product from its learned product URL.
-
-    Read-only and fail-closed: exact permalink identity is preferred; exact slug is the
-    only fallback. No fuzzy search is allowed because a price must never cross products.
-    """
-    source_url = str(source_url or "").strip()
-    if not source_url or not woocommerce_is_configured():
-        return {"status": "unavailable", "reason": "woocommerce_not_configured"}
-    try:
-        parsed = urllib.parse.urlsplit(source_url)
-        slug = str(parsed.path or "").rstrip("/").split("/")[-1].strip()
-    except Exception:
-        slug = ""
-    if not slug:
-        return {"status": "unavailable", "reason": "missing_product_slug"}
-    try:
-        products = woocommerce_api_request(
-            "products",
-            params={"slug": slug, "per_page": 20, "status": "publish"},
-        )
-    except Exception as error:
-        return {
-            "status": "unavailable",
-            "reason": "woocommerce_product_query_failed",
-            "error_type": type(error).__name__,
-            "error": str(error)[:500],
-        }
-    if not isinstance(products, list):
-        return {"status": "unavailable", "reason": "unexpected_product_response"}
-
-    try:
-        source_identity = canonical_website_url_identity(source_url)
-    except Exception:
-        source_identity = source_url.rstrip("/").casefold()
-
-    exact = []
-    slug_exact = []
-    for product in products:
-        if not isinstance(product, dict):
-            continue
-        permalink = str(product.get("permalink") or "").strip()
-        product_slug = str(product.get("slug") or "").strip()
-        if permalink:
-            try:
-                permalink_identity = canonical_website_url_identity(permalink)
-            except Exception:
-                permalink_identity = permalink.rstrip("/").casefold()
-            if permalink_identity == source_identity:
-                exact.append(dict(product))
-                continue
-        if product_slug and product_slug.casefold() == slug.casefold():
-            slug_exact.append(dict(product))
-
-    candidates = exact or slug_exact
-    if len(candidates) != 1:
-        return {
-            "status": "unavailable",
-            "reason": "product_identity_not_unique",
-            "candidate_count": len(candidates),
-        }
-    product = dict(candidates[0])
-
-    prices = []
-    current_price = str(product.get("price") or "").strip()
-    regular_price = str(product.get("regular_price") or "").strip()
-    sale_price = str(product.get("sale_price") or "").strip()
-    if current_price:
-        prices.append(current_price)
-
-    # Variable products can expose an empty parent price. In that case, read the
-    # exact product's published variations and return a verified current range.
-    if not prices and str(product.get("type") or "").strip().casefold() == "variable":
-        product_id = product.get("id")
-        if product_id:
-            try:
-                variations = woocommerce_api_request(
-                    f"products/{int(product_id)}/variations",
-                    params={"per_page": 100, "status": "publish"},
-                )
-                for variation in variations if isinstance(variations, list) else []:
-                    if isinstance(variation, dict):
-                        value = str(variation.get("price") or "").strip()
-                        if value:
-                            prices.append(value)
-            except Exception:
-                pass
-
-    def _decimal(value):
-        try:
-            return float(str(value).replace(",", "").strip())
-        except Exception:
-            return None
-
-    numeric_prices = [x for x in (_decimal(v) for v in prices) if x is not None]
-    if not numeric_prices:
-        return {
-            "status": "unavailable",
-            "reason": "current_price_missing",
-            "product": product,
-        }
-
-    return {
-        "status": "verified",
-        "product": product,
-        "min_price": min(numeric_prices),
-        "max_price": max(numeric_prices),
-        "current_price": current_price,
-        "regular_price": regular_price,
-        "sale_price": sale_price,
-        "on_sale": bool(product.get("on_sale")),
-        "source_url": source_url,
-    }
-
-
-@st.cache_data(ttl=300, max_entries=2, show_spinner=False)
-def _woocommerce_store_currency_v69326():
-    """Return the configured WooCommerce currency code without exposing credentials."""
-    if not woocommerce_is_configured():
-        return ""
-    try:
-        rows = woocommerce_api_request("settings/general")
-    except Exception:
-        return ""
-    for row in rows if isinstance(rows, list) else []:
-        if isinstance(row, dict) and str(row.get("id") or "") == "woocommerce_currency":
-            return str(row.get("value") or row.get("default") or "").strip().upper()
-    return ""
-
-
-def _woocommerce_price_label_v69326(result):
-    """Format only verified WooCommerce price values; never infer a currency."""
-    result = dict(result or {})
-    if str(result.get("status") or "") != "verified":
-        return ""
-    try:
-        low = float(result.get("min_price"))
-        high = float(result.get("max_price"))
-    except Exception:
-        return ""
-    currency = _woocommerce_store_currency_v69326() or "store currency"
-    if abs(high - low) < 0.005:
-        return f"{currency} {low:,.2f}"
-    return f"{currency} {low:,.2f}–{high:,.2f}"
 
 
 def _clean_woocommerce_meta_text(value):
@@ -60935,6 +60780,151 @@ def _website_bind_exact_supporting_page_payloads_v69047(payloads, result_rows):
 
 
 
+
+
+# v69329: exact live WooCommerce price helpers, transplanted from isolated v69326 audit.
+def _woocommerce_store_currency_v69329():
+    """Return the configured WooCommerce currency code without exposing credentials."""
+    if not woocommerce_is_configured():
+        return ""
+    try:
+        rows = woocommerce_api_request("settings/general")
+    except Exception:
+        return ""
+    for row in rows if isinstance(rows, list) else []:
+        if isinstance(row, dict) and str(row.get("id") or "") == "woocommerce_currency":
+            return str(row.get("value") or row.get("default") or "").strip().upper()
+    return ""
+
+def _woocommerce_product_by_source_url_v69329(source_url):
+    """Resolve exactly one current published WooCommerce product from its learned product URL.
+
+    Read-only and fail-closed: exact permalink identity is preferred; exact slug is the
+    only fallback. No fuzzy search is allowed because a price must never cross products.
+    """
+    source_url = str(source_url or "").strip()
+    if not source_url or not woocommerce_is_configured():
+        return {"status": "unavailable", "reason": "woocommerce_not_configured"}
+    try:
+        parsed = urllib.parse.urlsplit(source_url)
+        slug = str(parsed.path or "").rstrip("/").split("/")[-1].strip()
+    except Exception:
+        slug = ""
+    if not slug:
+        return {"status": "unavailable", "reason": "missing_product_slug"}
+    try:
+        products = woocommerce_api_request(
+            "products",
+            params={"slug": slug, "per_page": 20, "status": "publish"},
+        )
+    except Exception as error:
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_product_query_failed",
+            "error_type": type(error).__name__,
+            "error": str(error)[:500],
+        }
+    if not isinstance(products, list):
+        return {"status": "unavailable", "reason": "unexpected_product_response"}
+
+    try:
+        source_identity = canonical_website_url_identity(source_url)
+    except Exception:
+        source_identity = source_url.rstrip("/").casefold()
+
+    exact = []
+    slug_exact = []
+    for product in products:
+        if not isinstance(product, dict):
+            continue
+        permalink = str(product.get("permalink") or "").strip()
+        product_slug = str(product.get("slug") or "").strip()
+        if permalink:
+            try:
+                permalink_identity = canonical_website_url_identity(permalink)
+            except Exception:
+                permalink_identity = permalink.rstrip("/").casefold()
+            if permalink_identity == source_identity:
+                exact.append(dict(product))
+                continue
+        if product_slug and product_slug.casefold() == slug.casefold():
+            slug_exact.append(dict(product))
+
+    candidates = exact or slug_exact
+    if len(candidates) != 1:
+        return {
+            "status": "unavailable",
+            "reason": "product_identity_not_unique",
+            "candidate_count": len(candidates),
+        }
+    product = dict(candidates[0])
+
+    prices = []
+    current_price = str(product.get("price") or "").strip()
+    regular_price = str(product.get("regular_price") or "").strip()
+    sale_price = str(product.get("sale_price") or "").strip()
+    if current_price:
+        prices.append(current_price)
+
+    # Variable products can expose an empty parent price. In that case, read the
+    # exact product's published variations and return a verified current range.
+    if not prices and str(product.get("type") or "").strip().casefold() == "variable":
+        product_id = product.get("id")
+        if product_id:
+            try:
+                variations = woocommerce_api_request(
+                    f"products/{int(product_id)}/variations",
+                    params={"per_page": 100, "status": "publish"},
+                )
+                for variation in variations if isinstance(variations, list) else []:
+                    if isinstance(variation, dict):
+                        value = str(variation.get("price") or "").strip()
+                        if value:
+                            prices.append(value)
+            except Exception:
+                pass
+
+    def _decimal(value):
+        try:
+            return float(str(value).replace(",", "").strip())
+        except Exception:
+            return None
+
+    numeric_prices = [x for x in (_decimal(v) for v in prices) if x is not None]
+    if not numeric_prices:
+        return {
+            "status": "unavailable",
+            "reason": "current_price_missing",
+            "product": product,
+        }
+
+    return {
+        "status": "verified",
+        "product": product,
+        "min_price": min(numeric_prices),
+        "max_price": max(numeric_prices),
+        "current_price": current_price,
+        "regular_price": regular_price,
+        "sale_price": sale_price,
+        "on_sale": bool(product.get("on_sale")),
+        "source_url": source_url,
+    }
+
+def _woocommerce_price_label_v69329(result):
+    """Format only verified WooCommerce price values; never infer a currency."""
+    result = dict(result or {})
+    if str(result.get("status") or "") != "verified":
+        return ""
+    try:
+        low = float(result.get("min_price"))
+        high = float(result.get("max_price"))
+    except Exception:
+        return ""
+    currency = _woocommerce_store_currency_v69329() or "store currency"
+    if abs(high - low) < 0.005:
+        return f"{currency} {low:,.2f}"
+    return f"{currency} {low:,.2f}–{high:,.2f}"
+
 @st.cache_resource(show_spinner=False)
 def _workspace_atp_package_state_v69180():
     """Process-persistent ATP website-package cache for Sales and Marketing only."""
@@ -60993,6 +60983,306 @@ def _workspace_atp_package_from_text_v69180(file_id, filename, package_text, des
         "vehicle_families": sorted(families), "years": sorted(years),
         "systems": sorted(systems), "product_codes": sorted(product_codes),
     }
+
+
+
+# v69329: durable Sales/Marketing ATP package snapshots.
+# These use the already-proven learned_knowledge durable key/value substrate instead
+# of downloading OpenAI purpose=assistants file content on cold start.
+WORKSPACE_DURABLE_SNAPSHOT_SCHEMA_V69329 = 69329
+WORKSPACE_DURABLE_SNAPSHOT_SOURCE_V69329 = "workspace_durable_snapshot_v69329"
+
+
+def _workspace_durable_snapshot_prefix_v69329(destination):
+    target = str(destination or "").strip()
+    if target not in {"Sales Database", "Marketing Database"}:
+        return ""
+    token = hashlib.sha256(target.encode("utf-8")).hexdigest()[:16]
+    return f"workspace-durable-snapshot:{token}:"
+
+
+def _workspace_durable_snapshot_key_v69329(destination, source_url):
+    prefix = _workspace_durable_snapshot_prefix_v69329(destination)
+    source = str(source_url or "").strip()
+    if not prefix or not source:
+        return ""
+    try:
+        canonical = canonical_website_url_identity(source)
+    except Exception:
+        canonical = source.casefold()
+    if not canonical:
+        return ""
+    return prefix + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _workspace_durable_snapshot_payload_v69329(package, vector_store_id=""):
+    package = dict(package or {})
+    destination = str(package.get("destination") or "").strip()
+    source_url = str(package.get("source_url") or "").strip()
+    file_id = str(package.get("file_id") or "").strip()
+    package_text = str(package.get("package_text") or "")
+    key = _workspace_durable_snapshot_key_v69329(destination, source_url)
+    if not key or not file_id or not package_text:
+        return {}
+    raw = package_text.encode("utf-8")
+    compressed = zlib.compress(raw, 9)
+    return {
+        "schema_version": WORKSPACE_DURABLE_SNAPSHOT_SCHEMA_V69329,
+        "snapshot_key": key,
+        "destination": destination,
+        "source_url": source_url[:2000],
+        "file_id": file_id[:300],
+        "filename": str(package.get("filename") or "")[:500],
+        "title": str(package.get("title") or "")[:1000],
+        "extracted_at": str(package.get("extracted_at") or "")[:120],
+        "vector_store_id": str(vector_store_id or "")[:300],
+        "content_sha256": hashlib.sha256(raw).hexdigest(),
+        "raw_bytes": len(raw),
+        "compressed_bytes": len(compressed),
+        "encoding": "zlib+base64+utf8",
+        "package_b64": base64.b64encode(compressed).decode("ascii"),
+    }
+
+
+def _workspace_durable_snapshot_decode_v69329(payload, expected_destination="", expected_store=""):
+    payload = dict(payload or {})
+    if int(payload.get("schema_version") or 0) != WORKSPACE_DURABLE_SNAPSHOT_SCHEMA_V69329:
+        return {}
+    destination = str(payload.get("destination") or "").strip()
+    if expected_destination and destination != str(expected_destination or "").strip():
+        return {}
+    payload_store = str(payload.get("vector_store_id") or "").strip()
+    if expected_store and payload_store and payload_store != str(expected_store or "").strip():
+        return {}
+    encoded = str(payload.get("package_b64") or "")
+    if not encoded:
+        return {}
+    try:
+        raw = zlib.decompress(base64.b64decode(encoded.encode("ascii"), validate=True))
+        package_text = raw.decode("utf-8")
+    except Exception:
+        return {}
+    actual_sha = hashlib.sha256(raw).hexdigest()
+    if actual_sha != str(payload.get("content_sha256") or "").strip():
+        return {}
+    return {
+        "complete": True,
+        "snapshot_key": str(payload.get("snapshot_key") or ""),
+        "destination": destination,
+        "source_url": str(payload.get("source_url") or ""),
+        "file_id": str(payload.get("file_id") or ""),
+        "filename": str(payload.get("filename") or ""),
+        "title": str(payload.get("title") or ""),
+        "extracted_at": str(payload.get("extracted_at") or ""),
+        "vector_store_id": payload_store,
+        "content_sha256": actual_sha,
+        "package_text": package_text,
+    }
+
+
+def _workspace_durable_snapshot_commit_verified_v69329(package, vector_store_id=""):
+    package = dict(package or {})
+    payload = _workspace_durable_snapshot_payload_v69329(package, vector_store_id)
+    if not payload:
+        raise RuntimeError("Sales/Marketing durable snapshot payload is incomplete.")
+    mode, columns, key_col, value_col, time_col = _technical_active_authority_schema_v69164()
+    key = str(payload.get("snapshot_key") or "")
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    rows = list(
+        supabase.table("learned_knowledge")
+        .select(f"id,{key_col}")
+        .eq(key_col, key)
+        .order(time_col, desc=True)
+        .limit(1)
+        .execute().data or []
+    )
+    existing_id = rows[0].get("id") if rows and isinstance(rows[0], dict) else None
+    assistant_label = "Sales" if str(package.get("destination") or "") == "Sales Database" else "Marketing"
+    if mode == "modern":
+        row_payload = {
+            "issue": key,
+            "solution": encoded,
+            "approved_answer": encoded,
+            "source_type": WORKSPACE_DURABLE_SNAPSHOT_SOURCE_V69329,
+            "updated_at": now_iso(),
+            "staff_confirmed": True,
+            "record_type": "workspace_durable_snapshot",
+            "assistant": assistant_label,
+            "department": assistant_label.casefold(),
+        }
+    else:
+        row_payload = {
+            "question": key,
+            "approved_answer": encoded,
+            "keywords": WORKSPACE_DURABLE_SNAPSHOT_SOURCE_V69329,
+            "source_type": WORKSPACE_DURABLE_SNAPSHOT_SOURCE_V69329,
+            "created_at": now_iso(),
+            "staff_confirmed": True,
+            "record_type": "workspace_durable_snapshot",
+            "assistant": assistant_label,
+            "department": assistant_label.casefold(),
+        }
+    row_payload = filter_payload_for_table("learned_knowledge", row_payload)
+    if key_col not in row_payload or value_col not in row_payload:
+        raise RuntimeError("Sales/Marketing durable snapshot schema cannot persist key/value.")
+    if existing_id is not None:
+        update_payload = dict(row_payload)
+        update_payload.pop("created_at", None)
+        safe_update_row("learned_knowledge", update_payload, existing_id)
+    else:
+        safe_insert_row("learned_knowledge", row_payload)
+
+    verified_rows = list(
+        supabase.table("learned_knowledge")
+        .select(",".join(dict.fromkeys(["id", key_col, value_col, "solution", "approved_answer", "source_type", time_col])))
+        .eq(key_col, key)
+        .order(time_col, desc=True)
+        .limit(1)
+        .execute().data or []
+    )
+    if not verified_rows or not isinstance(verified_rows[0], dict):
+        raise RuntimeError("Sales/Marketing durable snapshot read-back row missing.")
+    row = dict(verified_rows[0])
+    raw_value = str(row.get(value_col) or row.get("solution") or row.get("approved_answer") or "")
+    try:
+        decoded = _workspace_durable_snapshot_decode_v69329(
+            json.loads(raw_value),
+            expected_destination=str(package.get("destination") or ""),
+            expected_store=str(vector_store_id or ""),
+        )
+    except Exception:
+        decoded = {}
+    if (
+        not decoded
+        or str(decoded.get("content_sha256") or "") != str(payload.get("content_sha256") or "")
+        or str(decoded.get("package_text") or "") != str(package.get("package_text") or "")
+        or str(decoded.get("file_id") or "") != str(package.get("file_id") or "")
+    ):
+        raise RuntimeError("Sales/Marketing durable snapshot read-back verification failed.")
+    diagnostic_log(
+        "workspace_durable_snapshot_commit_verified_v69329",
+        destination=str(package.get("destination") or ""),
+        file_id=str(package.get("file_id") or "")[:160],
+        source_url=str(package.get("source_url") or "")[:700],
+        sha256=str(payload.get("content_sha256") or "")[:64],
+    )
+    return decoded
+
+
+def _workspace_durable_snapshot_packages_v69329(destination, vector_store_id=""):
+    target = str(destination or "").strip()
+    prefix = _workspace_durable_snapshot_prefix_v69329(target)
+    if not prefix:
+        return []
+    mode, columns, key_col, value_col, time_col = _technical_active_authority_schema_v69164()
+    wanted = [x for x in ("id", key_col, value_col, "solution", "approved_answer", "source_type", time_col) if x]
+    try:
+        rows = list(
+            supabase.table("learned_knowledge")
+            .select(",".join(dict.fromkeys(wanted)))
+            .like(key_col, prefix + "%")
+            .order(time_col, desc=True)
+            .limit(500)
+            .execute().data or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "workspace_durable_snapshot_read_failed_v69329",
+            destination=target,
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return []
+
+    # Exact current vector attachment is the durable current-source gate. Catalog
+    # access does not download assistants file contents and is supported in production.
+    try:
+        attached_rows = [dict(x) for x in (_website_vector_store_file_rows_v68892(vector_store_id) or []) if isinstance(x, dict)]
+        attached_ids = {str(x.get("file_id") or "").strip() for x in attached_rows if str(x.get("file_id") or "").strip()}
+    except Exception as error:
+        diagnostic_log(
+            "workspace_durable_snapshot_catalog_failed_v69329",
+            destination=target,
+            error_type=type(error).__name__,
+            error=str(error)[:400],
+        )
+        return []
+    if not attached_ids:
+        return []
+
+    best = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        raw_value = str(row.get(value_col) or row.get("solution") or row.get("approved_answer") or "")
+        try:
+            payload = json.loads(raw_value)
+        except Exception:
+            continue
+        decoded = _workspace_durable_snapshot_decode_v69329(payload, expected_destination=target, expected_store=vector_store_id)
+        if not decoded:
+            continue
+        if str(decoded.get("file_id") or "").strip() not in attached_ids:
+            continue
+        package = _workspace_atp_package_from_text_v69180(
+            str(decoded.get("file_id") or ""),
+            str(decoded.get("filename") or ""),
+            str(decoded.get("package_text") or ""),
+            target,
+        )
+        if not isinstance(package, dict):
+            continue
+        source = str(package.get("source_url") or "").strip()
+        try:
+            identity = canonical_website_url_identity(source) if source else ""
+        except Exception:
+            identity = source.casefold()
+        if not identity:
+            identity = "file:" + str(package.get("file_id") or "")
+        prior = best.get(identity)
+        if prior is None or (str(package.get("extracted_at") or ""), str(package.get("filename") or "")) > (str(prior.get("extracted_at") or ""), str(prior.get("filename") or "")):
+            best[identity] = package
+    packages = sorted(best.values(), key=lambda x: (str(x.get("extracted_at") or ""), str(x.get("filename") or "")), reverse=True)
+    if packages:
+        diagnostic_log(
+            "workspace_durable_snapshot_loaded_v69329",
+            destination=target,
+            packages=len(packages),
+        )
+    return packages
+
+
+def _workspace_durable_authority_still_current_v69329(authority, destination):
+    authority = dict(authority or {})
+    mapping = {"Sales Database": SALES_VECTOR_STORE_ID, "Marketing Database": MARKETING_VECTOR_STORE_ID}
+    store_ids = _configured_vector_store_ids(mapping.get(str(destination or ""), ""))
+    if not store_ids:
+        return False
+    current = _workspace_durable_snapshot_packages_v69329(str(destination or ""), str(store_ids[0] or ""))
+    current_pairs = set()
+    for package in current:
+        source = str(package.get("source_url") or "").strip()
+        try:
+            canon = canonical_website_url_identity(source) if source else ""
+        except Exception:
+            canon = source.casefold()
+        current_pairs.add((str(package.get("file_id") or "").strip(), canon))
+    cached_packages = []
+    if str(authority.get("status") or "") == "recovered_multi":
+        cached_packages = [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
+    elif isinstance(authority.get("package"), dict):
+        cached_packages = [dict(authority.get("package") or {})]
+    if not cached_packages:
+        return False
+    for package in cached_packages:
+        source = str(package.get("source_url") or "").strip()
+        try:
+            canon = canonical_website_url_identity(source) if source else ""
+        except Exception:
+            canon = source.casefold()
+        if (str(package.get("file_id") or "").strip(), canon) not in current_pairs:
+            return False
+    return True
 
 
 def _workspace_atp_package_inject_v69180(file_id, filename, package_text, destination):
@@ -61117,8 +61407,27 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
 
 def _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.25):
     target=str(destination or "").strip()
-    _workspace_atp_package_prewarm_start_v69180(target)
     state=_workspace_atp_package_state_v69180()
+    # v69329 cold-start authority: restore verified durable packages first.
+    mapping_v69329 = {"Sales Database": SALES_VECTOR_STORE_ID, "Marketing Database": MARKETING_VECTOR_STORE_ID}
+    store_ids_v69329 = _configured_vector_store_ids(mapping_v69329.get(target, ""))
+    store_v69329 = str(store_ids_v69329[0] or "").strip() if store_ids_v69329 else ""
+    current_revision_v69329 = _website_destination_revision_v69109(target)
+    key_v69329 = f"{store_v69329}::{int(current_revision_v69329 or 0)}" if store_v69329 else ""
+    with state["lock"]:
+        bucket_v69329 = state["destinations"].get(target) or {}
+        ready_v69329 = bool(bucket_v69329.get("status") == "ready" and str(bucket_v69329.get("key") or "") == key_v69329 and bucket_v69329.get("packages"))
+    if not ready_v69329 and store_v69329:
+        durable_packages_v69329 = _workspace_durable_snapshot_packages_v69329(target, store_v69329)
+        if durable_packages_v69329:
+            with state["lock"]:
+                bucket_v69329 = state["destinations"][target]
+                bucket_v69329.update({"key": key_v69329, "status": "ready", "packages": [dict(x) for x in durable_packages_v69329], "future": None, "error": ""})
+            diagnostic_log("workspace_atp_coldstart_ready_v69329", destination=target, packages=len(durable_packages_v69329))
+        else:
+            _workspace_atp_package_prewarm_start_v69180(target)
+    else:
+        _workspace_atp_package_prewarm_start_v69180(target)
     mapping_v69183 = {
         "Sales Database": SALES_VECTOR_STORE_ID,
         "Marketing Database": MARKETING_VECTOR_STORE_ID,
@@ -61397,54 +61706,6 @@ def _workspace_atp_workspace_image_policy_v69205(meta, workspace_label):
 
 
 
-def _workspace_atp_multi_followup_authority_v69327(workspace_label, prompt_text, cached_record, conversation_id=None):
-    """Durably reuse an exact multi-product Sales authority for identity-free follow-ups.
-
-    This is intentionally narrower than ordinary retrieval: it accepts only a cached
-    recovered_multi authority from the same conversation/workspace/destination/current
-    website revision, and refuses any prompt that introduces a new explicit vehicle/year/
-    product identity. It exists so references such as "both", "these two", "first one",
-    "second one", "how much are both", and "show me their photos" cannot fall through
-    to generic retrieval merely because a Streamlit rerun occurred.
-    """
-    workspace = str(workspace_label or "")
-    if not is_sales_workspace(workspace) or is_graphic_workspace(workspace):
-        return {}
-    record = dict(cached_record or {})
-    if not record:
-        return {}
-    if _normalized_workspace_name(record.get("workspace")) != _normalized_workspace_name(workspace):
-        return {}
-    if str(record.get("conversation_id") or "") != str(conversation_id or ""):
-        return {}
-    destination = "Sales Database"
-    if str(record.get("destination") or "") != destination:
-        return {}
-    try:
-        if int(record.get("revision") or 0) != int(_website_destination_revision_v69109(destination) or 0):
-            return {}
-    except Exception:
-        return {}
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    if not prompt:
-        return {}
-    if (
-        _website_identity_vehicle_families_v69022(prompt)
-        or _website_identity_years_v69022(prompt)
-        or _website_image_product_codes_v69020(prompt)
-    ):
-        return {}
-    authority = dict(record.get("authority") or {})
-    if str(authority.get("status") or "") != "recovered_multi":
-        return {}
-    if str(authority.get("destination") or "") != destination:
-        return {}
-    packages = [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
-    if len(packages) < 2:
-        return {}
-    return authority
-
-
 def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cached_record, conversation_id=None):
     """Reuse only the same conversation/workspace/current-revision product authority for identity-free follow-ups."""
     workspace = str(workspace_label or "")
@@ -61467,7 +61728,17 @@ def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cache
     except Exception:
         return {}
     if current_revision != stored_revision:
-        return {}
+        cached_authority_v69329 = dict(record.get("authority") or {})
+        if not _workspace_durable_authority_still_current_v69329(cached_authority_v69329, destination):
+            return {}
+        diagnostic_log(
+            "workspace_atp_followup_revision_revalidated_v69329",
+            workspace=workspace,
+            destination=destination,
+            stored_revision=stored_revision,
+            current_revision=current_revision,
+            product_count=len(cached_authority_v69329.get("packages") or []) if str(cached_authority_v69329.get("status") or "") == "recovered_multi" else 1,
+        )
 
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not prompt:
@@ -61485,68 +61756,6 @@ def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cache
         return {}
     if str(authority.get("destination") or "") != destination:
         return {}
-    return authority
-
-
-def _workspace_atp_multi_followup_authority_v69328(workspace_label, prompt_text, cached_record, conversation_id=None):
-    """Fail-closed multi-product follow-up reuse across unrelated Sales revision bumps."""
-    workspace = str(workspace_label or "")
-    if not is_sales_workspace(workspace) or is_graphic_workspace(workspace):
-        return {}
-    record = dict(cached_record or {})
-    if not record:
-        return {}
-    if _normalized_workspace_name(record.get("workspace")) != _normalized_workspace_name(workspace):
-        return {}
-    if str(record.get("conversation_id") or "") != str(conversation_id or ""):
-        return {}
-    destination = "Sales Database"
-    if str(record.get("destination") or "") != destination:
-        return {}
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    if not prompt:
-        return {}
-    if (_website_identity_vehicle_families_v69022(prompt)
-        or _website_identity_years_v69022(prompt)
-        or _website_image_product_codes_v69020(prompt)):
-        return {}
-    authority = dict(record.get("authority") or {})
-    if str(authority.get("status") or "") != "recovered_multi" or str(authority.get("destination") or "") != destination:
-        return {}
-    cached_packages = [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
-    if len(cached_packages) < 2:
-        return {}
-    current_revision = int(_website_destination_revision_v69109(destination) or 0)
-    try:
-        cached_revision = int(record.get("revision") or 0)
-    except Exception:
-        cached_revision = 0
-    if cached_revision == current_revision:
-        return authority
-    current_packages, snapshot_status = _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.75)
-    if str(snapshot_status or "") != "ready" or not current_packages:
-        diagnostic_log("workspace_atp_followup_revision_revalidation_blocked_v69328", status=str(snapshot_status or ""), cached_revision=cached_revision, current_revision=current_revision)
-        return {}
-    current_by_file = {str(x.get("file_id") or ""): x for x in current_packages if isinstance(x, dict) and str(x.get("file_id") or "").strip()}
-    for cached in cached_packages:
-        file_id = str(cached.get("file_id") or "").strip()
-        source = str(cached.get("source_url") or "").strip()
-        current = current_by_file.get(file_id)
-        if not file_id or not isinstance(current, dict):
-            return {}
-        current_source = str(current.get("source_url") or "").strip()
-        try:
-            if source and current_source and canonical_website_url_identity(source) != canonical_website_url_identity(current_source):
-                return {}
-        except Exception:
-            if source != current_source:
-                return {}
-    record["revision"] = current_revision
-    try:
-        st.session_state["_workspace_last_atp_multi_authority_v69327"] = record
-    except Exception:
-        pass
-    diagnostic_log("workspace_atp_followup_revision_revalidated_v69328", product_count=len(cached_packages), cached_revision=cached_revision, current_revision=current_revision)
     return authority
 
 
@@ -61657,62 +61866,56 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 fit_label = "; ".join(dict.fromkeys(fit_parts))
             rows_v69325.append((_multi_title_v69325(pkg, contract), fit_label, source))
 
-        price_intent_v69326 = bool(re.search(
+        price_intent_v69329 = bool(re.search(
             r"\b(price|prices|cost|costs|how much|selling price|current price|base price|quote)\b",
             p,
         ))
-        if price_intent_v69326 and rows_v69325:
-            selected_rows_v69326 = list(rows_v69325)
+        if price_intent_v69329 and rows_v69325:
+            selected_rows_v69329 = list(rows_v69325)
             # Preserve ordinary conversational references without broadening identity.
             if re.search(r"\b(first|1st|option 1|number 1)\b", p):
-                selected_rows_v69326 = rows_v69325[:1]
+                selected_rows_v69329 = rows_v69325[:1]
             elif re.search(r"\b(second|2nd|option 2|number 2)\b", p):
-                selected_rows_v69326 = rows_v69325[1:2]
+                selected_rows_v69329 = rows_v69325[1:2]
             elif "android 13" in p:
-                selected_rows_v69326 = [row for row in rows_v69325 if "android 13" in row[0].casefold()]
+                selected_rows_v69329 = [row for row in rows_v69325 if "android 13" in row[0].casefold()]
             elif "android 14" in p:
-                selected_rows_v69326 = [row for row in rows_v69325 if "android 14" in row[0].casefold()]
+                selected_rows_v69329 = [row for row in rows_v69325 if "android 14" in row[0].casefold()]
 
-            live_rows_v69326 = []
-            verified_count_v69326 = 0
-            for title_v69326, fit_label_v69326, source_v69326 in selected_rows_v69326:
-                lookup_v69326 = _woocommerce_product_by_source_url_v69326(source_v69326)
-                price_label_v69326 = _woocommerce_price_label_v69326(lookup_v69326)
-                if price_label_v69326:
-                    verified_count_v69326 += 1
-                    product_v69326 = dict(lookup_v69326.get("product") or {})
-                    regular_v69326 = str(lookup_v69326.get("regular_price") or "").strip()
-                    sale_v69326 = str(lookup_v69326.get("sale_price") or "").strip()
-                    note_v69326 = "Verified live WooCommerce price"
-                    if bool(lookup_v69326.get("on_sale")) and sale_v69326 and regular_v69326 and sale_v69326 != regular_v69326:
-                        note_v69326 = f"Live sale price; regular price {(_woocommerce_store_currency_v69326() or 'store currency')} {regular_v69326}"
-                    live_rows_v69326.append((str(product_v69326.get("name") or title_v69326), price_label_v69326, note_v69326))
+            live_rows_v69329 = []
+            verified_count_v69329 = 0
+            for title_v69329, fit_label_v69329, source_v69329 in selected_rows_v69329:
+                lookup_v69329 = _woocommerce_product_by_source_url_v69329(source_v69329)
+                price_label_v69329 = _woocommerce_price_label_v69329(lookup_v69329)
+                if price_label_v69329:
+                    verified_count_v69329 += 1
+                    product_v69329 = dict(lookup_v69329.get("product") or {})
+                    regular_v69329 = str(lookup_v69329.get("regular_price") or "").strip()
+                    sale_v69329 = str(lookup_v69329.get("sale_price") or "").strip()
+                    note_v69329 = "Verified live WooCommerce price"
+                    if bool(lookup_v69329.get("on_sale")) and sale_v69329 and regular_v69329 and sale_v69329 != regular_v69329:
+                        note_v69329 = f"Live sale price; regular price {(_woocommerce_store_currency_v69329() or 'store currency')} {regular_v69329}"
+                    live_rows_v69329.append((str(product_v69329.get("name") or title_v69329), price_label_v69329, note_v69329))
                 else:
-                    live_rows_v69326.append((title_v69326, "Not verified", "Current WooCommerce price could not be verified; I will not guess"))
+                    live_rows_v69329.append((title_v69329, "Not verified", "Current WooCommerce price could not be verified; I will not guess"))
 
             diagnostic_log(
-                "workspace_sales_live_multi_price_v69326",
-                requested=len(selected_rows_v69326),
-                verified=verified_count_v69326,
-                failed=max(0, len(selected_rows_v69326) - verified_count_v69326),
+                "workspace_sales_live_multi_price_v69329",
+                requested=len(selected_rows_v69329),
+                verified=verified_count_v69329,
+                failed=max(0, len(selected_rows_v69329) - verified_count_v69329),
             )
-            diagnostic_log(
-                "workspace_sales_live_multi_price_v69327",
-                requested=len(selected_rows_v69326),
-                verified=verified_count_v69326,
-                failed=max(0, len(selected_rows_v69326) - verified_count_v69326),
-            )
-            lines_v69326 = [
+            lines_v69329 = [
                 "## Current price check",
                 "",
                 "| Product | Current price | Verification |",
                 "|---|---:|---|",
             ]
-            for title_v69326, price_v69326, note_v69326 in live_rows_v69326:
-                lines_v69326.append(f"| {title_v69326} | {price_v69326} | {note_v69326} |")
-            if verified_count_v69326 != len(selected_rows_v69326):
-                lines_v69326.append("\nI only quote prices that can be read back from the exact current WooCommerce product record.")
-            return "\n".join(lines_v69326)
+            for title_v69329, price_v69329, note_v69329 in live_rows_v69329:
+                lines_v69329.append(f"| {title_v69329} | {price_v69329} | {note_v69329} |")
+            if verified_count_v69329 != len(selected_rows_v69329):
+                lines_v69329.append("\nI only quote prices that can be read back from the exact current WooCommerce product record.")
+            return "\n".join(lines_v69329)
 
         if fitment_intent_v69325 and rows_v69325:
             intro_year = f" for **{', '.join(map(str, requested_years_v69325))}**" if requested_years_v69325 else ""
@@ -64661,7 +64864,36 @@ def save_website_knowledge_package(
                     "safely; no stale authority was retired."
                 ) from technical_commit_error_v69192
 
-    # COMMIT: replacement vector + images + required Technical active source are proven.
+    # v69329 Sales/Marketing publication barrier: persist and read back the exact
+    # package independently of OpenAI assistants-file content before retiring prior
+    # current authority. This makes cold-start Sales/Marketing deterministic after
+    # Streamlit redeploys/restarts.
+    workspace_durable_snapshot_v69329 = {}
+    if database_choice in {"Sales Database", "Marketing Database"}:
+        workspace_package_v69329 = _workspace_atp_package_from_text_v69180(
+            file_id, filename, package_text, database_choice
+        )
+        if not isinstance(workspace_package_v69329, dict):
+            raise RuntimeError(
+                "Sales/Marketing package parsed for vector indexing but could not be encoded into durable current-source authority. Prior authority was preserved."
+            )
+        try:
+            workspace_durable_snapshot_v69329 = _workspace_durable_snapshot_commit_verified_v69329(
+                workspace_package_v69329, selected_vector_store_id
+            )
+        except Exception as workspace_snapshot_error_v69329:
+            diagnostic_log(
+                "workspace_durable_snapshot_commit_incomplete_v69329",
+                destination=str(database_choice),
+                file_id=str(file_id or "")[:160],
+                error_type=type(workspace_snapshot_error_v69329).__name__,
+                error=str(workspace_snapshot_error_v69329)[:700],
+            )
+            raise RuntimeError(
+                "Sales/Marketing knowledge indexed, but durable package snapshot verification is incomplete. Prior production authority was preserved; retry the save."
+            ) from workspace_snapshot_error_v69329
+
+    # COMMIT: replacement vector + images + required durable current source are proven.
     # Only now retire stale authority.
     replaced_file_count = _website_remove_superseded_vectors_v69109(
         selected_vector_store_id, prior_same_url
@@ -64714,26 +64946,23 @@ def save_website_knowledge_package(
             )
 
     _website_image_schema_profile_reset_v69176()
-    bumped_revisions_v69328 = _website_invalidate_learning_caches_v69109([database_choice])
+    _website_invalidate_learning_caches_v69109([database_choice])
 
-    # v69328: the original Sales/Marketing injection occurs before the revision bump.
-    # Rebind the exact committed package to the NEW revision immediately after the bump;
-    # otherwise the next inquiry sees status=running/stale and falls back to generic search.
     if database_choice in {"Sales Database", "Marketing Database"} and file_id:
         try:
             _workspace_atp_package_inject_v69180(file_id, filename, package_text, database_choice)
             diagnostic_log(
-                "workspace_atp_post_revision_injected_v69328",
+                "workspace_atp_post_revision_injected_v69329",
                 destination=str(database_choice),
-                revision=int((bumped_revisions_v69328 or {}).get(database_choice) or 0),
                 file_id=str(file_id or "")[:160],
+                revision=int(_website_destination_revision_v69109(database_choice) or 0),
             )
-        except Exception as post_revision_inject_error_v69328:
+        except Exception as workspace_post_revision_error_v69329:
             diagnostic_log(
-                "workspace_atp_post_revision_injection_failed_v69328",
+                "workspace_atp_post_revision_injection_failed_v69329",
                 destination=str(database_choice),
-                error_type=type(post_revision_inject_error_v69328).__name__,
-                error=str(post_revision_inject_error_v69328)[:500],
+                error_type=type(workspace_post_revision_error_v69329).__name__,
+                error=str(workspace_post_revision_error_v69329)[:500],
             )
 
     # v69195: after the successful Technical transaction has committed every
@@ -64851,6 +65080,7 @@ def save_website_knowledge_package(
         "transactional_learning_v69177": True,
         "image_transaction_rollback_safe_v69177": True,
         "archive_cleanup_v69177": archive_cleanup_v69177,
+        "workspace_durable_snapshot_v69329": bool(locals().get("workspace_durable_snapshot_v69329") or {}),
     }
 
 
@@ -91393,20 +91623,6 @@ else:
                                     "revision": int(_website_destination_revision_v69109(destination_v69205) or 0),
                                     "authority": dict(workspace_atp_authority_v69180),
                                 }
-                                if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi" and is_sales_workspace(assistant):
-                                    st.session_state["_workspace_last_atp_multi_authority_v69327"] = {
-                                        "workspace": str(assistant),
-                                        "conversation_id": str(st.session_state.get("conversation_id") or ""),
-                                        "destination": destination_v69205,
-                                        "revision": int(_website_destination_revision_v69109(destination_v69205) or 0),
-                                        "authority": dict(workspace_atp_authority_v69180),
-                                    }
-                                    diagnostic_log(
-                                        "workspace_atp_multi_authority_cached_v69327",
-                                        workspace=str(assistant),
-                                        destination=destination_v69205,
-                                        product_count=len(workspace_atp_authority_v69180.get("packages") or []),
-                                    )
                                 # Keep the existing Sales/Marketing multi-store file_search enabled.
                                 # ATP metadata is priority context, not a replacement for the established
                                 # Sales→Technical and Marketing→Sales→Technical retrieval contracts.
@@ -91419,44 +91635,22 @@ else:
                                     product_count=len(workspace_atp_authority_v69180.get("packages") or []) if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi" else 1,
                                 )
                             else:
-                                followup_authority_v69205 = _workspace_atp_multi_followup_authority_v69328(
+                                followup_authority_v69205 = _workspace_atp_followup_authority_v69205(
                                     assistant,
                                     interaction_prompt,
-                                    st.session_state.get("_workspace_last_atp_multi_authority_v69327") or {},
+                                    st.session_state.get("_workspace_last_atp_authority_v69205") or {},
                                     conversation_id=st.session_state.get("conversation_id"),
                                 )
-                                if str(followup_authority_v69205.get("status") or "") != "recovered_multi":
-                                    followup_authority_v69205 = _workspace_atp_followup_authority_v69205(
-                                        assistant,
-                                        interaction_prompt,
-                                        st.session_state.get("_workspace_last_atp_authority_v69205") or {},
-                                        conversation_id=st.session_state.get("conversation_id"),
-                                    )
                                 if str(followup_authority_v69205.get("status") or "") in {"recovered", "recovered_multi"}:
                                     workspace_atp_authority_v69180 = followup_authority_v69205
                                     ai_request_prompt += str(workspace_atp_authority_v69180.get("context") or "")
-                                    followup_status_v69326 = str(workspace_atp_authority_v69180.get("status") or "")
-                                    if followup_status_v69326 == "recovered_multi":
-                                        exact_rows_v69326 = [
-                                            dict(x) for x in (workspace_atp_authority_v69180.get("rows") or [])
-                                            if isinstance(x, dict)
-                                        ]
-                                        if exact_rows_v69326:
-                                            st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69326
+                                    followup_status_v69329 = str(workspace_atp_authority_v69180.get("status") or "")
+                                    if followup_status_v69329 == "recovered_multi":
+                                        exact_rows_v69329 = [dict(x) for x in (workspace_atp_authority_v69180.get("rows") or []) if isinstance(x, dict)]
+                                        if exact_rows_v69329:
+                                            st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69329
                                         diagnostic_log(
-                                            "workspace_atp_followup_multi_authority_reused_v69326",
-                                            workspace=str(assistant),
-                                            destination=str(workspace_atp_authority_v69180.get("destination") or ""),
-                                            product_count=len(workspace_atp_authority_v69180.get("packages") or []),
-                                        )
-                                        diagnostic_log(
-                                            "workspace_atp_followup_multi_authority_reused_v69327",
-                                            workspace=str(assistant),
-                                            destination=str(workspace_atp_authority_v69180.get("destination") or ""),
-                                            product_count=len(workspace_atp_authority_v69180.get("packages") or []),
-                                        )
-                                        diagnostic_log(
-                                            "workspace_atp_followup_multi_authority_reused_v69328",
+                                            "workspace_atp_followup_multi_authority_reused_v69329",
                                             workspace=str(assistant),
                                             destination=str(workspace_atp_authority_v69180.get("destination") or ""),
                                             product_count=len(workspace_atp_authority_v69180.get("packages") or []),
