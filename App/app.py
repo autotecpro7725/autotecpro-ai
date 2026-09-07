@@ -61922,24 +61922,18 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         chosen_family=max(by_family.items(), key=family_rank)[0]
     selected=list(by_family.get(chosen_family) or [])
 
-    # When a family exposes named platform generations, preserve the strongest current source per generation.
-    if any(c["platform"] for c in selected):
-        best={}
-        for c in selected:
-            key=c["platform"].casefold() or ("source:"+c["source_url"])
-            prior=best.get(key)
-            rank=(float(c["score"]), str(c["extracted_at"]), str(c["source_url"]))
-            if prior is None or rank > prior[0]: best[key]=(rank,c)
-        selected=[x[1] for x in best.values()]
-    else:
-        best={}
-        for c in selected:
-            try: key=canonical_website_url_identity(c["source_url"])
-            except Exception: key=c["source_url"].rstrip('/').casefold()
-            prior=best.get(key)
-            rank=(float(c["score"]), str(c["extracted_at"]))
-            if prior is None or rank > prior[0]: best[key]=(rank,c)
-        selected=[x[1] for x in best.values()]
+    # v69357: exact canonical product URL is product identity. Android/platform is a
+    # product attribute, not a dedupe key. Preserve separate current products even when
+    # multiple options share the same Android generation; collapse only duplicate indexed
+    # copies of the same canonical product page.
+    best={}
+    for c in selected:
+        try: key=canonical_website_url_identity(c["source_url"])
+        except Exception: key=c["source_url"].rstrip('/').casefold()
+        prior=best.get(key)
+        rank=(float(c["score"]), str(c["extracted_at"]), str(c["source_url"]))
+        if prior is None or rank > prior[0]: best[key]=(rank,c)
+    selected=[x[1] for x in best.values()]
 
     def platform_sort(c):
         m=re.search(r"(\d+)", str(c.get("platform") or ""))
@@ -62960,11 +62954,25 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
         ))
         if price_intent_v69326 and rows_v69325:
             selected_rows_v69326 = list(rows_v69325)
-            # Preserve ordinary conversational references without broadening identity.
-            if re.search(r"\b(first|1st|option 1|number 1)\b", p):
-                selected_rows_v69326 = rows_v69325[:1]
-            elif re.search(r"\b(second|2nd|option 2|number 2)\b", p):
-                selected_rows_v69326 = rows_v69325[1:2]
+            # v69357: preserve deterministic option references for every supported
+            # multi-product slot, not only the inherited first/second pair.
+            option_index_v69357 = None
+            option_match_v69357 = re.search(r"\b(?:option|number)\s*([1-8])\b", p)
+            if option_match_v69357:
+                option_index_v69357 = int(option_match_v69357.group(1)) - 1
+            else:
+                ordinal_map_v69357 = {
+                    "first": 0, "1st": 0, "second": 1, "2nd": 1,
+                    "third": 2, "3rd": 2, "fourth": 3, "4th": 3,
+                    "fifth": 4, "5th": 4, "sixth": 5, "6th": 5,
+                    "seventh": 6, "7th": 6, "eighth": 7, "8th": 7,
+                }
+                for ordinal_v69357, index_v69357 in ordinal_map_v69357.items():
+                    if re.search(r"\b" + re.escape(ordinal_v69357) + r"\b", p):
+                        option_index_v69357 = index_v69357
+                        break
+            if option_index_v69357 is not None and 0 <= option_index_v69357 < len(rows_v69325):
+                selected_rows_v69326 = rows_v69325[option_index_v69357:option_index_v69357 + 1]
             elif "android 13" in p:
                 selected_rows_v69326 = [row for row in rows_v69325 if "android 13" in row[0].casefold()]
             elif "android 14" in p:
@@ -63652,9 +63660,22 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
         return bool(len(compact) >= 2 and compact in prompt_compact)
 
     explicit_new_body = bool(re.search(r"\bnew(?:er)?[-\s]+body(?:[-\s]+style)?\b", prompt.casefold()))
+    screen_cue = bool(re.search(r"\b\d{1,2}(?:\.\d)?\s*(?:inch|inches|in|\"|”)\b", prompt.casefold()))
+    # v69357 completeness hint: broad vehicle-fitment discovery must not trust a
+    # partially warm package snapshot as exhaustive. A newly learned/current page can
+    # be present while older valid sibling pages are still absent from the hot cache.
+    broad_fitment_discovery_hint_v69357 = bool(
+        is_sales_workspace(workspace)
+        and re.search(r"\b(which|what|models?|options?|fit|fits|compatible|compatibility|available|carry|have)\b", prompt.casefold())
+        and (pf or py)
+        and not pc
+        and not screen_cue
+        and not re.search(r"\bandroid\s*\d+\b", prompt.casefold())
+    )
 
     # Bounded cold-start wait; warm lookups remain in-memory.
     packages, status = _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.45)
+    recovered_v69338 = []
     # v69338: when the inherited v69325 background cache is unavailable after a
     # Streamlit restart, recover only current product-page authority from the same
     # destination vector store. This does not alter the normal v69325 hot path.
@@ -63663,6 +63684,36 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
         if recovered_v69338:
             packages = [dict(x) for x in recovered_v69338]
             status = "turn_local_recovered_v69338"
+
+    # v69357: for a broad Sales fitment/discovery request, perform a bounded current
+    # vector-store completeness pass even when the hot snapshot is non-empty, then
+    # merge by canonical product URL. This specifically closes the production case
+    # where a freshly learned high-score product became the only warm package and
+    # suppressed previously learned compatible sibling models.
+    if broad_fitment_discovery_hint_v69357:
+        if not recovered_v69338:
+            recovered_v69338 = _workspace_atp_turn_local_recovery_v69338(destination, prompt)
+        if recovered_v69338:
+            hot_count_v69357 = len(packages or [])
+            merged_packages_v69357 = []
+            seen_sources_v69357 = set()
+            for package_v69357 in list(packages or []) + [dict(x) for x in recovered_v69338]:
+                source_v69357 = str(package_v69357.get("source_url") or "").strip()
+                try:
+                    source_id_v69357 = canonical_website_url_identity(source_v69357) if source_v69357 else source_v69357
+                except Exception:
+                    source_id_v69357 = source_v69357.rstrip('/').casefold()
+                if source_id_v69357 in seen_sources_v69357:
+                    continue
+                seen_sources_v69357.add(source_id_v69357)
+                merged_packages_v69357.append(dict(package_v69357))
+            packages = merged_packages_v69357
+            diagnostic_log(
+                "workspace_atp_multi_completeness_merge_v69357",
+                workspace=workspace, destination=destination,
+                hot_count=hot_count_v69357, recovered_count=len(recovered_v69338),
+                merged_count=len(packages),
+            )
     prepared = []
     all_models = []
     all_makes = []
@@ -63686,7 +63737,6 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
     explicit_models = [x for x in dict.fromkeys(all_models) if _phrase_present(x)]
     explicit_makes = [x for x in dict.fromkeys(all_makes) if _phrase_present(x)]
     explicit_trims = [x for x in dict.fromkeys(all_trims) if _phrase_present(x)]
-    screen_cue = bool(re.search(r"\b\d{1,2}(?:\.\d)?\s*(?:inch|inches|in|\"|”)\b", prompt.casefold()))
 
     # A make name or screen size alone is not enough to bind one exact product.
     # Require an explicit contract model, an existing vehicle-family identity, or a
@@ -63796,66 +63846,88 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
 
     ranked.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
     top = ranked[0]
-    if len(ranked) > 1 and ranked[1][0] == top[0]:
-        tied_v69325 = [row for row in ranked if row[0] == top[0]]
-        distinct_v69325 = []
-        seen_source_ids_v69325 = set()
-        for score_v69325, extracted_v69325, filename_v69325, package_v69325 in tied_v69325:
-            source_v69325 = str(package_v69325.get("source_url") or "").strip()
-            try:
-                source_id_v69325 = canonical_website_url_identity(source_v69325) if source_v69325 else source_v69325
-            except Exception:
-                source_id_v69325 = source_v69325
-            if source_id_v69325 in seen_source_ids_v69325:
-                continue
-            seen_source_ids_v69325.add(source_id_v69325)
-            distinct_v69325.append((score_v69325, extracted_v69325, filename_v69325, dict(package_v69325)))
 
-        if len(distinct_v69325) > 1:
+    # v69357: a broad Sales fitment/discovery question asks for the set of current
+    # independently sellable products that satisfy the already-applied make/model/year/trim
+    # compatibility filters. Ranking controls display order only; it must not silently
+    # discard lower-scoring compatible sibling products. Exact product/configuration
+    # questions keep the inherited single-product behavior.
+    broad_multi_discovery_v69357 = bool(
+        broad_fitment_discovery_hint_v69357
+        or (
+            is_sales_workspace(workspace)
+            and re.search(r"\b(which|what|models?|options?|fit|fits|compatible|compatibility|available|carry|have)\b", prompt.casefold())
+            and explicit_models
+            and not pc
+            and not screen_cue
+            and not re.search(r"\bandroid\s*\d+\b", prompt.casefold())
+        )
+    )
+
+    candidate_rows_v69357 = ranked if broad_multi_discovery_v69357 else (
+        [row for row in ranked if row[0] == top[0]]
+        if len(ranked) > 1 and ranked[1][0] == top[0]
+        else []
+    )
+    if len(candidate_rows_v69357) > 1:
+        distinct_v69357 = []
+        seen_source_ids_v69357 = set()
+        for score_v69357, extracted_v69357, filename_v69357, package_v69357 in candidate_rows_v69357:
+            source_v69357 = str(package_v69357.get("source_url") or "").strip()
+            try:
+                source_id_v69357 = canonical_website_url_identity(source_v69357) if source_v69357 else source_v69357
+            except Exception:
+                source_id_v69357 = source_v69357
+            if source_id_v69357 in seen_source_ids_v69357:
+                continue
+            seen_source_ids_v69357.add(source_id_v69357)
+            distinct_v69357.append((score_v69357, extracted_v69357, filename_v69357, dict(package_v69357)))
+
+        if len(distinct_v69357) > 1:
             if is_sales_workspace(workspace):
-                multi_packages_v69325 = [dict(row[3]) for row in distinct_v69325[:8]]
-                multi_rows_v69325 = []
-                multi_context_parts_v69325 = [
-                    "\n\nAUTOTECPRO MULTI-PRODUCT CURRENT FITMENT AUTHORITY (v69325)\n",
-                    "Multiple distinct current Sales product pages match the same requested vehicle/year with equal deterministic authority. ",
-                    "Treat every listed page as a separate sellable model. Do not collapse them into one product merely because fitment, screen size, or vehicle family overlap. ",
+                multi_packages_v69357 = [dict(row[3]) for row in distinct_v69357[:8]]
+                multi_rows_v69357 = []
+                multi_context_parts_v69357 = [
+                    "\n\nAUTOTECPRO MULTI-PRODUCT CURRENT FITMENT AUTHORITY (v69357)\n",
+                    "Multiple distinct current Sales product pages independently satisfy the requested vehicle/year/trim fitment. ",
+                    "Treat every listed canonical product page as a separate sellable model. Ranking controls option order only; do not collapse products because they share Android generation, fitment, screen family, or vehicle family. ",
                     "Preserve each current source URL and its own primary image authority.\n",
                 ]
-                for index_v69325, package_v69325 in enumerate(multi_packages_v69325, start=1):
-                    contract_v69325 = _workspace_atp_product_contract_v69205(package_v69325)
-                    semantic_json_v69325, excerpt_v69325 = _workspace_atp_compact_context_v69181(package_v69325, prompt)
-                    source_v69325 = str(package_v69325.get("source_url") or "")
-                    multi_context_parts_v69325.append(
-                        f"\n[CURRENT PRODUCT OPTION {index_v69325}]\nSource URL: {source_v69325}\n"
-                        f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json_v69325}\n"
-                        f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n{excerpt_v69325[:9000]}\n"
+                for index_v69357, package_v69357 in enumerate(multi_packages_v69357, start=1):
+                    semantic_json_v69357, excerpt_v69357 = _workspace_atp_compact_context_v69181(package_v69357, prompt)
+                    source_v69357 = str(package_v69357.get("source_url") or "")
+                    multi_context_parts_v69357.append(
+                        f"\n[CURRENT PRODUCT OPTION {index_v69357}]\nSource URL: {source_v69357}\n"
+                        f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json_v69357}\n"
+                        f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n{excerpt_v69357[:9000]}\n"
                     )
-                    multi_rows_v69325.append({
-                        "file_id": str(package_v69325.get("file_id") or ""),
-                        "filename": str(package_v69325.get("filename") or ""),
+                    multi_rows_v69357.append({
+                        "file_id": str(package_v69357.get("file_id") or ""),
+                        "filename": str(package_v69357.get("filename") or ""),
                         "score": 1.0,
-                        "text": str(package_v69325.get("package_text") or ""),
+                        "text": str(package_v69357.get("package_text") or ""),
                         "workspace_atp_metadata_first_v69180": True,
                         "workspace_atp_product_fast_v69205": True,
                         "workspace_atp_multi_product_v69325": True,
+                        "workspace_atp_multi_product_complete_v69357": broad_multi_discovery_v69357,
                     })
                 diagnostic_log(
-                    "workspace_atp_metadata_multi_match_v69325",
+                    "workspace_atp_metadata_multi_complete_v69357" if broad_multi_discovery_v69357 else "workspace_atp_metadata_multi_match_v69325",
                     workspace=workspace,
                     destination=destination,
                     score=int(top[0]),
-                    product_count=len(multi_packages_v69325),
+                    product_count=len(multi_packages_v69357),
                 )
                 return {
                     "status": "recovered_multi",
                     "destination": destination,
-                    "context": "".join(multi_context_parts_v69325),
-                    "rows": multi_rows_v69325,
-                    "packages": multi_packages_v69325,
+                    "context": "".join(multi_context_parts_v69357),
+                    "rows": multi_rows_v69357,
+                    "packages": multi_packages_v69357,
                     "score": top[0],
-                    "source_urls": [str(pkg.get("source_url") or "") for pkg in multi_packages_v69325],
+                    "source_urls": [str(pkg.get("source_url") or "") for pkg in multi_packages_v69357],
                     "product_contracts_v69325": [
-                        _workspace_atp_product_contract_v69205(pkg) for pkg in multi_packages_v69325
+                        _workspace_atp_product_contract_v69205(pkg) for pkg in multi_packages_v69357
                     ],
                 }
             diagnostic_log(
