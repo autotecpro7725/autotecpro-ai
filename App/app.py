@@ -1,3 +1,4 @@
+# AutoTecPro AI v69352 — v69321 rich Sales first-fitment exact-product contract
 # v69347 — v69343 output + live USD equivalent + exact-only repeat-image suppression hardening
 # ============================================================
 # v69324 — Website learning concurrency + targeted durability verification
@@ -62376,6 +62377,116 @@ def _workspace_atp_first_response_product_row_v69349(index, title, fit_label, so
     ]
     return [_workspace_markdown_table_cell_v69347(value) for value in values]
 
+
+
+def _workspace_sales_v69321_first_fitment_format_context_v69352(authority, prompt_text):
+    """Strict first-fitment output contract: v69321 content depth + current exact-product authority.
+
+    This helper does not invent product specifications. It only locks the presentation
+    contract and the exact current-product identities already selected by the existing
+    authority layer. Detailed facts must still come from reviewed webpage/file-search text.
+    """
+    authority = dict(authority or {})
+    status = str(authority.get("status") or "")
+    if status not in {"recovered", "recovered_multi"}:
+        return ""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    p = prompt.casefold()
+    if not p:
+        return ""
+    fitment_intent = bool(re.search(
+        r"\b(fit|fits|compatible|compatibility|work with|works with|for my|support(?:s|ed)?|which years?|what years?|which model|what model)\b",
+        p,
+    ))
+    price_intent = bool(re.search(
+        r"\b(price|prices|cost|costs|how much|selling price|current price|base price|quote)\b",
+        p,
+    ))
+    if not fitment_intent or price_intent:
+        return ""
+
+    packages = [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
+    if not packages and status == "recovered":
+        package = dict(authority.get("package") or {})
+        if package:
+            packages = [package]
+    if not packages:
+        return ""
+
+    option_lines = []
+    seen = set()
+    for idx, pkg in enumerate(packages, start=1):
+        source = str(pkg.get("source_url") or "").strip()
+        try:
+            source_id = canonical_website_url_identity(source) if source else source
+        except Exception:
+            source_id = source
+        if source_id in seen:
+            continue
+        seen.add(source_id)
+        contract = _workspace_atp_product_contract_v69205(pkg)
+        platform = re.sub(r"\s+", " ", str(contract.get("platform") or "")).strip()
+        title = re.sub(r"\s+", " ", str(pkg.get("page_title") or "")).strip()
+        if not title:
+            try:
+                title = re.sub(r"\s+", " ", str(_technical_package_header_value_v69113(
+                    str(pkg.get("package_text") or ""), "Page title"
+                ) or "")).strip()
+            except Exception:
+                title = ""
+        # Display label only: remove a theme/SEO pipe suffix such as GPS | BT | WiFi.
+        if " | " in title:
+            title = title.split(" | ", 1)[0].strip()
+        label = f"Option {len(option_lines)+1}"
+        if platform:
+            label += f" — {platform}"
+        option_lines.append(
+            f"{label}\nProduct: {title or 'Current AutoTecPro product'}\nExact current product URL: {source}"
+        )
+
+    if not option_lines:
+        return ""
+
+    return (
+        "\n\nAUTOTECPRO SALES FIRST-FITMENT OUTPUT CONTRACT (v69352)\n"
+        "Use the original v69321 Sales response depth and section organization for this FIRST fitment/compatibility answer. "
+        "The exact current-product authority below is binding.\n\n"
+        "CRITICAL DISTINCT-PRODUCT RULES:\n"
+        "- Every exact current product option listed below is a separate sellable product and MUST remain a separate row/option in the answer.\n"
+        "- Never collapse Android 13 and Android 14 into one recommended model, one row, or wording such as 'Android 13 or Android 14 page options'.\n"
+        "- Do not choose one as the single 'Best recommendation' unless the user explicitly asks which one is better.\n"
+        "- The full product URLs below are exact authority. Do not rewrite, shorten, swap, or infer a different URL.\n"
+        "- Do NOT put full product URLs inside wide Markdown tables. Put them in the separate Current Product Pages section.\n\n"
+        "EXACT CURRENT PRODUCT OPTIONS:\n" + "\n\n".join(option_lines) + "\n\n"
+        "REQUIRED FIRST-RESPONSE SECTION ORDER (v69321 content contract):\n"
+        "1. ## AutoTecPro Model Match\n"
+        "   - Compact Markdown table. One separate row per exact product option above.\n"
+        "   - Include only supported fields: AutoTecPro product/model, screen size, vehicle/year range, climate version, drive side, Android version, RAM/storage, camera option, and match confidence.\n"
+        "   - If a field is not verified in reviewed Sales/Technical evidence, write 'Requires Verification' or omit the field; never substitute another feature token.\n"
+        "2. ## Product Specifications\n"
+        "   - Compact Markdown table containing verified specifications only.\n"
+        "   - Never map GPS/BT/Wi-Fi/CarPlay/Android Auto into unrelated fields such as fitment, display, hardware, or URL.\n"
+        "3. ## Product Features\n"
+        "   - Put each verified feature on its own checklist line.\n"
+        "4. ## Compatibility Notes\n"
+        "   - Put each verified note on its own bullet line. Do not compress multiple notes into one paragraph.\n"
+        "5. ## Staff Note\n"
+        "   - Short internal note, clearly separate from customer-facing text.\n"
+        "6. ## Brief Installation Details\n"
+        "   - Compact table or short checklist. Include only verified installation type, climate version, camera compatibility, required harness/CANBUS, modification/wire-cutting requirement, and preparation note.\n"
+        "7. ## Installation Resources\n"
+        "   - Show exact verified video/manual/PDF URLs when present. If none are verified, say so. Never invent a resource.\n"
+        "8. ## Current Product Pages\n"
+        "   - List every exact current product option above on its own line with its full URL.\n"
+        "9. ## Customer Reply Draft\n"
+        "   - Always last. Short ready-to-send customer response in Markdown blockquote paragraphs.\n\n"
+        "ALIGNMENT / ACCURACY RULES:\n"
+        "- Keep tables compact; do not create a single extra-wide table containing features and URLs.\n"
+        "- Keep Android version, fitment, display, hardware, features, and URL semantically separate.\n"
+        "- Use Sales knowledge first for product facts and Technical knowledge for installation/support facts.\n"
+        "- If evidence conflicts or is absent, state uncertainty instead of guessing.\n"
+    )
+
 def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, authority):
     """Provider-bypass deterministic product facts for exact current Sales/Marketing ATP pages.
 
@@ -92479,6 +92590,33 @@ else:
                                 workspace=str(assistant),
                                 error_type=type(error_v69205).__name__,
                                 error=str(error_v69205)[:500],
+                            )
+
+                    # v69352: when v69351 intentionally routes first Sales fitment through
+                    # the provider/file-search path, enforce the original v69321 response
+                    # structure while preserving every exact current-product option.
+                    if (
+                        is_sales_workspace(assistant)
+                        and not workspace_atp_direct_answer_v69205
+                        and str((workspace_atp_authority_v69180 or {}).get("status") or "") in {"recovered", "recovered_multi"}
+                    ):
+                        try:
+                            first_fitment_contract_v69352 = _workspace_sales_v69321_first_fitment_format_context_v69352(
+                                workspace_atp_authority_v69180, interaction_prompt
+                            )
+                            if first_fitment_contract_v69352:
+                                ai_request_prompt += first_fitment_contract_v69352
+                                diagnostic_log(
+                                    "workspace_sales_v69321_first_fitment_contract_v69352",
+                                    authority_status=str(workspace_atp_authority_v69180.get("status") or ""),
+                                    product_count=len(workspace_atp_authority_v69180.get("packages") or []) if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi" else 1,
+                                    layout="v69321_compact_sections_exact_products",
+                                )
+                        except Exception as error_v69352:
+                            diagnostic_log(
+                                "workspace_sales_v69321_first_fitment_contract_failed_v69352",
+                                error_type=type(error_v69352).__name__,
+                                error=str(error_v69352)[:500],
                             )
 
                     try:
