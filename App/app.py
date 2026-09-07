@@ -45544,9 +45544,90 @@ def _request_without_file_search_results_include_v69012(request):
     return retry_request
 
 
+def _website_vector_search_turn_cache_key_v69355(request, max_results=12):
+    """Exact request identity for one-turn Sales/Marketing vector-search dedupe.
+
+    This is deliberately narrow: same configured vector stores, same normalized input,
+    and same max_results only. It never merges different queries and is reset at the
+    beginning of every user turn.
+    """
+    request = dict(request or {})
+    vector_store_ids = []
+    for tool in request.get("tools") or []:
+        if isinstance(tool, dict) and tool.get("type") == "file_search":
+            vector_store_ids.extend(tool.get("vector_store_ids") or [])
+    vector_store_ids = tuple(_configured_vector_store_ids(*vector_store_ids))
+    text_parts = []
+    def collect(value):
+        if isinstance(value, str):
+            if value.strip():
+                text_parts.append(value.strip())
+        elif isinstance(value, dict):
+            for key, child in value.items():
+                if key in {"text", "content", "input"}:
+                    collect(child)
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                collect(child)
+    collect(request.get("input"))
+    query = re.sub(r"\s+", " ", " ".join(text_parts)).strip()[:6000]
+    if not vector_store_ids or not query:
+        return ""
+    payload = json.dumps(
+        {"stores": vector_store_ids, "query": query, "max_results": int(max_results or 12)},
+        ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _website_vector_search_turn_cache_get_v69355(request, max_results=12):
+    """Return a defensive copy only for exact same-turn Sales/Marketing requests."""
+    try:
+        if threading.current_thread() is not threading.main_thread():
+            return None
+        if not (is_sales_workspace(assistant) or is_marketing_workspace(assistant)) or is_graphic_workspace(assistant):
+            return None
+        key = _website_vector_search_turn_cache_key_v69355(request, max_results)
+        if not key:
+            return None
+        cache = dict(st.session_state.get("_workspace_vector_search_turn_cache_v69355") or {})
+        rows = cache.get(key)
+        if rows is None:
+            return None
+        diagnostic_log("workspace_vector_search_turn_cache_hit_v69355", key=key[:16], result_count=len(rows or []))
+        return [dict(row) for row in (rows or []) if isinstance(row, dict)]
+    except Exception:
+        return None
+
+
+def _website_vector_search_turn_cache_put_v69355(request, max_results, rows):
+    """Store exact vector-search rows for this user turn only; failures are ignored."""
+    try:
+        if threading.current_thread() is not threading.main_thread():
+            return
+        if not (is_sales_workspace(assistant) or is_marketing_workspace(assistant)) or is_graphic_workspace(assistant):
+            return
+        key = _website_vector_search_turn_cache_key_v69355(request, max_results)
+        if not key:
+            return
+        cache = dict(st.session_state.get("_workspace_vector_search_turn_cache_v69355") or {})
+        cache[key] = [dict(row) for row in (rows or []) if isinstance(row, dict)]
+        # Strictly bounded one-turn cache. Oldest insertion order is not relied on;
+        # overflow simply retains the most recently assigned keys from this turn.
+        if len(cache) > 24:
+            cache = dict(list(cache.items())[-24:])
+        st.session_state["_workspace_vector_search_turn_cache_v69355"] = cache
+        diagnostic_log("workspace_vector_search_turn_cache_store_v69355", key=key[:16], result_count=len(rows or []))
+    except Exception:
+        return
+
+
 def _website_request_vector_search_rows_v69047(request, max_results=12):
     """Use the SDK vector-search endpoint when optional result expansion is rejected."""
     request = dict(request or {})
+    cached_rows_v69355 = _website_vector_search_turn_cache_get_v69355(request, max_results)
+    if cached_rows_v69355 is not None:
+        return cached_rows_v69355
     vector_store_ids = []
     for tool in request.get("tools") or []:
         if not isinstance(tool, dict) or tool.get("type") != "file_search":
@@ -45629,6 +45710,7 @@ def _website_request_vector_search_rows_v69047(request, max_results=12):
         result_count=len(output),
         store_count=len(vector_store_ids),
     )
+    _website_vector_search_turn_cache_put_v69355(request, max_results, output)
     return output
 
 
@@ -71414,37 +71496,84 @@ def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
             reason="CAPABILITY_ALREADY_PROVEN_UNSUPPORTED",
         )
         return ""
+    # v69355: single-flight the first capability probe. Concurrent Technical
+    # preparation paths previously could all observe "unknown" and issue the same
+    # doomed assistants-purpose content request before the first 400 set the flag.
+    capability_lock_v69355 = capability_state_v69324.get("lock")
+    if capability_lock_v69355 is None:
+        capability_lock_v69355 = threading.Lock()
     try:
-        fast_client = client.with_options(
-            timeout=max(0.5, float(timeout_seconds or 3.5)),
-            max_retries=0,
-        )
-        response = fast_client.files.content(clean_id)
-    except Exception as error:
-        error_text_v69228 = str(error or "")
-        if (
-            "Not allowed to download files of purpose: assistants"
-            in error_text_v69228
-        ):
-            _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228 = True
+        with capability_lock_v69355:
+            if bool(
+                _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228
+                or capability_state_v69324.get("assistants_content_unsupported")
+            ):
+                _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228 = True
+                diagnostic_log(
+                    "technical_assistants_file_content_skip_v69355",
+                    file_id=clean_id[:160],
+                    reason="CAPABILITY_ALREADY_PROVEN_UNSUPPORTED_AFTER_LOCK",
+                )
+                return ""
             try:
-                with capability_state_v69324.get("lock"):
+                fast_client = client.with_options(
+                    timeout=max(0.5, float(timeout_seconds or 3.5)),
+                    max_retries=0,
+                )
+                response = fast_client.files.content(clean_id)
+            except Exception as error:
+                error_text_v69228 = str(error or "")
+                if (
+                    "Not allowed to download files of purpose: assistants"
+                    in error_text_v69228
+                ):
+                    _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228 = True
                     capability_state_v69324["assistants_content_unsupported"] = True
-            except Exception:
-                capability_state_v69324["assistants_content_unsupported"] = True
-            diagnostic_log(
-                "technical_assistants_file_content_disabled_v69228",
-                file_id=clean_id[:160],
-                reason="NON_RETRYABLE_ASSISTANTS_FILE_PURPOSE",
-            )
+                    diagnostic_log(
+                        "technical_assistants_file_content_disabled_v69228",
+                        file_id=clean_id[:160],
+                        reason="NON_RETRYABLE_ASSISTANTS_FILE_PURPOSE",
+                    )
+                diagnostic_log(
+                    "technical_exact_file_read_bounded_failed_v69182",
+                    file_id=clean_id[:160],
+                    timeout_seconds=float(timeout_seconds or 3.5),
+                    error_type=type(error).__name__,
+                    error=error_text_v69228[:300],
+                )
+                return ""
+    except Exception as lock_error_v69355:
+        # Lock infrastructure must never change authority semantics. Fall back to
+        # the original bounded request behavior if locking itself is unavailable.
         diagnostic_log(
-            "technical_exact_file_read_bounded_failed_v69182",
-            file_id=clean_id[:160],
-            timeout_seconds=float(timeout_seconds or 3.5),
-            error_type=type(error).__name__,
-            error=error_text_v69228[:300],
+            "technical_file_content_singleflight_failed_v69355",
+            error_type=type(lock_error_v69355).__name__,
+            error=str(lock_error_v69355)[:300],
         )
-        return ""
+        try:
+            fast_client = client.with_options(
+                timeout=max(0.5, float(timeout_seconds or 3.5)),
+                max_retries=0,
+            )
+            response = fast_client.files.content(clean_id)
+        except Exception as error:
+            error_text_v69228 = str(error or "")
+            if "Not allowed to download files of purpose: assistants" in error_text_v69228:
+                _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228 = True
+                capability_state_v69324["assistants_content_unsupported"] = True
+                diagnostic_log(
+                    "technical_assistants_file_content_disabled_v69228",
+                    file_id=clean_id[:160],
+                    reason="NON_RETRYABLE_ASSISTANTS_FILE_PURPOSE",
+                )
+            diagnostic_log(
+                "technical_exact_file_read_bounded_failed_v69182",
+                file_id=clean_id[:160],
+                timeout_seconds=float(timeout_seconds or 3.5),
+                error_type=type(error).__name__,
+                error=error_text_v69228[:300],
+            )
+            return ""
 
     if isinstance(response, bytes):
         value = response.decode("utf-8", errors="replace")
@@ -89778,6 +89907,13 @@ else:
 
     if prompt:
         command_preflight_started_v68864 = time.perf_counter()
+        # v69355: exact-key vector-search memoization is valid for this user turn only.
+        # Reset before any Sales/Marketing authority/search work so no result can carry
+        # across inquiries, model changes, learning updates, or conversation turns.
+        try:
+            st.session_state["_workspace_vector_search_turn_cache_v69355"] = {}
+        except Exception:
+            pass
         graphic_early_status_v68865 = None
         if _graphic_v68865_should_show_early_status(
             prompt,
