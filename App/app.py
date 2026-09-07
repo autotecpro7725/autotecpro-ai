@@ -62343,28 +62343,25 @@ def _workspace_atp_first_response_notes_v69348(contract, package):
     return list(dict.fromkeys(notes))[:4]
 
 
-def _workspace_atp_first_response_product_block_v69348(index, title, fit_label, source, contract):
-    """Compact detail block for the first Sales fitment answer; avoids wide markdown tables."""
+def _workspace_atp_first_response_product_row_v69349(index, title, fit_label, source, contract):
+    """One deterministic detailed row for the first Sales fitment table."""
     contract = dict(contract or {})
-    platform = re.sub(r"\\s+", " ", str(contract.get("platform") or "")).strip()
+    platform = re.sub(r"\s+", " ", str(contract.get("platform") or "")).strip()
     display = _workspace_atp_first_response_display_v69348(contract)
     hardware = _workspace_atp_first_response_hardware_v69348(contract)
     features = _workspace_atp_first_response_feature_labels_v69348(contract)
-    lines = [f"**Option {int(index)} — {_workspace_markdown_table_cell_v69347(title)}**"]
-    if platform:
-        lines.append(f"- **Platform:** {platform}")
-    if fit_label:
-        lines.append(f"- **Fitment:** {fit_label}")
-    if display:
-        lines.append(f"- **Display:** {display}")
-    if hardware:
-        lines.append(f"- **Hardware:** {hardware}")
-    if features:
-        # Keep the first response detailed but bounded/readable.
-        lines.append(f"- **Key features / OEM integration:** {' · '.join(features)}")
-    if str(source or "").strip():
-        lines.append(f"- **Current product URL:** {str(source).strip()}")
-    return lines
+    feature_text = " · ".join(features[:10]) if features else ""
+    values = [
+        str(int(index)),
+        title,
+        platform or "—",
+        fit_label or "Compatible per current source",
+        display or "—",
+        hardware or "—",
+        feature_text or "—",
+        str(source or "").strip() or "—",
+    ]
+    return [_workspace_markdown_table_cell_v69347(value) for value in values]
 
 def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, authority):
     """Provider-bypass deterministic product facts for exact current Sales/Marketing ATP pages.
@@ -62646,6 +62643,8 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 "",
                 f"We found **{len(rows_v69325)} separate current AutoTecPro product options** that match the vehicle in your inquiry{intro_year}.",
                 "",
+                "| Option | Product | Platform | Fitment | Display | Hardware | Key features / OEM integration | Current product URL |",
+                "|---:|---|---|---|---|---|---|---|",
             ]
             all_notes_v69348 = []
             for idx_v69348, (title_v69348, fit_label_v69348, source_v69348) in enumerate(rows_v69325, 1):
@@ -62658,13 +62657,14 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 true_fitment_v69348 = _workspace_atp_first_response_fitment_v69348(
                     contract_v69348, requested_years_v69325
                 )
-                lines.extend(_workspace_atp_first_response_product_block_v69348(
+                row_v69349 = _workspace_atp_first_response_product_row_v69349(
                     idx_v69348, title_v69348, true_fitment_v69348 or "Compatible per current source", source_v69348, contract_v69348
-                ))
-                lines.append("")
+                )
+                lines.append("| " + " | ".join(row_v69349) + " |")
                 all_notes_v69348.extend(_workspace_atp_first_response_notes_v69348(contract_v69348, pkg_v69348))
 
             lines.extend([
+                "",
                 "### Compatibility notes",
                 "",
                 "- These are separate current product pages, so they remain distinct sellable options rather than being collapsed into one model.",
@@ -62673,9 +62673,10 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 lines.append(f"- {note_v69348}")
             lines.append("- The authoritative primary product image for each matched option is shown below on the first inquiry; same-product follow-up questions do not repeat those images.")
             diagnostic_log(
-                "workspace_sales_first_response_details_v69348",
+                "workspace_sales_first_response_table_v69350",
                 product_count=len(rows_v69325),
-                detail_blocks=len(rows_v69325),
+                table_rows=len(rows_v69325),
+                layout="detailed_markdown_table",
                 note_count=len(list(dict.fromkeys(all_notes_v69348))[:4]),
             )
             return "\n".join(lines)
@@ -62852,27 +62853,31 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     fit_detail_v69348 = span
                     if only_key != "__no_trim__":
                         fit_detail_v69348 += f" — {only_key} only"
-                    lines_v69348 = [
+                    lines_v69350 = [
                         "### Confirmed fitment",
                         "",
                         f"The exact current product source confirms fitment for **{span}** in the vehicle/model inquiry you provided.",
                         "",
+                        "| Option | Product | Platform | Fitment | Display | Hardware | Key features / OEM integration | Current product URL |",
+                        "|---:|---|---|---|---|---|---|---|",
                     ]
-                    lines_v69348.extend(_workspace_atp_first_response_product_block_v69348(
+                    row_v69350 = _workspace_atp_first_response_product_row_v69349(
                         1, title_v69348, fit_detail_v69348, source_v69348, contract
-                    ))
+                    )
+                    lines_v69350.append("| " + " | ".join(row_v69350) + " |")
                     notes_v69348 = _workspace_atp_first_response_notes_v69348(contract, package)
                     if notes_v69348:
-                        lines_v69348.extend(["", "### Compatibility notes", ""])
-                        lines_v69348.extend(f"- {note}" for note in notes_v69348)
-                    lines_v69348.append("\nThe authoritative primary product image is shown below on this first inquiry; same-product follow-up questions do not repeat it.")
+                        lines_v69350.extend(["", "### Compatibility notes", ""])
+                        lines_v69350.extend(f"- {note}" for note in notes_v69348)
+                    lines_v69350.append("\nThe authoritative primary product image is shown below on this first inquiry; same-product follow-up questions do not repeat it.")
                     diagnostic_log(
-                        "workspace_sales_first_response_details_v69348",
+                        "workspace_sales_first_response_table_v69350",
                         product_count=1,
-                        detail_blocks=1,
+                        table_rows=1,
+                        layout="detailed_markdown_table",
                         note_count=len(notes_v69348),
                     )
-                    return "\n".join(lines_v69348)
+                    return "\n".join(lines_v69350)
 
                 return (
                     f"For the requested years, this {product_label} has the following current-source compatibility: "
