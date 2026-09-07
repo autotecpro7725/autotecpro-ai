@@ -12226,6 +12226,89 @@ def serialize_images_marker(images):
         return ""
 
 
+def _workspace_product_image_identity_v69346(image):
+    """Stable Sales/Marketing product identity for suppressing repeat images.
+
+    Exact product path is authoritative. WooCommerce's volatile ``?v=`` token is
+    intentionally ignored so the same product remains the same identity across
+    requests. Non-product website images fall back to their durable image identity.
+    """
+    if not isinstance(image, dict):
+        return ""
+    source = str(image.get("source") or "").strip()
+    if source != "website_knowledge":
+        return ""
+    for raw_url in (
+        image.get("website_source_page_v69010"),
+        image.get("archive_web_url"),
+    ):
+        raw_url = str(raw_url or "").strip()
+        if not raw_url:
+            continue
+        try:
+            parsed = urlparse(raw_url)
+            host = (parsed.hostname or "").strip().casefold()
+            path = re.sub(r"/+", "/", parsed.path or "/").rstrip("/") + "/"
+            if host and "/product/" in path.casefold():
+                return f"product:{host}{path.casefold()}"
+        except Exception:
+            pass
+    sha = str(image.get("website_image_sha256") or "").strip().casefold()
+    if sha:
+        return "image-sha:" + sha
+    archive = str(image.get("archive_web_url") or "").strip()
+    if archive:
+        try:
+            parsed = urlparse(archive)
+            return "image-url:" + urlunparse((
+                (parsed.scheme or "https").casefold(),
+                (parsed.netloc or "").casefold(),
+                parsed.path, "", "", ""
+            ))
+        except Exception:
+            return "image-url:" + archive
+    return ""
+
+
+def _workspace_previously_displayed_product_identities_v69346(messages):
+    """Return Sales/Marketing website product identities already shown in this case."""
+    shown = set()
+    for message in messages or []:
+        if not isinstance(message, dict) or str(message.get("role") or "").casefold() != "assistant":
+            continue
+        try:
+            _visible, images = extract_images_from_message_content(message.get("content") or "")
+        except Exception:
+            images = []
+        for image in images or []:
+            identity = _workspace_product_image_identity_v69346(image)
+            if identity:
+                shown.add(identity)
+    return shown
+
+
+def _workspace_suppress_repeat_product_images_v69346(workspace_label, images, prior_messages):
+    """Suppress only same-product website images already displayed earlier in the case.
+
+    A newly matched product/model path remains eligible and is displayed normally.
+    Product Library, uploaded, generated, Graphic, and Technical images are untouched.
+    """
+    if not (is_sales_workspace(workspace_label) or is_marketing_workspace(workspace_label)):
+        return list(images or []), 0
+    shown = _workspace_previously_displayed_product_identities_v69346(prior_messages)
+    if not shown:
+        return list(images or []), 0
+    kept = []
+    suppressed = 0
+    for image in images or []:
+        identity = _workspace_product_image_identity_v69346(image)
+        if identity and identity in shown:
+            suppressed += 1
+            continue
+        kept.append(image)
+    return kept, suppressed
+
+
 def extract_images_from_message_content(content):
     text = str(content or "")
     pattern = re.escape(IMAGE_MARKER_PREFIX) + r"(.*?)" + re.escape(IMAGE_MARKER_SUFFIX) + r"\s*$"
@@ -62246,35 +62329,21 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 "## Current price check",
                 "",
             ]
-            # v69345: keep the verified price result as one compact, consistently
-            # left-aligned Markdown list. This avoids uneven paragraph spacing in the
-            # chat renderer/PDF export while preserving the exact v69342 resolver and
-            # v69344 plain-text-only safety behavior.
+            # v69343: verified monetary values are printed as plain text before the
+            # table so the price cannot disappear because of table/render formatting.
+            # Product selection and the v69342 live-price resolver are unchanged.
             for _title_v69343, variant_v69343, price_v69343, _note_v69343 in live_rows_v69326:
                 variant_label_v69343 = str(variant_v69343 or "Current product").strip()
-                lines_v69326.append(f"- **{variant_label_v69343}:** {price_v69343}")
-            # v69344: price answers intentionally remain plain-text only. The custom
-            # chat HTML renderer can remap cells in a Markdown table during display/
-            # PDF export even when the underlying verified rows are correct. Keep the
-            # authoritative product/price resolver unchanged and eliminate the
-            # redundant table so displayed monetary values cannot be replaced by
-            # unrelated feature tokens such as GPS/BT.
+                lines_v69326.append(f"**{variant_label_v69343} — {price_v69343}**")
+            lines_v69326.extend([
+                "",
+                "| Product | Variant | Current price | Verification |",
+                "|---|---|---:|---|",
+            ])
+            for title_v69326, variant_v69326, price_v69326, note_v69326 in live_rows_v69326:
+                lines_v69326.append(f"| {title_v69326} | {variant_v69326} | {price_v69326} | {note_v69326} |")
             if verified_count_v69326 != len(selected_rows_v69326):
-                lines_v69326.append(
-                    "\nI only quote prices verified from the exact current WooCommerce product record "
-                    "or, if REST cannot verify it, that exact current product page."
-                )
-            diagnostic_log(
-                "workspace_sales_price_plain_output_v69344",
-                rows=len(live_rows_v69326),
-                verified=verified_count_v69326,
-                labels=[str(row[2])[:120] for row in live_rows_v69326],
-            )
-            diagnostic_log(
-                "workspace_sales_price_alignment_v69345",
-                rows=len(live_rows_v69326),
-                layout="compact_left_aligned_markdown_list",
-            )
+                lines_v69326.append("\nI only quote prices verified from the exact current WooCommerce product record or, if REST cannot verify it, that exact current product page.")
             return "\n".join(lines_v69326)
 
         if fitment_intent_v69325 and rows_v69325:
@@ -93201,6 +93270,34 @@ else:
                 "technical_v69050_late_image_publication_restored_v69123",
                 published=len(generated_images or []),
             )
+
+        # v69346: once a Sales/Marketing product image has already been displayed
+        # earlier in this same case, do not repeat it on follow-up questions about
+        # that same product. A different exact /product/.../ identity remains
+        # eligible and will display normally. This is publication-only and runs
+        # after all existing product/image authority gates.
+        if generated_images and (is_sales_workspace(assistant) or is_marketing_workspace(assistant)):
+            try:
+                generated_images, repeat_images_suppressed_v69346 = (
+                    _workspace_suppress_repeat_product_images_v69346(
+                        assistant,
+                        generated_images,
+                        list(st.session_state.get("messages") or []),
+                    )
+                )
+                diagnostic_log(
+                    "workspace_repeat_product_images_suppressed_v69346",
+                    workspace=str(assistant),
+                    suppressed=int(repeat_images_suppressed_v69346 or 0),
+                    published=len(generated_images or []),
+                )
+            except Exception as error_v69346:
+                diagnostic_log(
+                    "workspace_repeat_product_image_gate_failed_v69346",
+                    workspace=str(assistant),
+                    error_type=type(error_v69346).__name__,
+                    error=str(error_v69346)[:500],
+                )
 
         technical_image_prefetch_executor_active_v69015 = locals().get(
             "technical_image_prefetch_executor_v69015"
