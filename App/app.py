@@ -1793,6 +1793,153 @@ def _exact_product_page_identity_v69342(raw_url):
     return base + "?" + urllib.parse.urlencode(kept, doseq=True)
 
 
+
+@st.cache_data(ttl=120, max_entries=128, show_spinner=False)
+def _workspace_exact_product_primary_page_fallback_v69354(source_url, destination, prompt_text, page_title=""):
+    """Recover only the WooCommerce main image from an already-proven exact product page.
+
+    This is an image-only resilience fallback. It cannot create product authority, cannot
+    broaden to another product, and refuses any redirect whose exact /product/... identity
+    differs from the already-selected source. It is used only when the existing durable /
+    semantic primary-image path returns no primary for that exact current product.
+    """
+    source = str(source_url or "").strip()
+    target = str(destination or "").strip()
+    if target not in {"Sales Database", "Marketing Database"} or not source:
+        return None
+    try:
+        parsed_source = urllib.parse.urlsplit(source)
+        if "/product/" not in str(parsed_source.path or "").casefold():
+            return None
+        source_identity = _exact_product_page_identity_v69342(source)
+    except Exception:
+        return None
+
+    try:
+        response = http_session.get(
+            source,
+            headers={
+                "Accept": "text/html,application/xhtml+xml",
+                "User-Agent": "AutoTecPro-AI/1.0",
+            },
+            timeout=LIVE_HTTP_TIMEOUT,
+            allow_redirects=True,
+        )
+        response.raise_for_status()
+    except Exception as error:
+        diagnostic_log(
+            "workspace_exact_product_primary_page_fallback_failed_v69354",
+            source_url=source[:500], reason="fetch_failed",
+            error_type=type(error).__name__, error=str(error)[:400],
+        )
+        return None
+
+    final_url = str(getattr(response, "url", "") or source).strip()
+    try:
+        if _exact_product_page_identity_v69342(final_url) != source_identity:
+            diagnostic_log(
+                "workspace_exact_product_primary_page_fallback_failed_v69354",
+                source_url=source[:500], final_url=final_url[:500],
+                reason="exact_product_identity_mismatch",
+            )
+            return None
+    except Exception:
+        return None
+
+    html_text = str(getattr(response, "text", "") or "")
+    if not html_text:
+        return None
+
+    # Restrict extraction to the WooCommerce main product gallery / wp-post-image.
+    # Do not use generic body images, related-product tiles, banners, or page-wide scans.
+    candidates = []
+    gallery_match = re.search(
+        r'<div[^>]+class=["\'][^"\']*woocommerce-product-gallery__image[^"\']*["\'][^>]*>(.*?)</div>',
+        html_text, flags=re.I | re.S,
+    )
+    gallery_html = gallery_match.group(1) if gallery_match else ""
+    scopes = [gallery_html] if gallery_html else []
+    wp_image_match = re.search(
+        r'<img[^>]+class=["\'][^"\']*wp-post-image[^"\']*["\'][^>]*>',
+        html_text, flags=re.I | re.S,
+    )
+    if wp_image_match:
+        scopes.append(wp_image_match.group(0))
+
+    for scope in scopes:
+        for pattern in (
+            r'data-large_image=["\']([^"\']+)',
+            r'<a[^>]+href=["\']([^"\']+)',
+            r'\bsrc=["\']([^"\']+)',
+            r'data-src=["\']([^"\']+)',
+        ):
+            match = re.search(pattern, scope, flags=re.I | re.S)
+            if match:
+                candidate = html.unescape(str(match.group(1) or "").strip())
+                candidate = urllib.parse.urljoin(final_url, candidate)
+                if candidate.startswith("https://") and candidate not in candidates:
+                    candidates.append(candidate)
+
+    if not candidates:
+        diagnostic_log(
+            "workspace_exact_product_primary_page_fallback_failed_v69354",
+            source_url=source[:500], final_url=final_url[:500],
+            reason="woocommerce_primary_not_found",
+        )
+        return None
+
+    image_url = candidates[0]
+    if any(token in image_url.casefold() for token in ("video-icon", "youtube", "vimeo")):
+        return None
+
+    title = re.sub(r"\s+", " ", str(page_title or "")).strip()
+    if not title:
+        title_match = re.search(r'<title[^>]*>(.*?)</title>', html_text, flags=re.I | re.S)
+        if title_match:
+            title = re.sub(r"\s+", " ", re.sub(r'<[^>]+>', ' ', html.unescape(title_match.group(1)))).strip()
+    payload = {
+        "database_choice": target,
+        "image_url": image_url,
+        "source_page": final_url,
+        "page_title": title,
+        "section_heading": "Primary product image",
+        "nearby_instruction_text": "Exact current WooCommerce product page main gallery image",
+        "image_structured_metadata_v69017": {
+            "data-atp-image-role": "primary-product-image",
+            "data-atp-authority": "primary",
+            "data-atp-authority-level": "primary",
+            "data-atp-is-primary-product-image": "true",
+            "data-atp-main-product-photo": "true",
+            "data-atp-primary-media": "true",
+            "data-atp-priority": "1000",
+        },
+    }
+    try:
+        if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
+            diagnostic_log(
+                "workspace_exact_product_primary_page_fallback_failed_v69354",
+                source_url=source[:500], image_url=image_url[:500],
+                reason="vehicle_fitment_gate_rejected",
+            )
+            return None
+    except Exception:
+        return None
+
+    record = _website_image_record_for_chat_v68883(payload)
+    if not record:
+        return None
+    record["website_atp_primary_product_image_v69325"] = True
+    record["website_atp_exact_page_fallback_v69354"] = True
+    record["website_workspace_destination_v69180"] = target
+    record["website_atp_metadata_exact_v69180"] = True
+    record["website_workspace_match_score_v69040"] = 2500.0
+    diagnostic_log(
+        "workspace_exact_product_primary_page_fallback_v69354",
+        source_url=source[:500], final_url=final_url[:500], image_url=image_url[:500],
+    )
+    return record
+
+
 @st.cache_data(ttl=45, max_entries=128, show_spinner=False)
 def _current_product_page_price_by_exact_url_v69340(source_url):
     """Read the current price only from the exact matched product page.
@@ -12559,6 +12706,7 @@ def extract_images_from_message_content(content):
             "website_workspace_match_score_v69040",
             "website_workspace_durable_fallback_v69041",
             "website_workspace_archive_resolved_v69041",
+            "website_atp_exact_page_fallback_v69354",
             # v69144: preserve exact learned Technical page/section/branch authority
             # across reruns and History reconstruction. These are provenance-only
             # fields and do not alter the visible image renderer.
@@ -63787,6 +63935,23 @@ def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, 
             if primary_rows:
                 priority, url, meta = primary_rows[0]
                 _append(url, meta, overlap=0, primary=1, priority=priority)
+
+            # v69354: if the already-proven exact product has no renderable indexed
+            # primary, recover ONLY the WooCommerce main gallery image from that same
+            # exact product URL. This cannot create/broaden product authority.
+            if not any(bool(record.get("website_atp_primary_product_image_v69325")) for record in output):
+                fallback_v69354 = _workspace_exact_product_primary_page_fallback_v69354(
+                    str(pkg.get("source_url") or ""),
+                    destination,
+                    prompt_text,
+                    str(pkg.get("page_title") or pkg.get("title") or ""),
+                )
+                if fallback_v69354:
+                    fallback_v69354["website_atp_product_identity_key_v69325"] = str(
+                        contract.get("product_identity_key") or ""
+                    )
+                    output.append(fallback_v69354)
+
             supporting_rows.sort(key=lambda x: (x[0], x[1]), reverse=True)
             for overlap, priority, url, meta in supporting_rows:
                 _append(url, meta, overlap=overlap, primary=0, priority=priority)
