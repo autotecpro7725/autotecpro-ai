@@ -62246,21 +62246,35 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 "## Current price check",
                 "",
             ]
-            # v69343: verified monetary values are printed as plain text before the
-            # table so the price cannot disappear because of table/render formatting.
-            # Product selection and the v69342 live-price resolver are unchanged.
+            # v69345: keep the verified price result as one compact, consistently
+            # left-aligned Markdown list. This avoids uneven paragraph spacing in the
+            # chat renderer/PDF export while preserving the exact v69342 resolver and
+            # v69344 plain-text-only safety behavior.
             for _title_v69343, variant_v69343, price_v69343, _note_v69343 in live_rows_v69326:
                 variant_label_v69343 = str(variant_v69343 or "Current product").strip()
-                lines_v69326.append(f"**{variant_label_v69343} — {price_v69343}**")
-            lines_v69326.extend([
-                "",
-                "| Product | Variant | Current price | Verification |",
-                "|---|---|---:|---|",
-            ])
-            for title_v69326, variant_v69326, price_v69326, note_v69326 in live_rows_v69326:
-                lines_v69326.append(f"| {title_v69326} | {variant_v69326} | {price_v69326} | {note_v69326} |")
+                lines_v69326.append(f"- **{variant_label_v69343}:** {price_v69343}")
+            # v69344: price answers intentionally remain plain-text only. The custom
+            # chat HTML renderer can remap cells in a Markdown table during display/
+            # PDF export even when the underlying verified rows are correct. Keep the
+            # authoritative product/price resolver unchanged and eliminate the
+            # redundant table so displayed monetary values cannot be replaced by
+            # unrelated feature tokens such as GPS/BT.
             if verified_count_v69326 != len(selected_rows_v69326):
-                lines_v69326.append("\nI only quote prices verified from the exact current WooCommerce product record or, if REST cannot verify it, that exact current product page.")
+                lines_v69326.append(
+                    "\nI only quote prices verified from the exact current WooCommerce product record "
+                    "or, if REST cannot verify it, that exact current product page."
+                )
+            diagnostic_log(
+                "workspace_sales_price_plain_output_v69344",
+                rows=len(live_rows_v69326),
+                verified=verified_count_v69326,
+                labels=[str(row[2])[:120] for row in live_rows_v69326],
+            )
+            diagnostic_log(
+                "workspace_sales_price_alignment_v69345",
+                rows=len(live_rows_v69326),
+                layout="compact_left_aligned_markdown_list",
+            )
             return "\n".join(lines_v69326)
 
         if fitment_intent_v69325 and rows_v69325:
