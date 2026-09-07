@@ -62197,7 +62197,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     note_v69326 = "Verified live WooCommerce price"
                     if bool(lookup_v69326.get("on_sale")) and sale_v69326 and regular_v69326 and sale_v69326 != regular_v69326:
                         note_v69326 = f"Live sale price; regular price {(_woocommerce_store_currency_v69326() or 'store currency')} {regular_v69326}"
-                    live_rows_v69326.append((str(product_v69326.get("name") or title_v69326), price_label_v69326, note_v69326))
+                    live_rows_v69326.append((str(product_v69326.get("name") or title_v69326), fit_label_v69326, price_label_v69326, note_v69326))
                 else:
                     # v69340: exact matched URL page fallback only after WooCommerce REST
                     # fails. Product identity/order/image authority are unchanged.
@@ -62214,6 +62214,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                         )
                         live_rows_v69326.append((
                             title_v69326,
+                            fit_label_v69326,
                             page_price_label_v69340,
                             "Verified from exact current product page (WooCommerce REST unavailable for this price)",
                         ))
@@ -62227,7 +62228,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                             page_error_type=str(page_lookup_v69340.get("error_type") or "")[:120],
                             page_final_url=str(page_lookup_v69340.get("final_url") or "")[:700],
                         )
-                        live_rows_v69326.append((title_v69326, "Not verified", "Current price could not be verified from WooCommerce REST or the exact current product page; I will not guess"))
+                        live_rows_v69326.append((title_v69326, fit_label_v69326, "Not verified", "Current price could not be verified from WooCommerce REST or the exact current product page; I will not guess"))
 
             diagnostic_log(
                 "workspace_sales_live_multi_price_v69342",
@@ -62235,14 +62236,29 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 verified=verified_count_v69326,
                 failed=max(0, len(selected_rows_v69326) - verified_count_v69326),
             )
+            diagnostic_log(
+                "workspace_sales_price_output_bound_v69343",
+                rows=len(live_rows_v69326),
+                labels=[str(row[2])[:120] for row in live_rows_v69326],
+                variants=[str(row[1])[:80] for row in live_rows_v69326],
+            )
             lines_v69326 = [
                 "## Current price check",
                 "",
-                "| Product | Current price | Verification |",
-                "|---|---:|---|",
             ]
-            for title_v69326, price_v69326, note_v69326 in live_rows_v69326:
-                lines_v69326.append(f"| {title_v69326} | {price_v69326} | {note_v69326} |")
+            # v69343: verified monetary values are printed as plain text before the
+            # table so the price cannot disappear because of table/render formatting.
+            # Product selection and the v69342 live-price resolver are unchanged.
+            for _title_v69343, variant_v69343, price_v69343, _note_v69343 in live_rows_v69326:
+                variant_label_v69343 = str(variant_v69343 or "Current product").strip()
+                lines_v69326.append(f"**{variant_label_v69343} — {price_v69343}**")
+            lines_v69326.extend([
+                "",
+                "| Product | Variant | Current price | Verification |",
+                "|---|---|---:|---|",
+            ])
+            for title_v69326, variant_v69326, price_v69326, note_v69326 in live_rows_v69326:
+                lines_v69326.append(f"| {title_v69326} | {variant_v69326} | {price_v69326} | {note_v69326} |")
             if verified_count_v69326 != len(selected_rows_v69326):
                 lines_v69326.append("\nI only quote prices verified from the exact current WooCommerce product record or, if REST cannot verify it, that exact current product page.")
             return "\n".join(lines_v69326)
