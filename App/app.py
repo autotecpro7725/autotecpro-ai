@@ -27,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69332"
-AUTOTECPRO_RELEASE_BUILD = "v69332-v69325-baseline-coldstart-multi-followup-price-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69333"
+AUTOTECPRO_RELEASE_BUILD = "v69333-v69325-baseline-strict-coldstart-product-classification-20260907"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -61093,10 +61093,20 @@ def _workspace_atp_snapshot_load_v69332(destination):
 
 
 def _workspace_atp_image_index_bootstrap_v69332(destination, prompt_text):
-    """Legacy no-resave cold-start bridge built only from destination-owned durable image rows.
+    """Legacy no-resave cold-start bridge from destination-owned durable image rows.
 
-    It is intentionally limited to identity/fitment + primary-image continuity. It does
-    not invent product facts. Exact source URLs remain the authority for follow-up price.
+    v69333 hardening:
+    - reconstruct only real sellable product-page authority;
+    - never promote how-to/reference/configuration pages into Sales product matches;
+    - classify infotainment vs gauge-cluster products instead of hard-coding every row
+      as an infotainment system;
+    - for a generic vehicle/year "which model fits" Sales inquiry, preserve the proven
+      AutoTecPro head-unit behavior by admitting infotainment products only unless the
+      user explicitly asks for another product family;
+    - deduplicate by canonical current source identity before authority reaches v69325.
+
+    The bridge still does not invent product facts. Exact current source URLs and the
+    durable image provenance remain authoritative for follow-up/live-price behavior.
     """
     target = str(destination or "").strip()
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
@@ -61106,10 +61116,88 @@ def _workspace_atp_image_index_bootstrap_v69332(destination, prompt_text):
     py = set(_website_identity_years_v69022(prompt))
     if not (pf or py):
         return []
+
+    prompt_cf = prompt.casefold()
+    explicit_gauge = bool(re.search(
+        r"\b(?:digital\s+)?(?:gauge|instrument)\s+cluster\b|\bcluster\s+cockpit\b|\bspeedometer\b",
+        prompt_cf,
+    ))
+    explicit_infotainment = bool(re.search(
+        r"\b(?:infotainment|head\s*unit|touch[-\s]*screen|tesla[-\s]*style|android\s+(?:auto|1[0-9])|"
+        r"apple\s+carplay|carplay|navigation\s+system|radio\s+screen|stereo)\b",
+        prompt_cf,
+    ))
+    explicit_reference = bool(re.search(
+        r"\b(?:how\s+to|identify|identification|install(?:ation)?|wiring|manual|guide|"
+        r"climate\s+control|a/?c\s+control|ac\s+control|configuration|setting)\b",
+        prompt_cf,
+    ))
+    if explicit_gauge:
+        requested_family = "gauge_cluster"
+    elif explicit_infotainment:
+        requested_family = "infotainment"
+    elif explicit_reference:
+        # Reference/configuration knowledge must never be converted into a sellable
+        # product authority by this image-index bridge. Let the normal retrieval path
+        # answer explicit support/reference questions instead.
+        requested_family = "reference"
+    else:
+        # v69325's proven Sales behavior for generic vehicle/year model-fit inquiries
+        # resolves the head-unit product variants (e.g. Android 13 + Android 14).
+        requested_family = "infotainment"
+
     try:
         payloads = list(_workspace_durable_image_payloads_v69041(target) or [])
     except Exception:
         payloads = []
+
+    def _classify_page_v69333(title, source, rows):
+        structured_bits = []
+        for row in rows or []:
+            try:
+                structured_bits.append(json.dumps(row.get("image_structured_metadata_v69017") or {}, ensure_ascii=False))
+            except Exception:
+                pass
+        evidence = " ".join((
+            str(title or ""), str(source or ""), " ".join(structured_bits),
+            " ".join(str((row or {}).get("section_heading") or "") for row in (rows or [])),
+            " ".join(str((row or {}).get("caption") or "") for row in (rows or [])),
+        )).casefold()
+        # Non-product/reference authority. These pages may be useful evidence, but are
+        # never sellable product models.
+        reference = bool(re.search(
+            r"\b(?:how\s+to|how-to|identify|identification|installation|install\s+guide|"
+            r"user\s+manual|instruction|wiring\s+guide|climate\s+control\s+versions?|"
+            r"a/?c\s+control\s+versions?|settings?\s+guide|configuration\s+guide)\b",
+            evidence,
+        ))
+        gauge = bool(re.search(
+            r"\b(?:digital\s+)?(?:gauge|instrument)\s+cluster\b|\bcluster\s+cockpit\b|"
+            r"\bdigital\s+cockpit\b|\bspeedometer\b",
+            evidence,
+        ))
+        infotainment = bool(re.search(
+            r"\b(?:infotainment|head\s*unit|touch[-\s]*screen|tesla[-\s]*style|"
+            r"android\s+(?:navigation|1[0-9])|navigation\s+system|apple\s+carplay|"
+            r"wireless\s+carplay|android\s+auto|radio\s+screen|stereo)\b",
+            evidence,
+        ))
+        # A sellable product page must have product-route provenance. This prevents
+        # generic article/support pages from becoming product authority even if they
+        # contain photos of a product.
+        try:
+            parsed_path = urllib.parse.urlsplit(str(source or "")).path.casefold()
+        except Exception:
+            parsed_path = str(source or "").casefold()
+        product_route = "/product/" in parsed_path
+        if reference:
+            return {"sellable": False, "family": "reference", "evidence": evidence}
+        if gauge:
+            return {"sellable": bool(product_route), "family": "gauge_cluster", "evidence": evidence}
+        if infotainment:
+            return {"sellable": bool(product_route), "family": "infotainment", "evidence": evidence}
+        return {"sellable": False, "family": "unknown", "evidence": evidence}
+
     grouped = {}
     for payload in payloads:
         if not isinstance(payload, dict):
@@ -61123,30 +61211,53 @@ def _workspace_atp_image_index_bootstrap_v69332(destination, prompt_text):
             ident = canonical_website_url_identity(source)
         except Exception:
             ident = source.rstrip("/").casefold()
+        if not ident:
+            continue
         grouped.setdefault(ident, []).append(dict(payload))
+
     packages = []
+    rejected_counts = {"reference": 0, "non_sellable": 0, "family_mismatch": 0, "fitment": 0}
     for ident, rows in grouped.items():
+        # Deterministic representative: newest indexed row, then stable image URL.
+        rows = sorted(
+            rows,
+            key=lambda r: (str((r or {}).get("indexed_at") or ""), str((r or {}).get("image_url") or "")),
+            reverse=True,
+        )
         sample = rows[0]
         title = str(sample.get("page_title") or "").strip()
         source = str(sample.get("source_page") or sample.get("requested_page") or "").strip()
+        classification = _classify_page_v69333(title, source, rows)
+        if classification.get("family") == "reference":
+            rejected_counts["reference"] += 1
+            continue
+        if not classification.get("sellable"):
+            rejected_counts["non_sellable"] += 1
+            continue
+        if requested_family != classification.get("family"):
+            rejected_counts["family_mismatch"] += 1
+            continue
+
         page_identity = dict(sample.get("page_identity_v69024") or {})
         identity_text = " ".join((title, source, json.dumps(page_identity, ensure_ascii=False)))
         families = set(page_identity.get("vehicle_families") or []) or set(_website_identity_vehicle_families_v69022(identity_text))
         years = set()
         for raw in page_identity.get("years") or []:
-            try: years.add(int(raw))
-            except Exception: pass
+            try:
+                years.add(int(raw))
+            except Exception:
+                pass
         if not years:
             years = set(_website_identity_years_v69022(identity_text))
         if pf and families and not pf.issubset(families):
+            rejected_counts["fitment"] += 1
             continue
         if py and years and not py.issubset(years):
+            rejected_counts["fitment"] += 1
             continue
-        # Infer a display model name without creating fitment beyond proven page identity.
-        model_label = ""
+
         fam_text = " ".join(sorted(families)).strip()
-        if fam_text:
-            model_label = re.sub(r"[-_]+", " ", fam_text).title()
+        model_label = re.sub(r"[-_]+", " ", fam_text).title() if fam_text else ""
         android = ""
         m = re.search(r"android[\s-]*(1[0-9])", identity_text, flags=re.I)
         if m:
@@ -61156,25 +61267,127 @@ def _workspace_atp_image_index_bootstrap_v69332(destination, prompt_text):
             if re.search(r"\b" + re.escape(candidate) + r"\b", identity_text, flags=re.I):
                 make = candidate
                 break
-        branch = {"branch_id":"durable-image-index-v69332","make":make,"models":[model_label] if model_label else [],"years":sorted(years),"trim":"","excluded_years":[],"source_authority":"current-source","current_source":True}
-        # Prefer exact ATP primary flags preserved inside structured metadata; otherwise
-        # use the largest same-page QA-approved product image as the conservative bridge.
+
+        if classification.get("family") == "gauge_cluster":
+            product_type = "digital gauge cluster"
+            product_family = "Digital Gauge Cluster"
+            platform = ""
+        else:
+            product_type = "infotainment system"
+            product_family = model_label or fam_text
+            platform = android
+
+        branch = {
+            "branch_id": "durable-image-index-v69333",
+            "make": make,
+            "models": [model_label] if model_label else [],
+            "years": sorted(years),
+            "trim": "",
+            "excluded_years": [],
+            "source_authority": "current-source",
+            "current_source": True,
+        }
+
         def primary_score(p):
             blob = json.dumps(p.get("image_structured_metadata_v69017") or {}, ensure_ascii=False).casefold()
             text = " ".join((blob, str(p.get("caption") or ""), str(p.get("section_heading") or ""), str(p.get("visual_analysis") or ""))).casefold()
             score = 0
-            if "primary-product-image" in text: score += 10000
-            if "main-product-photo" in text or "primary-media" in text: score += 8000
-            if '"primary"' in text or "authority-primary" in text: score += 5000
-            try: score += min(int(p.get("width") or 0) * int(p.get("height") or 0) // 10000, 2000)
-            except Exception: pass
+            if "primary-product-image" in text:
+                score += 10000
+            if "main-product-photo" in text or "primary-media" in text:
+                score += 8000
+            if '"primary"' in text or "authority-primary" in text:
+                score += 5000
+            try:
+                score += min(int(p.get("width") or 0) * int(p.get("height") or 0) // 10000, 2000)
+            except Exception:
+                pass
             return score
+
         chosen = max(rows, key=primary_score)
-        img = {"src":str(chosen.get("image_url") or ""),"alt":str(chosen.get("caption") or ""),"data-atp-image-role":"primary-product-image","data-atp-authority":"primary","data-atp-sales-auto-display":"true","data-atp-marketing-auto-display":"true","data-atp-auto-display":"true","data-atp-priority":1000,"data-atp-is-primary-product-image":"true","data-atp-main-product-photo":"true","data-atp-primary-media":"true"}
-        contract = {"product_identity_key": hashlib.sha256(ident.encode("utf-8")).hexdigest()[:20],"product_family":model_label or fam_text,"product_type":"infotainment system","brand":"AutoTecPro","make":make,"models":[model_label] if model_label else [],"year_start":min(years) if years else None,"year_end":max(years) if years else None,"screen_size":"","display_type":"","platform":android,"processor":"","ram":"","storage":"","facts":[],"features":[],"compatibility_branches":[branch],"related_products":[],"primary_images":[img["src"]] if img["src"] else []}
-        pkg = {"file_id":"","filename":"","destination":target,"source_url":source,"title":title,"page_title":title,"extracted_at":str(sample.get("indexed_at") or ""),"webpage_text":"","package_text":"","page_identity":page_identity,"atp_semantics_v69178":{"schema":"v69332-image-index-bootstrap","page_url":source,"elements":[],"images":[img]},"vehicle_families":sorted(families),"years":sorted(years),"systems":[],"product_codes":[],"_workspace_atp_product_contract_v69227":contract,"workspace_atp_image_index_bootstrap_v69332":True}
+        img = {
+            "src": str(chosen.get("image_url") or ""),
+            "alt": str(chosen.get("caption") or ""),
+            "data-atp-image-role": "primary-product-image",
+            "data-atp-authority": "primary",
+            "data-atp-sales-auto-display": "true",
+            "data-atp-marketing-auto-display": "true",
+            "data-atp-auto-display": "true",
+            "data-atp-priority": 1000,
+            "data-atp-is-primary-product-image": "true",
+            "data-atp-main-product-photo": "true",
+            "data-atp-primary-media": "true",
+        }
+        contract = {
+            "product_identity_key": hashlib.sha256(ident.encode("utf-8")).hexdigest()[:20],
+            "product_family": product_family,
+            "product_type": product_type,
+            "brand": "AutoTecPro",
+            "make": make,
+            "models": [model_label] if model_label else [],
+            "year_start": min(years) if years else None,
+            "year_end": max(years) if years else None,
+            "screen_size": "",
+            "display_type": "",
+            "platform": platform,
+            "processor": "",
+            "ram": "",
+            "storage": "",
+            "facts": [],
+            "features": [],
+            "compatibility_branches": [branch],
+            "related_products": [],
+            "primary_images": [img["src"]] if img["src"] else [],
+        }
+        pkg = {
+            "file_id": "",
+            "filename": "",
+            "destination": target,
+            "source_url": source,
+            "title": title,
+            "page_title": title,
+            "extracted_at": str(sample.get("indexed_at") or ""),
+            "webpage_text": "",
+            "package_text": "",
+            "page_identity": page_identity,
+            "atp_semantics_v69178": {"schema": "v69333-image-index-bootstrap", "page_url": source, "elements": [], "images": [img]},
+            "vehicle_families": sorted(families),
+            "years": sorted(years),
+            "systems": [],
+            "product_codes": [],
+            "_workspace_atp_product_contract_v69227": contract,
+            "workspace_atp_image_index_bootstrap_v69332": True,
+            "workspace_atp_image_index_bootstrap_v69333": True,
+            "workspace_atp_bootstrap_product_family_v69333": classification.get("family"),
+        }
         packages.append(pkg)
-    packages.sort(key=lambda x:(str(x.get("extracted_at") or ""), str(x.get("source_url") or "")), reverse=True)
+
+    # Final canonical-source dedupe is deliberately repeated after construction so
+    # no later representative/normalization detail can create a duplicate authority.
+    deduped = {}
+    for pkg in packages:
+        source = str(pkg.get("source_url") or "").strip()
+        try:
+            key = canonical_website_url_identity(source) if source else source
+        except Exception:
+            key = source.rstrip("/").casefold()
+        prior = deduped.get(key)
+        if prior is None or str(pkg.get("extracted_at") or "") > str(prior.get("extracted_at") or ""):
+            deduped[key] = pkg
+    packages = list(deduped.values())
+    packages.sort(key=lambda x: (str(x.get("extracted_at") or ""), str(x.get("source_url") or "")), reverse=True)
+    diagnostic_log(
+        "workspace_atp_image_index_bootstrap_v69333",
+        destination=target,
+        requested_family=requested_family,
+        source_groups=len(grouped),
+        package_count=len(packages),
+        rejected_reference=int(rejected_counts["reference"]),
+        rejected_non_sellable=int(rejected_counts["non_sellable"]),
+        rejected_family_mismatch=int(rejected_counts["family_mismatch"]),
+        rejected_fitment=int(rejected_counts["fitment"]),
+    )
+    # Keep the v69332 diagnostic for continuity with existing production monitoring.
     diagnostic_log("workspace_atp_image_index_bootstrap_v69332", destination=target, package_count=len(packages))
     return packages
 
