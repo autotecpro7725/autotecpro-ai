@@ -61877,13 +61877,14 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         families = set(_website_identity_vehicle_families_v69022(identity_text))
         years = set(_website_identity_years_v69022(identity_text))
         platform = _workspace_atp_recovery_platform_v69338(title, source, text)
-        primary_url = _workspace_atp_exact_primary_from_source_index_v69339(target, source)
-        if not primary_url:
-            primary_url = _workspace_atp_recovery_primary_from_text_v69338(text)
+        # v69356: do not perform image-index I/O for every vector-search candidate.
+        # Product/family/year/platform selection below does not use the image URL, so
+        # resolving images here only adds latency and can issue many irrelevant DB reads.
+        # Exact primary-image authority is resolved only after the final products are selected.
         candidates.append({
             "file_id":file_id, "filename":str(info.get("filename") or ""), "score":float(info.get("score") or 0.0),
             "text":text, "source_url":source, "title":title, "family":family, "families":families,
-            "years":years, "platform":platform, "primary_url":primary_url,
+            "years":years, "platform":platform, "primary_url":"",
             "extracted_at":_workspace_atp_recovery_header_v69338(text, "Extracted at (UTC)"),
         })
 
@@ -61945,6 +61946,20 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         return (int(m.group(1)) if m else 999, -float(c.get("score") or 0.0), str(c.get("source_url") or ""))
     selected=sorted(selected,key=platform_sort)[:8]
 
+    # v69356: now that exact product candidates are finalized, resolve one authoritative
+    # primary image per selected product. This preserves v69339/v69354 fail-closed image
+    # authority while avoiding page-index lookups for unrelated search candidates.
+    for c in selected:
+        primary_url = _workspace_atp_exact_primary_from_source_index_v69339(target, c.get("source_url"))
+        if not primary_url:
+            primary_url = _workspace_atp_recovery_primary_from_text_v69338(c.get("text"))
+        c["primary_url"] = str(primary_url or "").strip()
+    diagnostic_log(
+        "workspace_atp_selected_primary_resolution_v69356",
+        destination=target, selected_products=len(selected),
+        primary_resolved=sum(1 for c in selected if str(c.get("primary_url") or "").strip()),
+    )
+
     packages=[]
     for c in selected:
         identity_text=" ".join((c["title"],c["source_url"],c["text"][:24000]))
@@ -61998,10 +62013,41 @@ def _workspace_atp_turn_local_recovery_v69338(destination, prompt_text):
     if re.search(r"\b(model|fit|fits|support|compatible)\b", prompt.casefold()):
         queries += [prompt + " Android 13 current product", prompt + " Android 14 current product"]
     merged=[]; seen=set()
-    for q in queries:
+
+    # v69356: these vector searches are independent evidence queries. Run them concurrently
+    # with a small bounded worker pool, then merge results in the exact original query order.
+    # This changes only wall-clock scheduling: query text, result limit, source store, row
+    # dedupe, and deterministic downstream ranking remain identical to v69355.
+    def _run_query_v69356(q):
         request={"input":[{"role":"user","content":[{"type":"input_text","text":q}]}],"tools":[{"type":"file_search","vector_store_ids":[store]}]}
-        try: rows=list(_website_request_vector_search_rows_v69047(request,max_results=24) or [])
-        except Exception: rows=[]
+        try:
+            return list(_website_request_vector_search_rows_v69047(request,max_results=24) or [])
+        except Exception:
+            return []
+
+    rows_by_query_v69356 = []
+    if len(queries) <= 1:
+        rows_by_query_v69356 = [_run_query_v69356(q) for q in queries]
+    else:
+        try:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=min(3, len(queries)), thread_name_prefix="atp-vs-v69356") as executor:
+                futures_v69356 = [executor.submit(_run_query_v69356, q) for q in queries]
+                rows_by_query_v69356 = [future.result() for future in futures_v69356]
+            diagnostic_log(
+                "workspace_atp_parallel_vector_recovery_v69356",
+                destination=target, query_count=len(queries), worker_count=min(3, len(queries)),
+            )
+        except Exception as error_v69356:
+            # Fail-safe compatibility fallback: preserve the exact prior sequential behavior.
+            diagnostic_log(
+                "workspace_atp_parallel_vector_recovery_fallback_v69356",
+                destination=target, error_type=type(error_v69356).__name__,
+                error=str(error_v69356)[:400],
+            )
+            rows_by_query_v69356 = [_run_query_v69356(q) for q in queries]
+
+    for rows in rows_by_query_v69356:
         for row in rows:
             key=(str((row or {}).get("file_id") or ""),str((row or {}).get("text") or ""))
             if key in seen: continue
