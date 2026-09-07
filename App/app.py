@@ -1,6 +1,20 @@
 # ============================================================
+# v69324 — Website learning concurrency + targeted durability verification
+# ============================================================
+# Scope: website learning/admin ingestion only. Graphic Mode/provider/Reference/QA,
+# Technical answer authority, Sales/Marketing prompts, Auth, History and ordinary
+# conversation persistence are intentionally unchanged.
+# - v69324 removes the broad outer website-learning-destinations serialization.
+# - Per-page package commits use a bounded sharded lock so the same page cannot
+#   race itself while unrelated pages can progress concurrently.
+# - Durable page-image reads use the deterministic scoped issue prefix instead
+#   of scanning up to 20,000 website-image rows.
+# - Archive reference checks use a targeted DB lookup and fail closed on error.
+# - Unsupported assistants-file content capability is cached across Streamlit reruns.
+
+# ============================================================
 # AutoTecPro AI — Final Production Application
-# Release: v69323 (v69322 + isolated website primary-image / YouTube authority fix)
+# Release: v69324 (v69323 + isolated website-learning concurrency / durability optimization)
 #
 # Protected production authorities:
 # - Graphic Reference first-generation: v69298 / isolated v69272-v69248
@@ -13,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69323"
-AUTOTECPRO_RELEASE_BUILD = "v69323-website-primary-media-authority-20260905"
+AUTOTECPRO_RELEASE_VERSION = "v69324"
+AUTOTECPRO_RELEASE_BUILD = "v69324-website-learning-concurrency-targeted-durability-20260906"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -376,12 +390,116 @@ def _heavy_work_guard_v69188(operation, timeout_seconds=900):
     return _HeavyWorkGuardV69188(operation, timeout_seconds=timeout_seconds)
 
 
+@st.cache_resource(show_spinner=False)
+def _website_learning_lock_shards_v69324():
+    """Bounded process-wide lock pool for same-page transactional learning.
+
+    v69188 used one global RLock for every website-learning page and destination.
+    A long image/vector transaction therefore blocked unrelated pages for up to the
+    900-second admission timeout. v69324 keeps transactional exclusion for the same
+    canonical page while allowing unrelated pages to make progress concurrently.
+    The fixed shard count prevents an unbounded lock registry. Hash collisions only
+    serialize extra work; they cannot weaken correctness.
+    """
+    return [threading.RLock() for _ in range(32)]
+
+
+def _website_learning_page_lock_key_v69324(args, kwargs):
+    extraction = args[0] if args else kwargs.get("extraction")
+    source = dict(extraction or {}) if isinstance(extraction, dict) else {}
+    raw = str(
+        source.get("requested_url")
+        or source.get("source_url")
+        or source.get("requested_page")
+        or source.get("source_page")
+        or ""
+    ).strip()
+    if raw:
+        try:
+            raw = _website_learning_canonical_identity_v69175(raw)
+        except Exception:
+            try:
+                raw = canonical_website_url_identity(raw)
+            except Exception:
+                raw = raw.rstrip("/").casefold()
+    if not raw:
+        # Fail-safe fallback: unknown identity is deliberately serialized together.
+        raw = "unknown-website-page"
+    return raw
+
+
+class _WebsiteLearningPageGuardV69324:
+    def __init__(self, page_key, operation="website-learning-package", timeout_seconds=900):
+        self.page_key = str(page_key or "unknown-website-page")
+        self.operation = str(operation or "website-learning-package")
+        self.timeout_seconds = max(1.0, float(timeout_seconds or 900))
+        self.lock = None
+        self.acquired = False
+        self.wait_started = 0.0
+        self.acquired_at = 0.0
+        self.shard = 0
+
+    def __enter__(self):
+        shards = _website_learning_lock_shards_v69324()
+        digest = hashlib.sha256(self.page_key.encode("utf-8")).digest()
+        self.shard = int.from_bytes(digest[:4], "big") % max(1, len(shards))
+        self.lock = shards[self.shard]
+        self.wait_started = time.monotonic()
+        self.acquired = bool(self.lock.acquire(timeout=self.timeout_seconds))
+        waited = max(0.0, time.monotonic() - self.wait_started)
+        if not self.acquired:
+            diagnostic_log(
+                "website_learning_page_admission_timeout_v69324",
+                operation=self.operation, shard=self.shard, waited_seconds=round(waited, 3),
+                page_key_sha256=hashlib.sha256(self.page_key.encode("utf-8")).hexdigest()[:16],
+            )
+            raise RuntimeError(
+                "This same website page is already being committed by another session. "
+                "Please retry after that page finishes."
+            )
+        self.acquired_at = time.monotonic()
+        diagnostic_log(
+            "website_learning_page_admitted_v69324",
+            operation=self.operation, shard=self.shard, waited_seconds=round(waited, 3),
+            page_key_sha256=hashlib.sha256(self.page_key.encode("utf-8")).hexdigest()[:16],
+        )
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        held = max(0.0, time.monotonic() - (self.acquired_at or self.wait_started))
+        try:
+            if self.acquired and self.lock is not None:
+                self.lock.release()
+        finally:
+            diagnostic_log(
+                "website_learning_page_released_v69324",
+                operation=self.operation, shard=self.shard, held_seconds=round(held, 3),
+                error_type=(exc_type.__name__ if exc_type is not None else ""),
+                page_key_sha256=hashlib.sha256(self.page_key.encode("utf-8")).hexdigest()[:16],
+            )
+        return False
+
+
 def _serialize_heavy_work_v69188(operation):
-    """Serialize only website-learning entry points across Streamlit sessions."""
+    """Website-learning serialization with v69324 same-page isolation.
+
+    Compatibility name is retained so all existing call sites stay unchanged.
+    """
+    op = str(operation or "")
     def decorator(function):
         @functools.wraps(function)
         def wrapped(*args, **kwargs):
-            with _heavy_work_guard_v69188(operation):
+            if op == "website-learning-destinations":
+                # Visual QA and destination orchestration are read/compute work and must
+                # not hold the transaction lock across multiple destinations. Each actual
+                # package commit below remains protected by the same-page guard.
+                diagnostic_log("website_learning_outer_serialization_bypassed_v69324")
+                return function(*args, **kwargs)
+            if op == "website-learning-package":
+                page_key = _website_learning_page_lock_key_v69324(args, kwargs)
+                with _WebsiteLearningPageGuardV69324(page_key, operation=op):
+                    return function(*args, **kwargs)
+            with _heavy_work_guard_v69188(op):
                 return function(*args, **kwargs)
 
         return wrapped
@@ -57113,20 +57231,61 @@ def _website_image_index_db_rows_v69005(columns, *, order_recent=False, max_rows
 
 
 def _website_image_index_rows_for_page_v69003(extraction, database_choice):
-    """Load durable website-image rows for one canonical page and one destination database."""
+    """Load durable image rows for exactly one page/database without a table-wide scan.
+
+    v69324 uses the deterministic scoped-issue prefix already written by
+    ``_website_image_scoped_issue_v69003``. The payload is still re-validated after
+    retrieval, so the optimization cannot broaden authority. Query failure falls back
+    to the prior exhaustive reader and therefore remains fail closed.
+    """
     target_page = _website_image_page_identity_v69003(extraction)
     target_database = str(database_choice or "").strip().casefold()
+    page_hash = hashlib.sha256(
+        f"{target_database}|{target_page}".encode("utf-8")
+    ).hexdigest()[:16]
+    issue_prefix = f"website-image:{page_hash}:"
     matches = []
-    rows, rows_complete_v69005 = _website_image_index_db_rows_v69005(
-        "id,issue,solution,approved_answer,source_type",
-        max_rows=20000,
-    )
-    if not rows_complete_v69005:
-        diagnostic_log(
-            "website_image_page_sync_load_incomplete_v69005",
-            loaded=len(rows),
+
+    profile = dict(_website_image_index_schema_profile_v69129() or {})
+    mode = str(profile.get("mode") or "")
+    available = set(profile.get("columns") or [])
+    lookup = "issue" if mode == "modern" else "question"
+    select = [x for x in ("id", "issue", "question", "solution", "approved_answer", "source_type") if x in available]
+    targeted_ok = bool(profile.get("ready") and lookup in available and select)
+    rows = []
+    if targeted_ok:
+        try:
+            query = supabase.table("learned_knowledge").select(",".join(select)).like(lookup, issue_prefix + "%")
+            if mode == "modern" and "source_type" in available:
+                query = query.eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            rows = list(query.limit(max(64, WEBSITE_MAX_ANALYZED_IMAGES * 8)).execute().data or [])
+            if mode == "legacy":
+                for row in rows:
+                    row.setdefault("issue", str(row.get("question") or ""))
+                    row.setdefault("solution", str(row.get("approved_answer") or ""))
+                    row.setdefault("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            diagnostic_log(
+                "website_image_page_targeted_load_v69324",
+                mode=mode, loaded=len(rows), page_hash=page_hash,
+            )
+        except Exception as error:
+            diagnostic_log(
+                "website_image_page_targeted_load_failed_v69324",
+                mode=mode, error_type=type(error).__name__, error=str(error)[:400],
+            )
+            targeted_ok = False
+
+    if not targeted_ok:
+        rows, rows_complete_v69005 = _website_image_index_db_rows_v69005(
+            "id,issue,solution,approved_answer,source_type",
+            max_rows=20000,
         )
-        return [], False
+        if not rows_complete_v69005:
+            diagnostic_log(
+                "website_image_page_sync_load_incomplete_v69005",
+                loaded=len(rows),
+            )
+            return [], False
 
     for row in rows:
         raw = str(row.get("solution") or row.get("approved_answer") or "")
@@ -57142,23 +57301,47 @@ def _website_image_index_rows_for_page_v69003(extraction, database_choice):
             continue
         if _website_image_page_identity_v69003(payload) != target_page:
             continue
+        # Exact issue-prefix verification protects against a malformed/legacy row
+        # accidentally returned by a permissive backend LIKE implementation.
+        if not str(row.get("issue") or "").startswith(issue_prefix):
+            continue
         matches.append({"row": row, "payload": payload})
     return matches, True
 
 
 def _website_archive_path_is_referenced_v69003(archive_path):
-    """Fail closed: remove a stored image only when no other website-image row references it."""
+    """Fail closed with a targeted archive-reference lookup.
+
+    The old implementation scanned every website-image row for every stale archive.
+    v69324 asks the DB only for rows whose serialized payload may contain this path,
+    then parses the payload and requires exact equality. LIKE wildcard broadening can
+    only produce a harmless false-positive keep; any query error also keeps the file.
+    """
     target = str(archive_path or "").strip()
     if not target:
         return False, True
-    rows, rows_complete_v69005 = _website_image_index_db_rows_v69005(
-        "id,solution,approved_answer,source_type",
-        max_rows=20000,
-    )
-    if not rows_complete_v69005:
+    profile = dict(_website_image_index_schema_profile_v69129() or {})
+    if not profile.get("ready"):
+        return True, False
+    mode = str(profile.get("mode") or "")
+    available = set(profile.get("columns") or [])
+    value_col = "solution" if "solution" in available else ("approved_answer" if "approved_answer" in available else "")
+    if not value_col:
+        return True, False
+    select = [x for x in ("id", value_col, "source_type") if x in available]
+    try:
+        query = supabase.table("learned_knowledge").select(",".join(select)).like(value_col, "%" + target + "%")
+        if mode == "modern" and "source_type" in available:
+            query = query.eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+        rows = list(query.limit(32).execute().data or [])
+    except Exception as error:
+        diagnostic_log(
+            "website_archive_reference_targeted_load_failed_v69324",
+            error_type=type(error).__name__, error=str(error)[:400],
+        )
         return True, False
     for row in rows:
-        raw = str(row.get("solution") or row.get("approved_answer") or "")
+        raw = str(row.get(value_col) or "")
         if not raw.startswith(WEBSITE_IMAGE_INDEX_PREFIX_V68883):
             continue
         try:
@@ -69251,6 +69434,14 @@ def _technical_active_authority_commit_verified_v69167(
 _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228 = False
 
 
+@st.cache_resource(show_spinner=False)
+def _technical_file_content_capability_state_v69324():
+    # Survives Streamlit script reruns within the process; fail-closed semantics are
+    # unchanged. This only avoids repeating a capability request already proven
+    # unsupported by the OpenAI API.
+    return {"assistants_content_unsupported": False, "lock": threading.Lock()}
+
+
 def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
     """Bounded exact-file read for current Technical authority.
 
@@ -69264,7 +69455,13 @@ def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
     clean_id = str(file_id or "").strip()
     if not clean_id:
         return ""
-    if _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228:
+    capability_state_v69324 = _technical_file_content_capability_state_v69324()
+    unsupported_v69324 = bool(
+        _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228
+        or capability_state_v69324.get("assistants_content_unsupported")
+    )
+    if unsupported_v69324:
+        _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228 = True
         diagnostic_log(
             "technical_assistants_file_content_skip_v69230",
             file_id=clean_id[:160],
@@ -69284,6 +69481,11 @@ def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
             in error_text_v69228
         ):
             _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228 = True
+            try:
+                with capability_state_v69324.get("lock"):
+                    capability_state_v69324["assistants_content_unsupported"] = True
+            except Exception:
+                capability_state_v69324["assistants_content_unsupported"] = True
             diagnostic_log(
                 "technical_assistants_file_content_disabled_v69228",
                 file_id=clean_id[:160],
