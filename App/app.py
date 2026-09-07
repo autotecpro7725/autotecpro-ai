@@ -27,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69340"
-AUTOTECPRO_RELEASE_BUILD = "v69340-second-question-exact-price-rest-first-page-fallback-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69341"
+AUTOTECPRO_RELEASE_BUILD = "v69341-second-question-exact-price-summary-fallback-20260907"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -1888,7 +1888,7 @@ def _current_product_page_price_by_exact_url_v69340(source_url):
             if prices:
                 break
 
-    # Product meta tags are also product-scoped and are a safe final parser fallback.
+    # Product meta tags are also product-scoped and are a safe parser fallback.
     if not prices:
         amount_patterns = [
             r'<meta[^>]+property=["\']product:price:amount["\'][^>]+content=["\']([^"\']+)',
@@ -1899,6 +1899,61 @@ def _current_product_page_price_by_exact_url_v69340(source_url):
         for pattern in amount_patterns:
             for match in re.finditer(pattern, html_text, flags=re.I):
                 _add_price(match.group(1))
+
+    # v69341: AutoTecPro's WooCommerce theme can render the authoritative current
+    # price in the exact product summary even when JSON-LD/meta price fields are
+    # absent. Parse ONLY the WooCommerce product-summary price element; never scan
+    # generic page currency text, related products, cart totals, or accessory prices.
+    summary_price_text_v69341 = ""
+    if not prices:
+        summary_match_v69341 = re.search(
+            r'<(?:div|section)[^>]+class=["\'][^"\']*\bsummary\b[^"\']*\bentry-summary\b[^"\']*["\'][^>]*>(.*?)</(?:div|section)>',
+            html_text,
+            flags=re.I | re.S,
+        )
+        summary_html_v69341 = summary_match_v69341.group(1) if summary_match_v69341 else ""
+        if summary_html_v69341:
+            price_match_v69341 = re.search(
+                r'<p[^>]+class=["\'][^"\']*\bprice\b[^"\']*["\'][^>]*>(.*?)</p>',
+                summary_html_v69341,
+                flags=re.I | re.S,
+            )
+            price_html_v69341 = price_match_v69341.group(1) if price_match_v69341 else ""
+            if price_html_v69341:
+                # WooCommerce marks the active sale price inside <ins>. When present,
+                # exclude the crossed-out <del> regular price so "current price" does
+                # not incorrectly become a regular-to-sale range. Variable products
+                # without <ins> still preserve their legitimate displayed range.
+                active_price_html_v69341 = price_html_v69341
+                ins_match_v69341 = re.search(r'<ins\b[^>]*>(.*?)</ins>', price_html_v69341, flags=re.I | re.S)
+                if ins_match_v69341:
+                    active_price_html_v69341 = ins_match_v69341.group(1)
+                amount_values_v69341 = re.findall(
+                    r'<bdi[^>]*>\s*(?:<span[^>]+class=["\'][^"\']*woocommerce-Price-currencySymbol[^"\']*["\'][^>]*>.*?</span>)?\s*([^<]+?)\s*</bdi>',
+                    active_price_html_v69341,
+                    flags=re.I | re.S,
+                )
+                if not amount_values_v69341:
+                    amount_values_v69341 = re.findall(
+                        r'<span[^>]+class=["\'][^"\']*woocommerce-Price-amount[^"\']*["\'][^>]*>(.*?)</span>',
+                        active_price_html_v69341,
+                        flags=re.I | re.S,
+                    )
+                for raw_amount_v69341 in amount_values_v69341:
+                    clean_amount_v69341 = re.sub(r'<[^>]+>', ' ', html.unescape(raw_amount_v69341))
+                    _add_price(clean_amount_v69341)
+                symbol_match_v69341 = re.search(
+                    r'<span[^>]+class=["\'][^"\']*woocommerce-Price-currencySymbol[^"\']*["\'][^>]*>(.*?)</span>',
+                    price_html_v69341,
+                    flags=re.I | re.S,
+                )
+                if symbol_match_v69341:
+                    symbol_v69341 = re.sub(r'<[^>]+>', '', html.unescape(symbol_match_v69341.group(1))).strip()
+                    symbol_currency_v69341 = {"C$": "CAD", "CA$": "CAD", "US$": "USD", "A$": "AUD", "AU$": "AUD", "€": "EUR", "£": "GBP", "¥": "JPY"}.get(symbol_v69341, "")
+                    if symbol_currency_v69341:
+                        currencies.append(symbol_currency_v69341)
+                summary_price_text_v69341 = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', html.unescape(price_html_v69341))).strip()
+
     currency_patterns = [
         r'<meta[^>]+property=["\']product:price:currency["\'][^>]+content=["\']([^"\']+)',
         r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']product:price:currency["\']',
@@ -62127,10 +62182,19 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                             "Verified from exact current product page (WooCommerce REST unavailable for this price)",
                         ))
                     else:
+                        diagnostic_log(
+                            "workspace_sales_live_price_failed_v69341",
+                            source_url=str(source_v69326 or "")[:700],
+                            rest_reason=str(lookup_v69326.get("reason") or "")[:160],
+                            rest_error_type=str(lookup_v69326.get("error_type") or "")[:120],
+                            page_reason=str(page_lookup_v69340.get("reason") or "")[:160],
+                            page_error_type=str(page_lookup_v69340.get("error_type") or "")[:120],
+                            page_final_url=str(page_lookup_v69340.get("final_url") or "")[:700],
+                        )
                         live_rows_v69326.append((title_v69326, "Not verified", "Current price could not be verified from WooCommerce REST or the exact current product page; I will not guess"))
 
             diagnostic_log(
-                "workspace_sales_live_multi_price_v69340",
+                "workspace_sales_live_multi_price_v69341",
                 requested=len(selected_rows_v69326),
                 verified=verified_count_v69326,
                 failed=max(0, len(selected_rows_v69326) - verified_count_v69326),
