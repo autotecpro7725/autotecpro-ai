@@ -27,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69327"
-AUTOTECPRO_RELEASE_BUILD = "v69327-sales-multi-followup-durable-context-live-price-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69328"
+AUTOTECPRO_RELEASE_BUILD = "v69328-hidden-path-audit-concurrency-cache-followup-20260907"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -391,20 +391,18 @@ def _heavy_work_guard_v69188(operation, timeout_seconds=900):
 
 
 @st.cache_resource(show_spinner=False)
-def _website_learning_lock_shards_v69324():
-    """Bounded process-wide lock pool for same-page transactional learning.
+def _website_learning_exact_lock_registry_v69328():
+    """Exact-key process-local lock registry with waiter-safe cleanup.
 
-    v69188 used one global RLock for every website-learning page and destination.
-    A long image/vector transaction therefore blocked unrelated pages for up to the
-    900-second admission timeout. v69324 keeps transactional exclusion for the same
-    canonical page while allowing unrelated pages to make progress concurrently.
-    The fixed shard count prevents an unbounded lock registry. Hash collisions only
-    serialize extra work; they cannot weaken correctness.
+    v69324's 32 shards allowed unrelated URLs to collide on one lock. Production
+    showed different page hashes waiting on shard 12 for minutes. v69328 locks only
+    the exact canonical page identity and removes inactive entries. Same-page destination
+    commits remain serialized because they can share archive objects and rollback cleanup.
     """
-    return [threading.RLock() for _ in range(32)]
+    return {"guard": threading.RLock(), "locks": {}}
 
 
-def _website_learning_page_lock_key_v69324(args, kwargs):
+def _website_learning_page_lock_key_v69328(args, kwargs):
     extraction = args[0] if args else kwargs.get("extraction")
     source = dict(extraction or {}) if isinstance(extraction, dict) else {}
     raw = str(
@@ -423,59 +421,73 @@ def _website_learning_page_lock_key_v69324(args, kwargs):
             except Exception:
                 raw = raw.rstrip("/").casefold()
     if not raw:
-        # Fail-safe fallback: unknown identity is deliberately serialized together.
         raw = "unknown-website-page"
     return raw
 
 
-class _WebsiteLearningPageGuardV69324:
-    def __init__(self, page_key, operation="website-learning-package", timeout_seconds=900):
-        self.page_key = str(page_key or "unknown-website-page")
+class _WebsiteLearningExactGuardV69328:
+    def __init__(self, lock_key, operation="website-learning-package", timeout_seconds=900):
+        self.lock_key = str(lock_key or "unknown-website-page")
         self.operation = str(operation or "website-learning-package")
         self.timeout_seconds = max(1.0, float(timeout_seconds or 900))
         self.lock = None
         self.acquired = False
         self.wait_started = 0.0
         self.acquired_at = 0.0
-        self.shard = 0
+
+    def _drop_ref(self):
+        registry = _website_learning_exact_lock_registry_v69328()
+        with registry["guard"]:
+            entry = registry["locks"].get(self.lock_key)
+            if not isinstance(entry, dict) or entry.get("lock") is not self.lock:
+                return
+            entry["refs"] = max(0, int(entry.get("refs") or 0) - 1)
+            if int(entry.get("refs") or 0) <= 0:
+                registry["locks"].pop(self.lock_key, None)
 
     def __enter__(self):
-        shards = _website_learning_lock_shards_v69324()
-        digest = hashlib.sha256(self.page_key.encode("utf-8")).digest()
-        self.shard = int.from_bytes(digest[:4], "big") % max(1, len(shards))
-        self.lock = shards[self.shard]
+        registry = _website_learning_exact_lock_registry_v69328()
+        with registry["guard"]:
+            entry = registry["locks"].get(self.lock_key)
+            if not isinstance(entry, dict):
+                entry = {"lock": threading.RLock(), "refs": 0}
+                registry["locks"][self.lock_key] = entry
+            entry["refs"] = int(entry.get("refs") or 0) + 1
+            self.lock = entry["lock"]
         self.wait_started = time.monotonic()
         self.acquired = bool(self.lock.acquire(timeout=self.timeout_seconds))
         waited = max(0.0, time.monotonic() - self.wait_started)
+        key_hash = hashlib.sha256(self.lock_key.encode("utf-8")).hexdigest()[:16]
         if not self.acquired:
+            self._drop_ref()
             diagnostic_log(
-                "website_learning_page_admission_timeout_v69324",
-                operation=self.operation, shard=self.shard, waited_seconds=round(waited, 3),
-                page_key_sha256=hashlib.sha256(self.page_key.encode("utf-8")).hexdigest()[:16],
+                "website_learning_exact_admission_timeout_v69328",
+                operation=self.operation, waited_seconds=round(waited, 3), lock_key_sha256=key_hash,
             )
             raise RuntimeError(
-                "This same website page is already being committed by another session. "
-                "Please retry after that page finishes."
+                "This exact website page/destination is already being committed by another session. "
+                "Please retry after that commit finishes."
             )
         self.acquired_at = time.monotonic()
         diagnostic_log(
-            "website_learning_page_admitted_v69324",
-            operation=self.operation, shard=self.shard, waited_seconds=round(waited, 3),
-            page_key_sha256=hashlib.sha256(self.page_key.encode("utf-8")).hexdigest()[:16],
+            "website_learning_exact_admitted_v69328",
+            operation=self.operation, waited_seconds=round(waited, 3), lock_key_sha256=key_hash,
         )
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         held = max(0.0, time.monotonic() - (self.acquired_at or self.wait_started))
+        key_hash = hashlib.sha256(self.lock_key.encode("utf-8")).hexdigest()[:16]
         try:
             if self.acquired and self.lock is not None:
                 self.lock.release()
         finally:
+            self._drop_ref()
             diagnostic_log(
-                "website_learning_page_released_v69324",
-                operation=self.operation, shard=self.shard, held_seconds=round(held, 3),
+                "website_learning_exact_released_v69328",
+                operation=self.operation, held_seconds=round(held, 3),
                 error_type=(exc_type.__name__ if exc_type is not None else ""),
-                page_key_sha256=hashlib.sha256(self.page_key.encode("utf-8")).hexdigest()[:16],
+                lock_key_sha256=key_hash,
             )
         return False
 
@@ -496,8 +508,8 @@ def _serialize_heavy_work_v69188(operation):
                 diagnostic_log("website_learning_outer_serialization_bypassed_v69324")
                 return function(*args, **kwargs)
             if op == "website-learning-package":
-                page_key = _website_learning_page_lock_key_v69324(args, kwargs)
-                with _WebsiteLearningPageGuardV69324(page_key, operation=op):
+                lock_key = _website_learning_page_lock_key_v69328(args, kwargs)
+                with _WebsiteLearningExactGuardV69328(lock_key, operation=op):
                     return function(*args, **kwargs)
             with _heavy_work_guard_v69188(op):
                 return function(*args, **kwargs)
@@ -61476,6 +61488,68 @@ def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cache
     return authority
 
 
+def _workspace_atp_multi_followup_authority_v69328(workspace_label, prompt_text, cached_record, conversation_id=None):
+    """Fail-closed multi-product follow-up reuse across unrelated Sales revision bumps."""
+    workspace = str(workspace_label or "")
+    if not is_sales_workspace(workspace) or is_graphic_workspace(workspace):
+        return {}
+    record = dict(cached_record or {})
+    if not record:
+        return {}
+    if _normalized_workspace_name(record.get("workspace")) != _normalized_workspace_name(workspace):
+        return {}
+    if str(record.get("conversation_id") or "") != str(conversation_id or ""):
+        return {}
+    destination = "Sales Database"
+    if str(record.get("destination") or "") != destination:
+        return {}
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return {}
+    if (_website_identity_vehicle_families_v69022(prompt)
+        or _website_identity_years_v69022(prompt)
+        or _website_image_product_codes_v69020(prompt)):
+        return {}
+    authority = dict(record.get("authority") or {})
+    if str(authority.get("status") or "") != "recovered_multi" or str(authority.get("destination") or "") != destination:
+        return {}
+    cached_packages = [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
+    if len(cached_packages) < 2:
+        return {}
+    current_revision = int(_website_destination_revision_v69109(destination) or 0)
+    try:
+        cached_revision = int(record.get("revision") or 0)
+    except Exception:
+        cached_revision = 0
+    if cached_revision == current_revision:
+        return authority
+    current_packages, snapshot_status = _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.75)
+    if str(snapshot_status or "") != "ready" or not current_packages:
+        diagnostic_log("workspace_atp_followup_revision_revalidation_blocked_v69328", status=str(snapshot_status or ""), cached_revision=cached_revision, current_revision=current_revision)
+        return {}
+    current_by_file = {str(x.get("file_id") or ""): x for x in current_packages if isinstance(x, dict) and str(x.get("file_id") or "").strip()}
+    for cached in cached_packages:
+        file_id = str(cached.get("file_id") or "").strip()
+        source = str(cached.get("source_url") or "").strip()
+        current = current_by_file.get(file_id)
+        if not file_id or not isinstance(current, dict):
+            return {}
+        current_source = str(current.get("source_url") or "").strip()
+        try:
+            if source and current_source and canonical_website_url_identity(source) != canonical_website_url_identity(current_source):
+                return {}
+        except Exception:
+            if source != current_source:
+                return {}
+    record["revision"] = current_revision
+    try:
+        st.session_state["_workspace_last_atp_multi_authority_v69327"] = record
+    except Exception:
+        pass
+    diagnostic_log("workspace_atp_followup_revision_revalidated_v69328", product_count=len(cached_packages), cached_revision=cached_revision, current_revision=current_revision)
+    return authority
+
+
 def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, authority):
     """Provider-bypass deterministic product facts for exact current Sales/Marketing ATP pages.
 
@@ -64640,7 +64714,27 @@ def save_website_knowledge_package(
             )
 
     _website_image_schema_profile_reset_v69176()
-    _website_invalidate_learning_caches_v69109([database_choice])
+    bumped_revisions_v69328 = _website_invalidate_learning_caches_v69109([database_choice])
+
+    # v69328: the original Sales/Marketing injection occurs before the revision bump.
+    # Rebind the exact committed package to the NEW revision immediately after the bump;
+    # otherwise the next inquiry sees status=running/stale and falls back to generic search.
+    if database_choice in {"Sales Database", "Marketing Database"} and file_id:
+        try:
+            _workspace_atp_package_inject_v69180(file_id, filename, package_text, database_choice)
+            diagnostic_log(
+                "workspace_atp_post_revision_injected_v69328",
+                destination=str(database_choice),
+                revision=int((bumped_revisions_v69328 or {}).get(database_choice) or 0),
+                file_id=str(file_id or "")[:160],
+            )
+        except Exception as post_revision_inject_error_v69328:
+            diagnostic_log(
+                "workspace_atp_post_revision_injection_failed_v69328",
+                destination=str(database_choice),
+                error_type=type(post_revision_inject_error_v69328).__name__,
+                error=str(post_revision_inject_error_v69328)[:500],
+            )
 
     # v69195: after the successful Technical transaction has committed every
     # family/year pointer and the learning revision has been bumped, publish those
@@ -91325,7 +91419,7 @@ else:
                                     product_count=len(workspace_atp_authority_v69180.get("packages") or []) if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi" else 1,
                                 )
                             else:
-                                followup_authority_v69205 = _workspace_atp_multi_followup_authority_v69327(
+                                followup_authority_v69205 = _workspace_atp_multi_followup_authority_v69328(
                                     assistant,
                                     interaction_prompt,
                                     st.session_state.get("_workspace_last_atp_multi_authority_v69327") or {},
@@ -91357,6 +91451,12 @@ else:
                                         )
                                         diagnostic_log(
                                             "workspace_atp_followup_multi_authority_reused_v69327",
+                                            workspace=str(assistant),
+                                            destination=str(workspace_atp_authority_v69180.get("destination") or ""),
+                                            product_count=len(workspace_atp_authority_v69180.get("packages") or []),
+                                        )
+                                        diagnostic_log(
+                                            "workspace_atp_followup_multi_authority_reused_v69328",
                                             workspace=str(assistant),
                                             destination=str(workspace_atp_authority_v69180.get("destination") or ""),
                                             product_count=len(workspace_atp_authority_v69180.get("packages") or []),
