@@ -27,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69341"
-AUTOTECPRO_RELEASE_BUILD = "v69341-second-question-exact-price-summary-fallback-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69342"
+AUTOTECPRO_RELEASE_BUILD = "v69342-woocommerce-v-token-exact-price-fix-20260907"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -1641,7 +1641,7 @@ def _woocommerce_product_by_source_url_v69326(source_url):
         return {"status": "unavailable", "reason": "unexpected_product_response"}
 
     try:
-        source_identity = canonical_website_url_identity(source_url)
+        source_identity = _exact_product_page_identity_v69342(source_url)
     except Exception:
         source_identity = source_url.rstrip("/").casefold()
 
@@ -1654,7 +1654,7 @@ def _woocommerce_product_by_source_url_v69326(source_url):
         product_slug = str(product.get("slug") or "").strip()
         if permalink:
             try:
-                permalink_identity = canonical_website_url_identity(permalink)
+                permalink_identity = _exact_product_page_identity_v69342(permalink)
             except Exception:
                 permalink_identity = permalink.rstrip("/").casefold()
             if permalink_identity == source_identity:
@@ -1764,6 +1764,32 @@ def _woocommerce_price_label_v69326(result):
     return f"{currency} {low:,.2f}–{high:,.2f}"
 
 
+def _exact_product_page_identity_v69342(raw_url):
+    """Canonical product-page identity while ignoring only WooCommerce's volatile `v` token.
+
+    AutoTecPro/WooCommerce can rewrite `?v=<hash>` according to geolocation/cache context.
+    That token does not identify a different product. Host, port, exact path, and every
+    other query parameter remain identity-significant and therefore fail closed.
+    """
+    try:
+        identity = canonical_website_url_identity(raw_url)
+    except Exception:
+        identity = str(raw_url or "").strip().rstrip("/").casefold()
+    base, sep, query = identity.partition("?")
+    if not sep or not query:
+        return identity
+    try:
+        pairs = urllib.parse.parse_qsl(query, keep_blank_values=True)
+    except Exception:
+        return identity
+    kept = [(str(k), str(v)) for k, v in pairs if str(k).casefold() != "v"]
+    if not kept:
+        return base
+    # Query ordering is not product identity; key/value content still is.
+    kept.sort(key=lambda item: (item[0], item[1]))
+    return base + "?" + urllib.parse.urlencode(kept, doseq=True)
+
+
 @st.cache_data(ttl=45, max_entries=128, show_spinner=False)
 def _current_product_page_price_by_exact_url_v69340(source_url):
     """Read the current price only from the exact matched product page.
@@ -1778,7 +1804,7 @@ def _current_product_page_price_by_exact_url_v69340(source_url):
     if not source_url:
         return {"status": "unavailable", "reason": "missing_source_url"}
     try:
-        source_identity = canonical_website_url_identity(source_url)
+        source_identity = _exact_product_page_identity_v69342(source_url)
     except Exception:
         source_identity = source_url.rstrip("/").casefold()
 
@@ -1803,7 +1829,7 @@ def _current_product_page_price_by_exact_url_v69340(source_url):
 
     final_url = str(getattr(response, "url", "") or source_url).strip()
     try:
-        final_identity = canonical_website_url_identity(final_url)
+        final_identity = _exact_product_page_identity_v69342(final_url)
     except Exception:
         final_identity = final_url.rstrip("/").casefold()
     if final_identity != source_identity:
@@ -1811,6 +1837,8 @@ def _current_product_page_price_by_exact_url_v69340(source_url):
             "status": "unavailable",
             "reason": "exact_product_page_redirect_identity_mismatch",
             "final_url": final_url,
+            "source_identity": source_identity,
+            "final_identity": final_identity,
         }
 
     html_text = str(getattr(response, "text", "") or "")
@@ -1979,6 +2007,7 @@ def _current_product_page_price_by_exact_url_v69340(source_url):
         "min_price": min(unique_prices),
         "max_price": max(unique_prices),
         "currency": currency,
+        "price_source": "woocommerce_summary_price" if summary_price_text_v69341 else "product_structured_data",
     }
 
 
@@ -62176,6 +62205,13 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     page_price_label_v69340 = _current_product_page_price_label_v69340(page_lookup_v69340)
                     if page_price_label_v69340:
                         verified_count_v69326 += 1
+                        diagnostic_log(
+                            "workspace_sales_live_price_page_verified_v69342",
+                            source_url=str(source_v69326 or "")[:700],
+                            final_url=str(page_lookup_v69340.get("final_url") or source_v69326 or "")[:700],
+                            price_label=str(page_price_label_v69340)[:120],
+                            price_source=str(page_lookup_v69340.get("price_source") or "")[:160],
+                        )
                         live_rows_v69326.append((
                             title_v69326,
                             page_price_label_v69340,
@@ -62183,7 +62219,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                         ))
                     else:
                         diagnostic_log(
-                            "workspace_sales_live_price_failed_v69341",
+                            "workspace_sales_live_price_failed_v69342",
                             source_url=str(source_v69326 or "")[:700],
                             rest_reason=str(lookup_v69326.get("reason") or "")[:160],
                             rest_error_type=str(lookup_v69326.get("error_type") or "")[:120],
@@ -62194,7 +62230,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                         live_rows_v69326.append((title_v69326, "Not verified", "Current price could not be verified from WooCommerce REST or the exact current product page; I will not guess"))
 
             diagnostic_log(
-                "workspace_sales_live_multi_price_v69341",
+                "workspace_sales_live_multi_price_v69342",
                 requested=len(selected_rows_v69326),
                 verified=verified_count_v69326,
                 failed=max(0, len(selected_rows_v69326) - verified_count_v69326),
