@@ -27,7 +27,7 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69338"
+AUTOTECPRO_RELEASE_VERSION = "v69339"
 AUTOTECPRO_RELEASE_BUILD = "v69338-exact-v69325-plus-current-product-recovery-and-second-question-20260907"
 
 # ============================================================
@@ -165,6 +165,7 @@ import zipfile
 import requests
 import xml.etree.ElementTree as ET
 from urllib.parse import quote, unquote, urlparse, urljoin
+import urllib.parse
 from html.parser import HTMLParser
 import socket
 import ipaddress
@@ -60987,6 +60988,99 @@ def _workspace_atp_recovery_platform_v69338(*values):
     return f"Android {match.group(1)}" if match else ""
 
 
+def _workspace_atp_exact_primary_from_source_index_v69339(destination, source_url):
+    """Resolve the explicit primary image for an already-established exact product source.
+
+    Product authority must come from Sales/Marketing vector evidence first. This helper is
+    image-only and page-scoped; it cannot create or broaden product authority. If explicit
+    primary semantics are absent or ambiguous, it fails closed instead of showing a wrong image.
+    """
+    target = str(destination or "").strip()
+    source = str(source_url or "").strip()
+    if target not in {"Sales Database", "Marketing Database"} or not source:
+        return ""
+    try:
+        matches, loaded_ok = _website_image_index_rows_for_page_v69003(
+            {"source_url": source, "requested_url": source}, target
+        )
+    except Exception as error:
+        diagnostic_log(
+            "workspace_atp_exact_primary_index_failed_v69339",
+            destination=target, source_url=source[:500],
+            error_type=type(error).__name__, error=str(error)[:400],
+        )
+        return ""
+    if not loaded_ok:
+        return ""
+    ranked = []
+    for item in matches or []:
+        payload = dict((item or {}).get("payload") or {})
+        url = str(payload.get("image_url") or "").strip()
+        if not url.startswith("https://"):
+            continue
+        meta = dict(payload.get("image_structured_metadata_v69017") or {})
+        fields = {str(k or "").strip().casefold(): str(v or "").strip() for k, v in meta.items()}
+        role = (fields.get("data-atp-image-role") or fields.get("atp_image_role_v69178") or "").casefold()
+        authority = (fields.get("data-atp-authority") or fields.get("data-atp-authority-level") or fields.get("atp_authority_v69178") or "").casefold()
+        def truthy(*names):
+            return any(str(fields.get(name, "")).casefold() in {"true", "1", "yes", "primary"} for name in names)
+        explicit_primary = bool(
+            role == "primary-product-image"
+            or truthy(
+                "data-atp-is-primary-product-image",
+                "data-atp-main-product-photo",
+                "data-atp-primary-media",
+                "atp_primary_product_image_v69323",
+            )
+        )
+        if not explicit_primary:
+            semantic_blob = " ".join((
+                str(payload.get("caption") or ""),
+                str(payload.get("nearby_instruction_text") or ""),
+                str(payload.get("visual_analysis") or ""),
+                str(payload.get("image_relationship_v69017") or ""),
+            )).casefold()
+            explicit_primary = "primary-product-image" in semantic_blob or "main-product-photo" in semantic_blob
+        if not explicit_primary:
+            continue
+        try:
+            priority = int(float(fields.get("data-atp-priority") or fields.get("atp_priority_v69178") or 0))
+        except Exception:
+            priority = 0
+        ranked.append(((
+            int(role == "primary-product-image"),
+            int(authority in {"primary", "authoritative", "exact"}),
+            priority,
+            str(payload.get("indexed_at") or ""),
+        ), url))
+    if not ranked:
+        diagnostic_log(
+            "workspace_atp_exact_primary_index_v69339",
+            destination=target, source_url=source[:500], candidates=0, selected=False,
+        )
+        return ""
+    ranked.sort(key=lambda row: row[0], reverse=True)
+    best_rank = ranked[0][0]
+    best_urls = []
+    for rank, url in ranked:
+        if rank != best_rank:
+            break
+        if url not in best_urls:
+            best_urls.append(url)
+    if len(best_urls) != 1:
+        diagnostic_log(
+            "workspace_atp_exact_primary_index_v69339",
+            destination=target, source_url=source[:500], candidates=len(best_urls),
+            selected=False, reason="AMBIGUOUS_PRIMARY",
+        )
+        return ""
+    diagnostic_log(
+        "workspace_atp_exact_primary_index_v69339",
+        destination=target, source_url=source[:500], candidates=len(ranked), selected=True,
+    )
+    return best_urls[0]
+
+
 def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, rows, durable_payloads=None):
     """Pure deterministic current-product recovery from Sales vector-search evidence.
 
@@ -61034,7 +61128,9 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         families = set(_website_identity_vehicle_families_v69022(identity_text))
         years = set(_website_identity_years_v69022(identity_text))
         platform = _workspace_atp_recovery_platform_v69338(title, source, text)
-        primary_url = _workspace_atp_recovery_primary_from_text_v69338(text)
+        primary_url = _workspace_atp_exact_primary_from_source_index_v69339(target, source)
+        if not primary_url:
+            primary_url = _workspace_atp_recovery_primary_from_text_v69338(text)
         candidates.append({
             "file_id":file_id, "filename":str(info.get("filename") or ""), "score":float(info.get("score") or 0.0),
             "text":text, "source_url":source, "title":title, "family":family, "families":families,
