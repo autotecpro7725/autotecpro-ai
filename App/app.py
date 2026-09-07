@@ -27,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69325"
-AUTOTECPRO_RELEASE_BUILD = "v69325-sales-multi-model-primary-image-authority-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69327"
+AUTOTECPRO_RELEASE_BUILD = "v69327-sales-multi-followup-durable-context-live-price-20260907"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -1605,6 +1605,153 @@ def woocommerce_api_request(endpoint, params=None):
         timeout=LIVE_HTTP_TIMEOUT,
     )
     return safe_json_response(response)
+
+
+@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
+def _woocommerce_product_by_source_url_v69326(source_url):
+    """Resolve exactly one current published WooCommerce product from its learned product URL.
+
+    Read-only and fail-closed: exact permalink identity is preferred; exact slug is the
+    only fallback. No fuzzy search is allowed because a price must never cross products.
+    """
+    source_url = str(source_url or "").strip()
+    if not source_url or not woocommerce_is_configured():
+        return {"status": "unavailable", "reason": "woocommerce_not_configured"}
+    try:
+        parsed = urllib.parse.urlsplit(source_url)
+        slug = str(parsed.path or "").rstrip("/").split("/")[-1].strip()
+    except Exception:
+        slug = ""
+    if not slug:
+        return {"status": "unavailable", "reason": "missing_product_slug"}
+    try:
+        products = woocommerce_api_request(
+            "products",
+            params={"slug": slug, "per_page": 20, "status": "publish"},
+        )
+    except Exception as error:
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_product_query_failed",
+            "error_type": type(error).__name__,
+            "error": str(error)[:500],
+        }
+    if not isinstance(products, list):
+        return {"status": "unavailable", "reason": "unexpected_product_response"}
+
+    try:
+        source_identity = canonical_website_url_identity(source_url)
+    except Exception:
+        source_identity = source_url.rstrip("/").casefold()
+
+    exact = []
+    slug_exact = []
+    for product in products:
+        if not isinstance(product, dict):
+            continue
+        permalink = str(product.get("permalink") or "").strip()
+        product_slug = str(product.get("slug") or "").strip()
+        if permalink:
+            try:
+                permalink_identity = canonical_website_url_identity(permalink)
+            except Exception:
+                permalink_identity = permalink.rstrip("/").casefold()
+            if permalink_identity == source_identity:
+                exact.append(dict(product))
+                continue
+        if product_slug and product_slug.casefold() == slug.casefold():
+            slug_exact.append(dict(product))
+
+    candidates = exact or slug_exact
+    if len(candidates) != 1:
+        return {
+            "status": "unavailable",
+            "reason": "product_identity_not_unique",
+            "candidate_count": len(candidates),
+        }
+    product = dict(candidates[0])
+
+    prices = []
+    current_price = str(product.get("price") or "").strip()
+    regular_price = str(product.get("regular_price") or "").strip()
+    sale_price = str(product.get("sale_price") or "").strip()
+    if current_price:
+        prices.append(current_price)
+
+    # Variable products can expose an empty parent price. In that case, read the
+    # exact product's published variations and return a verified current range.
+    if not prices and str(product.get("type") or "").strip().casefold() == "variable":
+        product_id = product.get("id")
+        if product_id:
+            try:
+                variations = woocommerce_api_request(
+                    f"products/{int(product_id)}/variations",
+                    params={"per_page": 100, "status": "publish"},
+                )
+                for variation in variations if isinstance(variations, list) else []:
+                    if isinstance(variation, dict):
+                        value = str(variation.get("price") or "").strip()
+                        if value:
+                            prices.append(value)
+            except Exception:
+                pass
+
+    def _decimal(value):
+        try:
+            return float(str(value).replace(",", "").strip())
+        except Exception:
+            return None
+
+    numeric_prices = [x for x in (_decimal(v) for v in prices) if x is not None]
+    if not numeric_prices:
+        return {
+            "status": "unavailable",
+            "reason": "current_price_missing",
+            "product": product,
+        }
+
+    return {
+        "status": "verified",
+        "product": product,
+        "min_price": min(numeric_prices),
+        "max_price": max(numeric_prices),
+        "current_price": current_price,
+        "regular_price": regular_price,
+        "sale_price": sale_price,
+        "on_sale": bool(product.get("on_sale")),
+        "source_url": source_url,
+    }
+
+
+@st.cache_data(ttl=300, max_entries=2, show_spinner=False)
+def _woocommerce_store_currency_v69326():
+    """Return the configured WooCommerce currency code without exposing credentials."""
+    if not woocommerce_is_configured():
+        return ""
+    try:
+        rows = woocommerce_api_request("settings/general")
+    except Exception:
+        return ""
+    for row in rows if isinstance(rows, list) else []:
+        if isinstance(row, dict) and str(row.get("id") or "") == "woocommerce_currency":
+            return str(row.get("value") or row.get("default") or "").strip().upper()
+    return ""
+
+
+def _woocommerce_price_label_v69326(result):
+    """Format only verified WooCommerce price values; never infer a currency."""
+    result = dict(result or {})
+    if str(result.get("status") or "") != "verified":
+        return ""
+    try:
+        low = float(result.get("min_price"))
+        high = float(result.get("max_price"))
+    except Exception:
+        return ""
+    currency = _woocommerce_store_currency_v69326() or "store currency"
+    if abs(high - low) < 0.005:
+        return f"{currency} {low:,.2f}"
+    return f"{currency} {low:,.2f}–{high:,.2f}"
 
 
 def _clean_woocommerce_meta_text(value):
@@ -61238,6 +61385,54 @@ def _workspace_atp_workspace_image_policy_v69205(meta, workspace_label):
 
 
 
+def _workspace_atp_multi_followup_authority_v69327(workspace_label, prompt_text, cached_record, conversation_id=None):
+    """Durably reuse an exact multi-product Sales authority for identity-free follow-ups.
+
+    This is intentionally narrower than ordinary retrieval: it accepts only a cached
+    recovered_multi authority from the same conversation/workspace/destination/current
+    website revision, and refuses any prompt that introduces a new explicit vehicle/year/
+    product identity. It exists so references such as "both", "these two", "first one",
+    "second one", "how much are both", and "show me their photos" cannot fall through
+    to generic retrieval merely because a Streamlit rerun occurred.
+    """
+    workspace = str(workspace_label or "")
+    if not is_sales_workspace(workspace) or is_graphic_workspace(workspace):
+        return {}
+    record = dict(cached_record or {})
+    if not record:
+        return {}
+    if _normalized_workspace_name(record.get("workspace")) != _normalized_workspace_name(workspace):
+        return {}
+    if str(record.get("conversation_id") or "") != str(conversation_id or ""):
+        return {}
+    destination = "Sales Database"
+    if str(record.get("destination") or "") != destination:
+        return {}
+    try:
+        if int(record.get("revision") or 0) != int(_website_destination_revision_v69109(destination) or 0):
+            return {}
+    except Exception:
+        return {}
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return {}
+    if (
+        _website_identity_vehicle_families_v69022(prompt)
+        or _website_identity_years_v69022(prompt)
+        or _website_image_product_codes_v69020(prompt)
+    ):
+        return {}
+    authority = dict(record.get("authority") or {})
+    if str(authority.get("status") or "") != "recovered_multi":
+        return {}
+    if str(authority.get("destination") or "") != destination:
+        return {}
+    packages = [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
+    if len(packages) < 2:
+        return {}
+    return authority
+
+
 def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cached_record, conversation_id=None):
     """Reuse only the same conversation/workspace/current-revision product authority for identity-free follow-ups."""
     workspace = str(workspace_label or "")
@@ -61387,6 +61582,63 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     fit_parts.append(span + (f" — {trim} only" if trim else ""))
                 fit_label = "; ".join(dict.fromkeys(fit_parts))
             rows_v69325.append((_multi_title_v69325(pkg, contract), fit_label, source))
+
+        price_intent_v69326 = bool(re.search(
+            r"\b(price|prices|cost|costs|how much|selling price|current price|base price|quote)\b",
+            p,
+        ))
+        if price_intent_v69326 and rows_v69325:
+            selected_rows_v69326 = list(rows_v69325)
+            # Preserve ordinary conversational references without broadening identity.
+            if re.search(r"\b(first|1st|option 1|number 1)\b", p):
+                selected_rows_v69326 = rows_v69325[:1]
+            elif re.search(r"\b(second|2nd|option 2|number 2)\b", p):
+                selected_rows_v69326 = rows_v69325[1:2]
+            elif "android 13" in p:
+                selected_rows_v69326 = [row for row in rows_v69325 if "android 13" in row[0].casefold()]
+            elif "android 14" in p:
+                selected_rows_v69326 = [row for row in rows_v69325 if "android 14" in row[0].casefold()]
+
+            live_rows_v69326 = []
+            verified_count_v69326 = 0
+            for title_v69326, fit_label_v69326, source_v69326 in selected_rows_v69326:
+                lookup_v69326 = _woocommerce_product_by_source_url_v69326(source_v69326)
+                price_label_v69326 = _woocommerce_price_label_v69326(lookup_v69326)
+                if price_label_v69326:
+                    verified_count_v69326 += 1
+                    product_v69326 = dict(lookup_v69326.get("product") or {})
+                    regular_v69326 = str(lookup_v69326.get("regular_price") or "").strip()
+                    sale_v69326 = str(lookup_v69326.get("sale_price") or "").strip()
+                    note_v69326 = "Verified live WooCommerce price"
+                    if bool(lookup_v69326.get("on_sale")) and sale_v69326 and regular_v69326 and sale_v69326 != regular_v69326:
+                        note_v69326 = f"Live sale price; regular price {(_woocommerce_store_currency_v69326() or 'store currency')} {regular_v69326}"
+                    live_rows_v69326.append((str(product_v69326.get("name") or title_v69326), price_label_v69326, note_v69326))
+                else:
+                    live_rows_v69326.append((title_v69326, "Not verified", "Current WooCommerce price could not be verified; I will not guess"))
+
+            diagnostic_log(
+                "workspace_sales_live_multi_price_v69326",
+                requested=len(selected_rows_v69326),
+                verified=verified_count_v69326,
+                failed=max(0, len(selected_rows_v69326) - verified_count_v69326),
+            )
+            diagnostic_log(
+                "workspace_sales_live_multi_price_v69327",
+                requested=len(selected_rows_v69326),
+                verified=verified_count_v69326,
+                failed=max(0, len(selected_rows_v69326) - verified_count_v69326),
+            )
+            lines_v69326 = [
+                "## Current price check",
+                "",
+                "| Product | Current price | Verification |",
+                "|---|---:|---|",
+            ]
+            for title_v69326, price_v69326, note_v69326 in live_rows_v69326:
+                lines_v69326.append(f"| {title_v69326} | {price_v69326} | {note_v69326} |")
+            if verified_count_v69326 != len(selected_rows_v69326):
+                lines_v69326.append("\nI only quote prices that can be read back from the exact current WooCommerce product record.")
+            return "\n".join(lines_v69326)
 
         if fitment_intent_v69325 and rows_v69325:
             intro_year = f" for **{', '.join(map(str, requested_years_v69325))}**" if requested_years_v69325 else ""
@@ -91047,6 +91299,20 @@ else:
                                     "revision": int(_website_destination_revision_v69109(destination_v69205) or 0),
                                     "authority": dict(workspace_atp_authority_v69180),
                                 }
+                                if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi" and is_sales_workspace(assistant):
+                                    st.session_state["_workspace_last_atp_multi_authority_v69327"] = {
+                                        "workspace": str(assistant),
+                                        "conversation_id": str(st.session_state.get("conversation_id") or ""),
+                                        "destination": destination_v69205,
+                                        "revision": int(_website_destination_revision_v69109(destination_v69205) or 0),
+                                        "authority": dict(workspace_atp_authority_v69180),
+                                    }
+                                    diagnostic_log(
+                                        "workspace_atp_multi_authority_cached_v69327",
+                                        workspace=str(assistant),
+                                        destination=destination_v69205,
+                                        product_count=len(workspace_atp_authority_v69180.get("packages") or []),
+                                    )
                                 # Keep the existing Sales/Marketing multi-store file_search enabled.
                                 # ATP metadata is priority context, not a replacement for the established
                                 # Sales→Technical and Marketing→Sales→Technical retrieval contracts.
@@ -91059,24 +91325,52 @@ else:
                                     product_count=len(workspace_atp_authority_v69180.get("packages") or []) if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi" else 1,
                                 )
                             else:
-                                followup_authority_v69205 = _workspace_atp_followup_authority_v69205(
+                                followup_authority_v69205 = _workspace_atp_multi_followup_authority_v69327(
                                     assistant,
                                     interaction_prompt,
-                                    st.session_state.get("_workspace_last_atp_authority_v69205") or {},
+                                    st.session_state.get("_workspace_last_atp_multi_authority_v69327") or {},
                                     conversation_id=st.session_state.get("conversation_id"),
                                 )
-                                if str(followup_authority_v69205.get("status") or "") == "recovered":
+                                if str(followup_authority_v69205.get("status") or "") != "recovered_multi":
+                                    followup_authority_v69205 = _workspace_atp_followup_authority_v69205(
+                                        assistant,
+                                        interaction_prompt,
+                                        st.session_state.get("_workspace_last_atp_authority_v69205") or {},
+                                        conversation_id=st.session_state.get("conversation_id"),
+                                    )
+                                if str(followup_authority_v69205.get("status") or "") in {"recovered", "recovered_multi"}:
                                     workspace_atp_authority_v69180 = followup_authority_v69205
                                     ai_request_prompt += str(workspace_atp_authority_v69180.get("context") or "")
-                                    exact_row_v69205 = dict(workspace_atp_authority_v69180.get("row") or {})
-                                    if exact_row_v69205:
-                                        st.session_state["_workspace_file_search_results_v69040"] = [exact_row_v69205]
-                                    diagnostic_log(
-                                        "workspace_atp_followup_authority_reused_v69205",
-                                        workspace=str(assistant),
-                                        destination=str(workspace_atp_authority_v69180.get("destination") or ""),
-                                        source_url=str(workspace_atp_authority_v69180.get("source_url") or "")[:600],
-                                    )
+                                    followup_status_v69326 = str(workspace_atp_authority_v69180.get("status") or "")
+                                    if followup_status_v69326 == "recovered_multi":
+                                        exact_rows_v69326 = [
+                                            dict(x) for x in (workspace_atp_authority_v69180.get("rows") or [])
+                                            if isinstance(x, dict)
+                                        ]
+                                        if exact_rows_v69326:
+                                            st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69326
+                                        diagnostic_log(
+                                            "workspace_atp_followup_multi_authority_reused_v69326",
+                                            workspace=str(assistant),
+                                            destination=str(workspace_atp_authority_v69180.get("destination") or ""),
+                                            product_count=len(workspace_atp_authority_v69180.get("packages") or []),
+                                        )
+                                        diagnostic_log(
+                                            "workspace_atp_followup_multi_authority_reused_v69327",
+                                            workspace=str(assistant),
+                                            destination=str(workspace_atp_authority_v69180.get("destination") or ""),
+                                            product_count=len(workspace_atp_authority_v69180.get("packages") or []),
+                                        )
+                                    else:
+                                        exact_row_v69205 = dict(workspace_atp_authority_v69180.get("row") or {})
+                                        if exact_row_v69205:
+                                            st.session_state["_workspace_file_search_results_v69040"] = [exact_row_v69205]
+                                        diagnostic_log(
+                                            "workspace_atp_followup_authority_reused_v69205",
+                                            workspace=str(assistant),
+                                            destination=str(workspace_atp_authority_v69180.get("destination") or ""),
+                                            source_url=str(workspace_atp_authority_v69180.get("source_url") or "")[:600],
+                                        )
                         except Exception as error_v69180:
                             workspace_atp_authority_v69180 = {}
                             diagnostic_log(
