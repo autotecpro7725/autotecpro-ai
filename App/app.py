@@ -25,6 +25,7 @@
 # - Technical universal inquiry authority: v69299 behavior preserved
 #
 # Stability rule:
+# v69353: display-only known-table alignment profiles; no response content or authority changes.
 # Do not modify protected Graphic, Technical, Auth, History, persistence,
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
@@ -6074,18 +6075,74 @@ def split_markdown_table_row(line):
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
 
 
+def _workspace_table_alignment_profile_v69353(headers):
+    """Display-only column profiles for known Sales tables. No content mutation."""
+    normalized = [re.sub(r"\s+", " ", str(h or "")).strip().casefold() for h in (headers or [])]
+    key = tuple(normalized)
+
+    # First-fitment product comparison: reserve space for configuration and links.
+    if key == ("option", "fitment", "platform", "key configuration", "product link"):
+        return [13, 17, 12, 28, 30]
+
+    # v69321-style model match tables.
+    if len(key) >= 5 and key[0] in {"vehicle", "autotecpro model", "product", "option"}:
+        if "fit confidence" in key or "match confidence" in key:
+            return [18, 34, 12, 20, 16][:len(key)]
+
+    # Two-version specification comparison.
+    if key == ("specification", "android 13 version", "android 14 version"):
+        return [22, 39, 39]
+
+    # Main-difference comparison.
+    if key == ("difference", "android 13", "android 14"):
+        return [20, 40, 40]
+
+    # Verified price table.
+    if key == ("product", "variant", "current price", "verification"):
+        return [37, 12, 20, 31]
+
+    return []
+
+
 def table_to_html(table_lines):
-    """Convert a basic markdown table to HTML."""
+    """Convert a basic markdown table to aligned, responsive HTML."""
     if len(table_lines) < 2:
         return ""
 
     headers = split_markdown_table_row(table_lines[0])
     body_lines = table_lines[2:] if is_markdown_table_separator(table_lines[1]) else table_lines[1:]
+    widths = _workspace_table_alignment_profile_v69353(headers)
 
-    html_rows = ["<table>"]
+    table_style = (
+        "width:100%;border-collapse:collapse;table-layout:fixed;"
+        "margin:10px 0 16px 0;"
+    ) if widths else ""
+    wrap_style = (
+        "width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;"
+    ) if widths else ""
+    th_style = (
+        "text-align:left;vertical-align:top;padding:9px 10px;"
+        "line-height:1.35;overflow-wrap:anywhere;word-break:normal;"
+    ) if widths else ""
+    td_style = (
+        "text-align:left;vertical-align:top;padding:9px 10px;"
+        "line-height:1.42;overflow-wrap:anywhere;word-break:normal;"
+    ) if widths else ""
+
+    html_rows = []
+    if widths:
+        html_rows.append(f'<div class="atp-table-wrap-v69353" style="{wrap_style}">')
+    html_rows.append(f'<table class="atp-aligned-table-v69353" style="{table_style}">' if widths else "<table>")
+    if widths and len(widths) == len(headers):
+        html_rows.append("<colgroup>")
+        for width in widths:
+            html_rows.append(f'<col style="width:{int(width)}%;">')
+        html_rows.append("</colgroup>")
+
     html_rows.append("<thead><tr>")
     for header in headers:
-        html_rows.append(f"<th>{inline_format(header)}</th>")
+        style_attr = f' style="{th_style}"' if th_style else ""
+        html_rows.append(f"<th{style_attr}>{inline_format(header)}</th>")
     html_rows.append("</tr></thead>")
 
     html_rows.append("<tbody>")
@@ -6095,9 +6152,12 @@ def table_to_html(table_lines):
             cells += [""] * (len(headers) - len(cells))
         html_rows.append("<tr>")
         for cell in cells[:len(headers)]:
-            html_rows.append(f"<td>{inline_format(cell)}</td>")
+            style_attr = f' style="{td_style}"' if td_style else ""
+            html_rows.append(f"<td{style_attr}>{inline_format(cell)}</td>")
         html_rows.append("</tr>")
     html_rows.append("</tbody></table>")
+    if widths:
+        html_rows.append("</div>")
     return "\n".join(html_rows)
 
 
