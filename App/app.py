@@ -27,8 +27,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69336"
-AUTOTECPRO_RELEASE_BUILD = "v69336-exact-v69325-durable-workspace-authority-plus-second-question-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69338"
+AUTOTECPRO_RELEASE_BUILD = "v69338-exact-v69325-plus-current-product-recovery-and-second-question-20260907"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -1684,15 +1684,24 @@ def _woocommerce_product_by_source_url_v69326(source_url):
         product_id = product.get("id")
         if product_id:
             try:
-                variations = woocommerce_api_request(
-                    f"products/{int(product_id)}/variations",
-                    params={"per_page": 100, "status": "publish"},
-                )
-                for variation in variations if isinstance(variations, list) else []:
-                    if isinstance(variation, dict):
-                        value = str(variation.get("price") or "").strip()
-                        if value:
-                            prices.append(value)
+                # Read every published variation in bounded pages. Never report a
+                # partial range as complete merely because WooCommerce caps one page.
+                for page_v69338 in range(1, 11):
+                    variations = woocommerce_api_request(
+                        f"products/{int(product_id)}/variations",
+                        params={"per_page": 100, "page": page_v69338, "status": "publish"},
+                    )
+                    if not isinstance(variations, list):
+                        break
+                    for variation in variations:
+                        if isinstance(variation, dict):
+                            value = str(variation.get("price") or "").strip()
+                            if value:
+                                prices.append(value)
+                    if len(variations) < 100:
+                        break
+                else:
+                    return {"status":"unavailable","reason":"variation_count_exceeds_verified_bound"}
             except Exception:
                 pass
 
@@ -60923,6 +60932,262 @@ def _website_bind_exact_supporting_page_payloads_v69047(payloads, result_rows):
 
 
 
+
+def _workspace_atp_recovery_primary_from_text_v69338(text_value):
+    """Extract only an explicitly labeled ATP primary product image from retrieved package text."""
+    text = str(text_value or "")
+    if not text:
+        return ""
+    patterns = [
+        r"ATP_IMAGE_ROLE_V69178:\s*primary-product-image(?s:.{0,3500}?)AUTO_DISPLAY_IMAGE:\s*(https://[^\s<>\"']+)",
+        r"data-atp-image-role[=:\"'\s]+primary-product-image(?s:.{0,3500}?)(https://[^\s<>\"']+\.(?:jpg|jpeg|png|webp))",
+        r"data-atp-primary-product-image-url[=:\"'\s]+(https://[^\s<>\"']+)",
+    ]
+    for pattern in patterns:
+        try:
+            match = re.search(pattern, text, flags=re.I)
+        except re.error:
+            # Inline DOTALL in a non-leading position is invalid on older regex engines.
+            pattern = pattern.replace('(?s:', '(?:')
+            match = re.search(pattern, text, flags=re.I | re.S)
+        if match:
+            return str(match.group(1) or "").strip().rstrip('.,;)')
+    # Package metadata JSON frequently keeps the exact main URL on the same chunk.
+    for match in re.finditer(r"https://[^\s<>\"']+\.(?:jpg|jpeg|png|webp)", text, flags=re.I):
+        before = text[max(0, match.start()-600):match.start()].casefold()
+        if "primary-product-image" in before or "primary-product-image-url" in before or "main-product-photo" in before:
+            return str(match.group(0) or "").strip().rstrip('.,;)')
+    return ""
+
+
+def _workspace_atp_recovery_header_v69338(text_value, label):
+    text = str(text_value or "")
+    match = re.search(r"(?im)^\s*" + re.escape(str(label or "")) + r"\s*:\s*(.+?)\s*$", text)
+    return str(match.group(1) or "").strip() if match else ""
+
+
+def _workspace_atp_recovery_family_v69338(title, source_url, text_value):
+    # Product family must come from the canonical product title/URL, not arbitrary
+    # body/supporting text. This prevents a valid infotainment page that mentions a
+    # related gauge cluster or climate guide from being reclassified as that support topic.
+    route_evidence = re.sub(r"\s+", " ", " ".join((str(title or ""), str(source_url or "")))).casefold()
+    path = str(urllib.parse.urlsplit(str(source_url or "")).path or "").casefold()
+    if any(x in route_evidence for x in ("how to identify", "identification guide", "installation guide", "wiring guide", "climate control versions")):
+        return "reference"
+    if "gauge cluster" in route_evidence or "digital gauge" in route_evidence or "instrument cluster" in route_evidence or "cockpit" in route_evidence:
+        return "gauge_cluster" if "/product/" in path else "reference"
+    if any(x in route_evidence for x in ("infotainment", "android-navigation", "android navigation", "touch-screen-android", "touch-screen android", "touch screen android", "tesla-style-screen", "tesla-style screen")):
+        return "infotainment" if "/product/" in path else "reference"
+    return "other" if "/product/" in path else "reference"
+
+
+def _workspace_atp_recovery_platform_v69338(*values):
+    evidence = " ".join(str(x or "") for x in values)
+    match = re.search(r"\bandroid(?:[-_/\s]+)(1[0-9])\b", evidence, flags=re.I)
+    return f"Android {match.group(1)}" if match else ""
+
+
+def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, rows, durable_payloads=None):
+    """Pure deterministic current-product recovery from Sales vector-search evidence.
+
+    Authority begins with a retrieved Sales WEBSITE PACKAGE/product source, never an image.
+    Images may only be attached after the exact source has already been established.
+    """
+    target = str(destination or "").strip()
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if target not in {"Sales Database", "Marketing Database"} or not prompt:
+        return []
+    grouped = {}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        file_id = str(row.get("file_id") or "").strip()
+        if not file_id:
+            continue
+        grouped.setdefault(file_id, {"rows":[], "score":0.0, "filename":str(row.get("filename") or "")})["rows"].append(dict(row))
+        try: grouped[file_id]["score"] = max(float(grouped[file_id]["score"]), float(row.get("score") or 0.0))
+        except Exception: pass
+
+    candidates=[]
+    for file_id, info in grouped.items():
+        text = "\n\n".join(str(r.get("text") or "") for r in info["rows"] if str(r.get("text") or "").strip())
+        if not text:
+            continue
+        declared_destination = _workspace_atp_recovery_header_v69338(text, "Destination")
+        if declared_destination and declared_destination != target:
+            continue
+        source = (_workspace_atp_recovery_header_v69338(text, "Final source URL") or
+                  _workspace_atp_recovery_header_v69338(text, "Requested URL"))
+        if not source:
+            urls = re.findall(r"https://autotecpro\.com/product/[^\s<>\"']+", text, flags=re.I)
+            source = str(urls[0] if urls else "").rstrip('.,;)')
+        if not source or "/product/" not in str(urllib.parse.urlsplit(source).path or "").casefold():
+            continue
+        title = _workspace_atp_recovery_header_v69338(text, "Page title")
+        if not title:
+            try: title = re.sub(r"[-_]+", " ", urllib.parse.urlsplit(source).path.rstrip('/').split('/')[-1]).strip().title()
+            except Exception: title = ""
+        family = _workspace_atp_recovery_family_v69338(title, source, text)
+        if family == "reference":
+            continue
+        identity_text = " ".join((title, source, text[:24000]))
+        families = set(_website_identity_vehicle_families_v69022(identity_text))
+        years = set(_website_identity_years_v69022(identity_text))
+        platform = _workspace_atp_recovery_platform_v69338(title, source, text)
+        primary_url = _workspace_atp_recovery_primary_from_text_v69338(text)
+        candidates.append({
+            "file_id":file_id, "filename":str(info.get("filename") or ""), "score":float(info.get("score") or 0.0),
+            "text":text, "source_url":source, "title":title, "family":family, "families":families,
+            "years":years, "platform":platform, "primary_url":primary_url,
+            "extracted_at":_workspace_atp_recovery_header_v69338(text, "Extracted at (UTC)"),
+        })
+
+    pf=set(_website_identity_vehicle_families_v69022(prompt)); py=set(_website_identity_years_v69022(prompt))
+    filtered=[]
+    for c in candidates:
+        if pf and c["families"] and not (pf & set(c["families"])):
+            continue
+        if py and c["years"] and not (py & set(c["years"])):
+            continue
+        filtered.append(c)
+    candidates=filtered
+    if not candidates:
+        return []
+
+    p=prompt.casefold()
+    explicit_family=""
+    if re.search(r"\b(gauge|cluster|cockpit|speedometer)\b", p): explicit_family="gauge_cluster"
+    elif re.search(r"\b(infotainment|navigation|android auto|carplay|touch ?screen|tesla[- ]style)\b", p): explicit_family="infotainment"
+
+    by_family={}
+    for c in candidates: by_family.setdefault(c["family"], []).append(c)
+    if explicit_family and explicit_family in by_family:
+        chosen_family=explicit_family
+    else:
+        def family_rank(item):
+            fam, vals=item
+            platforms={v["platform"].casefold() for v in vals if v["platform"]}
+            sources=set()
+            for v in vals:
+                try: sources.add(canonical_website_url_identity(v["source_url"]))
+                except Exception: sources.add(v["source_url"].rstrip('/').casefold())
+            # Generic "which model" prefers a real sibling product family over a singleton unrelated family.
+            return (len(platforms), len(sources), max((v["score"] for v in vals), default=0.0), 1 if fam=="infotainment" else 0)
+        chosen_family=max(by_family.items(), key=family_rank)[0]
+    selected=list(by_family.get(chosen_family) or [])
+
+    # When a family exposes named platform generations, preserve the strongest current source per generation.
+    if any(c["platform"] for c in selected):
+        best={}
+        for c in selected:
+            key=c["platform"].casefold() or ("source:"+c["source_url"])
+            prior=best.get(key)
+            rank=(float(c["score"]), str(c["extracted_at"]), str(c["source_url"]))
+            if prior is None or rank > prior[0]: best[key]=(rank,c)
+        selected=[x[1] for x in best.values()]
+    else:
+        best={}
+        for c in selected:
+            try: key=canonical_website_url_identity(c["source_url"])
+            except Exception: key=c["source_url"].rstrip('/').casefold()
+            prior=best.get(key)
+            rank=(float(c["score"]), str(c["extracted_at"]))
+            if prior is None or rank > prior[0]: best[key]=(rank,c)
+        selected=[x[1] for x in best.values()]
+
+    def platform_sort(c):
+        m=re.search(r"(\d+)", str(c.get("platform") or ""))
+        return (int(m.group(1)) if m else 999, -float(c.get("score") or 0.0), str(c.get("source_url") or ""))
+    selected=sorted(selected,key=platform_sort)[:8]
+
+    packages=[]
+    for c in selected:
+        identity_text=" ".join((c["title"],c["source_url"],c["text"][:24000]))
+        make=""
+        for maker in ("Dodge","RAM","Ford","Chevrolet","GMC","Toyota","Honda","Jeep","BMW","Mercedes","Porsche","Infiniti","Nissan","Cadillac"):
+            if re.search(r"\b"+re.escape(maker)+r"\b", identity_text, flags=re.I): make=maker; break
+        models=[]
+        if re.search(r"\bram\b", identity_text, flags=re.I):
+            for model in ("RAM 1500","RAM 2500","RAM 3500"):
+                if model.split()[-1] in identity_text: models.append(model)
+            if not models: models=["RAM"]
+        year_values=sorted(set(c["years"]))
+        branch={"branch_id":"turn-local-current-product-v69338","make":make,"models":models,"years":year_values,
+                "trim":"","excluded_years":[],"source_authority":"exact-current-vector-source","current_source":True}
+        image_meta=[]
+        if c["primary_url"]:
+            image_meta=[{"src":c["primary_url"],"data-atp-image-role":"primary-product-image","data-atp-authority":"primary",
+                         "data-atp-authority-level":"primary","data-atp-sales-auto-display":"true","data-atp-marketing-auto-display":"true",
+                         "data-atp-auto-display":"true","data-atp-priority":1000,"data-atp-is-primary-product-image":"true",
+                         "data-atp-main-product-photo":"true","data-atp-primary-media":"true"}]
+        contract={"product_identity_key":hashlib.sha256(c["source_url"].encode()).hexdigest()[:24],"product_family":chosen_family,
+                  "product_type":"automotive-infotainment-system" if chosen_family=="infotainment" else chosen_family,
+                  "brand":"AutoTecPro","make":make,"models":models,"year_start":min(year_values) if year_values else None,
+                  "year_end":max(year_values) if year_values else None,"screen_size":"","display_type":"","platform":c["platform"],
+                  "processor":"","ram":"","storage":"","facts":[],"features":[],"compatibility_branches":[branch],
+                  "related_products":[],"primary_images":[c["primary_url"]] if c["primary_url"] else []}
+        packages.append({"file_id":c["file_id"],"filename":c["filename"],"destination":target,"source_url":c["source_url"],
+                         "title":c["title"],"page_title":c["title"],"extracted_at":c["extracted_at"],"webpage_text":c["text"],
+                         "package_text":c["text"],"page_identity":{},"atp_semantics_v69178":{"schema":"v69338-turn-local-recovery","elements":[],"images":image_meta},
+                         "vehicle_families":sorted(c["families"]),"years":year_values,"systems":[],"product_codes":[],
+                         "_workspace_atp_product_contract_v69227":contract,"workspace_atp_turn_local_recovery_v69338":True,
+                         "workspace_atp_recovery_score_v69338":c["score"]})
+    return packages
+
+
+@st.cache_data(ttl=90, max_entries=96, show_spinner=False)
+def _workspace_atp_turn_local_recovery_v69338(destination, prompt_text):
+    """Bounded cold-start recovery that queries the configured vector store, never downloads assistants files."""
+    target=str(destination or "").strip(); prompt=re.sub(r"\s+"," ",str(prompt_text or "")).strip()
+    mapping={"Sales Database":SALES_VECTOR_STORE_ID,"Marketing Database":MARKETING_VECTOR_STORE_ID}
+    stores=_configured_vector_store_ids(mapping.get(target,""))
+    if not stores or not prompt: return []
+    store=str(stores[0] or "").strip()
+    queries=[
+        prompt,
+        prompt + " AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE Final source URL Page title current product",
+        prompt + " ATP_IMAGE_ROLE_V69178 primary-product-image AUTO_DISPLAY_IMAGE",
+    ]
+    # Automotive infotainment sibling versions are often differentiated by platform generation;
+    # issue platform queries only when the retrieved corpus can prove them, never as assumed facts.
+    if re.search(r"\b(model|fit|fits|support|compatible)\b", prompt.casefold()):
+        queries += [prompt + " Android 13 current product", prompt + " Android 14 current product"]
+    merged=[]; seen=set()
+    for q in queries:
+        request={"input":[{"role":"user","content":[{"type":"input_text","text":q}]}],"tools":[{"type":"file_search","vector_store_ids":[store]}]}
+        try: rows=list(_website_request_vector_search_rows_v69047(request,max_results=24) or [])
+        except Exception: rows=[]
+        for row in rows:
+            key=(str((row or {}).get("file_id") or ""),str((row or {}).get("text") or ""))
+            if key in seen: continue
+            seen.add(key); merged.append(dict(row))
+    packages=_workspace_atp_recovery_packages_from_rows_v69338(target,prompt,merged)
+    diagnostic_log("workspace_atp_turn_local_recovery_v69338",destination=target,row_count=len(merged),package_count=len(packages),
+                   platforms=[str(_workspace_atp_product_contract_v69205(x).get("platform") or "") for x in packages])
+    return packages
+
+
+def _workspace_atp_source_current_revalidate_v69338(destination, source_url):
+    """Fail-closed exact source revalidation used only when a follow-up crosses a destination revision."""
+    target=str(destination or "").strip(); source=str(source_url or "").strip()
+    mapping={"Sales Database":SALES_VECTOR_STORE_ID,"Marketing Database":MARKETING_VECTOR_STORE_ID}
+    stores=_configured_vector_store_ids(mapping.get(target,""))
+    if not stores or not source: return False
+    request={"input":[{"role":"user","content":[{"type":"input_text","text":source+" Final source URL current product"}]}],
+             "tools":[{"type":"file_search","vector_store_ids":[str(stores[0])]}]}
+    try: rows=list(_website_request_vector_search_rows_v69047(request,max_results=8) or [])
+    except Exception: return False
+    try: wanted=canonical_website_url_identity(source)
+    except Exception: wanted=source.rstrip('/').casefold()
+    for row in rows:
+        text=str((row or {}).get("text") or "")
+        found=_workspace_atp_recovery_header_v69338(text,"Final source URL") or _workspace_atp_recovery_header_v69338(text,"Requested URL")
+        if not found: continue
+        try: ident=canonical_website_url_identity(found)
+        except Exception: ident=found.rstrip('/').casefold()
+        if ident==wanted: return True
+    return False
+
 @st.cache_resource(show_spinner=False)
 def _workspace_atp_package_state_v69180():
     """Process-persistent ATP website-package cache for Sales and Marketing only."""
@@ -61024,184 +61289,6 @@ def _workspace_atp_package_inject_v69180(file_id, filename, package_text, destin
     return True
 
 
-
-ATP_WORKSPACE_SNAPSHOT_PREFIX_V69336 = "AUTOTECPRO_ATP_WORKSPACE_SNAPSHOT_V69336:"
-ATP_WORKSPACE_SNAPSHOT_QUESTION_PREFIX_V69336 = "atp-workspace-snapshot-v69336:"
-
-
-def _workspace_atp_snapshot_identity_v69336(destination, package):
-    target = str(destination or "").strip()
-    source = str((package or {}).get("source_url") or "").strip()
-    try:
-        canonical = canonical_website_url_identity(source) if source else ""
-    except Exception:
-        canonical = ""
-    stable = canonical or str((package or {}).get("file_id") or (package or {}).get("filename") or "").strip()
-    if not target or not stable:
-        return ""
-    return hashlib.sha256(f"{target}|{stable}".encode("utf-8")).hexdigest()[:40]
-
-
-def _workspace_atp_snapshot_encode_v69336(destination, package):
-    if not isinstance(package, dict):
-        return ""
-    keep_keys = (
-        "file_id", "filename", "destination", "source_url", "title", "extracted_at",
-        "page_identity", "atp_semantics_v69178", "vehicle_families", "years",
-        "systems", "product_codes",
-    )
-    compact_package = {k: package.get(k) for k in keep_keys if k in package}
-    # v69325 direct multi-product answer reads page_title first; preserve the exact learned title
-    # without carrying the full searchable package text into the durable snapshot.
-    compact_package["page_title"] = str(package.get("page_title") or package.get("title") or "")
-    payload = {
-        "schema": "autotecpro-atp-workspace-snapshot-v69336",
-        "destination": str(destination or "").strip(),
-        "saved_at": now_iso(),
-        "package": compact_package,
-    }
-    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    digest = hashlib.sha256(raw).hexdigest()
-    packed = base64.urlsafe_b64encode(zlib.compress(raw, 9)).decode("ascii")
-    return ATP_WORKSPACE_SNAPSHOT_PREFIX_V69336 + digest + ":" + packed
-
-
-def _workspace_atp_snapshot_decode_v69336(value, destination=""):
-    text = str(value or "")
-    if not text.startswith(ATP_WORKSPACE_SNAPSHOT_PREFIX_V69336):
-        return None
-    body = text[len(ATP_WORKSPACE_SNAPSHOT_PREFIX_V69336):]
-    try:
-        digest, packed = body.split(":", 1)
-        raw = zlib.decompress(base64.urlsafe_b64decode(packed.encode("ascii")))
-        if not hmac.compare_digest(hashlib.sha256(raw).hexdigest(), str(digest or "")):
-            return None
-        payload = json.loads(raw.decode("utf-8"))
-    except Exception:
-        return None
-    if str(payload.get("schema") or "") != "autotecpro-atp-workspace-snapshot-v69336":
-        return None
-    target = str(destination or "").strip()
-    if target and str(payload.get("destination") or "").strip() != target:
-        return None
-    package = payload.get("package")
-    if not isinstance(package, dict):
-        return None
-    if target and str(package.get("destination") or "").strip() != target:
-        return None
-    return dict(package)
-
-
-def _workspace_atp_snapshot_columns_v69336():
-    profile = dict(_website_image_index_schema_profile_v69129() or {})
-    available = set(profile.get("columns") or [])
-    mode = str(profile.get("mode") or "")
-    if not profile.get("ready"):
-        return {}, set(), ""
-    if mode == "modern" and "issue" in available and ("solution" in available or "approved_answer" in available):
-        return profile, available, "issue"
-    if "question" in available and "approved_answer" in available:
-        return profile, available, "question"
-    return profile, available, ""
-
-
-def _workspace_atp_snapshot_commit_v69336(destination, package):
-    """Durably persist one verified Sales/Marketing ATP package using only live schema columns."""
-    target = str(destination or "").strip()
-    if target not in {"Sales Database", "Marketing Database"} or not isinstance(package, dict):
-        return False
-    identity = _workspace_atp_snapshot_identity_v69336(target, package)
-    encoded = _workspace_atp_snapshot_encode_v69336(target, package)
-    if not identity or not encoded:
-        return False
-    profile, available, lookup = _workspace_atp_snapshot_columns_v69336()
-    if not lookup:
-        diagnostic_log("workspace_atp_snapshot_schema_unavailable_v69336", destination=target)
-        return False
-    marker = ATP_WORKSPACE_SNAPSHOT_QUESTION_PREFIX_V69336 + hashlib.sha256(target.encode("utf-8")).hexdigest()[:12] + ":" + identity
-    if lookup == "issue":
-        base = {"issue": marker, "solution": encoded, "approved_answer": encoded, "question": marker, "keywords": "autotecpro, atp, workspace, snapshot, " + target, "updated_at": now_iso()}
-    else:
-        base = {"question": marker, "approved_answer": encoded, "keywords": "autotecpro, atp, workspace, snapshot, " + target, "updated_at": now_iso()}
-    row = {k:v for k,v in base.items() if k in available}
-    if lookup not in row or not any(k in row for k in ("solution","approved_answer")):
-        diagnostic_log("workspace_atp_snapshot_schema_columns_missing_v69336", destination=target, lookup=lookup)
-        return False
-    try:
-        existing = supabase.table("learned_knowledge").select("id").eq(lookup, marker).limit(1).execute().data or []
-        if existing:
-            supabase.table("learned_knowledge").update(row).eq("id", existing[0]["id"]).execute()
-        else:
-            supabase.table("learned_knowledge").insert(row).execute()
-        # Required read-after-write verification.
-        select = [x for x in ("id", lookup, "solution", "approved_answer") if x in available or x == lookup]
-        verified = None
-        for delay in (0.0, 0.08, 0.18, 0.35):
-            if delay: time.sleep(delay)
-            rows = supabase.table("learned_knowledge").select(",".join(dict.fromkeys(select))).eq(lookup, marker).limit(2).execute().data or []
-            for candidate in rows:
-                raw = str((candidate or {}).get("solution") or (candidate or {}).get("approved_answer") or "")
-                decoded = _workspace_atp_snapshot_decode_v69336(raw, target)
-                if isinstance(decoded, dict) and _workspace_atp_snapshot_identity_v69336(target, decoded) == identity:
-                    verified = decoded
-                    break
-            if verified: break
-        if not verified:
-            diagnostic_log("workspace_atp_snapshot_readback_failed_v69336", destination=target, identity=identity)
-            return False
-    except Exception as error:
-        diagnostic_log("workspace_atp_snapshot_commit_failed_v69336", destination=target, error_type=type(error).__name__, error=str(error)[:500])
-        return False
-    diagnostic_log("workspace_atp_snapshot_committed_v69336", destination=target, source_url=str(package.get("source_url") or "")[:700])
-    return True
-
-
-def _workspace_atp_snapshot_load_v69336(destination, store):
-    """Load only durable verified ATP package contracts; never download assistants-purpose files."""
-    target = str(destination or "").strip()
-    if target not in {"Sales Database", "Marketing Database"}:
-        return []
-    profile, available, lookup = _workspace_atp_snapshot_columns_v69336()
-    if not lookup:
-        return []
-    prefix = ATP_WORKSPACE_SNAPSHOT_QUESTION_PREFIX_V69336 + hashlib.sha256(target.encode("utf-8")).hexdigest()[:12] + ":%"
-    value_cols = [x for x in ("solution", "approved_answer") if x in available]
-    select = ["id", lookup] + value_cols
-    try:
-        rows = supabase.table("learned_knowledge").select(",".join(dict.fromkeys(select))).like(lookup, prefix).limit(1000).execute().data or []
-    except Exception as error:
-        diagnostic_log("workspace_atp_snapshot_load_failed_v69336", destination=target, error_type=type(error).__name__, error=str(error)[:500])
-        return []
-    packages = []
-    for row in rows:
-        raw = str((row or {}).get("solution") or (row or {}).get("approved_answer") or "")
-        package = _workspace_atp_snapshot_decode_v69336(raw, target)
-        if isinstance(package, dict):
-            packages.append(package)
-    # Validate that snapshot files are still attached to the CURRENT vector store.
-    try:
-        current_rows = list(_website_vector_store_file_rows_v68892(store) or [])
-        current_ids = {str(r.get("file_id") or "").strip() for r in current_rows if isinstance(r, dict)}
-        if current_ids:
-            packages = [p for p in packages if str(p.get("file_id") or "").strip() in current_ids]
-    except Exception as error:
-        diagnostic_log("workspace_atp_snapshot_store_validation_failed_v69336", destination=target, error_type=type(error).__name__, error=str(error)[:400])
-        return []
-    # Same canonical-source newest-wins semantics as v69325 warm cache.
-    best = {}
-    for item in packages:
-        source = str(item.get("source_url") or "").strip()
-        try: canon = canonical_website_url_identity(source) if source else ""
-        except Exception: canon = ""
-        identity = "url:" + canon if canon else "file:" + str(item.get("file_id") or item.get("filename") or "")
-        prior = best.get(identity)
-        if prior is None or (str(item.get("extracted_at") or ""), str(item.get("filename") or "")) > (str(prior.get("extracted_at") or ""), str(prior.get("filename") or "")):
-            best[identity] = dict(item)
-    output = sorted(best.values(), key=lambda x:(str(x.get("extracted_at") or ""),str(x.get("filename") or "")), reverse=True)
-    diagnostic_log("workspace_atp_snapshot_loaded_v69336", destination=target, package_count=len(output))
-    return output
-
-
 def _workspace_atp_package_prewarm_start_v69180(destination):
     """Background-load ATP packages for one Sales/Marketing destination; never blocks ordinary fallback."""
     target = str(destination or "").strip()
@@ -61233,14 +61320,37 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
         bucket.update({"key":key,"status":"stale_ready" if last_good else "running","packages":last_good,"future":None,"executor":executor,"error":"","attempted_at":time.monotonic()})
 
         def _build():
+            packages=[]
             try:
-                packages = _workspace_atp_snapshot_load_v69336(target, store)
+                rows=[dict(r) for r in (_website_vector_store_file_rows_v68892(store) or []) if isinstance(r,dict) and str(r.get("file_id") or "").strip() and str(r.get("filename") or "").startswith("website_")]
+                # Concurrent file reads keep cold-start bounded without serial N-file latency.
+                from concurrent.futures import ThreadPoolExecutor as Pool, as_completed
+                workers=max(2,min(4,len(rows) or 2))
+                with Pool(max_workers=workers,thread_name_prefix="atp-workspace-files-v69180") as pool:
+                    futures={
+                        pool.submit(
+                            _technical_exact_file_text_v69182,
+                            str(r.get("file_id") or ""),
+                            timeout_seconds=2.5,
+                        ): r
+                        for r in rows
+                    }
+                    for future in as_completed(futures):
+                        row=futures[future]
+                        try: raw=str(future.result() or "")
+                        except Exception: continue
+                        package=_workspace_atp_package_from_text_v69180(str(row.get("file_id") or ""),str(row.get("filename") or ""),raw,target)
+                        if isinstance(package,dict): packages.append(package)
             except Exception as error:
-                packages = []
-                diagnostic_log("workspace_atp_snapshot_prewarm_failed_v69336", destination=target, error_type=type(error).__name__, error=str(error)[:500])
+                with state["lock"]:
+                    if bucket.get("key") == key:
+                        bucket["status"] = "stale_ready" if bucket.get("packages") else "failed"
+                        bucket["error"] = type(error).__name__
+                diagnostic_log("workspace_atp_prewarm_failed_v69180",destination=target,error_type=type(error).__name__,error=str(error)[:500])
+                return []
             with state["lock"]:
                 if bucket.get("key") == key:
-                    merged=[dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)] + [dict(x) for x in packages if isinstance(x,dict)]
+                    merged=[dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]+packages
                     best={}
                     for item in merged:
                         source=str(item.get("source_url") or "").strip()
@@ -61252,8 +61362,7 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
                             best[identity]=item
                     bucket["packages"]=sorted(best.values(),key=lambda x:(str(x.get("extracted_at") or ""),str(x.get("filename") or "")),reverse=True)
                     bucket["status"]="ready" if bucket["packages"] else "failed"
-                    bucket["error"]="" if bucket["packages"] else "NO_DURABLE_SNAPSHOT"
-            diagnostic_log("workspace_atp_prewarm_durable_only_v69336", destination=target, package_count=len(packages))
+                    bucket["error"]="" if bucket["packages"] else "EMPTY"
             return packages
         bucket["future"] = executor.submit(_build)
     return True
@@ -61563,7 +61672,15 @@ def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cache
     except Exception:
         return {}
     if current_revision != stored_revision:
-        return {}
+        # v69338: an unrelated Sales/Marketing learning revision must not destroy a
+        # still-current exact multi-product conversation. Revalidate each exact source
+        # against the current destination vector store; otherwise fail closed.
+        prior_authority_v69338 = dict(record.get("authority") or {})
+        if str(prior_authority_v69338.get("status") or "") != "recovered_multi":
+            return {}
+        sources_v69338 = [str(x or "").strip() for x in (prior_authority_v69338.get("source_urls") or []) if str(x or "").strip()]
+        if not sources_v69338 or not all(_workspace_atp_source_current_revalidate_v69338(destination, x) for x in sources_v69338):
+            return {}
 
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not prompt:
@@ -61689,6 +61806,8 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     trim = str(branch.get("trim") or "").strip()
                     fit_parts.append(span + (f" — {trim} only" if trim else ""))
                 fit_label = "; ".join(dict.fromkeys(fit_parts))
+            if bool(pkg.get("workspace_atp_turn_local_recovery_v69338")) and str(contract.get("platform") or "").strip():
+                fit_label = str(contract.get("platform") or "").strip()
             rows_v69325.append((_multi_title_v69325(pkg, contract), fit_label, source))
 
         price_intent_v69326 = bool(re.search(
@@ -61725,7 +61844,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     live_rows_v69326.append((title_v69326, "Not verified", "Current WooCommerce price could not be verified; I will not guess"))
 
             diagnostic_log(
-                "workspace_sales_live_multi_price_v69336",
+                "workspace_sales_live_multi_price_v69338",
                 requested=len(selected_rows_v69326),
                 verified=verified_count_v69326,
                 failed=max(0, len(selected_rows_v69326) - verified_count_v69326),
@@ -62214,6 +62333,14 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
 
     # Bounded cold-start wait; warm lookups remain in-memory.
     packages, status = _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.45)
+    # v69338: when the inherited v69325 background cache is unavailable after a
+    # Streamlit restart, recover only current product-page authority from the same
+    # destination vector store. This does not alter the normal v69325 hot path.
+    if not packages and status in {"running", "stale_ready", "refreshing", "failed", "idle"}:
+        recovered_v69338 = _workspace_atp_turn_local_recovery_v69338(destination, prompt)
+        if recovered_v69338:
+            packages = [dict(x) for x in recovered_v69338]
+            status = "turn_local_recovered_v69338"
     prepared = []
     all_models = []
     all_makes = []
@@ -64689,20 +64816,6 @@ def save_website_knowledge_package(
                     "safely; no stale authority was retired."
                 ) from technical_commit_error_v69192
 
-    # v69336: Sales/Marketing current product authority must survive process restart.
-    # Persist the exact already-verified package BEFORE retiring any prior vector authority.
-    if database_choice in {"Sales Database", "Marketing Database"} and file_id:
-        durable_package_v69336 = _workspace_atp_package_from_text_v69180(
-            file_id, filename, package_text, database_choice
-        )
-        if not isinstance(durable_package_v69336, dict) or not _workspace_atp_snapshot_commit_v69336(
-            database_choice, durable_package_v69336
-        ):
-            raise RuntimeError(
-                "Sales/Marketing knowledge indexed, but durable ATP product-authority verification is incomplete. "
-                "The prior authority was preserved; retry the learning operation before using this page in production."
-            )
-
     # COMMIT: replacement vector + images + required Technical active source are proven.
     # Only now retire stale authority.
     replaced_file_count = _website_remove_superseded_vectors_v69109(
@@ -64757,12 +64870,6 @@ def save_website_knowledge_package(
 
     _website_image_schema_profile_reset_v69176()
     _website_invalidate_learning_caches_v69109([database_choice])
-    if database_choice in {"Sales Database", "Marketing Database"} and file_id:
-        try:
-            _workspace_atp_package_inject_v69180(file_id, filename, package_text, database_choice)
-            diagnostic_log("workspace_atp_post_revision_rebound_v69336", destination=database_choice, file_id=str(file_id)[:160])
-        except Exception as error:
-            diagnostic_log("workspace_atp_post_revision_rebound_failed_v69336", destination=database_choice, error_type=type(error).__name__, error=str(error)[:500])
 
     # v69195: after the successful Technical transaction has committed every
     # family/year pointer and the learning revision has been bumped, publish those
@@ -91442,16 +91549,13 @@ else:
                                 if str(followup_authority_v69205.get("status") or "") in {"recovered", "recovered_multi"}:
                                     workspace_atp_authority_v69180 = followup_authority_v69205
                                     ai_request_prompt += str(workspace_atp_authority_v69180.get("context") or "")
-                                    followup_status_v69326 = str(workspace_atp_authority_v69180.get("status") or "")
-                                    if followup_status_v69326 == "recovered_multi":
-                                        exact_rows_v69326 = [
-                                            dict(x) for x in (workspace_atp_authority_v69180.get("rows") or [])
-                                            if isinstance(x, dict)
-                                        ]
-                                        if exact_rows_v69326:
-                                            st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69326
+                                    followup_status_v69338 = str(workspace_atp_authority_v69180.get("status") or "")
+                                    if followup_status_v69338 == "recovered_multi":
+                                        exact_rows_v69338 = [dict(x) for x in (workspace_atp_authority_v69180.get("rows") or []) if isinstance(x, dict)]
+                                        if exact_rows_v69338:
+                                            st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69338
                                         diagnostic_log(
-                                            "workspace_atp_followup_multi_authority_reused_v69336",
+                                            "workspace_atp_followup_multi_authority_reused_v69338",
                                             workspace=str(assistant),
                                             destination=str(workspace_atp_authority_v69180.get("destination") or ""),
                                             product_count=len(workspace_atp_authority_v69180.get("packages") or []),
