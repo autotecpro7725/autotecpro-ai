@@ -1,3 +1,4 @@
+# AutoTecPro AI v69358 - exact Sales product/photo provenance hardening
 # AutoTecPro AI v69352 — v69321 rich Sales first-fitment exact-product contract
 # v69347 — v69343 output + live USD equivalent + exact-only repeat-image suppression hardening
 # ============================================================
@@ -1879,6 +1880,47 @@ def _workspace_exact_product_primary_page_fallback_v69354(source_url, destinatio
                 candidate = urllib.parse.urljoin(final_url, candidate)
                 if candidate.startswith("https://") and candidate not in candidates:
                     candidates.append(candidate)
+
+    # v69358: exact-page metadata fallback. These sources are accepted only after the
+    # final URL has already been proven to be the same canonical product page above.
+    # This broadens markup compatibility, not product authority.
+    for pattern in (
+        r'<meta[^>]+property=["\']og:image(?::secure_url)?["\'][^>]+content=["\']([^"\']+)',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image(?::secure_url)?["\']',
+        r'<meta[^>]+name=["\']twitter:image["\'][^>]+content=["\']([^"\']+)',
+        r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']',
+    ):
+        match = re.search(pattern, html_text, flags=re.I | re.S)
+        if match:
+            candidate = urllib.parse.urljoin(final_url, html.unescape(str(match.group(1) or "").strip()))
+            if candidate.startswith("https://") and candidate not in candidates:
+                candidates.append(candidate)
+
+    # Product JSON-LD commonly carries the canonical WooCommerce hero image even
+    # when the visible gallery uses lazy/dynamic markup that the legacy regex misses.
+    for block in re.findall(r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html_text, flags=re.I | re.S):
+        try:
+            data = json.loads(html.unescape(block.strip()))
+        except Exception:
+            continue
+        stack = list(data) if isinstance(data, list) else [data]
+        while stack:
+            item = stack.pop(0)
+            if isinstance(item, dict):
+                graph = item.get("@graph")
+                if isinstance(graph, list):
+                    stack.extend(graph)
+                typ = item.get("@type")
+                types = {str(x).casefold() for x in (typ if isinstance(typ, list) else [typ]) if x}
+                if "product" in types:
+                    images = item.get("image")
+                    images = images if isinstance(images, list) else [images]
+                    for image_item in images:
+                        if isinstance(image_item, dict):
+                            image_item = image_item.get("url") or image_item.get("contentUrl")
+                        candidate = urllib.parse.urljoin(final_url, str(image_item or "").strip())
+                        if candidate.startswith("https://") and candidate not in candidates:
+                            candidates.append(candidate)
 
     if not candidates:
         diagnostic_log(
@@ -61873,9 +61915,18 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         family = _workspace_atp_recovery_family_v69338(title, source, text)
         if family == "reference":
             continue
-        identity_text = " ".join((title, source, text[:24000]))
-        families = set(_website_identity_vehicle_families_v69022(identity_text))
-        years = set(_website_identity_years_v69022(identity_text))
+        # v69358: bind candidate vehicle/year identity to the declared product source itself.
+        # Retrieved package bodies may contain related-product links/snippets for other vehicles;
+        # those must never grant the declared Final source URL authority for a different family.
+        source_identity_text_v69358 = " ".join((title, source))
+        source_families_v69358 = set(_website_identity_vehicle_families_v69022(source_identity_text_v69358))
+        source_years_v69358 = set(_website_identity_years_v69022(source_identity_text_v69358))
+        body_families_v69358 = set(_website_identity_vehicle_families_v69022(text[:24000]))
+        body_years_v69358 = set(_website_identity_years_v69022(text[:24000]))
+        # Prefer source/title identity whenever available. Body evidence is fallback-only,
+        # never a way to override a conflicting declared product URL.
+        families = source_families_v69358 or body_families_v69358
+        years = source_years_v69358 or body_years_v69358
         platform = _workspace_atp_recovery_platform_v69338(title, source, text)
         # v69356: do not perform image-index I/O for every vector-search candidate.
         # Product/family/year/platform selection below does not use the image URL, so
@@ -61891,6 +61942,35 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
     pf=set(_website_identity_vehicle_families_v69022(prompt)); py=set(_website_identity_years_v69022(prompt))
     filtered=[]
     for c in candidates:
+        # v69358: source/title provenance is authoritative when it declares a family/year.
+        # This blocks cross-product leakage such as Colorado/Audi pages whose retrieved
+        # body happened to mention a Dodge RAM related product.
+        source_identity_text_v69358 = " ".join((str(c.get("title") or ""), str(c.get("source_url") or "")))
+        source_families_v69358 = set(_website_identity_vehicle_families_v69022(source_identity_text_v69358))
+        source_years_v69358 = set(_website_identity_years_v69022(source_identity_text_v69358))
+        source_identity_norm_v69358 = re.sub(r"[^a-z0-9]+", " ", source_identity_text_v69358.casefold()).strip()
+        source_family_token_match_v69358 = any(
+            re.sub(r"[^a-z0-9]+", " ", str(family_v69358).casefold()).strip()
+            and re.sub(r"[^a-z0-9]+", " ", str(family_v69358).casefold()).strip() in source_identity_norm_v69358
+            for family_v69358 in pf
+        ) if pf else True
+        if pf and (
+            (source_families_v69358 and not (pf & source_families_v69358))
+            or (not source_families_v69358 and not source_family_token_match_v69358)
+        ):
+            diagnostic_log(
+                "workspace_atp_source_family_rejected_v69358",
+                destination=target, source_url=str(c.get("source_url") or "")[:500],
+                prompt_families=sorted(pf), source_families=sorted(source_families_v69358),
+            )
+            continue
+        if py and source_years_v69358 and not (py & source_years_v69358):
+            diagnostic_log(
+                "workspace_atp_source_year_rejected_v69358",
+                destination=target, source_url=str(c.get("source_url") or "")[:500],
+                prompt_years=sorted(py), source_years=sorted(source_years_v69358),
+            )
+            continue
         if pf and c["families"] and not (pf & set(c["families"])):
             continue
         if py and c["years"] and not (py & set(c["years"])):
@@ -94033,9 +94113,25 @@ else:
         # then (only if no eligible image survived) run a dedicated search in
         # the active workspace's own store and reconstruct a structured image
         # record for the unchanged final publisher.
+        exact_sales_authority_missing_primary_v69358 = bool(
+            is_sales_workspace(assistant)
+            and str((locals().get("workspace_atp_authority_v69180") or {}).get("status") or "") in {"recovered", "recovered_multi"}
+            and not workspace_atp_images_v69180
+        )
+        if exact_sales_authority_missing_primary_v69358:
+            # v69358 fail-closed rule: once exact Sales product authority exists, never replace
+            # a missing main product photo with generic/topical image-search results. That was
+            # the path that published dashboard/climate-reference images in place of the hero.
+            diagnostic_log(
+                "workspace_sales_generic_image_bridge_blocked_v69358",
+                workspace=str(assistant),
+                authority_status=str((locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""),
+            )
+
         if (
             (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
             and not workspace_atp_images_v69180
+            and not exact_sales_authority_missing_primary_v69358
         ):
             try:
                 workspace_images_v69050 = _workspace_automatic_image_recovery_v69050(
