@@ -1,3 +1,4 @@
+# AutoTecPro AI v69362 - Technical vehicle-identity lock + clarification isolation + final config parser hardening
 # AutoTecPro AI v69361 - final Technical configuration-to-image binding hardening
 # AutoTecPro AI v69360 - safe performance + image provenance hardening
 # AutoTecPro AI v69359 - email-safe assistant clipboard normalization
@@ -34,8 +35,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69361"
-AUTOTECPRO_RELEASE_BUILD = "v69361-technical-final-config-image-binding-20260917"
+AUTOTECPRO_RELEASE_VERSION = "v69362"
+AUTOTECPRO_RELEASE_BUILD = "v69362-technical-vehicle-identity-lock-20260917"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -59883,6 +59884,8 @@ def _technical_configuration_final_model_v69361(answer_text):
             value = str(match.group(1) or "").strip(" .,:;()[]{}")
             if not value or re.fullmatch(r"(?:19|20)\d{2}", value):
                 continue
+            if not _technical_configuration_model_token_valid_v69362(value):
+                continue
             if value.casefold() in disallowed:
                 continue
             preferred.append(value)
@@ -59892,6 +59895,7 @@ def _technical_configuration_final_model_v69361(answer_text):
     values = [
         x for x in _technical_configuration_model_values_v69361(text)
         if x.casefold() not in disallowed
+        and _technical_configuration_model_token_valid_v69362(x)
     ]
     unique = []
     for value in values:
@@ -85886,7 +85890,216 @@ def _technical_clear_photo_context_v68879():
     st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
 
 
+PRODUCT_LIBRARY_SCOPE_KEY_V69362 = "_product_library_state_scope_v69362"
+
+
+def _product_library_current_scope_v69362():
+    """Return the exact case/workspace scope for transient Product Library state."""
+    return {
+        "conversation_id": str(st.session_state.get("conversation_id") or "").strip(),
+        "workspace": str(assistant or "").strip(),
+    }
+
+
+def _product_library_clear_transient_state_v69362(*, clear_last=True):
+    """Clear only conversational Product Library selection state, never catalogue data."""
+    st.session_state.pop("product_library_pending_candidates", None)
+    st.session_state.pop("product_library_pending_filters", None)
+    if clear_last:
+        st.session_state.pop("product_library_last_product", None)
+
+
+def _product_library_validate_scope_v69362():
+    """Prevent Product Library candidate/product state leaking across cases/workspaces."""
+    current = _product_library_current_scope_v69362()
+    stored = st.session_state.get(PRODUCT_LIBRARY_SCOPE_KEY_V69362)
+    if not isinstance(stored, dict):
+        st.session_state[PRODUCT_LIBRARY_SCOPE_KEY_V69362] = dict(current)
+        return
+    if (
+        str(stored.get("conversation_id") or "") != current["conversation_id"]
+        or str(stored.get("workspace") or "") != current["workspace"]
+    ):
+        _product_library_clear_transient_state_v69362(clear_last=True)
+        diagnostic_log(
+            "product_library_transient_scope_reset_v69362",
+            previous_conversation_id=str(stored.get("conversation_id") or ""),
+            current_conversation_id=current["conversation_id"],
+            previous_workspace=str(stored.get("workspace") or ""),
+            current_workspace=current["workspace"],
+        )
+    st.session_state[PRODUCT_LIBRARY_SCOPE_KEY_V69362] = dict(current)
+
+
+def _technical_recent_case_text_v69362(limit=8):
+    """Bounded current-case visible dialogue used only for identity continuity."""
+    if str(assistant or "") != "🔧 Technical Support":
+        return ""
+    rows = []
+    for item in list(st.session_state.get("messages") or [])[-max(2, min(int(limit or 8), 12)):]:
+        if not isinstance(item, dict):
+            continue
+        role = str(item.get("role") or "").strip().casefold()
+        if role not in {"user", "assistant"}:
+            continue
+        value = clean_visible_chat_text(str(item.get("content") or ""))
+        value = re.sub(r"\s+", " ", value).strip()
+        if value:
+            rows.append(value[:2200])
+    return "\n".join(rows)
+
+
+def _technical_case_identity_sets_v69362(prompt_text=""):
+    """Resolve conservative current-case brand/family identity; current prompt wins."""
+    if str(assistant or "") != "🔧 Technical Support":
+        return set(), set()
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    current_brands = set(_website_identity_brand_set_v69022(current))
+    current_families = set(_website_identity_vehicle_families_v69022(current))
+    if current_brands or current_families:
+        return current_brands, current_families
+    recent = _technical_recent_case_text_v69362(limit=8)
+    return (
+        set(_website_identity_brand_set_v69022(recent)),
+        set(_website_identity_vehicle_families_v69022(recent)),
+    )
+
+
+def _product_library_product_identity_sets_v69362(product):
+    if not isinstance(product, dict):
+        return set(), set()
+    aliases = product.get("aliases") or []
+    if not isinstance(aliases, list):
+        aliases = [aliases]
+    text = " ".join(str(x or "") for x in (
+        product.get("product_name"),
+        product.get("vehicle_compatibility"),
+        product.get("description"),
+        *aliases,
+    ))
+    return (
+        set(_website_identity_brand_set_v69022(text)),
+        set(_website_identity_vehicle_families_v69022(text)),
+    )
+
+
+def _product_library_filter_for_technical_case_v69362(candidates, prompt_text=""):
+    """Fail closed against cross-vehicle Product Library clarification contamination."""
+    values = [x for x in (candidates or []) if isinstance(x, dict)]
+    if str(assistant or "") != "🔧 Technical Support" or not values:
+        return values
+    case_brands, case_families = _technical_case_identity_sets_v69362(prompt_text)
+    if not case_brands and not case_families:
+        return values
+    matched = []
+    for product in values:
+        product_brands, product_families = _product_library_product_identity_sets_v69362(product)
+        family_ok = bool(case_families and product_families and (case_families & product_families))
+        brand_ok = bool(case_brands and product_brands and (case_brands & product_brands))
+        if family_ok or brand_ok:
+            matched.append(product)
+    if matched:
+        return matched
+    diagnostic_log(
+        "technical_product_library_cross_vehicle_candidates_blocked_v69362",
+        candidate_count=len(values),
+        case_brands=sorted(case_brands),
+        case_families=sorted(case_families),
+    )
+    return []
+
+
+def _technical_case_exact_product_v69362(active_products, prompt_text=""):
+    """Bind generic Technical photo follow-ups to an exact SKU/code already in this case."""
+    if str(assistant or "") != "🔧 Technical Support":
+        return None
+    if not _product_library_prompt_requests_images(prompt_text):
+        return None
+    products = [x for x in (active_products or []) if isinstance(x, dict)]
+    if not products:
+        return None
+    by_code = {}
+    for product in products:
+        code = _product_library_normalize_code(product.get("product_code"))
+        if len(code) >= 5:
+            by_code.setdefault(code, []).append(product)
+    if not by_code:
+        return None
+    # Prefer the most recent individual message containing exactly one known code.
+    for item in reversed(list(st.session_state.get("messages") or [])[-10:]):
+        if not isinstance(item, dict):
+            continue
+        visible = clean_visible_chat_text(str(item.get("content") or ""))
+        tokens = {
+            _product_library_normalize_code(token)
+            for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9._/-]{2,30}", visible)
+        }
+        matches = []
+        for code, code_products in by_code.items():
+            if code in tokens:
+                matches.extend(code_products)
+        dedup = {}
+        for product in matches:
+            key = str(product.get("id") or product.get("product_code") or "").strip()
+            if key:
+                dedup[key] = product
+        if len(dedup) == 1:
+            product = next(iter(dedup.values()))
+            product_brands, product_families = _product_library_product_identity_sets_v69362(product)
+            case_brands, case_families = _technical_case_identity_sets_v69362(prompt_text)
+            if case_families and product_families and not (case_families & product_families):
+                continue
+            if case_brands and product_brands and not (case_brands & product_brands):
+                continue
+            return product
+    return None
+
+
+def _technical_case_identity_guard_v69362(prompt_text=""):
+    """Provider guardrail: brand-specific clarification terms cannot cross vehicle families."""
+    if str(assistant or "") != "🔧 Technical Support":
+        return ""
+    brands, families = _technical_case_identity_sets_v69362(prompt_text)
+    if not brands and not families:
+        return ""
+    ford_case = "ford" in brands or any(x.startswith(("f150", "f250", "f350", "f450", "f550", "f650")) for x in families)
+    if ford_case:
+        restriction = (
+            "This case is Ford-family. Preserve that identity unless the user explicitly changes vehicles."
+        )
+    else:
+        restriction = (
+            "This case is NOT Ford-family. Ford SYNC 1/SYNC 2/SYNC 3/SYNC 4 terminology is prohibited "
+            "unless the user explicitly changes the vehicle to Ford or current verified authority explicitly proves a Ford product."
+        )
+    return (
+        "\n\nCURRENT TECHNICAL VEHICLE IDENTITY LOCK (continuity/safety, not new factual authority):\n"
+        f"Resolved brands: {', '.join(sorted(brands)) or 'unspecified'}\n"
+        f"Resolved vehicle families: {', '.join(sorted(families)) or 'unspecified'}\n"
+        f"{restriction}\n"
+        "Before asking any clarification, verify that the requested field belongs to this vehicle/product family. "
+        "Never substitute a nearby product family or a brand-specific factory-system question from another vehicle. "
+        "For AutoTecPro Car Model / protocol-setting questions, a vehicle-family name such as Silverado, Sierra, F-150, RAM, or Tundra is NOT the Car Model selector code. "
+        "Return an exact coded Car Model value only when verified by current Technical authority; otherwise say Requires Verification instead of substituting the vehicle name.\n"
+    )
+
+
+def _technical_configuration_model_token_valid_v69362(value):
+    """Accept only menu/configuration codes, never vehicle-family names as Car Model values."""
+    token = str(value or "").strip(" .,:;()[]{}")
+    if not token or re.fullmatch(r"(?:19|20)\d{2}", token):
+        return False
+    # AutoTecPro Car Model selectors are coded values. Preserve numeric and
+    # alpha-numeric codes while rejecting ordinary words such as Silverado/Sierra.
+    if re.fullmatch(r"\d{2,5}(?:[-_/][A-Za-z0-9]{1,8})?", token):
+        return True
+    if re.search(r"\d", token) and re.fullmatch(r"[A-Za-z0-9._/-]{2,15}", token):
+        return True
+    return False
+
+
 def _product_library_pending_candidates():
+    _product_library_validate_scope_v69362()
     value = st.session_state.get("product_library_pending_candidates")
     return value if isinstance(value, list) else []
 
@@ -85991,6 +86204,14 @@ def _product_library_resolve_pending_selection(prompt):
     candidates = _product_library_pending_candidates()
     if not candidates:
         return None
+    filtered_case_candidates_v69362 = _product_library_filter_for_technical_case_v69362(candidates, prompt)
+    if str(assistant or "") == "🔧 Technical Support":
+        if not filtered_case_candidates_v69362:
+            _product_library_clear_transient_state_v69362(clear_last=False)
+            return None
+        if len(filtered_case_candidates_v69362) != len(candidates):
+            candidates = filtered_case_candidates_v69362
+            st.session_state["product_library_pending_candidates"] = list(candidates)
 
     value = re.sub(r"\s+", " ", str(prompt or "")).strip()
     lowered = value.casefold()
@@ -86428,6 +86649,7 @@ def _product_library_chat_lookup(prompt, max_images=None):
     credible matches return a clarification list and remember those candidates,
     allowing the user to reply with a number or product code.
     """
+    _product_library_validate_scope_v69362()
     pending_result = _product_library_resolve_pending_selection(prompt)
     last_product = st.session_state.get("product_library_last_product")
     active_products = [
@@ -86437,6 +86659,9 @@ def _product_library_chat_lookup(prompt, max_images=None):
     explicit_products = _product_library_explicit_product_matches(
         prompt,
         active_products,
+    )
+    case_bound_product_v69362 = _technical_case_exact_product_v69362(
+        active_products, prompt
     )
 
     # IMPORTANT: a pending clarification reply must be resolved before broad
@@ -86462,13 +86687,26 @@ def _product_library_chat_lookup(prompt, max_images=None):
         st.session_state.pop("product_library_pending_filters", None)
         product = explicit_products[0]
     elif len(explicit_products) > 1:
-        st.session_state["product_library_pending_candidates"] = explicit_products[:8]
-        st.session_state.pop("product_library_pending_filters", None)
-        return {
-            "clarification": True,
-            "candidates": explicit_products[:8],
-            "images": [],
-        }
+        filtered_explicit_v69362 = _product_library_filter_for_technical_case_v69362(explicit_products[:8], prompt)
+        if str(assistant or "") == "🔧 Technical Support" and not filtered_explicit_v69362:
+            return None
+        if len(filtered_explicit_v69362) == 1:
+            product = filtered_explicit_v69362[0]
+        else:
+            st.session_state["product_library_pending_candidates"] = filtered_explicit_v69362
+            st.session_state.pop("product_library_pending_filters", None)
+            return {
+                "clarification": True,
+                "candidates": filtered_explicit_v69362,
+                "images": [],
+            }
+    elif isinstance(case_bound_product_v69362, dict) and case_bound_product_v69362.get("product_code"):
+        product = case_bound_product_v69362
+        diagnostic_log(
+            "technical_product_library_case_product_bound_v69362",
+            product_code=str(product.get("product_code") or ""),
+            conversation_id=str(st.session_state.get("conversation_id") or ""),
+        )
     # Support natural follow-ups such as "only parts" after a product gallery.
     # Reuse only the last verified Product Library product when the current
     # message does not explicitly name a different product.
@@ -86508,6 +86746,9 @@ def _product_library_chat_lookup(prompt, max_images=None):
             for score, product in ranked
             if score >= candidate_floor
         ][:8]
+        candidates = _product_library_filter_for_technical_case_v69362(candidates, prompt)
+        if str(assistant or "") == "🔧 Technical Support" and not candidates:
+            return None
 
         if not exact_code_match and len(candidates) > 1:
             st.session_state["product_library_pending_candidates"] = candidates
@@ -86518,10 +86759,11 @@ def _product_library_chat_lookup(prompt, max_images=None):
                 "images": [],
             }
 
-        product = ranked[0][1]
+        product = candidates[0] if candidates else ranked[0][1]
 
     if isinstance(product, dict) and product.get("product_code"):
         st.session_state["product_library_last_product"] = dict(product)
+        st.session_state[PRODUCT_LIBRARY_SCOPE_KEY_V69362] = _product_library_current_scope_v69362()
 
     product_code = str(product.get("product_code") or "").strip()
     normalized_code = _product_library_normalize_code(product_code)
@@ -86715,10 +86957,19 @@ def _product_library_chat_context(lookup):
             for value in facets.get("screen_sizes", set())
         })
         missing_detail = "the remaining distinguishing detail"
-        if len(sync_options) > 1:
+        case_brands_v69362, case_families_v69362 = _technical_case_identity_sets_v69362("")
+        ford_case_v69362 = bool(
+            "ford" in case_brands_v69362
+            or any(x.startswith(("f150", "f250", "f350", "f450", "f550", "f650")) for x in case_families_v69362)
+        )
+        if len(sync_options) > 1 and (str(assistant or "") != "🔧 Technical Support" or ford_case_v69362):
             missing_detail = "the factory SYNC version"
         elif len(screen_options) > 1:
             missing_detail = "the desired screen size"
+
+        natural_examples_v69362 = "14.4 or 17"
+        if str(assistant or "") != "🔧 Technical Support" or ford_case_v69362:
+            natural_examples_v69362 = "SYNC 1, 14.4, or 17"
 
         return (
             "\n\nPRODUCT LIBRARY CLARIFICATION REQUIRED:\n"
@@ -86726,7 +86977,7 @@ def _product_library_chat_context(lookup):
             f"I found {len(candidates)} possible matching products.\n"
             + "\n".join(candidate_lines)
             + f"\nAsk only for {missing_detail}. Accept a natural reply such as "
-              "SYNC 1, 14.4, or 17. Do not ask for an option number or product "
+              f"{natural_examples_v69362}. Do not ask for an option number or product "
               "code when the supplied detail leaves exactly one candidate. Once "
               "one candidate remains, the app will automatically load and display "
               "its verified Product Library photos in the same turn. Do not add "
@@ -92115,6 +92366,10 @@ else:
                 )
                 if product_library_lookup:
                     ai_request_prompt += _product_library_chat_context(product_library_lookup)
+                if assistant == "🔧 Technical Support":
+                    ai_request_prompt += _technical_case_identity_guard_v69362(
+                        technical_request_prompt_v68879
+                    )
                 auto_visual_topic_v68888 = ""
                 if assistant == "🔧 Technical Support":
                     auto_visual_topic_v68888 = _website_image_auto_topic_v68888(
