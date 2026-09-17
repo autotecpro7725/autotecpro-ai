@@ -5152,6 +5152,223 @@ def install_global_chat_file_dropzone():
     )
 
 
+def install_email_safe_assistant_copy_v69359():
+    """Normalize copied assistant-response HTML for email clients without changing the UI.
+
+    The listener runs in the parent Streamlit document and activates only when both
+    ends of the current selection are inside the same assistant bubble.  Screen
+    rendering, user-message copying, screenshot paste, drag/drop, prompts, retrieval,
+    images, and persistence are untouched.
+    """
+    components.html(
+        r"""
+        <script>
+        (() => {
+          const root = window.parent;
+          const doc = root.document;
+          const KEY = "__atpEmailSafeAssistantCopyV69359";
+
+          try {
+            if (root[KEY]?.cleanup) root[KEY].cleanup();
+          } catch (error) {}
+
+          const closestAssistantBubble = (node) => {
+            try {
+              const element = node?.nodeType === 1 ? node : node?.parentElement;
+              return element?.closest?.(".assistant-bubble") || null;
+            } catch (error) {
+              return null;
+            }
+          };
+
+          const safeColor = "#111827";
+          const mutedColor = "#475569";
+          const linkColor = "#1d4ed8";
+          const borderColor = "#cbd5e1";
+
+          const sanitizeElement = (element) => {
+            if (!(element instanceof root.HTMLElement)) return;
+
+            const originalClass = String(element.getAttribute("class") || "");
+            const tag = String(element.tagName || "").toLowerCase();
+
+            // Strip application/theme identity and event/data attributes so copied
+            // markup is standalone and cannot carry dark-theme paint into email.
+            Array.from(element.attributes || []).forEach((attribute) => {
+              const name = String(attribute.name || "").toLowerCase();
+              if (
+                name === "class" ||
+                name === "id" ||
+                name === "style" ||
+                name.startsWith("data-") ||
+                name.startsWith("aria-") ||
+                name.startsWith("on")
+              ) {
+                element.removeAttribute(attribute.name);
+              }
+            });
+
+            // Preserve semantic links/images while making all text theme-independent.
+            if (tag === "a") {
+              element.setAttribute(
+                "style",
+                `color:${linkColor};background:transparent;text-decoration:underline;`
+              );
+              const href = String(element.getAttribute("href") || "").trim();
+              if (href && !/^(https?:|mailto:|tel:)/i.test(href)) {
+                element.removeAttribute("href");
+              }
+            } else if (/^h[1-6]$/.test(tag)) {
+              const size = tag === "h1" ? "20px" : tag === "h2" ? "18px" : "16px";
+              element.setAttribute(
+                "style",
+                `color:${safeColor};background:transparent;font-weight:700;` +
+                `font-size:${size};line-height:1.3;margin:12px 0 7px 0;`
+              );
+            } else if (tag === "table") {
+              element.setAttribute(
+                "style",
+                "width:100%;border-collapse:collapse;margin:8px 0 12px 0;" +
+                "background:#ffffff;color:#111827;"
+              );
+            } else if (tag === "th") {
+              element.setAttribute(
+                "style",
+                `border:1px solid ${borderColor};padding:7px 9px;vertical-align:top;` +
+                `text-align:left;font-weight:700;color:${safeColor};background:#f8fafc;`
+              );
+            } else if (tag === "td") {
+              element.setAttribute(
+                "style",
+                `border:1px solid ${borderColor};padding:7px 9px;vertical-align:top;` +
+                `color:${safeColor};background:#ffffff;`
+              );
+            } else if (tag === "blockquote" || originalClass.includes("atp-customer-reply-box")) {
+              element.setAttribute(
+                "style",
+                `display:block;color:${safeColor};background:transparent;` +
+                "border-left:3px solid #d1d5db;margin:8px 0 12px 0;padding:8px 12px;"
+              );
+            } else if (tag === "p") {
+              element.setAttribute(
+                "style",
+                `color:${safeColor};background:transparent;margin:0 0 9px 0;line-height:1.55;`
+              );
+            } else if (tag === "ul" || tag === "ol") {
+              element.setAttribute(
+                "style",
+                `color:${safeColor};background:transparent;margin:6px 0 10px 0;padding-left:22px;`
+              );
+            } else if (tag === "li") {
+              element.setAttribute(
+                "style",
+                `color:${safeColor};background:transparent;margin:0 0 4px 0;`
+              );
+            } else if (tag === "pre" || tag === "code") {
+              element.setAttribute(
+                "style",
+                `color:${safeColor};background:#f8fafc;font-family:monospace;white-space:pre-wrap;`
+              );
+            } else if (tag === "img") {
+              element.setAttribute(
+                "style",
+                "max-width:100%;height:auto;background:transparent;"
+              );
+            } else if (tag === "strong" || tag === "b") {
+              element.setAttribute(
+                "style",
+                `color:${safeColor};background:transparent;font-weight:700;`
+              );
+            } else if (tag === "em" || tag === "i") {
+              element.setAttribute(
+                "style",
+                `color:${safeColor};background:transparent;font-style:italic;`
+              );
+            } else if (originalClass.includes("atp-copy-list-item")) {
+              // Markers are literal text in the source HTML; keep that exact text.
+              element.setAttribute(
+                "style",
+                `display:block;color:${safeColor};background:transparent;` +
+                "margin:0 0 6px 0;padding:0;line-height:1.55;"
+              );
+            } else {
+              element.setAttribute(
+                "style",
+                `color:${safeColor};background:transparent;`
+              );
+            }
+
+            // Keep secondary/caption text readable without exporting app-theme color.
+            if (tag === "small" || tag === "figcaption") {
+              element.setAttribute(
+                "style",
+                `color:${mutedColor};background:transparent;`
+              );
+            }
+          };
+
+          const sanitizeFragment = (fragment) => {
+            const wrapper = doc.createElement("div");
+            wrapper.appendChild(fragment);
+            wrapper.querySelectorAll("script,style,iframe,button,input,textarea,select").forEach(
+              (element) => element.remove()
+            );
+            wrapper.querySelectorAll("*").forEach(sanitizeElement);
+            wrapper.setAttribute(
+              "style",
+              `color:${safeColor};background:transparent;font-family:Arial,Helvetica,sans-serif;` +
+              "font-size:14px;line-height:1.55;"
+            );
+            return wrapper.outerHTML;
+          };
+
+          const onCopy = (event) => {
+            try {
+              const selection = root.getSelection?.();
+              if (!selection || selection.isCollapsed || selection.rangeCount < 1) return;
+
+              const anchorBubble = closestAssistantBubble(selection.anchorNode);
+              const focusBubble = closestAssistantBubble(selection.focusNode);
+
+              // Narrow safety boundary: only rewrite a selection contained in one
+              // assistant response. Mixed/user/UI selections keep native browser copy.
+              if (!anchorBubble || !focusBubble || anchorBubble !== focusBubble) return;
+
+              const range = selection.getRangeAt(0);
+              const fragment = range.cloneContents();
+              const html = sanitizeFragment(fragment);
+              const plain = String(selection.toString() || "").replace(/\u00a0/g, " ");
+              if (!html && !plain) return;
+              if (!event.clipboardData) return;
+
+              event.preventDefault();
+              event.clipboardData.setData("text/plain", plain);
+              event.clipboardData.setData("text/html", html);
+            } catch (error) {
+              // Fail open: if sanitization ever fails, native browser copy proceeds
+              // because preventDefault() is called only after a complete payload exists.
+            }
+          };
+
+          doc.addEventListener("copy", onCopy, true);
+
+          const cleanup = () => {
+            try { doc.removeEventListener("copy", onCopy, true); } catch (error) {}
+            try {
+              if (root[KEY]?.cleanup === cleanup) delete root[KEY];
+            } catch (error) {}
+          };
+
+          root[KEY] = { cleanup };
+          window.addEventListener("beforeunload", cleanup, { once: true });
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def install_browser_voice_dictation():
     """Install rerun-safe voice and send controls without stacking observers."""
     components.html(

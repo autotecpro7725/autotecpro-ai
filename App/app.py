@@ -1,3 +1,5 @@
+# AutoTecPro AI v69360 - safe performance + image provenance hardening
+# AutoTecPro AI v69359 - email-safe assistant clipboard normalization
 # AutoTecPro AI v69358 - exact Sales product/photo provenance hardening
 # AutoTecPro AI v69352 — v69321 rich Sales first-fitment exact-product contract
 # v69347 — v69343 output + live USD equivalent + exact-only repeat-image suppression hardening
@@ -126,6 +128,7 @@ from autotecpro_ui_runtime import (
     inject_base_css,
     install_composer_width_safety_css,
     install_browser_voice_dictation,
+    install_email_safe_assistant_copy_v69359,
     install_chat_composer_autogrow,
     install_global_chat_file_dropzone,
     install_gpt_uploader_css,
@@ -9088,6 +9091,31 @@ def switch_workspace(assistant_name):
     st.session_state.conversation_id = None
     st.session_state.rename_conversation_id = None
     st.session_state.current_assistant = assistant_name
+
+    # v69360: begin the EXISTING non-blocking Technical catalog prewarm at the
+    # earliest safe UI boundary. Streamlit callbacks execute with the prior run's
+    # module globals available; if that helper is unavailable for any reason, the
+    # normal startup prewarm later in this same rerun remains the unchanged fallback.
+    if assistant_name == "🔧 Technical Support":
+        st.session_state["_technical_workspace_entry_prewarm_v69360"] = True
+        try:
+            prewarm_start_v69360 = globals().get("_technical_package_prewarm_start_v69119")
+            revision_v69360 = globals().get("_website_destination_revision_v69109")
+            stores_fn_v69360 = globals().get("_configured_vector_store_ids")
+            tech_store_v69360 = globals().get("TECHNICAL_VECTOR_STORE_ID")
+            if callable(prewarm_start_v69360) and callable(revision_v69360) and callable(stores_fn_v69360):
+                stores_v69360 = stores_fn_v69360(tech_store_v69360)
+                if stores_v69360:
+                    prewarm_start_v69360(
+                        str(stores_v69360[0] or "").strip(),
+                        revision_v69360("Technical Support Database"),
+                    )
+                    diagnostic_log("technical_workspace_entry_prewarm_started_v69360")
+        except Exception as prewarm_error_v69360:
+            diagnostic_log(
+                "technical_workspace_entry_prewarm_start_failed_v69360",
+                error_type=type(prewarm_error_v69360).__name__,
+            )
 
     # A pending Technical-photo clarification belongs to the old case/workspace.
     # Clear it on workspace navigation so it cannot bleed into a later case.
@@ -42044,6 +42072,49 @@ def _assistant_stream_html(visible_text):
 
 
 
+@st.cache_resource(show_spinner=False)
+def _learned_knowledge_schema_compat_state_v69360():
+    """Short-lived process-wide cache of columns proven missing by PostgREST.
+
+    This is an optimization only. It never asserts that a column exists, and it
+    expires after five minutes so a live schema migration can be discovered.
+    """
+    return {
+        "lock": threading.RLock(),
+        "missing_columns": set(),
+        "learned_at": 0.0,
+    }
+
+
+def _learned_knowledge_schema_missing_v69360(ttl_seconds=300.0):
+    try:
+        state = _learned_knowledge_schema_compat_state_v69360()
+        with state["lock"]:
+            learned_at = float(state.get("learned_at") or 0.0)
+            if not learned_at or (time.monotonic() - learned_at) > float(ttl_seconds):
+                state["missing_columns"] = set()
+                state["learned_at"] = 0.0
+                return set()
+            return set(state.get("missing_columns") or set())
+    except Exception:
+        return set()
+
+
+def _learned_knowledge_schema_remember_missing_v69360(column):
+    value = str(column or "").strip()
+    if not value:
+        return
+    try:
+        state = _learned_knowledge_schema_compat_state_v69360()
+        with state["lock"]:
+            missing = set(state.get("missing_columns") or set())
+            missing.add(value)
+            state["missing_columns"] = missing
+            state["learned_at"] = time.monotonic()
+    except Exception:
+        pass
+
+
 def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
     """Return approved same-case learned knowledge with adaptive schema compatibility.
 
@@ -42076,6 +42147,10 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
         st.session_state.setdefault("_learned_knowledge_missing_columns_v69262", [])
         if str(x or "").strip()
     )
+    # v69360: share only columns already PROVEN missing by a successful 42703
+    # discovery in this process. This removes repeated failing schema probes for
+    # new sessions while preserving the exact selected rows and authority logic.
+    missing_columns.update(_learned_knowledge_schema_missing_v69360())
     rows = []
     max_schema_repairs = 6
     for schema_attempt in range(max_schema_repairs):
@@ -42112,6 +42187,7 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
                 if missing and missing in base_columns and missing not in {"id", "assistant", "updated_at"}:
                     missing_columns.add(missing)
                     st.session_state["_learned_knowledge_missing_columns_v69262"] = sorted(missing_columns)
+                    _learned_knowledge_schema_remember_missing_v69360(missing)
                     diagnostic_log(
                         "recent_case_learned_context_schema_learned_v69262",
                         missing_column=missing,
@@ -58643,6 +58719,40 @@ def _website_image_index_rows_v68883():
     return parsed
 
 
+
+def _website_image_rows_for_destination_v69360(destination):
+    """Revision-keyed session subset of the already cached durable image index.
+
+    This changes only lookup cost. Row contents/order are preserved exactly from
+    `_website_image_index_rows_v68883`; no candidate receives new authority.
+    """
+    target = str(destination or "").strip()
+    if not target:
+        return []
+    try:
+        revision = int(_website_destination_revision_v69109(target) or 0)
+        cache = st.session_state.get("_website_image_destination_rows_v69360")
+        cache = dict(cache) if isinstance(cache, dict) else {}
+        key = f"{target}|{revision}"
+        rows = cache.get(key)
+        if isinstance(rows, list):
+            return [dict(row) for row in rows if isinstance(row, dict)]
+        rows = [
+            dict(row) for row in (_website_image_index_rows_v68883() or [])
+            if isinstance(row, dict)
+            and str(row.get("database_choice") or "").strip() == target
+        ]
+        cache = {key: rows}
+        st.session_state["_website_image_destination_rows_v69360"] = cache
+        return [dict(row) for row in rows]
+    except Exception:
+        return [
+            dict(row) for row in (_website_image_index_rows_v68883() or [])
+            if isinstance(row, dict)
+            and str(row.get("database_choice") or "").strip() == target
+        ]
+
+
 def _website_image_query_context_v68883(prompt_text):
     """Use current Technical request plus a small recent conversation window."""
     parts = [str(prompt_text or "").strip()]
@@ -59690,6 +59800,50 @@ def _website_image_resolved_record_gate_v69022(prompt_text, answer_text, image_r
         return False
     return _website_image_resolved_payload_gate_v69022(prompt_text, answer_text, payload)
 
+
+
+def _technical_final_image_contradiction_gate_v69360(prompt_text, answer_text, image_record):
+    """Reject only explicit Technical image identity contradictions at publication.
+
+    Missing/sparse provenance fails open to preserve the existing publication
+    behavior. A candidate is rejected only when already-available metadata proves
+    a vehicle/year/product conflict. No new search, ranking, or authority is added.
+    """
+    if not isinstance(image_record, dict):
+        return True
+    if str(image_record.get("source") or "") != "website_knowledge":
+        return True
+    try:
+        payload = _website_image_payload_for_chat_record_v69005(image_record)
+        if not payload:
+            payload = _website_model_control_payload_v69010(image_record)
+        if not payload:
+            return True
+
+        fitment_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+        if not _website_identity_years_v69022(fitment_text):
+            fitment_text = re.sub(
+                r"\s+", " ",
+                (str(prompt_text or "") + " " + clean_visible_chat_text(str(answer_text or ""))),
+            ).strip()
+        if not _website_image_vehicle_fitment_gate_v68997(fitment_text, payload):
+            return False
+
+        request_identity = " ".join((
+            str(prompt_text or ""),
+            clean_visible_chat_text(str(answer_text or "")),
+        ))
+        req_codes = set(_website_image_product_codes_v69020(request_identity))
+        cand_codes = set(_website_image_product_codes_v69020(
+            _website_image_payload_identity_text_v69022(payload)
+        ))
+        if req_codes and cand_codes and not (req_codes & cand_codes):
+            return False
+        return True
+    except Exception:
+        return True
+
+
 def _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
     """Reject a clearly different vehicle/year image while failing open on sparse metadata.
 
@@ -60272,6 +60426,23 @@ def _technical_image_prefetch_cache_get_v69016(prompt_text, ttl_seconds=300):
         return []
 
 
+
+
+def _technical_image_prefetch_cache_probe_v69360(prompt_text, ttl_seconds=300):
+    """Return (hit, rows), preserving a cached empty result as a real hit."""
+    try:
+        key = _technical_image_prefetch_cache_key_v69016(prompt_text)
+        cache = st.session_state.get("_technical_image_prefetch_cache_v69016") or {}
+        item = cache.get(key) if isinstance(cache, dict) else None
+        if not isinstance(item, dict):
+            return False, []
+        if (time.time() - float(item.get("saved_at") or 0.0)) > float(ttl_seconds):
+            return False, []
+        return True, [dict(row) for row in (item.get("rows") or []) if isinstance(row, dict)]
+    except Exception:
+        return False, []
+
+
 def _technical_image_prefetch_cache_set_v69016(prompt_text, rows):
     """Store only raw file-search evidence in the current user's session."""
     try:
@@ -60297,6 +60468,29 @@ def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text
     vector_store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
     if not vector_store_ids:
         return []
+
+    # v69360: exact same-turn memo only. The key includes the current message count,
+    # conversation, Technical revision, prompt and completed answer, so a later turn
+    # or learned-knowledge revision can never inherit a stale positive/negative result.
+    turn_cache_v69360 = st.session_state.get("_technical_dedicated_image_turn_cache_v69360")
+    turn_cache_v69360 = dict(turn_cache_v69360) if isinstance(turn_cache_v69360, dict) else {}
+    turn_key_payload_v69360 = "\n".join((
+        str(st.session_state.get("conversation_id") or ""),
+        str(len(st.session_state.get("messages") or [])),
+        str(_website_destination_revision_v69109("Technical Support Database")),
+        "|".join(vector_store_ids),
+        re.sub(r"\s+", " ", str(prompt_text or "")).strip(),
+        re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip(),
+    ))
+    turn_key_v69360 = hashlib.sha256(turn_key_payload_v69360.encode("utf-8")).hexdigest()
+    cached_rows_v69360 = turn_cache_v69360.get(turn_key_v69360)
+    if isinstance(cached_rows_v69360, list):
+        diagnostic_log(
+            "website_image_universal_search_turn_cache_hit_v69360",
+            result_count=len(cached_rows_v69360),
+        )
+        return [dict(row) for row in cached_rows_v69360 if isinstance(row, dict)]
+
     request = {
         "model": "gpt-5.5",
         "input": _website_image_dedicated_search_query_v69014(prompt_text, answer_text),
@@ -60316,6 +60510,14 @@ def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text
             error_type=type(error).__name__, error=str(error)[:500],
         )
         return []
+    # Successful empty results are valuable too: repeated calls later in this same
+    # turn now reuse the proven negative rather than issuing the same provider search.
+    turn_cache_v69360[turn_key_v69360] = [
+        dict(row) for row in (rows or []) if isinstance(row, dict)
+    ]
+    if len(turn_cache_v69360) > 8:
+        turn_cache_v69360 = dict(list(turn_cache_v69360.items())[-8:])
+    st.session_state["_technical_dedicated_image_turn_cache_v69360"] = turn_cache_v69360
     diagnostic_log(
         "website_image_universal_search_complete_v69014",
         result_count=len(rows),
@@ -64906,7 +65108,12 @@ def _website_image_related_evidence_lookup_v69025r2(prompt_text, answer_text="",
 
     topic_ranked = []
     general_ranked = []
-    candidate_payloads_v69032 = list(_website_image_index_rows_v68883() or [])
+    # v69360: the first source contains only Technical rows, which is exactly the
+    # subset the unchanged loop accepted after its destination gate. Extra exact
+    # file-search payloads are appended unchanged and retain their existing bypass.
+    candidate_payloads_v69032 = _website_image_rows_for_destination_v69360(
+        "Technical Support Database"
+    )
     candidate_payloads_v69032.extend(
         dict(item) for item in (extra_payloads or []) if isinstance(item, dict)
     )
@@ -80133,6 +80340,8 @@ try:
                 "Technical Support Database"
             ),
         )
+        if st.session_state.pop("_technical_workspace_entry_prewarm_v69360", False):
+            diagnostic_log("technical_workspace_entry_prewarm_confirmed_v69360")
     elif _v69119_startup_store_ids:
         diagnostic_log(
             "technical_startup_prewarm_deferred_v69262",
@@ -89985,6 +90194,7 @@ else:
         auto_scroll_to_latest()
         st.session_state.scroll_to_bottom = False
 
+    install_email_safe_assistant_copy_v69359()
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
@@ -90715,10 +90925,13 @@ else:
                 technical_early_index_images_v69016 = []
 
             if not technical_early_index_images_v69016:
-                technical_image_prefetch_cached_rows_v69016 = (
-                    _technical_image_prefetch_cache_get_v69016(technical_request_prompt_v68879)
+                (
+                    technical_image_prefetch_cache_hit_v69360,
+                    technical_image_prefetch_cached_rows_v69016,
+                ) = _technical_image_prefetch_cache_probe_v69360(
+                    technical_request_prompt_v68879
                 )
-                if not technical_image_prefetch_cached_rows_v69016:
+                if not technical_image_prefetch_cache_hit_v69360:
                     try:
                         from concurrent.futures import ThreadPoolExecutor
                         technical_image_prefetch_executor_v69015 = ThreadPoolExecutor(
@@ -93941,10 +94154,12 @@ else:
                             prefetched_rows_v69015 = list(
                                 technical_image_prefetch_future_active_v69015.result(timeout=1.0) or []
                             )
-                            if prefetched_rows_v69015:
-                                _technical_image_prefetch_cache_set_v69016(
-                                    technical_request_prompt_v68879, prefetched_rows_v69015
-                                )
+                            # v69360: cache a completed negative prefetch as well as a
+                            # positive one. Keying already includes vector-store revision,
+                            # so newly learned knowledge invalidates this automatically.
+                            _technical_image_prefetch_cache_set_v69016(
+                                technical_request_prompt_v68879, prefetched_rows_v69015
+                            )
                         except Exception as error:
                             diagnostic_log(
                                 "website_image_prefetch_consume_failed_v69015",
@@ -94327,6 +94542,30 @@ else:
                     diagnostic_log("technical_images_removed_without_exact_authority_v69147", status=section_status_v69145)
             except Exception as error_v69143:
                 diagnostic_log("technical_section_bound_images_failed_v69143", error_type=type(error_v69143).__name__, error=str(error_v69143)[:500])
+
+        # v69360 final Technical contradiction-only provenance check. Existing
+        # image retrieval and ranking are untouched. This rejects only a candidate
+        # whose attached metadata explicitly proves a vehicle/year/product conflict;
+        # sparse metadata remains fail-open to preserve established availability.
+        if generated_images and assistant == "🔧 Technical Support":
+            filtered_images_v69360 = []
+            rejected_images_v69360 = 0
+            for image_v69360 in generated_images:
+                if _technical_final_image_contradiction_gate_v69360(
+                    technical_request_prompt_v68879,
+                    answer,
+                    image_v69360,
+                ):
+                    filtered_images_v69360.append(image_v69360)
+                else:
+                    rejected_images_v69360 += 1
+            generated_images = filtered_images_v69360
+            if rejected_images_v69360:
+                diagnostic_log(
+                    "technical_final_image_contradiction_rejected_v69360",
+                    rejected=rejected_images_v69360,
+                    published=len(generated_images),
+                )
 
         # v69107A: one final fail-closed publication authority after every late
         # Technical / Sales / Marketing image recovery stage.  This does not
