@@ -1,5 +1,5 @@
 # AutoTecPro AI v69362 - Technical vehicle-identity lock + clarification isolation + final config parser hardening
-# AutoTecPro AI v69361 - final Technical configuration-to-image binding hardening
+# AutoTecPro AI v69363 - Technical semantic image metadata + final publication authority hardening
 # AutoTecPro AI v69360 - safe performance + image provenance hardening
 # AutoTecPro AI v69359 - email-safe assistant clipboard normalization
 # AutoTecPro AI v69358 - exact Sales product/photo provenance hardening
@@ -55594,16 +55594,42 @@ def _website_apply_atp_image_metadata_v69178(image_candidates, semantics):
     semantic_images = [dict(x) for x in ((semantics or {}).get("images") or []) if isinstance(x, dict)]
     if not rows or not semantic_images:
         return rows
+    # v69363: preserve section-level ATP authority together with image-level ATP
+    # metadata. Some Technical pages intentionally declare that a settings section
+    # is source-limited / non-publishable even when the child <img> itself carries
+    # only generic vehicle/year/role attributes. Image attributes remain the final
+    # authority when both levels define the same key.
+    technical_semantics_v69363 = str(
+        ((semantics or {}).get("root") or {}).get("data-atp-workspace") or ""
+    ).strip().casefold() == "technical"
+    section_meta_v69363 = {}
+    for heading in ((semantics or {}).get("headings") or []):
+        if not isinstance(heading, dict):
+            continue
+        heading_id = str(heading.get("id") or "").strip().casefold()
+        heading_section = str(heading.get("data-atp-section") or "").strip().casefold()
+        if heading_id:
+            section_meta_v69363[heading_id] = dict(heading)
+        if heading_section:
+            section_meta_v69363[heading_section] = dict(heading)
+
     by_asset = {}
     for meta in semantic_images:
         src = str(meta.get("src") or "").strip()
         if not src:
             continue
+        related = str(
+            meta.get("data-atp-related-heading")
+            or meta.get("data-atp-section")
+            or ""
+        ).strip().casefold()
+        inherited = dict(section_meta_v69363.get(related) or {}) if technical_semantics_v69363 else {}
+        merged_meta_v69363 = {**inherited, **dict(meta)}
         try:
             key = _website_asset_identity_v68999(normalize_website_url(src))
         except Exception:
             key = src.casefold()
-        by_asset[key] = meta
+        by_asset[key] = merged_meta_v69363
     for row in rows:
         url = str(row.get("url") or "").strip()
         try:
@@ -55614,6 +55640,14 @@ def _website_apply_atp_image_metadata_v69178(image_candidates, semantics):
         if not meta:
             continue
         row["atp_semantic_image_v69178"] = True
+        # v69363 is Technical-only; Sales/Marketing candidate dictionaries retain
+        # their exact pre-v69363 shape and ranking behavior.
+        if technical_semantics_v69363:
+            row["atp_semantic_metadata_v69363"] = {
+                str(k): str(v)
+                for k, v in meta.items()
+                if str(k).startswith("data-atp-") and str(v).strip()
+            }
         role = str(meta.get("data-atp-image-role") or "").strip()
         authority = str(
             meta.get("data-atp-authority")
@@ -57719,6 +57753,7 @@ def analyze_website_images(extraction, database_choice, selected_urls=None):
                 "atp_authority_v69178": str(candidate.get("atp_authority_v69178") or "").strip(),
                 "atp_auto_display_v69178": str(candidate.get("atp_auto_display_v69178") or "").strip(),
                 "atp_priority_v69178": int(candidate.get("atp_priority_v69178") or 0),
+                **({"atp_semantic_metadata_v69363": dict(candidate.get("atp_semantic_metadata_v69363") or {})} if str(database_choice or "") == "Technical Support Database" else {}),
                 "analysis": analysis,
                 "sha256": digest,
                 "width": int(downloaded.get("width") or 0),
@@ -57927,6 +57962,7 @@ def build_website_knowledge_package_document(
                 f"PAGE_IDENTITY_JSON_V69024: {json.dumps(item.get('page_identity_v69024') or extraction.get('page_identity_v69024') or {}, ensure_ascii=False, separators=(',', ':'))}",
                 f"INGESTION_QA_VERSION: {str(item.get('ingestion_qa_version_v69017') or '').strip()}",
                 f"IMAGE_STRUCTURED_METADATA_JSON: {json.dumps(item.get('image_structured_metadata_v69017') or {}, ensure_ascii=False, separators=(',', ':'))}",
+                *([f"ATP_SEMANTIC_IMAGE_METADATA_JSON_V69363: {json.dumps(item.get('atp_semantic_metadata_v69363') or {}, ensure_ascii=False, separators=(',', ':'))}"] if str(database_choice or "") == "Technical Support Database" else []),
                 f"ATP_IMAGE_ROLE_V69178: {str(item.get('atp_image_role_v69178') or '').strip()}",
                 f"ATP_IMAGE_SECTION_V69178: {str(item.get('atp_section_v69178') or '').strip()}",
                 f"ATP_IMAGE_TOPIC_V69178: {str(item.get('atp_topic_v69178') or '').strip()}",
@@ -58030,6 +58066,11 @@ def _website_image_index_record_v68883(
         "keywords": _website_image_index_keywords_v68883(extraction, image_item),
         "indexed_at": datetime.now(timezone.utc).isoformat(),
     }
+    if str(database_choice or "") == "Technical Support Database":
+        # v69363 exact authored image/section metadata, nested to avoid schema change.
+        payload["atp_semantic_metadata_v69363"] = dict(
+            image_item.get("atp_semantic_metadata_v69363") or {}
+        )
     return payload
 
 
@@ -59511,6 +59552,98 @@ def _website_image_structured_metadata_v69022(payload):
     return {}
 
 
+def _website_image_atp_semantic_metadata_v69363(payload):
+    """Return exact authored data-atp image/section metadata when available."""
+    if not isinstance(payload, dict):
+        return {}
+    value = payload.get("atp_semantic_metadata_v69363")
+    if isinstance(value, dict):
+        return {str(k): str(v) for k, v in value.items() if str(k).startswith("data-atp-")}
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return {str(k): str(v) for k, v in parsed.items() if str(k).startswith("data-atp-")}
+        except Exception:
+            pass
+    return {}
+
+
+def _technical_answer_requires_config_verification_v69363(answer_text):
+    """True only when the completed Technical answer leaves a config field unverified."""
+    text = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip().casefold()
+    if not text or "requires verification" not in text:
+        return False
+    return bool(re.search(
+        r"(?:car\s*model|protocol|a/?c(?:\s*(?:type|setting|model))?).{0,100}requires\s+verification|"
+        r"requires\s+verification.{0,100}(?:car\s*model|protocol|a/?c(?:\s*(?:type|setting|model))?)",
+        text,
+        flags=re.I,
+    ))
+
+
+def _technical_authored_image_authority_reason_v69363(prompt_text, answer_text, payload):
+    """Reject authored Technical setting images that the page itself says are not exact.
+
+    This consumes only explicit data-atp metadata learned from the current Technical
+    HTML. Missing metadata remains fail-open for legacy pages; explicit source limits
+    are fail-closed for configuration imagery.
+    """
+    if not _technical_configuration_query_v69361(prompt_text) or not isinstance(payload, dict):
+        return ""
+    meta = _website_image_atp_semantic_metadata_v69363(payload)
+    if not meta:
+        return ""
+
+    publishable = str(meta.get("data-atp-publishable-profile") or "").strip().casefold()
+    reference_only = str(meta.get("data-atp-reference-only") or "").strip().casefold()
+    image_scope = str(meta.get("data-atp-image-scope") or "").strip().casefold()
+    cross_scope = str(meta.get("data-atp-cross-scope-fallback") or "").strip().casefold()
+    target_model = _technical_configuration_final_model_v69361(answer_text)
+    candidate_text = _technical_configuration_candidate_text_v69361(payload)
+    candidate_models = {x.casefold() for x in _technical_configuration_model_values_v69361(candidate_text)}
+
+    if reference_only in {"true", "1", "yes"} or image_scope in {"reference", "reference-only", "generic-reference"}:
+        return "reference_only_image"
+
+    if publishable in {"false", "0", "no"}:
+        if _technical_answer_requires_config_verification_v69363(answer_text) or not target_model:
+            return "source_profile_not_publishable"
+        if target_model.casefold() not in candidate_models:
+            return "source_profile_unbound"
+
+    # If an exact SKU/product code is authored on the image, it becomes a hard gate.
+    authored_code = str(
+        meta.get("data-atp-product-code")
+        or meta.get("data-atp-sku")
+        or meta.get("data-atp-product-sku")
+        or ""
+    ).strip()
+    if authored_code:
+        req_codes = set(_website_image_product_codes_v69020(
+            str(prompt_text or "") + " " + clean_visible_chat_text(str(answer_text or ""))
+        ))
+        authored_codes = set(_website_image_product_codes_v69020(authored_code)) or {authored_code.casefold()}
+        req_codes_cf = {str(x).casefold() for x in req_codes}
+        if req_codes_cf and not (req_codes_cf & {str(x).casefold() for x in authored_codes}):
+            return "authored_product_code_mismatch"
+
+    # An explicit no-cross-scope contract plus an authored vehicle-year range is
+    # authoritative. For a resolved config branch, the target branch must fit fully.
+    try:
+        start_year = int(str(meta.get("data-atp-year-start") or "").strip() or 0)
+        end_year = int(str(meta.get("data-atp-year-end") or "").strip() or 0)
+    except Exception:
+        start_year = end_year = 0
+    if start_year and end_year and end_year >= start_year and cross_scope in {"false", "0", "no"}:
+        target_years = _technical_configuration_target_year_range_v69361(answer_text, target_model)
+        if target_years:
+            authored_years = set(range(start_year, end_year + 1))
+            if not set(target_years).issubset(authored_years):
+                return "authored_year_scope_mismatch"
+    return ""
+
+
 def _website_identity_brand_set_v69022(value):
     """Return conservative positive manufacturer identities from Technical text."""
     text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
@@ -59954,10 +60087,11 @@ def _technical_configuration_target_year_range_v69361(answer_text, target_model)
 def _technical_configuration_candidate_text_v69361(payload):
     if not isinstance(payload, dict):
         return ""
+    atp_meta_v69363 = _website_image_atp_semantic_metadata_v69363(payload)
     return " ".join(str(payload.get(key) or "") for key in (
         "section_heading", "nearby_instruction_text", "caption", "visual_analysis",
         "alt", "data_atp_section", "data_atp_topic", "keywords",
-    ))
+    )) + " " + " ".join(str(v) for v in atp_meta_v69363.values())
 
 
 def _technical_configuration_candidate_year_ranges_v69361(candidate_text):
@@ -60073,6 +60207,12 @@ def _technical_final_image_rejection_reason_v69361(prompt_text, answer_text, ima
         if req_codes and cand_codes and not (req_codes & cand_codes):
             return "product_code_mismatch"
 
+        authored_reason_v69363 = _technical_authored_image_authority_reason_v69363(
+            prompt_text, answer_text, payload
+        )
+        if authored_reason_v69363:
+            return authored_reason_v69363
+
         return _technical_final_configuration_contradiction_reason_v69361(
             prompt_text, answer_text, payload
         )
@@ -60080,6 +60220,31 @@ def _technical_final_image_rejection_reason_v69361(prompt_text, answer_text, ima
         # Publication authority remains fail-open on parser/runtime uncertainty;
         # only explicit, proven contradictions are rejected.
         return ""
+
+
+def _technical_final_publication_filter_v69363(images, prompt_text, answer_text, diagnostic_event=""):
+    """One shared final Technical website-image authority for every publication path."""
+    kept = []
+    reasons = {}
+    for image in list(images or []):
+        reason = _technical_final_image_rejection_reason_v69361(
+            prompt_text, answer_text, image
+        )
+        if reason:
+            reasons[reason] = int(reasons.get(reason) or 0) + 1
+        else:
+            kept.append(image)
+    kept = _dedupe_website_chat_images_v68883(kept)
+    if diagnostic_event or reasons:
+        diagnostic_log(
+            diagnostic_event or "technical_final_publication_authority_v69363",
+            reasons=reasons,
+            rejected=sum(reasons.values()),
+            published=len(kept),
+            final_car_model=_technical_configuration_final_model_v69361(answer_text),
+            final_ac_type=_technical_configuration_final_ac_v69361(answer_text),
+        )
+    return kept
 
 
 def _technical_final_image_contradiction_gate_v69360(prompt_text, answer_text, image_record):
@@ -60256,6 +60421,7 @@ def _website_model_control_payload_v69010(image_record):
         "nearby_instruction_text": nearby,
         "visual_analysis": visual,
         "image_structured_metadata_v69017": dict(image_record.get("website_structured_metadata_v69017") or {}),
+        "atp_semantic_metadata_v69363": dict(image_record.get("website_atp_semantic_metadata_v69363") or {}),
         "source_zone_v69024": str(image_record.get("website_source_zone_v69024") or "").strip(),
         "page_type_v69024": str(image_record.get("website_page_type_v69024") or "").strip(),
         "page_identity_v69024": dict(image_record.get("website_page_identity_v69024") or {}),
@@ -60358,6 +60524,15 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
                     structured_metadata_v69022 = dict(parsed_v69022)
             except Exception:
                 structured_metadata_v69022 = {}
+        atp_semantic_metadata_v69363 = {}
+        atp_semantic_raw_v69363 = field("ATP_SEMANTIC_IMAGE_METADATA_JSON_V69363")
+        if atp_semantic_raw_v69363:
+            try:
+                parsed_atp_v69363 = json.loads(atp_semantic_raw_v69363)
+                if isinstance(parsed_atp_v69363, dict):
+                    atp_semantic_metadata_v69363 = dict(parsed_atp_v69363)
+            except Exception:
+                atp_semantic_metadata_v69363 = {}
         payloads.append({
             "database_choice": database_choice_v69040,
             "image_url": image_url,
@@ -60368,6 +60543,7 @@ def _website_structured_image_payloads_from_file_v69012(text_value, filename="",
             "nearby_instruction_text": field("NEARBY_INSTRUCTION_TEXT"),
             "visual_analysis": analysis,
             "image_structured_metadata_v69017": structured_metadata_v69022,
+            **({"atp_semantic_metadata_v69363": atp_semantic_metadata_v69363} if atp_semantic_metadata_v69363 else {}),
             "source_zone_v69024": field("SOURCE_ZONE_V69024"),
             "page_type_v69024": field("PAGE_TYPE_V69024"),
             "ingestion_authority_version_v69024": field("INGESTION_AUTHORITY_VERSION_V69024"),
@@ -61504,6 +61680,7 @@ def _website_image_record_for_chat_v68883(payload):
         "website_nearby_instruction_text_v69010": str(payload.get("nearby_instruction_text") or "").strip(),
         "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
         "website_structured_metadata_v69017": dict(payload.get("image_structured_metadata_v69017") or {}),
+        **({"website_atp_semantic_metadata_v69363": dict(payload.get("atp_semantic_metadata_v69363") or {})} if "atp_semantic_metadata_v69363" in payload else {}),
         "website_source_zone_v69024": str(payload.get("source_zone_v69024") or "").strip(),
         "website_page_type_v69024": str(payload.get("page_type_v69024") or "").strip(),
         "website_page_identity_v69024": dict(payload.get("page_identity_v69024") or {}),
@@ -95103,17 +95280,14 @@ else:
                     error=str(error)[:500],
                 )
         elif generated_images and assistant == "🔧 Technical Support":
-            # v69123: restore v69050 Technical late-image publication semantics.
-            # Every Technical recovery path already applies its own vehicle/year/topic/
-            # payload authority before creating a chat image. Do not run the recovered
-            # image through a second consolidated gate that depends on an unrelated
-            # early deterministic set and can erase an otherwise valid late image.
-            generated_images = _dedupe_website_chat_images_v68883(
-                generated_images
-            )
-            diagnostic_log(
-                "technical_v69050_late_image_publication_restored_v69123",
-                published=len(generated_images or []),
+            # v69363: keep v69123 late recovery, but never let it bypass the SAME
+            # completed-answer/image-provenance authority used by the main path.
+            # Retrieval and ranking are unchanged; only final publication is filtered.
+            generated_images = _technical_final_publication_filter_v69363(
+                generated_images,
+                technical_request_prompt_v68879,
+                answer,
+                diagnostic_event="technical_v69050_late_image_publication_restored_v69363",
             )
 
         # v69346: once a Sales/Marketing product image has already been displayed
@@ -95300,6 +95474,19 @@ else:
                 assistant_images_to_save,
                 technical_full_package_authority_v69155,
                 technical_request_prompt_v68879,
+            )
+            generated_images = list(assistant_images_to_save)
+
+        # v69363 absolute last Technical publication gate. This runs AFTER the
+        # settings/current-package rematerialization blocks above, so no late exact
+        # bridge, history-save path, or rerender can re-introduce an image that the
+        # completed answer and authored HTML metadata mark as non-publishable.
+        if assistant == "🔧 Technical Support" and assistant_images_to_save:
+            assistant_images_to_save = _technical_final_publication_filter_v69363(
+                assistant_images_to_save,
+                technical_request_prompt_v68879,
+                answer,
+                diagnostic_event="technical_absolute_final_publication_gate_v69363",
             )
             generated_images = list(assistant_images_to_save)
 
