@@ -1,3 +1,4 @@
+# AutoTecPro AI v69361 - final Technical configuration-to-image binding hardening
 # AutoTecPro AI v69360 - safe performance + image provenance hardening
 # AutoTecPro AI v69359 - email-safe assistant clipboard normalization
 # AutoTecPro AI v69358 - exact Sales product/photo provenance hardening
@@ -33,8 +34,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69342"
-AUTOTECPRO_RELEASE_BUILD = "v69342-woocommerce-v-token-exact-price-fix-20260907"
+AUTOTECPRO_RELEASE_VERSION = "v69361"
+AUTOTECPRO_RELEASE_BUILD = "v69361-technical-final-config-image-binding-20260917"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -59802,23 +59803,251 @@ def _website_image_resolved_record_gate_v69022(prompt_text, answer_text, image_r
 
 
 
-def _technical_final_image_contradiction_gate_v69360(prompt_text, answer_text, image_record):
-    """Reject only explicit Technical image identity contradictions at publication.
 
-    Missing/sparse provenance fails open to preserve the existing publication
-    behavior. A candidate is rejected only when already-available metadata proves
-    a vehicle/year/product conflict. No new search, ranking, or authority is added.
+def _technical_configuration_query_v69361(prompt_text):
+    """Return True only for protected Technical configuration/settings image turns."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not prompt:
+        return False
+    try:
+        if _website_image_query_role_v68884(prompt_text) in {"car_model_ac", "protocol"}:
+            return True
+    except Exception:
+        pass
+    return any(term in prompt for term in (
+        "car model", "car-model", "a/c setting", "ac setting", "a/c type",
+        "ac type", "protocol setting", "canbus setting", "can bus setting",
+        "settings page", "setting page",
+    ))
+
+
+def _technical_configuration_model_values_v69361(text_value):
+    """Extract explicit Car Model/menu codes without treating calendar years as models."""
+    text = re.sub(r"\s+", " ", str(text_value or "")).strip()
+    if not text:
+        return []
+    patterns = (
+        r"(?i)\bcar\s*model(?:\s*(?:setting|selection|value|code))?\s*(?:[:=\-–—]|\bis\b|\bto\b)?\s*([A-Z0-9][A-Z0-9._/-]{1,15})",
+        r"(?i)\b(?:model|setting)\s*(?:[:=\-–—]|\bis\b|\bto\b)\s*([A-Z0-9][A-Z0-9._/-]{1,15})",
+        r"(?i)\b([0-9]{3,5})\s*(?:car\s*)?model\b",
+    )
+    out = []
+    for pattern in patterns:
+        for match in re.finditer(pattern, text):
+            value = str(match.group(1) or "").strip(" .,:;()[]{}")
+            if not value:
+                continue
+            if re.fullmatch(r"(?:19|20)\d{2}", value):
+                continue
+            low = value.casefold()
+            if low in {"setting", "selection", "value", "code", "requires", "verification"}:
+                continue
+            if value not in out:
+                out.append(value)
+    return out
+
+
+def _technical_configuration_disallowed_models_v69361(answer_text):
+    """Extract only model codes explicitly negated by the completed answer."""
+    text = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()
+    out = []
+    patterns = (
+        r"(?i)\bdo\s+not\s+use\s+(?:the\s+)?([A-Z0-9][A-Z0-9._/-]{1,15})\b",
+        r"(?i)\bnot\s+(?:the\s+)?([0-9]{3,5})\s*(?:model|setting)\b",
+        r"(?i)\binstead\s+of\s+(?:the\s+)?([0-9]{3,5})\b",
+        r"(?i)\b([0-9]{3,5})\s+(?:setting|model)\s+(?:is|was)\s+(?:for|the)\s+(?:older|old|previous)\b",
+    )
+    for pattern in patterns:
+        for match in re.finditer(pattern, text):
+            value = str(match.group(1) or "").strip(" .,:;()[]{}")
+            if value and value not in out:
+                out.append(value)
+    return out
+
+
+def _technical_configuration_final_model_v69361(answer_text):
+    """Resolve one explicit positive final Car Model from the completed answer."""
+    text = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()
+    if not text:
+        return ""
+    preferred = []
+    patterns = (
+        r"(?i)\bcorrect\s+car\s*model(?:\s+selection)?\s+(?:is|=|:)\s*([A-Z0-9][A-Z0-9._/-]{1,15})",
+        r"(?i)\bcar\s*model\s*(?:\||:|=)\s*\*{0,2}([A-Z0-9][A-Z0-9._/-]{1,15})",
+        r"(?i)\bselect\s+(?:car\s*model\s*)?([0-9]{3,5})\b",
+        r"(?i)\buse\s+(?:car\s*model\s*)?([0-9]{3,5})\b",
+    )
+    disallowed = {x.casefold() for x in _technical_configuration_disallowed_models_v69361(text)}
+    for pattern in patterns:
+        for match in re.finditer(pattern, text):
+            value = str(match.group(1) or "").strip(" .,:;()[]{}")
+            if not value or re.fullmatch(r"(?:19|20)\d{2}", value):
+                continue
+            if value.casefold() in disallowed:
+                continue
+            preferred.append(value)
+    if preferred:
+        # The answer's later explicit correction is authoritative.
+        return preferred[-1]
+    values = [
+        x for x in _technical_configuration_model_values_v69361(text)
+        if x.casefold() not in disallowed
+    ]
+    unique = []
+    for value in values:
+        if value.casefold() not in {x.casefold() for x in unique}:
+            unique.append(value)
+    return unique[0] if len(unique) == 1 else ""
+
+
+def _technical_configuration_final_ac_v69361(answer_text):
+    """Return 'auto'/'manual' only when the completed answer explicitly resolves A/C."""
+    text = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip().casefold()
+    if not text:
+        return ""
+    auto_patterns = (
+        r"a/?c\s*type\s*(?:\||:|=|is)\s*(?:auto|automatic)",
+        r"a/?c\s*(?:selection|setting)\s*(?:is|=|:)\s*(?:auto|automatic)",
+        r"(?:set|select|use)\s+(?:the\s+)?(?:auto|automatic)\s+a/?c",
+    )
+    manual_patterns = (
+        r"a/?c\s*type\s*(?:\||:|=|is)\s*manual",
+        r"a/?c\s*(?:selection|setting)\s*(?:is|=|:)\s*manual",
+        r"(?:set|select|use)\s+(?:the\s+)?manual\s+a/?c",
+    )
+    auto = any(re.search(p, text) for p in auto_patterns)
+    manual = any(re.search(p, text) for p in manual_patterns)
+    if auto and not manual:
+        return "auto"
+    if manual and not auto:
+        return "manual"
+    return ""
+
+
+def _technical_configuration_target_year_range_v69361(answer_text, target_model):
+    """Find the explicit vehicle-year range bound closest to the resolved model code."""
+    model = str(target_model or "").strip()
+    if not model:
+        return set()
+    text = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip()
+    if not text:
+        return set()
+    occurrences = [m.start() for m in re.finditer(r"(?<![A-Za-z0-9])" + re.escape(model) + r"(?![A-Za-z0-9])", text, flags=re.I)]
+    for pos in reversed(occurrences):
+        window = text[max(0, pos - 180): min(len(text), pos + 180)]
+        ranges = list(re.finditer(r"\b((?:19|20)\d{2})\s*(?:-|–|—|to|through)\s*((?:19|20)\d{2})\b", window, flags=re.I))
+        if ranges:
+            # Prefer the closest explicit range to the final model token.
+            center = min(180, pos)
+            best = min(ranges, key=lambda m: abs(m.start() - center))
+            a, b = int(best.group(1)), int(best.group(2))
+            if b < a:
+                a, b = b, a
+            return set(range(a, b + 1))
+    return set()
+
+
+def _technical_configuration_candidate_text_v69361(payload):
+    if not isinstance(payload, dict):
+        return ""
+    return " ".join(str(payload.get(key) or "") for key in (
+        "section_heading", "nearby_instruction_text", "caption", "visual_analysis",
+        "alt", "data_atp_section", "data_atp_topic", "keywords",
+    ))
+
+
+def _technical_configuration_candidate_year_ranges_v69361(candidate_text):
+    text = str(candidate_text or "")
+    out = []
+    for match in re.finditer(
+        r"\b((?:19|20)\d{2})\s*(?:-|–|—|to|through)\s*((?:19|20)\d{2})\b",
+        text,
+        flags=re.I,
+    ):
+        a, b = int(match.group(1)), int(match.group(2))
+        if b < a:
+            a, b = b, a
+        years = set(range(a, b + 1))
+        if years not in out:
+            out.append(years)
+    return out
+
+
+def _technical_final_configuration_contradiction_reason_v69361(prompt_text, answer_text, payload):
+    """Reject stale Technical settings imagery only on explicit final-config conflict.
+
+    This is intentionally contradiction-only. Sparse image metadata still fails open.
+    It prevents a prior 834/2014-2019 settings screenshot from surviving after the
+    completed answer resolves 836/2019-2021, while preserving images whose metadata
+    is absent or genuinely compatible.
     """
+    if not _technical_configuration_query_v69361(prompt_text) or not isinstance(payload, dict):
+        return ""
+    answer = clean_visible_chat_text(str(answer_text or ""))
+    target_model = _technical_configuration_final_model_v69361(answer)
+    target_ac = _technical_configuration_final_ac_v69361(answer)
+    target_years = _technical_configuration_target_year_range_v69361(answer, target_model)
+    candidate_text = _technical_configuration_candidate_text_v69361(payload)
+    candidate_cf = candidate_text.casefold()
+
+    if target_model:
+        target_cf = target_model.casefold()
+        candidate_models = _technical_configuration_model_values_v69361(candidate_text)
+        candidate_model_cfs = {x.casefold() for x in candidate_models}
+        if candidate_model_cfs and target_cf not in candidate_model_cfs:
+            return "car_model_mismatch"
+        disallowed = {
+            x.casefold() for x in _technical_configuration_disallowed_models_v69361(answer)
+        }
+        if disallowed and target_cf not in candidate_model_cfs:
+            if any(re.search(r"(?<![A-Za-z0-9])" + re.escape(x) + r"(?![A-Za-z0-9])", candidate_text, flags=re.I) for x in disallowed):
+                return "disallowed_car_model"
+
+        # Configuration screenshots are branch-specific. If the candidate carries a
+        # different explicit local year range and does not carry the final model code,
+        # reject it even when the ranges overlap at one boundary year (e.g. 2014-2019
+        # versus final 2019-2021). Broad page-title years are intentionally excluded.
+        candidate_ranges = _technical_configuration_candidate_year_ranges_v69361(candidate_text)
+        if target_years and target_cf not in candidate_model_cfs:
+            if candidate_ranges and not any(years == target_years for years in candidate_ranges):
+                return "configuration_year_range_mismatch"
+
+        # v69361 correction lock: when the completed answer explicitly corrects a
+        # prior model value, an automatic settings screenshot must affirmatively bind
+        # to the corrected model or its exact corrected year branch. Sparse metadata
+        # is still fail-open on ordinary turns, but a correction must never re-publish
+        # an unbound stale screenshot from the prior configuration.
+        correction_lock_v69361 = bool(
+            disallowed
+            or re.search(r"(?i)\bcorrect\s+car\s*model", answer)
+            or re.search(r"(?i)\bwrong\s+(?:car\s*)?model", answer)
+        )
+        if correction_lock_v69361 and target_cf not in candidate_model_cfs:
+            if not (target_years and any(years == target_years for years in candidate_ranges)):
+                return "final_car_model_unbound"
+
+    if target_ac:
+        has_auto = bool(re.search(r"\b(?:auto|automatic)\s+(?:a/?c|climate)", candidate_cf))
+        has_manual = bool(re.search(r"\bmanual\s+(?:a/?c|climate)", candidate_cf))
+        if target_ac == "auto" and has_manual and not has_auto:
+            return "ac_type_mismatch"
+        if target_ac == "manual" and has_auto and not has_manual:
+            return "ac_type_mismatch"
+    return ""
+
+
+def _technical_final_image_rejection_reason_v69361(prompt_text, answer_text, image_record):
+    """Return an explicit rejection reason, or empty string when publication is safe."""
     if not isinstance(image_record, dict):
-        return True
+        return ""
     if str(image_record.get("source") or "") != "website_knowledge":
-        return True
+        return ""
     try:
         payload = _website_image_payload_for_chat_record_v69005(image_record)
         if not payload:
             payload = _website_model_control_payload_v69010(image_record)
         if not payload:
-            return True
+            return ""
 
         fitment_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
         if not _website_identity_years_v69022(fitment_text):
@@ -59827,7 +60056,7 @@ def _technical_final_image_contradiction_gate_v69360(prompt_text, answer_text, i
                 (str(prompt_text or "") + " " + clean_visible_chat_text(str(answer_text or ""))),
             ).strip()
         if not _website_image_vehicle_fitment_gate_v68997(fitment_text, payload):
-            return False
+            return "vehicle_year_mismatch"
 
         request_identity = " ".join((
             str(prompt_text or ""),
@@ -59838,11 +60067,24 @@ def _technical_final_image_contradiction_gate_v69360(prompt_text, answer_text, i
             _website_image_payload_identity_text_v69022(payload)
         ))
         if req_codes and cand_codes and not (req_codes & cand_codes):
-            return False
-        return True
-    except Exception:
-        return True
+            return "product_code_mismatch"
 
+        return _technical_final_configuration_contradiction_reason_v69361(
+            prompt_text, answer_text, payload
+        )
+    except Exception:
+        # Publication authority remains fail-open on parser/runtime uncertainty;
+        # only explicit, proven contradictions are rejected.
+        return ""
+
+
+def _technical_final_image_contradiction_gate_v69360(prompt_text, answer_text, image_record):
+    """Compatibility wrapper retained for existing v69360 callers/tests."""
+    return not bool(
+        _technical_final_image_rejection_reason_v69361(
+            prompt_text, answer_text, image_record
+        )
+    )
 
 def _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
     """Reject a clearly different vehicle/year image while failing open on sparse metadata.
@@ -94543,28 +94785,34 @@ else:
             except Exception as error_v69143:
                 diagnostic_log("technical_section_bound_images_failed_v69143", error_type=type(error_v69143).__name__, error=str(error_v69143)[:500])
 
-        # v69360 final Technical contradiction-only provenance check. Existing
-        # image retrieval and ranking are untouched. This rejects only a candidate
-        # whose attached metadata explicitly proves a vehicle/year/product conflict;
-        # sparse metadata remains fail-open to preserve established availability.
+        # v69361 final Technical configuration-to-image binding. This keeps every
+        # existing retrieval/ranking path intact, then rejects only explicit conflicts
+        # against the COMPLETED answer (vehicle/year/product plus resolved Car Model /
+        # A-C branch). Sparse metadata still fails open, preserving established images.
         if generated_images and assistant == "🔧 Technical Support":
-            filtered_images_v69360 = []
-            rejected_images_v69360 = 0
-            for image_v69360 in generated_images:
-                if _technical_final_image_contradiction_gate_v69360(
+            filtered_images_v69361 = []
+            rejection_reasons_v69361 = {}
+            for image_v69361 in generated_images:
+                reason_v69361 = _technical_final_image_rejection_reason_v69361(
                     technical_request_prompt_v68879,
                     answer,
-                    image_v69360,
-                ):
-                    filtered_images_v69360.append(image_v69360)
+                    image_v69361,
+                )
+                if not reason_v69361:
+                    filtered_images_v69361.append(image_v69361)
                 else:
-                    rejected_images_v69360 += 1
-            generated_images = filtered_images_v69360
-            if rejected_images_v69360:
+                    rejection_reasons_v69361[reason_v69361] = (
+                        int(rejection_reasons_v69361.get(reason_v69361) or 0) + 1
+                    )
+            generated_images = filtered_images_v69361
+            if rejection_reasons_v69361:
                 diagnostic_log(
-                    "technical_final_image_contradiction_rejected_v69360",
-                    rejected=rejected_images_v69360,
+                    "technical_final_image_contradiction_rejected_v69361",
+                    reasons=rejection_reasons_v69361,
+                    rejected=sum(rejection_reasons_v69361.values()),
                     published=len(generated_images),
+                    final_car_model=_technical_configuration_final_model_v69361(answer),
+                    final_ac_type=_technical_configuration_final_ac_v69361(answer),
                 )
 
         # v69107A: one final fail-closed publication authority after every late
