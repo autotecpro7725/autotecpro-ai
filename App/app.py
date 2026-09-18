@@ -45742,12 +45742,116 @@ def _website_vector_search_turn_cache_put_v69355(request, max_results, rows):
         return
 
 
+
+@st.cache_resource
+def _workspace_exact_retrieval_cache_state_v69365():
+    """Process-local exact-result cache for non-Graphic retrieval.
+
+    Entries are admitted only after a successful provider/search call. The cache key
+    contains exact vector stores, exact normalized query, result limit, workspace
+    destination and current learning revision. It caches positive and proven-empty
+    results, never approximate queries. Learning invalidation clears this state.
+    """
+    return {"entries": {}, "lock": threading.RLock()}
+
+
+def _workspace_exact_retrieval_revision_v69365():
+    workspace = str(assistant or "")
+    if workspace == "🔧 Technical Support":
+        destination = "Technical Support Database"
+    elif is_sales_workspace(workspace) and not is_graphic_workspace(workspace):
+        destination = "Sales Database"
+    elif is_marketing_workspace(workspace) and not is_graphic_workspace(workspace):
+        destination = "Marketing Database"
+    else:
+        return "", 0
+    return destination, int(_website_destination_revision_v69109(destination) or 0)
+
+
+def _workspace_exact_retrieval_cache_key_v69365(request, max_results=12, purpose="vector"):
+    try:
+        base = _website_vector_search_turn_cache_key_v69355(request, max_results)
+        destination, revision = _workspace_exact_retrieval_revision_v69365()
+        if not base or not destination:
+            return ""
+        payload = f"{purpose}|{destination}|{revision}|{base}"
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    except Exception:
+        return ""
+
+
+def _workspace_exact_retrieval_cache_get_v69365(key, *, ttl_seconds=120.0):
+    if not key or is_graphic_workspace(assistant):
+        return None
+    try:
+        state = _workspace_exact_retrieval_cache_state_v69365()
+        now = time.monotonic()
+        with state["lock"]:
+            item = dict((state.get("entries") or {}).get(key) or {})
+            if not item:
+                return None
+            if now - float(item.get("stored_monotonic") or 0.0) > float(ttl_seconds):
+                state["entries"].pop(key, None)
+                return None
+            rows = [dict(row) for row in (item.get("rows") or []) if isinstance(row, dict)]
+        diagnostic_log(
+            "workspace_exact_retrieval_process_cache_hit_v69365",
+            key=key[:16], result_count=len(rows),
+        )
+        return rows
+    except Exception:
+        return None
+
+
+def _workspace_exact_retrieval_cache_put_v69365(key, rows):
+    if not key or is_graphic_workspace(assistant):
+        return
+    try:
+        state = _workspace_exact_retrieval_cache_state_v69365()
+        with state["lock"]:
+            entries = state["entries"]
+            entries[key] = {
+                "stored_monotonic": time.monotonic(),
+                "rows": [dict(row) for row in (rows or []) if isinstance(row, dict)],
+            }
+            if len(entries) > 128:
+                oldest = min(
+                    entries,
+                    key=lambda k: float((entries.get(k) or {}).get("stored_monotonic") or 0.0),
+                )
+                entries.pop(oldest, None)
+        diagnostic_log(
+            "workspace_exact_retrieval_process_cache_store_v69365",
+            key=key[:16], result_count=len(rows or []),
+        )
+    except Exception:
+        return
+
+
+def _workspace_exact_retrieval_cache_clear_v69365():
+    try:
+        state = _workspace_exact_retrieval_cache_state_v69365()
+        with state["lock"]:
+            state["entries"].clear()
+    except Exception:
+        pass
+
+
 def _website_request_vector_search_rows_v69047(request, max_results=12):
     """Use the SDK vector-search endpoint when optional result expansion is rejected."""
     request = dict(request or {})
     cached_rows_v69355 = _website_vector_search_turn_cache_get_v69355(request, max_results)
     if cached_rows_v69355 is not None:
         return cached_rows_v69355
+    process_key_v69365 = _workspace_exact_retrieval_cache_key_v69365(
+        request, max_results, purpose="vector_search"
+    )
+    process_rows_v69365 = _workspace_exact_retrieval_cache_get_v69365(
+        process_key_v69365, ttl_seconds=120.0
+    )
+    if process_rows_v69365 is not None:
+        _website_vector_search_turn_cache_put_v69355(request, max_results, process_rows_v69365)
+        return process_rows_v69365
     vector_store_ids = []
     for tool in request.get("tools") or []:
         if not isinstance(tool, dict) or tool.get("type") != "file_search":
@@ -45831,6 +45935,7 @@ def _website_request_vector_search_rows_v69047(request, max_results=12):
         store_count=len(vector_store_ids),
     )
     _website_vector_search_turn_cache_put_v69355(request, max_results, output)
+    _workspace_exact_retrieval_cache_put_v69365(process_key_v69365, output)
     return output
 
 
@@ -46731,6 +46836,10 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
         )
     openai_file = client.files.create(file=uploaded_file, purpose="assistants")
     client.vector_stores.files.create(vector_store_id=vector_store_id, file_id=openai_file.id)
+    try:
+        _workspace_exact_retrieval_cache_clear_v69365()
+    except Exception:
+        pass
     try:
         vector_store_has_filename.clear()
     except Exception:
@@ -47846,6 +47955,10 @@ def upload_learned_record_to_vector_store(
             vector_store_id=vector_store_id,
             file_id=openai_file_id,
         )
+        try:
+            _workspace_exact_retrieval_cache_clear_v69365()
+        except Exception:
+            pass
         ready, ingestion_status = wait_for_learned_vector_file_ready(
             vector_store_id,
             openai_file_id,
@@ -47900,6 +48013,10 @@ def remove_old_learned_vector_file(vector_store_id, file_id):
         return False
     try:
         client.files.delete(file_id)
+    except Exception:
+        pass
+    try:
+        _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
         pass
     return True
@@ -55642,12 +55759,21 @@ def _website_apply_atp_image_metadata_v69178(image_candidates, semantics):
         row["atp_semantic_image_v69178"] = True
         # v69363 is Technical-only; Sales/Marketing candidate dictionaries retain
         # their exact pre-v69363 shape and ranking behavior.
+        # v69364: preserve the exact authored image attributes for every website
+        # destination. v69363 kept this nested contract only for Technical pages,
+        # which meant Sales product-image roles/identity were lost when written to
+        # the durable image index. Keeping a nested copy changes no visible output
+        # or ranking by itself; it only gives the Technical read-only product-image
+        # bridge exact provenance to validate later.
+        row["atp_semantic_metadata_v69364"] = {
+            str(k): str(v)
+            for k, v in meta.items()
+            if str(k).startswith("data-atp-") and str(v).strip()
+        }
         if technical_semantics_v69363:
-            row["atp_semantic_metadata_v69363"] = {
-                str(k): str(v)
-                for k, v in meta.items()
-                if str(k).startswith("data-atp-") and str(v).strip()
-            }
+            row["atp_semantic_metadata_v69363"] = dict(
+                row.get("atp_semantic_metadata_v69364") or {}
+            )
         role = str(meta.get("data-atp-image-role") or "").strip()
         authority = str(
             meta.get("data-atp-authority")
@@ -58066,10 +58192,28 @@ def _website_image_index_record_v68883(
         "keywords": _website_image_index_keywords_v68883(extraction, image_item),
         "indexed_at": datetime.now(timezone.utc).isoformat(),
     }
+    # v69364: nested metadata remains inside the existing JSON payload, so there
+    # is no learned_knowledge schema migration. Sales/Marketing rows now retain the
+    # same authored product-image identity/role fields that existed during parsing.
+    payload["atp_semantic_metadata_v69364"] = dict(
+        image_item.get("atp_semantic_metadata_v69364")
+        or image_item.get("atp_semantic_metadata_v69363")
+        or {}
+    )
+    payload["atp_image_role_v69178"] = str(image_item.get("atp_image_role_v69178") or "").strip()
+    payload["atp_section_v69178"] = str(image_item.get("atp_section_v69178") or "").strip()
+    payload["atp_topic_v69178"] = str(image_item.get("atp_topic_v69178") or "").strip()
+    payload["atp_authority_v69178"] = str(image_item.get("atp_authority_v69178") or "").strip()
+    payload["atp_priority_v69178"] = int(image_item.get("atp_priority_v69178") or 0)
+    payload["atp_primary_product_image_v69323"] = bool(image_item.get("atp_primary_product_image_v69323"))
+    payload["atp_product_identity_key_v69323"] = str(image_item.get("atp_product_identity_key_v69323") or "").strip()
+    payload["atp_canonical_image_url_v69323"] = str(image_item.get("atp_canonical_image_url_v69323") or "").strip()
     if str(database_choice or "") == "Technical Support Database":
-        # v69363 exact authored image/section metadata, nested to avoid schema change.
+        # Preserve the existing v69363 key exactly for Technical final-gate callers.
         payload["atp_semantic_metadata_v69363"] = dict(
-            image_item.get("atp_semantic_metadata_v69363") or {}
+            image_item.get("atp_semantic_metadata_v69363")
+            or image_item.get("atp_semantic_metadata_v69364")
+            or {}
         )
     return payload
 
@@ -60222,6 +60366,248 @@ def _technical_final_image_rejection_reason_v69361(prompt_text, answer_text, ima
         return ""
 
 
+def _website_image_atp_semantic_metadata_v69364(payload):
+    """Return exact authored data-atp metadata from any website-learning workspace.
+
+    v69363 intentionally stored this contract only for Technical pages. v69364 keeps
+    the old key for compatibility and adds a workspace-neutral nested key used only
+    by the read-only Technical -> Sales product-image bridge.
+    """
+    if not isinstance(payload, dict):
+        return {}
+    for key in ("atp_semantic_metadata_v69364", "atp_semantic_metadata_v69363"):
+        value = payload.get(key)
+        if isinstance(value, dict):
+            return {
+                str(k): str(v)
+                for k, v in value.items()
+                if str(k).startswith("data-atp-") and str(v).strip()
+            }
+        if isinstance(value, str) and value.strip():
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, dict):
+                    return {
+                        str(k): str(v)
+                        for k, v in parsed.items()
+                        if str(k).startswith("data-atp-") and str(v).strip()
+                    }
+            except Exception:
+                pass
+    return {}
+
+
+def _technical_product_visual_intent_v69364(prompt_text):
+    """Classify only product-photo intents; never hijack Technical settings topics."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return ""
+    if any(term in value for term in (
+        "after installation", "after install", "after-installation", "installed look",
+        "looks installed", "look installed", "how it looks installed", "installed photo",
+        "installed image", "in the dash", "in dashboard", "on the dashboard",
+    )):
+        return "after_installation"
+    if _website_image_query_role_v68884(prompt_text):
+        return ""
+    if _website_image_explicit_visual_request_v68888(prompt_text):
+        return "product"
+    return "product"
+
+
+def _technical_sales_product_image_bridge_v69364(prompt_text, answer_text, max_images=3):
+    """Read-only bridge for exact Sales product visuals inside Technical Support.
+
+    Root cause addressed: Technical automatic image retrieval is destination-scoped to
+    ``Technical Support Database``. Product pages learned into ``Sales Database`` can
+    therefore contain a perfect primary/after-installation image and still produce zero
+    Technical candidates. This bridge is deliberately narrow: Sales rows can contribute
+    only product hero/major/after-installation visuals, only after exact vehicle identity
+    gates pass, and they still pass the unchanged final Technical publication gate.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return []
+    if _technical_protected_settings_inquiry_v69145(prompt_text) or _technical_configuration_query_v69361(prompt_text):
+        return []
+
+    visual_intent = _technical_product_visual_intent_v69364(prompt_text)
+    if not visual_intent:
+        return []
+
+    request_text = re.sub(
+        r"\s+", " ",
+        str(prompt_text or "") + " " + clean_visible_chat_text(str(answer_text or "")),
+    ).strip()
+    request_brands = _website_identity_brand_set_v69022(request_text)
+    request_families = _website_identity_vehicle_families_v69022(request_text)
+    request_years = _website_identity_years_v69022(request_text)
+    request_codes = {str(x).casefold() for x in _website_image_product_codes_v69020(request_text)}
+    request_screens = set(re.findall(
+        r"\b(?:10\.4|10\.25|12\.1|13\.6|13\.8|14\.4|14\.46|15\.1|15\.6|17|17\.2)\b",
+        request_text.casefold(),
+    ))
+
+    # Fail closed when the current Technical case is too generic to bind a product.
+    if not request_families:
+        diagnostic_log(
+            "technical_sales_product_image_bridge_skipped_v69364",
+            reason="request_vehicle_family_unresolved",
+            intent=visual_intent,
+        )
+        return []
+
+    ranked = []
+    audit = {
+        "candidates": 0,
+        "rejected_metadata": 0,
+        "rejected_role": 0,
+        "rejected_policy": 0,
+        "rejected_fitment": 0,
+        "rejected_identity": 0,
+        "rejected_product": 0,
+        "published": 0,
+    }
+    for payload in _website_image_rows_for_destination_v69360("Sales Database"):
+        if not isinstance(payload, dict):
+            continue
+        audit["candidates"] += 1
+        meta = _website_image_atp_semantic_metadata_v69364(payload)
+        if not meta:
+            audit["rejected_metadata"] += 1
+            continue
+
+        role = str(
+            meta.get("data-atp-image-role")
+            or payload.get("atp_image_role_v69178")
+            or ""
+        ).strip().casefold()
+        topic = str(
+            meta.get("data-atp-topic")
+            or payload.get("atp_topic_v69178")
+            or ""
+        ).strip().casefold()
+        sales_policy = str(meta.get("data-atp-sales-auto-display") or "").strip().casefold()
+        current_source = str(meta.get("data-atp-current-source") or "").strip().casefold()
+        allowed_role = role in {
+            "primary-product-image",
+            "major-product-image",
+            "after-installation-product-reference",
+        }
+        if not allowed_role:
+            audit["rejected_role"] += 1
+            continue
+        if current_source and current_source not in {"true", "1", "yes"}:
+            audit["rejected_policy"] += 1
+            continue
+        if visual_intent == "after_installation":
+            if role != "after-installation-product-reference" and topic != "after-installation":
+                audit["rejected_role"] += 1
+                continue
+            if sales_policy not in {"topic-only", "true"}:
+                audit["rejected_policy"] += 1
+                continue
+        else:
+            if role not in {"primary-product-image", "major-product-image"}:
+                audit["rejected_role"] += 1
+                continue
+            if role == "primary-product-image" and sales_policy not in {"true", ""}:
+                audit["rejected_policy"] += 1
+                continue
+
+        identity_text = " ".join((
+            _website_image_payload_identity_text_v69022(payload),
+            " ".join(str(v) for v in meta.values()),
+        ))
+        cand_brands = _website_identity_brand_set_v69022(identity_text)
+        cand_families = _website_identity_vehicle_families_v69022(identity_text)
+        cand_years = _website_identity_years_v69022(identity_text)
+        cand_codes = {str(x).casefold() for x in _website_image_product_codes_v69020(identity_text)}
+        cand_screens = set(re.findall(
+            r"\b(?:10\.4|10\.25|12\.1|13\.6|13\.8|14\.4|14\.46|15\.1|15\.6|17|17\.2)\b",
+            identity_text.casefold(),
+        ))
+
+        fitment_text = str(prompt_text or "")
+        if not _website_identity_years_v69022(fitment_text):
+            fitment_text = request_text
+        if not _website_image_vehicle_fitment_gate_v68997(fitment_text, payload):
+            audit["rejected_fitment"] += 1
+            continue
+        if request_brands and cand_brands and not (request_brands & cand_brands):
+            audit["rejected_identity"] += 1
+            continue
+        if not cand_families or not (request_families & cand_families):
+            audit["rejected_identity"] += 1
+            continue
+        if request_years and cand_years and not (request_years & cand_years):
+            audit["rejected_fitment"] += 1
+            continue
+        if request_codes and cand_codes and not (request_codes & cand_codes):
+            audit["rejected_product"] += 1
+            continue
+        if request_screens and cand_screens and not (request_screens & cand_screens):
+            audit["rejected_product"] += 1
+            continue
+
+        product_identity_key = str(
+            meta.get("data-atp-product-identity-key")
+            or payload.get("atp_product_identity_key_v69323")
+            or ""
+        ).strip()
+        # Exact authored product identity is required for the bridge. This prevents
+        # generic Sales gallery/reference images from becoming Technical authority.
+        if not product_identity_key:
+            audit["rejected_product"] += 1
+            continue
+
+        record = _website_image_record_for_chat_v68883(payload)
+        if not record:
+            audit["rejected_product"] += 1
+            continue
+        record["website_cross_workspace_product_bridge_v69364"] = True
+        record["website_cross_workspace_source_destination_v69364"] = "Sales Database"
+        record["website_product_identity_key_v69364"] = product_identity_key
+        record["website_product_visual_role_v69364"] = role
+        record["name"] = (
+            "After installation — " if visual_intent == "after_installation"
+            else "Product image — "
+        ) + str(record.get("name") or "AutoTecPro product image")
+
+        score = 0.0
+        score += 100.0 if role == "primary-product-image" else 80.0 if role == "major-product-image" else 90.0
+        score += 30.0 if request_brands and cand_brands and (request_brands & cand_brands) else 0.0
+        score += 40.0 if request_families & cand_families else 0.0
+        score += 25.0 if request_years and cand_years and (request_years & cand_years) else 0.0
+        score += 35.0 if request_codes and cand_codes and (request_codes & cand_codes) else 0.0
+        score += 15.0 if request_screens and cand_screens and (request_screens & cand_screens) else 0.0
+        try:
+            score += min(float(meta.get("data-atp-ai-priority") or payload.get("atp_priority_v69178") or 0), 1000.0) / 100.0
+        except Exception:
+            pass
+        ranked.append((score, record, role))
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    output = []
+    seen = set()
+    for _, record, role in ranked:
+        identity = str(record.get("website_image_sha256") or record.get("archive_web_url") or record.get("data_url") or "")
+        if not identity or identity in seen:
+            continue
+        seen.add(identity)
+        output.append(record)
+        if visual_intent != "after_installation":
+            break
+        if len(output) >= max(1, int(max_images or 3)):
+            break
+    audit["published"] = len(output)
+    diagnostic_log(
+        "technical_sales_product_image_bridge_v69364",
+        intent=visual_intent,
+        **audit,
+    )
+    return output
+
+
 def _technical_final_publication_filter_v69363(images, prompt_text, answer_text, diagnostic_event=""):
     """One shared final Technical website-image authority for every publication path."""
     kept = []
@@ -60422,6 +60808,7 @@ def _website_model_control_payload_v69010(image_record):
         "visual_analysis": visual,
         "image_structured_metadata_v69017": dict(image_record.get("website_structured_metadata_v69017") or {}),
         "atp_semantic_metadata_v69363": dict(image_record.get("website_atp_semantic_metadata_v69363") or {}),
+        "atp_semantic_metadata_v69364": dict(image_record.get("website_atp_semantic_metadata_v69364") or {}),
         "source_zone_v69024": str(image_record.get("website_source_zone_v69024") or "").strip(),
         "page_type_v69024": str(image_record.get("website_page_type_v69024") or "").strip(),
         "page_identity_v69024": dict(image_record.get("website_page_identity_v69024") or {}),
@@ -60905,6 +61292,14 @@ def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text
         re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip(),
     ))
     turn_key_v69360 = hashlib.sha256(turn_key_payload_v69360.encode("utf-8")).hexdigest()
+    process_key_payload_v69365 = "\n".join((
+        "technical_dedicated_image",
+        str(_website_destination_revision_v69109("Technical Support Database")),
+        "|".join(vector_store_ids),
+        re.sub(r"\s+", " ", str(prompt_text or "")).strip(),
+        re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip(),
+    ))
+    process_key_v69365 = hashlib.sha256(process_key_payload_v69365.encode("utf-8")).hexdigest()
     cached_rows_v69360 = turn_cache_v69360.get(turn_key_v69360)
     if isinstance(cached_rows_v69360, list):
         diagnostic_log(
@@ -60912,6 +61307,17 @@ def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text
             result_count=len(cached_rows_v69360),
         )
         return [dict(row) for row in cached_rows_v69360 if isinstance(row, dict)]
+    process_rows_v69365 = _workspace_exact_retrieval_cache_get_v69365(
+        process_key_v69365, ttl_seconds=120.0
+    )
+    if process_rows_v69365 is not None:
+        turn_cache_v69360[turn_key_v69360] = [dict(row) for row in process_rows_v69365]
+        st.session_state["_technical_dedicated_image_turn_cache_v69360"] = turn_cache_v69360
+        diagnostic_log(
+            "website_image_universal_search_process_cache_hit_v69365",
+            result_count=len(process_rows_v69365),
+        )
+        return process_rows_v69365
 
     request = {
         "model": "gpt-5.5",
@@ -60940,6 +61346,7 @@ def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text
     if len(turn_cache_v69360) > 8:
         turn_cache_v69360 = dict(list(turn_cache_v69360.items())[-8:])
     st.session_state["_technical_dedicated_image_turn_cache_v69360"] = turn_cache_v69360
+    _workspace_exact_retrieval_cache_put_v69365(process_key_v69365, rows)
     diagnostic_log(
         "website_image_universal_search_complete_v69014",
         result_count=len(rows),
@@ -61681,6 +62088,7 @@ def _website_image_record_for_chat_v68883(payload):
         "website_visual_analysis_v69010": str(payload.get("visual_analysis") or "").strip(),
         "website_structured_metadata_v69017": dict(payload.get("image_structured_metadata_v69017") or {}),
         **({"website_atp_semantic_metadata_v69363": dict(payload.get("atp_semantic_metadata_v69363") or {})} if "atp_semantic_metadata_v69363" in payload else {}),
+        **({"website_atp_semantic_metadata_v69364": dict(payload.get("atp_semantic_metadata_v69364") or {})} if "atp_semantic_metadata_v69364" in payload else {}),
         "website_source_zone_v69024": str(payload.get("source_zone_v69024") or "").strip(),
         "website_page_type_v69024": str(payload.get("page_type_v69024") or "").strip(),
         "website_page_identity_v69024": dict(payload.get("page_identity_v69024") or {}),
@@ -64926,9 +65334,8 @@ def _workspace_durable_image_payloads_v69041(destination):
     if target not in {"Sales Database", "Marketing Database"}:
         return []
     return [
-        dict(payload) for payload in (_website_image_index_rows_v68883() or [])
+        dict(payload) for payload in (_website_image_rows_for_destination_v69360(target) or [])
         if isinstance(payload, dict)
-        and str(payload.get("database_choice") or "").strip() == target
         and (
             str(payload.get("archive_storage_path") or "").strip()
             or str(payload.get("image_url") or "").startswith("https://")
@@ -69723,8 +70130,7 @@ def _technical_registry_payload_v69162(package, vector_store_id=""):
     }
 
 
-@st.cache_data(ttl=2, max_entries=8, show_spinner=False)
-@st.cache_data(ttl=2, max_entries=8, show_spinner=False)
+@st.cache_data(ttl=120, max_entries=8, show_spinner=False)
 def _technical_registry_rows_v69162(vector_store_id):
     """Read the company-wide durable current-package registry on modern or legacy schemas."""
     store = str(vector_store_id or "").strip()
@@ -71499,6 +71905,7 @@ def _technical_durable_snapshot_decode_v69171(payload, expected_source_url="", e
     }
 
 
+@st.cache_data(ttl=180, max_entries=128, show_spinner=False)
 def _technical_durable_snapshot_row_v69171(source_url, vector_store_id=""):
     key = _technical_durable_snapshot_key_v69171(source_url)
     if not key:
@@ -71608,6 +72015,10 @@ def _technical_durable_snapshot_commit_verified_v69171(package, vector_store_id=
         or str(verified.get("package_text") or "") != str(package.get("package_text") or "")
     ):
         raise RuntimeError("Technical durable snapshot read-back verification failed.")
+    try:
+        _technical_durable_snapshot_row_v69171.clear()
+    except Exception:
+        pass
     diagnostic_log(
         "technical_durable_snapshot_commit_verified_v69171",
         file_id=str(package.get("file_id") or "")[:160],
@@ -80601,6 +81012,7 @@ def _website_remove_vector_file_v68892(vector_store_id, file_id):
         # Vector-store detachment is authoritative. OpenAI file cleanup is best-effort.
         pass
     try:
+        _workspace_exact_retrieval_cache_clear_v69365()
         _vector_store_file_catalog_v69040.clear()
         vector_store_has_filename.clear()
     except Exception:
@@ -80681,6 +81093,10 @@ def _website_bump_destination_revision_v69109(database_choice):
 def _website_invalidate_learning_caches_v69109(database_choices):
     """Clear every local cache/session evidence source that can retain a stale page."""
     try:
+        _workspace_exact_retrieval_cache_clear_v69365()
+    except Exception:
+        pass
+    try:
         _technical_package_prewarm_invalidate_v69119()
     except Exception:
         pass
@@ -80695,6 +81111,7 @@ def _website_invalidate_learning_caches_v69109(database_choices):
         "_vector_store_file_catalog_v69040",
         "vector_store_has_filename",
         "_technical_admin_website_package_catalog_v69113",
+        "_technical_durable_snapshot_row_v69171",
     ):
         try:
             fn = globals().get(cache_name)
@@ -86535,7 +86952,7 @@ def _product_library_normalize_rows(payload):
     return rows
 
 
-@st.cache_data(ttl=60, max_entries=4, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=4, show_spinner=False)
 def _product_library_cached_products():
     """Cache the bounded Product Library catalogue used by chat lookup."""
     database = get_supabase_admin_client()
@@ -86551,7 +86968,7 @@ def _product_library_cached_products():
     return _product_library_normalize_rows(getattr(response, "data", response))
 
 
-@st.cache_data(ttl=60, max_entries=2, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=2, show_spinner=False)
 def _product_library_cached_asset_catalog():
     """Cache the bounded legacy asset catalogue once per minute.
 
@@ -86576,7 +86993,7 @@ def _product_library_cached_asset_catalog():
     return _product_library_normalize_rows(getattr(response, "data", response))
 
 
-@st.cache_data(ttl=60, max_entries=2, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=2, show_spinner=False)
 def _product_library_cached_asset_index():
     """Index the legacy asset catalogue once instead of rescanning 5,000 rows per product."""
     catalogue = _product_library_cached_asset_catalog()
@@ -86607,7 +87024,7 @@ def _product_library_cached_asset_index():
     }
 
 
-@st.cache_data(ttl=60, max_entries=256, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=256, show_spinner=False)
 def _product_library_cached_assets(product_code, product_id):
     """Return every asset belonging to one product, including legacy rows.
 
@@ -94777,6 +95194,44 @@ else:
                         error=str(error)[:500],
                     )
 
+        # v69365: latency-only early exact product-image bridge. v69364 previously
+        # ran this bridge after the universal provider image search, so an exact Sales
+        # product/after-installation image could still pay an unnecessary provider
+        # round trip first. Run the SAME bridge earlier only for its already-protected
+        # product visual intents. Settings/configuration requests remain excluded by
+        # the bridge itself. The final v69363 publication gate remains unchanged.
+        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+            existing_product_bridge_v69365 = [
+                image for image in (generated_images or [])
+                if isinstance(image, dict)
+                and bool(image.get("website_cross_workspace_product_bridge_v69364"))
+            ]
+            existing_website_v69365 = [
+                image for image in (generated_images or [])
+                if isinstance(image, dict)
+                and str(image.get("source") or "") == "website_knowledge"
+            ]
+            if not existing_product_bridge_v69365 and not existing_website_v69365:
+                try:
+                    early_bridge_images_v69365 = _technical_sales_product_image_bridge_v69364(
+                        technical_request_prompt_v68879,
+                        answer,
+                        max_images=3,
+                    )
+                    if early_bridge_images_v69365:
+                        generated_images.extend(early_bridge_images_v69365)
+                        generated_images = _dedupe_website_chat_images_v68883(generated_images)
+                        diagnostic_log(
+                            "technical_sales_product_image_bridge_early_v69365",
+                            published=len(early_bridge_images_v69365),
+                        )
+                except Exception as error_v69365:
+                    diagnostic_log(
+                        "technical_sales_product_image_bridge_early_failed_v69365",
+                        error_type=type(error_v69365).__name__,
+                        error=str(error_v69365)[:500],
+                    )
+
         # v69014 FINAL: universal Technical related-image recovery.
         # This runs after ANY substantive Technical answer, not only hard-coded topics.
         # Text retrieval and image retrieval are independent objectives. Candidate images
@@ -94970,6 +95425,34 @@ else:
                     diagnostic_log(
                         "website_related_evidence_auto_publication_failed_v69025r2",
                         error_type=type(error).__name__, error=str(error)[:500],
+                    )
+
+        # v69364: product pages live in Sales Database, while Technical image
+        # retrieval is intentionally destination-isolated. If Technical produced no
+        # website image, allow a read-only exact-product visual bridge for only
+        # primary/major/after-installation product roles. Settings/configuration
+        # inquiries are explicitly excluded and the shared final Technical gate still
+        # runs later before save/render.
+        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+            existing_technical_website_images_v69364 = [
+                image for image in (generated_images or [])
+                if isinstance(image, dict) and str(image.get("source") or "") == "website_knowledge"
+            ]
+            if not existing_technical_website_images_v69364:
+                try:
+                    technical_sales_product_images_v69364 = _technical_sales_product_image_bridge_v69364(
+                        technical_request_prompt_v68879,
+                        answer,
+                        max_images=3,
+                    )
+                    if technical_sales_product_images_v69364:
+                        generated_images.extend(technical_sales_product_images_v69364)
+                        generated_images = _dedupe_website_chat_images_v68883(generated_images)
+                except Exception as error_v69364:
+                    diagnostic_log(
+                        "technical_sales_product_image_bridge_failed_v69364",
+                        error_type=type(error_v69364).__name__,
+                        error=str(error_v69364)[:500],
                     )
 
         # v69180/v69181: exact ATP images first. v69181 skips the legacy v69050
