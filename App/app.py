@@ -1,3 +1,4 @@
+# AutoTecPro AI v69366 - production retrieval fan-out + live price concurrency hardening
 # AutoTecPro AI v69362 - Technical vehicle-identity lock + clarification isolation + final config parser hardening
 # AutoTecPro AI v69363 - Technical semantic image metadata + final publication authority hardening
 # AutoTecPro AI v69360 - safe performance + image provenance hardening
@@ -63138,13 +63139,23 @@ def _workspace_atp_turn_local_recovery_v69338(destination, prompt_text):
     else:
         try:
             from concurrent.futures import ThreadPoolExecutor
-            with ThreadPoolExecutor(max_workers=min(3, len(queries)), thread_name_prefix="atp-vs-v69356") as executor:
+            # v69366: the query set is already bounded to at most five independent
+            # evidence searches. Run the complete bounded set in one wave instead of
+            # forcing 4-5 query requests into two waves. Query text, result limits,
+            # result ordering, dedupe, and downstream authority gates are unchanged.
+            worker_count_v69366 = min(5, len(queries))
+            with ThreadPoolExecutor(max_workers=worker_count_v69366, thread_name_prefix="atp-vs-v69356") as executor:
                 futures_v69356 = [executor.submit(_run_query_v69356, q) for q in queries]
                 rows_by_query_v69356 = [future.result() for future in futures_v69356]
             diagnostic_log(
                 "workspace_atp_parallel_vector_recovery_v69356",
-                destination=target, query_count=len(queries), worker_count=min(3, len(queries)),
+                destination=target, query_count=len(queries), worker_count=worker_count_v69366,
             )
+            if len(queries) > 3:
+                diagnostic_log(
+                    "workspace_atp_single_wave_vector_recovery_v69366",
+                    destination=target, query_count=len(queries), worker_count=worker_count_v69366,
+                )
         except Exception as error_v69356:
             # Fail-safe compatibility fallback: preserve the exact prior sequential behavior.
             diagnostic_log(
@@ -63298,6 +63309,37 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
     revision = _website_destination_revision_v69109(target)
     key = f"{store}::{int(revision or 0)}"
     state = _workspace_atp_package_state_v69180()
+
+    # v69366: the OpenAI API capability is process-wide. Once assistants-purpose
+    # file content has been proven non-downloadable, this prewarm cannot possibly
+    # produce a package by walking the vector-store file list. Fail fast into the
+    # unchanged vector-search recovery path instead of touching every file.
+    try:
+        capability_state_v69366 = _technical_file_content_capability_state_v69324()
+        assistants_content_unsupported_v69366 = bool(
+            _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228
+            or capability_state_v69366.get("assistants_content_unsupported")
+        )
+    except Exception:
+        assistants_content_unsupported_v69366 = bool(
+            _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228
+        )
+    if assistants_content_unsupported_v69366:
+        with state["lock"]:
+            bucket = state["destinations"][target]
+            bucket.update({
+                "key": key,
+                "status": "failed",
+                "future": None,
+                "error": "ASSISTANTS_FILE_CONTENT_UNSUPPORTED",
+                "attempted_at": time.monotonic(),
+            })
+        diagnostic_log(
+            "workspace_atp_package_prewarm_capability_short_circuit_v69366",
+            destination=target,
+            reason="ASSISTANTS_FILE_CONTENT_UNSUPPORTED",
+        )
+        return True
     with state["lock"]:
         bucket = state["destinations"][target]
         if bucket.get("key") == key and bucket.get("status") in {"running","ready","stale_ready"}:
@@ -64093,9 +64135,72 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
 
             live_rows_v69326 = []
             verified_count_v69326 = 0
-            for title_v69326, fit_label_v69326, source_v69326 in selected_rows_v69326:
-                lookup_v69326 = _woocommerce_product_by_source_url_v69326(source_v69326)
-                price_label_v69326 = _woocommerce_price_label_v69326(lookup_v69326)
+
+            # v69366: each selected product price is an independent exact-URL read.
+            # Resolve those reads concurrently, then consume results in the original
+            # product order. Exact URL identity, WooCommerce-first authority, exact-page
+            # fallback, verification wording, and fail-closed behavior are unchanged.
+            def _resolve_live_price_v69366(row_v69366):
+                title_v69366, fit_label_v69366, source_v69366 = row_v69366
+                lookup_v69366 = _woocommerce_product_by_source_url_v69326(source_v69366)
+                price_label_v69366 = _woocommerce_price_label_v69326(lookup_v69366)
+                page_lookup_v69366 = {}
+                page_price_label_v69366 = ""
+                if not price_label_v69366:
+                    page_lookup_v69366 = _current_product_page_price_by_exact_url_v69340(source_v69366)
+                    page_price_label_v69366 = _current_product_page_price_label_v69340(page_lookup_v69366)
+                return {
+                    "title": title_v69366,
+                    "fit_label": fit_label_v69366,
+                    "source": source_v69366,
+                    "lookup": dict(lookup_v69366 or {}),
+                    "price_label": str(price_label_v69366 or ""),
+                    "page_lookup": dict(page_lookup_v69366 or {}),
+                    "page_price_label": str(page_price_label_v69366 or ""),
+                }
+
+            resolved_price_rows_v69366 = []
+            if len(selected_rows_v69326) <= 1:
+                resolved_price_rows_v69366 = [
+                    _resolve_live_price_v69366(row_v69366) for row_v69366 in selected_rows_v69326
+                ]
+            else:
+                try:
+                    from concurrent.futures import ThreadPoolExecutor
+                    price_workers_v69366 = min(4, len(selected_rows_v69326))
+                    with ThreadPoolExecutor(
+                        max_workers=price_workers_v69366,
+                        thread_name_prefix="atp-sales-price-v69366",
+                    ) as executor_v69366:
+                        futures_v69366 = [
+                            executor_v69366.submit(_resolve_live_price_v69366, row_v69366)
+                            for row_v69366 in selected_rows_v69326
+                        ]
+                        resolved_price_rows_v69366 = [
+                            future_v69366.result() for future_v69366 in futures_v69366
+                        ]
+                    diagnostic_log(
+                        "workspace_sales_live_price_parallel_v69366",
+                        requested=len(selected_rows_v69326),
+                        worker_count=price_workers_v69366,
+                    )
+                except Exception as error_v69366:
+                    diagnostic_log(
+                        "workspace_sales_live_price_parallel_fallback_v69366",
+                        requested=len(selected_rows_v69326),
+                        error_type=type(error_v69366).__name__,
+                        error=str(error_v69366)[:400],
+                    )
+                    resolved_price_rows_v69366 = [
+                        _resolve_live_price_v69366(row_v69366) for row_v69366 in selected_rows_v69326
+                    ]
+
+            for resolved_v69366 in resolved_price_rows_v69366:
+                title_v69326 = str(resolved_v69366.get("title") or "")
+                fit_label_v69326 = str(resolved_v69366.get("fit_label") or "")
+                source_v69326 = str(resolved_v69366.get("source") or "")
+                lookup_v69326 = dict(resolved_v69366.get("lookup") or {})
+                price_label_v69326 = str(resolved_v69366.get("price_label") or "")
                 if price_label_v69326:
                     verified_count_v69326 += 1
                     product_v69326 = dict(lookup_v69326.get("product") or {})
@@ -64106,10 +64211,8 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                         note_v69326 = f"Live sale price; regular price {(_woocommerce_store_currency_v69326() or 'store currency')} {regular_v69326}"
                     live_rows_v69326.append((str(product_v69326.get("name") or title_v69326), fit_label_v69326, price_label_v69326, note_v69326))
                 else:
-                    # v69340: exact matched URL page fallback only after WooCommerce REST
-                    # fails. Product identity/order/image authority are unchanged.
-                    page_lookup_v69340 = _current_product_page_price_by_exact_url_v69340(source_v69326)
-                    page_price_label_v69340 = _current_product_page_price_label_v69340(page_lookup_v69340)
+                    page_lookup_v69340 = dict(resolved_v69366.get("page_lookup") or {})
+                    page_price_label_v69340 = str(resolved_v69366.get("page_price_label") or "")
                     if page_price_label_v69340:
                         verified_count_v69326 += 1
                         diagnostic_log(
@@ -75207,9 +75310,17 @@ def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_re
     # downloadable, do not enumerate the full vector-store corpus merely to
     # skip every file.  Current Technical authority is recovered from verified
     # durable snapshots/registry instead.
-    if _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228:
+    capability_state_v69366 = _technical_file_content_capability_state_v69324()
+    if (
+        _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228
+        or bool(capability_state_v69366.get("assistants_content_unsupported"))
+    ):
         diagnostic_log(
             "technical_admin_catalog_short_circuit_v69233",
+            reason="ASSISTANTS_FILE_CONTENT_UNSUPPORTED",
+        )
+        diagnostic_log(
+            "technical_admin_catalog_process_capability_short_circuit_v69366",
             reason="ASSISTANTS_FILE_CONTENT_UNSUPPORTED",
         )
         return []
