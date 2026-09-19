@@ -93374,6 +93374,64 @@ else:
                         unsafe_allow_html=True,
                     )
 
+                # v69372: A simple WooCommerce order lookup must become durable at the
+                # exact moment its deterministic result is first shown.  v69371 committed
+                # later, after Technical pre-stream/image preparation.  During that gap the
+                # user could submit another turn (or Safari could reconnect), which caused
+                # the already-visible order card to disappear because it had never reached
+                # the durable transcript.
+                #
+                # Commit here, before *any* Technical image/vector/preflight work. Mixed
+                # order + troubleshooting prompts remain on the normal AI path.
+                direct_order_lookup_early_v69372 = bool(
+                    order_display_text
+                    and _woocommerce_direct_order_lookup_v69370(
+                        interaction_prompt,
+                        detected_request,
+                    )
+                )
+                if direct_order_lookup_early_v69372:
+                    direct_order_answer_v69372 = str(order_display_text or "").strip()
+                    direct_order_history_ok_v69372 = True
+                    if history_is_enabled() and st.session_state.get("conversation_id"):
+                        try:
+                            save_message(
+                                st.session_state.conversation_id,
+                                "assistant",
+                                direct_order_answer_v69372,
+                            )
+                        except Exception as direct_order_save_error_v69372:
+                            direct_order_history_ok_v69372 = False
+                            diagnostic_log(
+                                "woocommerce_direct_order_early_persist_failed_v69372",
+                                workspace=str(assistant),
+                                conversation_id=st.session_state.get("conversation_id"),
+                                order_number=str((detected_request or {}).get("order_number") or "")[:32],
+                                error_type=type(direct_order_save_error_v69372).__name__,
+                            )
+
+                    if direct_order_history_ok_v69372:
+                        st.session_state.messages.append({
+                            "role": "assistant",
+                            "content": direct_order_answer_v69372,
+                        })
+                        loading_status_placeholder.empty()
+                        diagnostic_log(
+                            "woocommerce_direct_order_early_committed_v69372",
+                            workspace=str(assistant),
+                            conversation_id=st.session_state.get("conversation_id"),
+                            order_number=str((detected_request or {}).get("order_number") or "")[:32],
+                            session_message_count=len(st.session_state.get("messages") or []),
+                        )
+                        st.rerun()
+
+                    diagnostic_log(
+                        "woocommerce_direct_order_early_commit_fallback_v69372",
+                        workspace=str(assistant),
+                        conversation_id=st.session_state.get("conversation_id"),
+                        order_number=str((detected_request or {}).get("order_number") or "")[:32],
+                    )
+
                 website_index_images_v68883 = list(
                     locals().get("technical_early_index_images_v69016") or []
                 )
@@ -93583,8 +93641,65 @@ else:
                             )
                         )
                         if direct_order_lookup_v69370:
+                            # v69371: A simple WooCommerce order lookup is already a complete,
+                            # deterministic app-owned answer.  v69370 only *logged* that the
+                            # result was committed, then continued through the normal image /
+                            # post-processing pipeline.  A second user turn (or browser reconnect)
+                            # could therefore rerun the app before the assistant turn had actually
+                            # been appended to session state and persisted to Supabase.
+                            #
+                            # Commit the exact order card here, before any unrelated Technical
+                            # image search or AI work, then rerun so the durable transcript is the
+                            # single rendering authority.  Mixed order + troubleshooting prompts
+                            # never enter this branch because _woocommerce_direct_order_lookup_v69370
+                            # deliberately returns False for them.
+                            direct_order_answer_v69371 = str(order_display_text or "").strip()
+                            direct_order_history_ok_v69371 = True
+
+                            if history_is_enabled() and st.session_state.get("conversation_id"):
+                                try:
+                                    save_message(
+                                        st.session_state.conversation_id,
+                                        "assistant",
+                                        direct_order_answer_v69371,
+                                    )
+                                except Exception as direct_order_save_error_v69371:
+                                    direct_order_history_ok_v69371 = False
+                                    diagnostic_log(
+                                        "woocommerce_direct_order_persist_failed_v69371",
+                                        workspace=str(assistant),
+                                        conversation_id=st.session_state.get("conversation_id"),
+                                        order_number=str((detected_request or {}).get("order_number") or "")[:32],
+                                        error_type=type(direct_order_save_error_v69371).__name__,
+                                    )
+
+                            if direct_order_history_ok_v69371:
+                                stream_placeholder.markdown(
+                                    _assistant_stream_html(direct_order_answer_v69371),
+                                    unsafe_allow_html=True,
+                                )
+                                st.session_state.messages.append({
+                                    "role": "assistant",
+                                    "content": direct_order_answer_v69371,
+                                })
+                                loading_status_placeholder.empty()
+                                diagnostic_log(
+                                    "woocommerce_direct_order_result_committed_v69371",
+                                    workspace=str(assistant),
+                                    conversation_id=st.session_state.get("conversation_id"),
+                                    order_number=str((detected_request or {}).get("order_number") or "")[:32],
+                                    session_message_count=len(st.session_state.get("messages") or []),
+                                    history_persisted=bool(
+                                        (not history_is_enabled())
+                                        or st.session_state.get("conversation_id")
+                                    ),
+                                )
+                                st.rerun()
+
+                            # If the immediate Supabase write fails, fall back to the established
+                            # v69370 path so the normal end-of-turn persistence can retry.
                             diagnostic_log(
-                                "woocommerce_direct_order_result_committed_v69370",
+                                "woocommerce_direct_order_commit_fallback_v69371",
                                 workspace=str(assistant),
                                 conversation_id=st.session_state.get("conversation_id"),
                                 order_number=str((detected_request or {}).get("order_number") or "")[:32],
