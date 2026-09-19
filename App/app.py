@@ -1,3 +1,5 @@
+# AutoTecPro AI v69370 - durable direct WooCommerce order lookup preservation
+# AutoTecPro AI v69369 - exact Technical video-resource branch binding + provider bypass
 # AutoTecPro AI v69368 - mobile table CSS isolation + response rendering hardening
 # AutoTecPro AI v69367 - mobile-only responsive table readability hardening
 # AutoTecPro AI v69366 - production retrieval fan-out + live price concurrency hardening
@@ -5073,6 +5075,32 @@ def detect_live_request(prompt, selected_assistant=None):
         return {"type": "web", "query": value}
 
     return {"type": "none"}
+
+
+
+def _woocommerce_direct_order_lookup_v69370(prompt, request_type):
+    """Return True only for simple order-lookups that need no AI interpretation.
+
+    These requests already have a complete deterministic WooCommerce result.  Running
+    a second AI stream after displaying that result creates a race: a new user turn can
+    interrupt the unfinished stream before the visible order card is committed to chat
+    history.  Keep mixed troubleshooting/order requests on the normal AI path.
+    """
+    request = dict(request_type or {}) if isinstance(request_type, dict) else {}
+    if str(request.get("type") or "").strip().casefold() != "woocommerce_order":
+        return False
+    value = re.sub(r"\s+", " ", str(prompt or "")).strip()
+    if not value:
+        return False
+    patterns = (
+        r"#?\d{4,12}[?.!]?",
+        r"(?:show|find|get|check)\s+(?:the\s+)?(?:order\s*)?#?\d{4,12}[?.!]?",
+        r"(?:order|woocommerce)\s*(?:number|no\.?|#)?\s*[:#-]?\s*\d{4,12}[?.!]?",
+        r"what(?:'s|\s+is)\s+#?\d{4,12}[?.!]?",
+        r"(?:what|which)\s+(?:order|product|item|model)\s+(?:is|was)\s+#?\d{4,12}[?.!]?",
+        r"(?:what(?:'s|\s+is)|check|show|tell\s+me)?\s*(?:the\s+)?(?:current\s+)?(?:order\s+)?status\s*(?:of|for)?\s*(?:order\s*)?#?\s*\d{4,12}[?.!]?",
+    )
+    return any(re.fullmatch(pattern, value, flags=re.IGNORECASE) for pattern in patterns)
 
 
 def get_live_data_for_prompt(
@@ -45187,6 +45215,127 @@ def _technical_variant_retrieval_instruction_v69106(prompt_text):
     return "\n".join(lines)
 
 
+
+def _technical_video_request_v69369(prompt_text):
+    if str(assistant or "") != "🔧 Technical Support":
+        return False
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    return bool(value and re.search(r"\b(?:installation|install|setup|how[- ]?to|tutorial)?\s*(?:youtube\s*)?video\b|\byoutube\b", value))
+
+
+def _technical_video_requested_branches_v69369(prompt_text):
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    branches = []
+    if re.search(r"\bnbt[\s_/-]*(?:evo|evolution)\b", value):
+        branches.append("nbt-evo")
+        value = re.sub(r"\bnbt[\s_/-]*(?:evo|evolution)\b", " ", value)
+    for token in ("ccc", "cic", "nbt", "evo"):
+        if re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", value):
+            branches.append(token)
+    return list(dict.fromkeys(branches))
+
+
+def _technical_video_retrieval_instruction_v69369(prompt_text):
+    """Route explicit Technical video requests to exact learned video metadata."""
+    if not _technical_video_request_v69369(prompt_text):
+        return ""
+    branches = _technical_video_requested_branches_v69369(prompt_text)
+    branch_text = "|".join(branches) if branches else "unspecified"
+    return (
+        "TECHNICAL EXACT VIDEO RESOURCE AUTHORITY (v69369):\n"
+        "- This user explicitly requested an installation/video resource. Search the same Technical file_search authority for WEBSITE VIDEO LINKS records.\n"
+        "- Prefer VIDEO_BRANCHES_V69369, then VIDEO_LABEL_V69369 and VIDEO_CONTEXT_V69369. Return the exact VIDEO_URL only when its nearby source metadata matches the requested system branch.\n"
+        "- Treat NBT and NBT EVO as different branches. A video labeled NBT EVO/EVO is not an NBT-only video. CCC, CIC, NBT, and EVO must never be silently substituted for one another.\n"
+        "- If an exact branch-tagged current-source video exists, provide that exact URL prominently instead of only the parent installation page.\n"
+        "- If no exact branch-tagged video is supported, keep the existing fail-closed behavior and provide only verified generic resources. Never guess a YouTube URL.\n"
+        f"- Requested branch tokens: {branch_text}."
+    )
+
+
+def _technical_video_resources_from_rows_v69369(prompt_text, rows):
+    """Resolve one exact branch-matched video from current-turn file_search evidence."""
+    if not _technical_video_request_v69369(prompt_text):
+        return {}
+    requested = set(_technical_video_requested_branches_v69369(prompt_text))
+    candidates = []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        text_value = str(row.get("text") or "")
+        if "VIDEO_URL:" not in text_value:
+            continue
+        blocks = re.split(r"(?m)(?=^VIDEO\s+\d+\s*$)", text_value)
+        for block in blocks:
+            url_match = re.search(r"(?m)^VIDEO_URL:\s*(https://\S+)", block)
+            if not url_match:
+                continue
+            url = url_match.group(1).strip().rstrip('.,;)')
+            if not re.match(r"^https://(?:youtu\.be/|(?:www\.)?youtube(?:-nocookie)?\.com/)", url, flags=re.I):
+                continue
+            label_match = re.search(r"(?m)^VIDEO_LABEL_V69369:\s*(.*)$", block)
+            branch_match = re.search(r"(?m)^VIDEO_BRANCHES_V69369:\s*(.*)$", block)
+            context_match = re.search(r"(?m)^VIDEO_CONTEXT_V69369:\s*(.*)$", block)
+            label = str(label_match.group(1) if label_match else "").strip()
+            context = str(context_match.group(1) if context_match else "").strip()
+            branches = {
+                x.strip().casefold()
+                for x in str(branch_match.group(1) if branch_match else "").split("|")
+                if x.strip()
+            }
+            if requested:
+                # Exact branch matching only.  NBT EVO never satisfies NBT.
+                if not requested.issubset(branches):
+                    continue
+                if "nbt" in requested and "nbt-evo" in branches and "nbt" not in branches:
+                    continue
+            elif len(branches) > 1:
+                # Generic video requests must not arbitrarily pick among multiple
+                # system-specific branches.
+                continue
+            try:
+                vector_score = float(row.get("score") or 0.0)
+            except Exception:
+                vector_score = 0.0
+            score = vector_score + (10.0 if requested and requested.issubset(branches) else 0.0) + (2.0 if label else 0.0)
+            candidates.append({
+                "url": url,
+                "label": label,
+                "context": context,
+                "branches": sorted(branches),
+                "file_id": str(row.get("file_id") or ""),
+                "filename": str(row.get("filename") or ""),
+                "score": score,
+            })
+    if not candidates:
+        return {}
+    candidates.sort(key=lambda x: float(x.get("score") or 0.0), reverse=True)
+    top = candidates[0]
+    # Fail closed when two different URLs have effectively identical authority
+    # for the same exact requested branch.
+    if len(candidates) > 1:
+        second = candidates[1]
+        if second.get("url") != top.get("url") and abs(float(top.get("score") or 0.0) - float(second.get("score") or 0.0)) < 0.0001:
+            return {}
+    return top
+
+
+def _technical_video_direct_answer_v69369(prompt_text, rows):
+    resource = _technical_video_resources_from_rows_v69369(prompt_text, rows)
+    if not resource:
+        return ""
+    branches = resource.get("branches") or []
+    branch_label = " / ".join(str(x).upper().replace("NBT-EVO", "NBT EVO") for x in branches) or "Installation"
+    label = str(resource.get("label") or "").strip()
+    if not label:
+        label = f"{branch_label} installation video"
+    diagnostic_log(
+        "technical_exact_video_resource_bound_v69369",
+        branches="|".join(branches),
+        file_id=str(resource.get("file_id") or ""),
+        url_sha256=hashlib.sha256(str(resource.get("url") or "").encode("utf-8")).hexdigest()[:16],
+    )
+    return f"## Verified Installation Video\n\n- **{label}:** {resource['url']}"
+
 def build_user_input(
     prompt_text,
     uploaded_files,
@@ -45354,6 +45503,9 @@ def build_user_input(
     technical_variant_instruction_v69106 = _technical_variant_retrieval_instruction_v69106(prompt_text)
     if technical_variant_instruction_v69106:
         content.append({"type": "input_text", "text": technical_variant_instruction_v69106})
+    technical_video_instruction_v69369 = _technical_video_retrieval_instruction_v69369(prompt_text)
+    if technical_video_instruction_v69369:
+        content.append({"type": "input_text", "text": technical_video_instruction_v69369})
 
     if prompt_text:
         content.append({"type": "input_text", "text": prompt_text})
@@ -58135,14 +58287,21 @@ def build_website_knowledge_package_document(
             "",
         ])
         for index, item in enumerate(media_links_v69323, start=1):
-            lines.extend([
+            video_lines_v69369 = [
                 f"VIDEO {index}",
                 f"VIDEO_PLATFORM: {str(item.get('platform') or '').strip()}",
                 f"VIDEO_ID: {str(item.get('video_id') or '').strip()}",
                 f"VIDEO_URL: {str(item.get('url') or '').strip()}",
                 f"VIDEO_SOURCE_ZONE: {str(item.get('source_zone_v69024') or '').strip()}",
-                "",
-            ])
+            ]
+            if str(database_choice or "") == "Technical Support Database":
+                video_lines_v69369.extend([
+                    f"VIDEO_LABEL_V69369: {str(item.get('label_v69369') or '').strip()}",
+                    f"VIDEO_BRANCHES_V69369: {'|'.join(str(x).strip() for x in (item.get('branches_v69369') or []) if str(x).strip())}",
+                    f"VIDEO_CONTEXT_V69369: {str(item.get('context_v69369') or '').strip()[:1200]}",
+                ])
+            video_lines_v69369.append("")
+            lines.extend(video_lines_v69369)
 
     # v69142: durable generic section/image binding for Technical learning only.
     # Sales/Marketing package content remains byte-for-byte on its prior path.
@@ -75046,8 +75205,74 @@ def _website_youtube_video_identity_v69323(raw_url, page_url=""):
     }
 
 
+def _website_video_context_v69369(page_html, video_id):
+    """Return conservative DOM-near context for one YouTube video.
+
+    This is learning-time metadata only.  It never guesses a branch from the
+    product/page identity.  Branch labels are taken from text physically near
+    the exact video embed/link in the current HTML so NBT and NBT EVO remain
+    distinct authorities.
+    """
+    raw = str(page_html or "")
+    vid = str(video_id or "").strip()
+    if not raw or not vid:
+        return {"label_v69369": "", "context_v69369": "", "branches_v69369": []}
+
+    def clean_fragment(fragment):
+        value = re.sub(r"(?is)<script\b[^>]*>.*?</script>|<style\b[^>]*>.*?</style>", " ", str(fragment or ""))
+        value = re.sub(r"(?s)<[^>]+>", " ", value)
+        value = html.unescape(value)
+        return re.sub(r"\s+", " ", value).strip()
+
+    def branches_from_text(value):
+        value = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+        if not value:
+            return []
+        branches = []
+        # Compound branches must be recognized before their component tokens.
+        if re.search(r"\bnbt[\s_/-]*(?:evo|evolution)\b", value):
+            branches.append("nbt-evo")
+            value = re.sub(r"\bnbt[\s_/-]*(?:evo|evolution)\b", " ", value)
+        for token in ("ccc", "cic", "nbt", "evo"):
+            if re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", value):
+                branches.append(token)
+        return list(dict.fromkeys(branches))
+
+    positions = [m.start() for m in re.finditer(re.escape(vid), raw, flags=re.I)]
+    if not positions:
+        return {"label_v69369": "", "context_v69369": "", "branches_v69369": []}
+
+    best = None
+    for pos in positions[:8]:
+        before = raw[max(0, pos - 3600):pos]
+        after = raw[pos:min(len(raw), pos + 1200)]
+        headings = re.findall(r"(?is)<h[1-6]\b[^>]*>(.*?)</h[1-6]\s*>", before)
+        strongs = re.findall(r"(?is)<(?:strong|b)\b[^>]*>(.*?)</(?:strong|b)\s*>", before)
+        label = clean_fragment(headings[-1] if headings else (strongs[-1] if strongs else ""))[:300]
+        context = clean_fragment(before[-2200:] + " " + after[:800])[:1800]
+        label_branches = branches_from_text(label)
+        context_branches = branches_from_text(context)
+        branches = label_branches or context_branches
+        # Prefer an occurrence with an actual nearby label, then one with a
+        # branch-specific context.  This prevents a generic page-level list from
+        # outranking the precise heading attached to the embed.
+        quality = (100 if label else 0) + (60 if label_branches else 0) + (20 if context_branches else 0)
+        candidate = {
+            "label_v69369": label,
+            "context_v69369": context,
+            "branches_v69369": branches,
+            "_quality": quality,
+        }
+        if best is None or candidate["_quality"] > best["_quality"]:
+            best = candidate
+    if not best:
+        return {"label_v69369": "", "context_v69369": "", "branches_v69369": []}
+    best.pop("_quality", None)
+    return best
+
+
 def _website_extract_media_links_v69323(page_html, page_url="", page_type=""):
-    """Extract current-content YouTube video links without admitting site-chrome media."""
+    """Extract current-content YouTube links and preserve exact nearby branch context."""
     class _MediaParser(HTMLParser):
         VOID = {"area","base","br","col","embed","hr","img","input","link","meta","param","source","track","wbr"}
         def __init__(self):
@@ -75087,7 +75312,7 @@ def _website_extract_media_links_v69323(page_html, page_url="", page_type=""):
                 return
             text = html.unescape(str(data or "")).replace("\\/", "/")
             for match in re.finditer(
-                r"https?://(?:www\.)?(?:youtu\.be/[A-Za-z0-9_-]{6,20}|(?:m\.|music\.)?youtube(?:-nocookie)?\.com/(?:watch\?[^\s<>'\"]*?v=[A-Za-z0-9_-]{6,20}|(?:embed|shorts|live)/[A-Za-z0-9_-]{6,20}))[^\s<>'\"]*",
+                r'https?://(?:www\.)?(?:youtu\.be/[A-Za-z0-9_-]{6,20}|(?:m\.|music\.)?youtube(?:-nocookie)?\.com/(?:watch\?[^\s<>\'"]*?v=[A-Za-z0-9_-]{6,20}|(?:embed|shorts|live)/[A-Za-z0-9_-]{6,20}))[^\s<>\'"]*',
                 text, flags=re.I,
             ):
                 self.add(match.group(0), "bare-text")
@@ -75104,7 +75329,14 @@ def _website_extract_media_links_v69323(page_html, page_url="", page_type=""):
         if key in seen:
             continue
         seen.add(key)
-        output.append(dict(row))
+        enriched = dict(row)
+        try:
+            enriched.update(_website_video_context_v69369(page_html, enriched.get("video_id")))
+        except Exception:
+            enriched.setdefault("label_v69369", "")
+            enriched.setdefault("context_v69369", "")
+            enriched.setdefault("branches_v69369", [])
+        output.append(enriched)
         if len(output) >= 32:
             break
     return output
@@ -93343,17 +93575,35 @@ else:
                             use_file_search=bool(use_file_search),
                             upload_count=len(graphic_generation_files or []),
                         )
-                        for delta in ask_ai_stream(
-                            ai_request_prompt,
-                            graphic_generation_files,
-                            detected_live_request=detected_request,
-                            detected_technical_tool=detected_technical_tool,
-                            detected_workspace_tool=detected_workspace_tool,
-                            response_mode=response_mode,
-                            use_file_search=use_file_search,
-                            live_data_override=preloaded_live_data,
-                            order_displayed_by_app=bool(order_display_text),
-                        ):
+                        direct_order_lookup_v69370 = bool(
+                            order_display_text
+                            and _woocommerce_direct_order_lookup_v69370(
+                                interaction_prompt,
+                                detected_request,
+                            )
+                        )
+                        if direct_order_lookup_v69370:
+                            diagnostic_log(
+                                "woocommerce_direct_order_result_committed_v69370",
+                                workspace=str(assistant),
+                                conversation_id=st.session_state.get("conversation_id"),
+                                order_number=str((detected_request or {}).get("order_number") or "")[:32],
+                            )
+                            stream_source_v69370 = ()
+                        else:
+                            stream_source_v69370 = ask_ai_stream(
+                                ai_request_prompt,
+                                graphic_generation_files,
+                                detected_live_request=detected_request,
+                                detected_technical_tool=detected_technical_tool,
+                                detected_workspace_tool=detected_workspace_tool,
+                                response_mode=response_mode,
+                                use_file_search=use_file_search,
+                                live_data_override=preloaded_live_data,
+                                order_displayed_by_app=bool(order_display_text),
+                            )
+
+                        for delta in stream_source_v69370:
                             delta_text = str(delta or "")
                             if delta_text and not first_stream_delta_received:
                                 first_stream_delta_received = True
@@ -94988,6 +95238,18 @@ else:
                             # after the v69125 contract.  v69137 durability/persistence and
                             # image publication remain intact; only presentation authority
                             # returns to the verified v69125 behavior.
+
+                            # v69369: explicit Technical installation-video requests get a
+                            # deterministic final resource only when the exact current-turn
+                            # file_search evidence carries branch-bound video metadata.  This
+                            # cannot invent or cross NBT/NBT EVO/CIC/CCC boundaries.
+                            if _technical_video_request_v69369(technical_request_prompt_v68879):
+                                exact_video_answer_v69369 = _technical_video_direct_answer_v69369(
+                                    technical_request_prompt_v68879,
+                                    list(st.session_state.get("_technical_file_search_results_v69012") or []),
+                                )
+                                if exact_video_answer_v69369:
+                                    answer_body = exact_video_answer_v69369
 
                         answer = answer_body
                         if order_display_text:
