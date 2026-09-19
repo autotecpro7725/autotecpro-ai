@@ -59978,6 +59978,78 @@ def _technical_answer_requires_config_verification_v69363(answer_text):
     ))
 
 
+def _technical_configuration_reference_image_request_v69373(prompt_text, answer_text, payload=None):
+    """Allow exact current-source configuration screenshots as *reference/navigation* only.
+
+    v69363 correctly blocked source-limited screenshots from proving an exact Car Model
+    profile.  The same gate was too broad for a different use: showing the exact current
+    Settings / Car Model / A-C screen so staff can navigate the menu.  This helper keeps
+    exact-value questions fail-closed while allowing a same-vehicle/year current-source
+    screenshot to illustrate where/how to access the setting.
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    answer = re.sub(r"\s+", " ", clean_visible_chat_text(str(answer_text or ""))).strip().casefold()
+    if not prompt:
+        return False
+
+    # Questions asking for the actual profile/value remain strict.  A screenshot must
+    # never substitute for a verified Car Model / A-C value.
+    exact_value_terms = (
+        "which car model", "what car model", "correct car model", "exact car model",
+        "which profile", "what profile", "correct profile", "exact profile",
+        "which option", "what option", "correct option", "which setting should",
+        "what setting should", "what should i select", "what should i choose",
+        "which one should", "select for my", "choose for my",
+    )
+    if any(term in prompt for term in exact_value_terms):
+        return False
+
+    # The final answer itself may contain a verified coded value. In that case the
+    # ordinary v69361/v69363 binding rules should decide the screenshot, not this
+    # reference exception.
+    if _technical_configuration_final_model_v69361(answer_text):
+        return False
+
+    payload = payload if isinstance(payload, dict) else {}
+    meta = _website_image_atp_semantic_metadata_v69363(payload)
+    role_blob = " ".join((
+        str(meta.get("data-atp-image-role") or ""),
+        str(meta.get("data-atp-topic") or ""),
+        str(meta.get("data-atp-section") or ""),
+        str(meta.get("data-atp-intent") or ""),
+        str(payload.get("section_heading") or ""),
+        str(payload.get("caption") or ""),
+    )).casefold()
+    exact_reference_role = bool(
+        ("car-model" in role_blob or "car model" in role_blob or "car_model" in role_blob)
+        and ("setting" in role_blob or "protocol" in role_blob or "a/c" in role_blob or "ac" in role_blob)
+    )
+    if not exact_reference_role:
+        return False
+
+    current_source = str(meta.get("data-atp-current-source") or "").strip().casefold()
+    source_status = str(meta.get("data-atp-source-status") or "").strip().casefold()
+    if current_source and current_source not in {"true", "1", "yes"}:
+        return False
+    if source_status and source_status not in {"current-authoritative", "current", "authoritative"}:
+        return False
+
+    # Explicit menu/navigation/show-me wording is enough.  Otherwise allow the same
+    # reference when the completed answer is teaching the Car Model / A-C menu path.
+    visual_reference_terms = (
+        "show me", "show the", "display", "photo", "picture", "image", "screenshot",
+        "where is", "where do i", "how do i get", "how to get", "how do i find",
+        "setting screen", "settings screen", "car model setting", "car model / a/c",
+        "car model/ac", "setting guide",
+    )
+    if any(term in prompt for term in visual_reference_terms):
+        return True
+    return bool(
+        ("car model" in answer or "car model / a/c" in answer or "car model/ac" in answer)
+        and ("setting guide" in answer or "settings" in answer or "666888" in answer or "xinbasi" in answer)
+    )
+
+
 def _technical_authored_image_authority_reason_v69363(prompt_text, answer_text, payload):
     """Reject authored Technical setting images that the page itself says are not exact.
 
@@ -60003,9 +60075,16 @@ def _technical_authored_image_authority_reason_v69363(prompt_text, answer_text, 
         return "reference_only_image"
 
     if publishable in {"false", "0", "no"}:
-        if _technical_answer_requires_config_verification_v69363(answer_text) or not target_model:
+        # v69373: source-limited means "do not use this screenshot as proof of an
+        # exact profile". It does NOT mean "never show the exact current Settings
+        # screen". Allow the screenshot strictly as navigation/reference evidence;
+        # exact value/profile questions remain fail-closed above and below.
+        reference_display_v69373 = _technical_configuration_reference_image_request_v69373(
+            prompt_text, answer_text, payload
+        )
+        if (_technical_answer_requires_config_verification_v69363(answer_text) or not target_model) and not reference_display_v69373:
             return "source_profile_not_publishable"
-        if target_model.casefold() not in candidate_models:
+        if target_model and target_model.casefold() not in candidate_models:
             return "source_profile_unbound"
 
     # If an exact SKU/product code is authored on the image, it becomes a hard gate.
@@ -60871,7 +60950,23 @@ def _technical_final_publication_filter_v69363(images, prompt_text, answer_text,
         if reason:
             reasons[reason] = int(reasons.get(reason) or 0) + 1
         else:
-            kept.append(image)
+            image_to_keep_v69373 = image
+            if isinstance(image, dict):
+                try:
+                    payload_v69373 = _website_image_payload_for_chat_record_v69005(image) or _website_model_control_payload_v69010(image)
+                    meta_v69373 = _website_image_atp_semantic_metadata_v69363(payload_v69373 or {})
+                    if (
+                        str(meta_v69373.get("data-atp-publishable-profile") or "").strip().casefold() in {"false", "0", "no"}
+                        and _technical_configuration_reference_image_request_v69373(prompt_text, answer_text, payload_v69373)
+                    ):
+                        image_to_keep_v69373 = dict(image)
+                        image_to_keep_v69373["technical_reference_only_v69373"] = True
+                        base_name_v69373 = str(image_to_keep_v69373.get("name") or "Car Model / A/C settings")
+                        if "reference" not in base_name_v69373.casefold():
+                            image_to_keep_v69373["name"] = (base_name_v69373 + " — reference screen (profile not verified)")[:220]
+                except Exception:
+                    image_to_keep_v69373 = image
+            kept.append(image_to_keep_v69373)
     kept = _dedupe_website_chat_images_v68883(kept)
     if diagnostic_event or reasons:
         diagnostic_log(
@@ -92430,21 +92525,34 @@ else:
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
             and str(technical_request_prompt_v68879 or "").strip()
-            and not bool(technical_verified_hot_preflight_v69195)
-            and str(
-                (technical_compiled_preflight_v69198 or {}).get("status") or ""
-            ) != "recovered"
         ):
-            try:
-                technical_early_index_images_v69016 = _website_image_lookup_v68883(
-                    technical_request_prompt_v68879
-                )
-            except Exception as error:
+            # v69373 speed path: compiled/hot Technical authority used to DISABLE
+            # prefetch completely, forcing related images to start searching only
+            # after the text answer finished.  For those exact-authority turns, skip
+            # the expensive synchronous whole-image-index scan and start the existing
+            # file_search prefetch immediately in the background instead.  All image
+            # approval/publication gates remain unchanged.
+            technical_compiled_ready_v69373 = bool(
+                technical_verified_hot_preflight_v69195
+                or str((technical_compiled_preflight_v69198 or {}).get("status") or "") == "recovered"
+            )
+            if not technical_compiled_ready_v69373:
+                try:
+                    technical_early_index_images_v69016 = _website_image_lookup_v68883(
+                        technical_request_prompt_v68879
+                    )
+                except Exception as error:
+                    diagnostic_log(
+                        "website_image_early_lookup_failed_v69016",
+                        error_type=type(error).__name__, error=str(error)[:500],
+                    )
+                    technical_early_index_images_v69016 = []
+            else:
                 diagnostic_log(
-                    "website_image_early_lookup_failed_v69016",
-                    error_type=type(error).__name__, error=str(error)[:500],
+                    "technical_image_prefetch_compiled_fastpath_v69373",
+                    hot=bool(technical_verified_hot_preflight_v69195),
+                    compiled_kind=str((technical_compiled_preflight_v69198 or {}).get("kind") or ""),
                 )
-                technical_early_index_images_v69016 = []
 
             if not technical_early_index_images_v69016:
                 (
@@ -95861,7 +95969,7 @@ else:
                     ):
                         try:
                             prefetched_rows_v69015 = list(
-                                technical_image_prefetch_future_active_v69015.result(timeout=1.0) or []
+                                technical_image_prefetch_future_active_v69015.result(timeout=0.20) or []
                             )
                             # v69360: cache a completed negative prefetch as well as a
                             # positive one. Keying already includes vector-store revision,
