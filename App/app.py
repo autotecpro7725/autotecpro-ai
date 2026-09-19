@@ -1,3 +1,4 @@
+# AutoTecPro AI v69367 - mobile-only responsive table readability hardening
 # AutoTecPro AI v69366 - production retrieval fan-out + live price concurrency hardening
 # AutoTecPro AI v69362 - Technical vehicle-identity lock + clarification isolation + final config parser hardening
 # AutoTecPro AI v69363 - Technical semantic image metadata + final publication authority hardening
@@ -6300,7 +6301,13 @@ def _workspace_table_alignment_profile_v69353(headers):
 
 
 def table_to_html(table_lines):
-    """Convert a basic markdown table to aligned, responsive HTML."""
+    """Convert a basic markdown table to aligned, responsive HTML.
+
+    v69367 keeps the desktop rendering byte-for-byte equivalent in visual behavior,
+    while phones get a horizontal table viewport instead of compressing six or more
+    columns into unreadable one/two-character stacks.  All new CSS is scoped to
+    max-width: 767.98px and to this table wrapper only.
+    """
     if len(table_lines) < 2:
         return ""
 
@@ -6324,10 +6331,53 @@ def table_to_html(table_lines):
         "line-height:1.42;overflow-wrap:anywhere;word-break:normal;"
     ) if widths else ""
 
-    html_rows = []
+    # Mobile-only readability floor.  Desktop receives no new layout rule.
+    column_count_v69367 = max(1, len(headers))
+    if column_count_v69367 >= 6:
+        mobile_min_width_v69367 = 900
+    elif column_count_v69367 == 5:
+        mobile_min_width_v69367 = 780
+    elif column_count_v69367 == 4:
+        mobile_min_width_v69367 = 700
+    else:
+        mobile_min_width_v69367 = 620
+
+    mobile_css_v69367 = (
+        '<style>'
+        '@media (max-width:767.98px){'
+        '.atp-mobile-table-wrap-v69367{display:block!important;width:100%!important;'
+        'max-width:100%!important;overflow-x:auto!important;overflow-y:hidden!important;'
+        '-webkit-overflow-scrolling:touch!important;overscroll-behavior-x:contain;}'
+        f'.atp-mobile-table-wrap-v69367>table{{min-width:{mobile_min_width_v69367}px!important;'
+        f'width:{mobile_min_width_v69367}px!important;max-width:none!important;table-layout:fixed!important;}}'
+        '.atp-mobile-table-wrap-v69367 th,.atp-mobile-table-wrap-v69367 td{'
+        'vertical-align:top!important;white-space:normal!important;word-break:normal!important;'
+        'overflow-wrap:normal!important;hyphens:none!important;}'
+        '.atp-mobile-table-wrap-v69367 th{line-height:1.28!important;}'
+        '.atp-mobile-table-wrap-v69367 td{line-height:1.38!important;}'
+        '.atp-mobile-table-wrap-v69367 th:last-child,.atp-mobile-table-wrap-v69367 td:last-child{'
+        'overflow-wrap:anywhere!important;word-break:break-word!important;}'
+        '}'
+        '</style>'
+    )
+
+    html_rows = [mobile_css_v69367]
+    # Existing profiled tables already had a desktop-safe scrolling wrapper.  Keep it
+    # and add the v69367 mobile scope.  Unprofiled tables use display:contents on
+    # desktop so their previous desktop box model remains unchanged.
     if widths:
-        html_rows.append(f'<div class="atp-table-wrap-v69353" style="{wrap_style}">')
-    html_rows.append(f'<table class="atp-aligned-table-v69353" style="{table_style}">' if widths else "<table>")
+        html_rows.append(
+            f'<div class="atp-table-wrap-v69353 atp-mobile-table-wrap-v69367" style="{wrap_style}">'
+        )
+    else:
+        html_rows.append(
+            '<div class="atp-mobile-table-wrap-v69367" style="display:contents;">'
+        )
+
+    html_rows.append(
+        f'<table class="atp-aligned-table-v69353" style="{table_style}">'
+        if widths else '<table class="atp-mobile-readable-table-v69367">'
+    )
     if widths and len(widths) == len(headers):
         html_rows.append("<colgroup>")
         for width in widths:
@@ -6351,8 +6401,7 @@ def table_to_html(table_lines):
             html_rows.append(f"<td{style_attr}>{inline_format(cell)}</td>")
         html_rows.append("</tr>")
     html_rows.append("</tbody></table>")
-    if widths:
-        html_rows.append("</div>")
+    html_rows.append("</div>")
     return "\n".join(html_rows)
 
 
