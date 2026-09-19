@@ -87010,6 +87010,107 @@ def _technical_effective_followup_prompt_v68879(prompt_text):
     )
 
 
+
+def _technical_contextual_followup_prompt_v69374(prompt_text):
+    """Bind a short Technical follow-up to the nearest prior user vehicle/year."""
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not current or len(current) > 180:
+        return current
+    if _website_identity_years_v69022(current) or _website_identity_vehicle_families_v69022(current):
+        return current
+    lower = current.casefold()
+    followup_terms = (
+        "car model", "a/c", "ac model", "protocol", "setting", "settings",
+        "console", "audio", "sound", "camera", "wiring", "harness",
+        "connector", "installation", "factory amp", "amp setting",
+    )
+    if not any(term in lower for term in followup_terms):
+        return current
+    current_norm = re.sub(r"\s+", " ", current).casefold()
+    skipped_current = False
+    for message in reversed(list(st.session_state.get("messages") or [])):
+        if str(message.get("role") or "").strip().casefold() != "user":
+            continue
+        visible, _ = extract_images_from_message_content(str(message.get("content") or ""))
+        visible = re.sub(r"\s+", " ", clean_visible_chat_text(visible)).strip()
+        if not visible:
+            continue
+        if not skipped_current and visible.casefold() == current_norm:
+            skipped_current = True
+            continue
+        years = set(_website_identity_years_v69022(visible))
+        families = set(_website_identity_vehicle_families_v69022(visible))
+        if len(years) == 1 and len(families) == 1:
+            diagnostic_log(
+                "technical_contextual_followup_bound_v69374",
+                anchor=visible[:180], followup=current[:120],
+                family=next(iter(families)), year=next(iter(years)),
+            )
+            return (
+                visible
+                + "\n\nFOLLOW-UP TECHNICAL REQUEST: "
+                + current
+                + "\nUse the prior user-supplied vehicle identity for this follow-up only. "
+                  "Do not import vehicle facts from assistant replies."
+            )
+    return current
+
+
+def _technical_gm_2019_transition_ambiguity_v69374(prompt_text):
+    """Detect unresolved 2019 Silverado/Sierra old-body vs new-body overlap."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return {}
+    try:
+        if not _technical_configuration_query_v69155(prompt):
+            return {}
+    except Exception:
+        return {}
+    years = set(_website_identity_years_v69022(prompt))
+    families = {str(x or "").casefold().strip() for x in _website_identity_vehicle_families_v69022(prompt)}
+    families.discard("")
+    if years != {2019} or not (families & {"silverado", "sierra"}):
+        return {}
+    text = prompt.casefold()
+    new_terms = (
+        "new body", "new-body", "new body style", "2019-2023",
+        "2019–2023", "5th generation", "5th-gen", "fifth generation",
+    )
+    old_terms = (
+        "old body", "old-body", "old body style", "legacy body",
+        "legacy-style", "2013-2019", "2013–2019",
+    )
+    has_new = any(term in text for term in new_terms)
+    has_old = any(term in text for term in old_terms)
+    if has_new ^ has_old:
+        return {}
+    return {
+        "family": "Silverado" if "silverado" in families else "Sierra",
+        "year": 2019,
+        "reason": "generation_overlap_unresolved",
+    }
+
+
+def _technical_gm_2019_transition_safe_answer_v69374(prompt_text):
+    ambiguity = _technical_gm_2019_transition_ambiguity_v69374(prompt_text)
+    if not ambiguity:
+        return ""
+    family = str(ambiguity.get("family") or "Silverado")
+    return (
+        f"## 2019 {family} Car Model / A/C Setting — Requires Verification\n\n"
+        f"2019 {family} is a transition year in the current AutoTecPro Technical sources: "
+        "one current source covers the 2013–2019 platform and another covers the 2019–2023 platform. "
+        "The year alone is not enough to choose one Car Model / A/C profile safely.\n\n"
+        "**Do not select a profile yet.** Please confirm the original dash/factory screen style "
+        "and whether the truck has Manual A/C or Auto A/C. A clear photo of the original dash "
+        "is the fastest way to identify the correct branch.\n\n"
+        "**Common menu path after the branch is verified:** Settings → System → Setting Guide "
+        "→ Car Model / A/C Model → password **666888** → Protocol **Xinbasi**.\n\n"
+        "Until the body/generation is verified, AutoTecPro AI will not publish one "
+        "generation-specific Car Model screenshot or exact A/C profile as the answer."
+    )
+
+
 def _technical_clear_photo_context_v68879():
     st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
 
@@ -92033,6 +92134,14 @@ else:
                     clarification=str(interaction_prompt)[:80],
                 )
 
+            if (
+                str(technical_followup_prompt_v68879 or "").strip()
+                == str(interaction_prompt or "").strip()
+            ):
+                technical_followup_prompt_v68879 = _technical_contextual_followup_prompt_v69374(
+                    interaction_prompt
+                )
+
         if assistant == "🎨 Graphic Marketing":
             if graphic_early_status_v68865 is not None:
                 try:
@@ -92138,6 +92247,16 @@ else:
             if assistant == "🔧 Technical Support"
             else interaction_prompt
         )
+        technical_transition_ambiguity_v69374 = {}
+        technical_transition_safe_answer_v69374 = ""
+        if assistant == "🔧 Technical Support":
+            technical_transition_ambiguity_v69374 = _technical_gm_2019_transition_ambiguity_v69374(
+                technical_request_prompt_v68879
+            )
+            if technical_transition_ambiguity_v69374:
+                technical_transition_safe_answer_v69374 = _technical_gm_2019_transition_safe_answer_v69374(
+                    technical_request_prompt_v68879
+                )
 
         technical_website_learning_url_v68870 = (
             detect_technical_website_learning_command(
@@ -92396,6 +92515,14 @@ else:
             )
             # Restore the execution-plan decision used by the proven baseline.
             use_file_search = bool(execution_plan["use_file_search"])
+            if technical_transition_safe_answer_v69374:
+                use_file_search = False
+                diagnostic_log(
+                    "technical_2019_generation_overlap_fail_closed_v69374",
+                    family=str(technical_transition_ambiguity_v69374.get("family") or ""),
+                    year=2019,
+                    reason=str(technical_transition_ambiguity_v69374.get("reason") or ""),
+                )
             diagnostic_log(
                 "technical_v69050_factual_authority_restored_v69122",
                 use_file_search=bool(use_file_search),
@@ -94161,6 +94288,7 @@ else:
                     technical_v69156_configuration_required = bool(
                         assistant == "🔧 Technical Support"
                         and bool(execution_plan.get("use_file_search"))
+                        and not bool(technical_transition_safe_answer_v69374)
                         and not bool(technical_website_learning_requested_v68870)
                         and not bool(explicit_learning_requested)
                         and str(
@@ -95221,32 +95349,35 @@ else:
                                     )[:300],
                                 )
 
-                        stream_source_v69158 = (
-                            [technical_current_source_safe_answer_v69164]
-                            if technical_current_source_safe_answer_v69164
-                            else (
-                                [technical_direct_answer_v69158]
-                                if technical_direct_answer_v69158
+                        if technical_transition_safe_answer_v69374:
+                            stream_source_v69158 = [technical_transition_safe_answer_v69374]
+                        else:
+                            stream_source_v69158 = (
+                                [technical_current_source_safe_answer_v69164]
+                                if technical_current_source_safe_answer_v69164
                                 else (
-                                    [workspace_atp_direct_answer_v69205]
-                                    if (
-                                        (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
-                                        and str(locals().get("workspace_atp_direct_answer_v69205") or "").strip()
-                                    )
-                                    else ask_ai_stream(
-                                        ai_request_prompt,
-                                        graphic_generation_files,
-                                        detected_live_request=detected_request,
-                                        detected_technical_tool=detected_technical_tool,
-                                        detected_workspace_tool=detected_workspace_tool,
-                                        response_mode=response_mode,
-                                        use_file_search=use_file_search,
-                                        live_data_override=preloaded_live_data,
-                                        order_displayed_by_app=bool(order_display_text),
+                                    [technical_direct_answer_v69158]
+                                    if technical_direct_answer_v69158
+                                    else (
+                                        [workspace_atp_direct_answer_v69205]
+                                        if (
+                                            (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+                                            and str(locals().get("workspace_atp_direct_answer_v69205") or "").strip()
+                                        )
+                                        else ask_ai_stream(
+                                            ai_request_prompt,
+                                            graphic_generation_files,
+                                            detected_live_request=detected_request,
+                                            detected_technical_tool=detected_technical_tool,
+                                            detected_workspace_tool=detected_workspace_tool,
+                                            response_mode=response_mode,
+                                            use_file_search=use_file_search,
+                                            live_data_override=preloaded_live_data,
+                                            order_displayed_by_app=bool(order_display_text),
+                                        )
                                     )
                                 )
                             )
-                        )
                         for delta in stream_source_v69158:
                             delta_text = str(delta or "")
                             if delta_text and not first_stream_delta_received:
@@ -95791,12 +95922,35 @@ else:
                         error=str(error_v69126)[:500],
                     )
 
+        # v69374: an unresolved 2019 Silverado/Sierra generation overlap may
+        # not publish one generation-specific website screenshot. This preserves
+        # the v69373 reference-image allowance once old/new body is actually known.
+        if (
+            assistant == "🔧 Technical Support"
+            and bool(technical_transition_safe_answer_v69374)
+        ):
+            generated_images = [
+                image for image in (generated_images or [])
+                if not (
+                    isinstance(image, dict)
+                    and str(image.get("source") or "") == "website_knowledge"
+                )
+            ]
+            diagnostic_log(
+                "technical_transition_image_publication_suppressed_v69374",
+                reason="generation_overlap_unresolved",
+            )
+
         # v69115: newest-package automatic image bridge. Run AFTER the answer is
         # complete so provider prompts and the already-correct v69114 message/table
         # content remain byte-for-byte unaffected by image recovery. The candidate
         # comes only from the active newest package and then passes the unchanged
         # answer-aware final authority before it can enter generated_images.
-        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+        if (
+            assistant == "🔧 Technical Support"
+            and str(answer or "").strip()
+            and not bool(technical_transition_safe_answer_v69374)
+        ):
             active_package_state_v69115 = dict(
                 st.session_state.get("_technical_active_admin_package_v69113") or {}
             )
@@ -95846,6 +96000,7 @@ else:
         # weakly-related image to bypass the existing fail-closed authority rules.
         if (
             assistant == "🔧 Technical Support"
+            and not bool(technical_transition_safe_answer_v69374)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
         ):
             existing_website_images_v69008 = [
@@ -95888,7 +96043,11 @@ else:
         # round trip first. Run the SAME bridge earlier only for its already-protected
         # product visual intents. Settings/configuration requests remain excluded by
         # the bridge itself. The final v69363 publication gate remains unchanged.
-        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+        if (
+            assistant == "🔧 Technical Support"
+            and str(answer or "").strip()
+            and not bool(technical_transition_safe_answer_v69374)
+        ):
             existing_product_bridge_v69365 = [
                 image for image in (generated_images or [])
                 if isinstance(image, dict)
@@ -95927,6 +96086,7 @@ else:
         # authority; broad same-page similarity alone is never sufficient.
         if (
             assistant == "🔧 Technical Support"
+            and not bool(technical_transition_safe_answer_v69374)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
             and _website_image_universal_technical_candidate_v69014(
                 technical_request_prompt_v68879, answer
