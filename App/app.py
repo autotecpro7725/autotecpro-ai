@@ -92530,6 +92530,18 @@ else:
             )
 
         technical_compiled_preflight_v69198 = {}
+        # v69375 PERFORMANCE: compiled-contract hydration is configuration authority,
+        # not a prerequisite for ordinary troubleshooting. Production v69374 showed
+        # a non-configuration query ("2019 silverado no audio") spending 21.796 s
+        # before stream-ready while hydrating the overlapping 2019 configuration
+        # packages. Normal Technical file_search already owns factual troubleshooting
+        # authority, so keep the expensive compiled path strictly configuration-only.
+        technical_configuration_request_v69375 = bool(
+            assistant == "🔧 Technical Support"
+            and _technical_configuration_query_v69155(
+                technical_request_prompt_v68879
+            )
+        )
         # v69241: every Technical execution route owns a defined evidence mapping.
         # This is initialization only; later authoritative paths overwrite it.
         if assistant == "🔧 Technical Support":
@@ -92537,6 +92549,7 @@ else:
         if (
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
+            and bool(technical_configuration_request_v69375)
             and str(technical_request_prompt_v68879 or "").strip()
         ):
             try:
@@ -92663,7 +92676,16 @@ else:
                 technical_verified_hot_preflight_v69195
                 or str((technical_compiled_preflight_v69198 or {}).get("status") or "") == "recovered"
             )
-            if not technical_compiled_ready_v69373:
+            # v69375 PERFORMANCE: ordinary troubleshooting must never synchronously
+            # scan the whole website-image index before the model can start. The live
+            # v69374 no-audio turn proved that the useful image can be recovered later
+            # by the existing background/file-search pipeline. Configuration requests
+            # preserve the prior exact-authority behavior.
+            technical_skip_sync_image_index_v69375 = bool(
+                technical_compiled_ready_v69373
+                or not bool(technical_configuration_request_v69375)
+            )
+            if not technical_skip_sync_image_index_v69375:
                 try:
                     technical_early_index_images_v69016 = _website_image_lookup_v68883(
                         technical_request_prompt_v68879
@@ -92675,11 +92697,18 @@ else:
                     )
                     technical_early_index_images_v69016 = []
             else:
-                diagnostic_log(
-                    "technical_image_prefetch_compiled_fastpath_v69373",
-                    hot=bool(technical_verified_hot_preflight_v69195),
-                    compiled_kind=str((technical_compiled_preflight_v69198 or {}).get("kind") or ""),
-                )
+                if not bool(technical_configuration_request_v69375):
+                    diagnostic_log(
+                        "technical_nonconfig_preflight_fastpath_v69375",
+                        reason="skip_compiled_hydration_and_sync_image_index",
+                        prompt_class="troubleshooting",
+                    )
+                else:
+                    diagnostic_log(
+                        "technical_image_prefetch_compiled_fastpath_v69373",
+                        hot=bool(technical_verified_hot_preflight_v69195),
+                        compiled_kind=str((technical_compiled_preflight_v69198 or {}).get("kind") or ""),
+                    )
 
             if not technical_early_index_images_v69016:
                 (
