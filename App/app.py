@@ -1,3 +1,4 @@
+# AutoTecPro AI v69388 - separate verified direct-answer terminal from overlap terminal + exact Car Model image commit
 # AutoTecPro AI v69387 - source-limited Car Model answer + exact semantic image + learning isolation
 # AutoTecPro AI v69386 - complete first-turn overlap gate + professional clarification UI
 # AutoTecPro AI v69385 - GM 2019 joint-platform authoritative overlap completion
@@ -93826,6 +93827,7 @@ else:
         technical_transition_ambiguity_v69374 = {}
         technical_transition_safe_answer_v69374 = ""
         technical_preflight_safe_answer_v69377 = ""
+        technical_source_limited_direct_answer_v69388 = ""
         if assistant == "🔧 Technical Support":
             try:
                 technical_package_overlap_v69377 = _technical_package_overlap_ambiguity_v69377(
@@ -93855,13 +93857,11 @@ else:
                 or technical_transition_safe_answer_v69374
             )
             if not technical_preflight_safe_answer_v69377:
-                source_limited_car_model_v69387 = (
+                technical_source_limited_direct_answer_v69388 = (
                     _technical_confirmed_source_limited_car_model_answer_v69387(
                         technical_request_prompt_v68879
                     )
                 )
-                if source_limited_car_model_v69387:
-                    technical_preflight_safe_answer_v69377 = source_limited_car_model_v69387
 
         # v69387: website learning is a user-authored command. Never inspect the
         # augmented Technical request here because the case-lock appends an
@@ -94043,6 +94043,123 @@ else:
                             error_type=type(_mobile_checkpoint_error_v69026).__name__,
                             error=str(_mobile_checkpoint_error_v69026)[:500],
                         )
+
+        # v69388: deterministic source-limited Technical answers are NOT overlap
+        # clarifications. They may terminate provider/model work, but must still
+        # publish the exact selected-package semantic image when one exists.
+        if (
+            assistant == "🔧 Technical Support"
+            and str(technical_source_limited_direct_answer_v69388 or "").strip()
+            and not is_graphic_resume_v68844
+        ):
+            direct_answer_v69388 = _technical_readable_layout_v69379(
+                technical_source_limited_direct_answer_v69388
+            )
+
+            # A deictic visual follow-up should not repeat the full settings answer.
+            # It inherits the active subject and publishes the exact image only.
+            direct_visual_followup_v69388 = False
+            try:
+                direct_visual_followup_v69388 = bool(
+                    _website_image_explicit_visual_request_v68888(interaction_prompt)
+                )
+            except Exception:
+                direct_visual_followup_v69388 = False
+            if direct_visual_followup_v69388:
+                confirmed_state_v69388 = _technical_confirmed_package_state_v69382(
+                    technical_request_prompt_v68879
+                )
+                label_v69388 = str(confirmed_state_v69388.get("label") or "").strip()
+                direct_answer_v69388 = (
+                    "## Car Model / A/C Settings Reference\n\n"
+                    + (
+                        f"Here is the exact Car Model / A/C settings reference for your confirmed **{label_v69388}** system."
+                        if label_v69388
+                        else "Here is the exact Car Model / A/C settings reference for your confirmed system."
+                    )
+                )
+
+            direct_images_v69388 = []
+            try:
+                confirmed_state_v69388 = _technical_confirmed_package_state_v69382(
+                    technical_request_prompt_v68879
+                )
+                if confirmed_state_v69388:
+                    direct_images_v69388 = _technical_confirmed_semantic_exact_images_v69387(
+                        technical_request_prompt_v68879,
+                        confirmed_state_v69388,
+                        max_images=1,
+                    )
+            except Exception as direct_image_error_v69388:
+                direct_images_v69388 = []
+                diagnostic_log(
+                    "technical_source_limited_direct_image_failed_v69388",
+                    error_type=type(direct_image_error_v69388).__name__,
+                    error=str(direct_image_error_v69388)[:500],
+                )
+
+            # Preserve the existing absolute Technical publication authority.
+            if direct_images_v69388:
+                try:
+                    direct_images_v69388 = _technical_final_publication_filter_v69363(
+                        direct_images_v69388,
+                        technical_request_prompt_v68879,
+                        direct_answer_v69388,
+                        diagnostic_event="technical_source_limited_direct_image_gate_v69388",
+                    )
+                except Exception as direct_gate_error_v69388:
+                    diagnostic_log(
+                        "technical_source_limited_direct_image_gate_failed_v69388",
+                        error_type=type(direct_gate_error_v69388).__name__,
+                        error=str(direct_gate_error_v69388)[:500],
+                    )
+                    direct_images_v69388 = []
+
+            try:
+                if early_loading_status_placeholder_v69226 is not None:
+                    early_loading_status_placeholder_v69226.empty()
+            except Exception:
+                pass
+
+            direct_content_v69388 = (
+                direct_answer_v69388
+                + serialize_images_marker(direct_images_v69388)
+            )
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": direct_content_v69388,
+            })
+            render_chat_message(
+                "assistant",
+                direct_content_v69388,
+                direct_images_v69388,
+                message_index=len(st.session_state.messages) - 1,
+            )
+
+            if history_is_enabled() and st.session_state.get("conversation_id"):
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "assistant",
+                        direct_content_v69388,
+                    )
+                except Exception as direct_save_error_v69388:
+                    diagnostic_log(
+                        "technical_source_limited_direct_save_failed_v69388",
+                        error_type=type(direct_save_error_v69388).__name__,
+                        error=str(direct_save_error_v69388)[:500],
+                    )
+
+            diagnostic_log(
+                "technical_source_limited_direct_committed_v69388",
+                role=str(_website_image_query_role_v68884(
+                    technical_request_prompt_v68879
+                ) or ""),
+                images=len(direct_images_v69388),
+                visual_followup=bool(direct_visual_followup_v69388),
+                conversation_id=st.session_state.get("conversation_id"),
+            )
+            st.rerun()
 
         # v69380: terminal Technical overlap gate. Once authoritative package
         # ambiguity is known, the clarification itself is the complete answer.
