@@ -1,3 +1,7 @@
+# AutoTecPro AI v69392 - confirmed-package snapshot fastpath + semantic image fastpath
+# AutoTecPro AI v69391 - shared-screen Technical source must never ask 15.6 vs 17
+# AutoTecPro AI v69390 - scalar case-detail binding + confirmed snapshot file-content bypass
+# AutoTecPro AI v69389 - fix literal newline rendering in source-limited Technical answer
 # AutoTecPro AI v69388 - separate verified direct-answer terminal from overlap terminal + exact Car Model image commit
 # AutoTecPro AI v69387 - source-limited Car Model answer + exact semantic image + learning isolation
 # AutoTecPro AI v69386 - complete first-turn overlap gate + professional clarification UI
@@ -73205,6 +73209,44 @@ def _technical_file_content_capability_state_v69324():
     return {"assistants_content_unsupported": False, "lock": threading.Lock()}
 
 
+
+def _technical_confirmed_snapshot_can_replace_file_content_v69390(file_id):
+    """True only when this exact confirmed package has a durable exact-source snapshot."""
+    clean_id = str(file_id or "").strip()
+    if not clean_id:
+        return False
+    try:
+        state = st.session_state.get(TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377)
+    except Exception:
+        state = None
+    if not isinstance(state, dict):
+        return False
+    try:
+        current_conversation = str(st.session_state.get("conversation_id") or "")
+    except Exception:
+        current_conversation = ""
+    if not current_conversation or str(state.get("conversation_id") or "") != current_conversation:
+        return False
+    if str(state.get("file_id") or "").strip() != clean_id:
+        return False
+    source_url = str(state.get("source_url") or "").strip()
+    if not source_url:
+        return False
+    try:
+        snapshot = _technical_confirmed_snapshot_v69387(state)
+    except Exception:
+        snapshot = {}
+    if not isinstance(snapshot, dict):
+        return False
+    package_text = str(snapshot.get("package_text") or "").strip()
+    snapshot_file = str(snapshot.get("file_id") or "").strip()
+    if not package_text:
+        return False
+    if snapshot_file and snapshot_file != clean_id:
+        return False
+    return True
+
+
 def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
     """Bounded exact-file read for current Technical authority.
 
@@ -73218,6 +73260,20 @@ def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
     clean_id = str(file_id or "").strip()
     if not clean_id:
         return ""
+
+    # v69390: a user-confirmed package already has an exact durable snapshot.
+    # Do not repeat a known-unsupported assistants-purpose file-content request.
+    try:
+        if _technical_confirmed_snapshot_can_replace_file_content_v69390(clean_id):
+            diagnostic_log(
+                "technical_confirmed_snapshot_file_content_bypassed_v69390",
+                file_id=clean_id[:160],
+                reason="EXACT_DURABLE_SNAPSHOT_AVAILABLE",
+            )
+            return ""
+    except Exception:
+        pass
+
     capability_state_v69324 = _technical_file_content_capability_state_v69324()
     unsupported_v69324 = bool(
         _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228
@@ -87859,6 +87915,138 @@ def _technical_confirmed_package_state_v69382(prompt_text=""):
     return dict(state)
 
 
+
+
+def _technical_screen_size_only_v69391(prompt_text):
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    value = value.strip(" .!?")
+    match = re.fullmatch(
+        r"(\d{1,2}(?:\.\d+)?)\s*(?:\"|in|inch|inches)?",
+        value,
+    )
+    if not match:
+        return False
+    try:
+        size = float(match.group(1))
+    except Exception:
+        return False
+    return 5.0 <= size <= 25.0
+
+
+def _technical_confirmed_shared_screen_scope_v69391(prompt_text=""):
+    """Return shared screen sizes only when the exact confirmed source says one branch is shared."""
+    try:
+        state = _technical_confirmed_package_state_v69382(prompt_text)
+    except Exception:
+        state = {}
+    if not state:
+        return set()
+
+    try:
+        snapshot = _technical_confirmed_snapshot_v69387(state)
+    except Exception:
+        snapshot = {}
+    if not isinstance(snapshot, dict):
+        return set()
+
+    semantics = dict(snapshot.get("atp_semantics_v69178") or {})
+    if not semantics:
+        try:
+            semantics = _technical_package_atp_semantics_v69178(
+                snapshot.get("package_text") or ""
+            )
+        except Exception:
+            semantics = {}
+    root = dict(semantics.get("root") or {})
+
+    branch_count = str(
+        root.get("data-atp-package-branch-count")
+        or root.get("data-atp-installation-branch-count")
+        or ""
+    ).casefold().strip()
+    shared_scope = str(
+        root.get("data-atp-package-shared-scope")
+        or root.get("data-atp-installation-shared-scope")
+        or ""
+    ).casefold().strip()
+    screen_sizes = str(root.get("data-atp-screen-sizes") or "").casefold().strip()
+
+    explicitly_shared = bool(
+        "shared" in branch_count
+        and (
+            shared_scope
+            or screen_sizes
+        )
+    )
+    if not explicitly_shared:
+        return set()
+
+    values = set()
+    for source in (shared_scope, screen_sizes):
+        for match in re.findall(r"\b(\d{1,2}(?:\.\d+)?)\b", source):
+            try:
+                value = float(match)
+            except Exception:
+                continue
+            if 5.0 <= value <= 25.0:
+                values.add(("%g" % value))
+    return values
+
+
+def _technical_screen_size_is_redundant_v69391(prompt_text):
+    if not _technical_screen_size_only_v69391(prompt_text):
+        return False
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    match = re.search(r"(\d{1,2}(?:\.\d+)?)", value)
+    if not match:
+        return False
+    try:
+        normalized = "%g" % float(match.group(1))
+    except Exception:
+        return False
+    shared = _technical_confirmed_shared_screen_scope_v69391(prompt_text)
+    return bool(shared and normalized in shared)
+
+
+def _technical_case_detail_only_v69390(prompt_text):
+    """Recognize short Technical specification replies that are case details, not topics.
+
+    Examples: 15.6, 17", automatic, manual A/C, Bose, with/without OnStar.
+    A model year such as 2019 is deliberately NOT treated as a scalar detail.
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not value or len(value) > 80:
+        return False
+    normalized = value.casefold().strip(" .!?")
+
+    numeric = re.fullmatch(
+        r"(\d{1,2}(?:\.\d+)?)\s*(?:\"|in|inch|inches)?",
+        normalized,
+    )
+    if numeric:
+        try:
+            size = float(numeric.group(1))
+        except Exception:
+            size = -1
+        return 5.0 <= size <= 25.0
+
+    return bool(re.fullmatch(
+        r"(?:"
+        r"manual(?:\s+a/?c|\s+climate(?:\s+control)?)?"
+        r"|automatic(?:\s+a/?c|\s+climate(?:\s+control)?)?"
+        r"|auto(?:\s+a/?c|\s+climate(?:\s+control)?)?"
+        r"|(?:with|without|no)\s+bose"
+        r"|bose"
+        r"|(?:with|without|no)\s+onstar"
+        r"|onstar"
+        r"|(?:with|without|no)\s+(?:factory\s+)?amp(?:lifier)?"
+        r"|factory\s+amp(?:lifier)?"
+        r")",
+        normalized,
+        flags=re.I,
+    ))
+
+
 def _technical_confirmed_case_followup_prompt_v69384(prompt_text):
     """Bind later Technical follow-ups to the already confirmed package and active subject.
 
@@ -87926,8 +88114,49 @@ def _technical_confirmed_case_followup_prompt_v69384(prompt_text):
         or ""
     ).strip()
 
+    shared_screen_redundant_v69391 = bool(
+        _technical_screen_size_is_redundant_v69391(current)
+    )
+    case_detail_only_v69390 = bool(
+        _technical_case_detail_only_v69390(current)
+        and not shared_screen_redundant_v69391
+    )
+
+    # v69391: when the exact confirmed Technical source explicitly says the
+    # supported screen sizes share one instruction branch, screen size must not
+    # become a routing question or a case discriminator.
+    if shared_screen_redundant_v69391 and active_subject:
+        effective = (
+            active_subject
+            + "\n\nAUTHORITATIVE SHARED-SCREEN NOTE: "
+              "The exact selected source explicitly uses the same instructions "
+              "for this screen size and the other supported shared screen sizes. "
+              "Do not ask for or branch on screen size."
+        )
+        diagnostic_log(
+            "technical_shared_screen_detail_ignored_v69391",
+            subject=active_subject[:180],
+            detail=current[:80],
+            shared_sizes=sorted(
+                _technical_confirmed_shared_screen_scope_v69391(current)
+            ),
+            label=str(state.get("label") or "")[:120],
+        )
+    # A short scalar/specification reply belongs to the existing case subject.
+    # It must not become a new subject or trigger unrelated imagery.
+    elif case_detail_only_v69390 and active_subject:
+        effective = (
+            active_subject
+            + "\n\nUSER-PROVIDED CASE DETAIL: " + current
+        )
+        diagnostic_log(
+            "technical_case_detail_inherited_subject_v69390",
+            subject=active_subject[:180],
+            detail=current[:80],
+            label=str(state.get("label") or "")[:120],
+        )
     # A purely deictic visual follow-up inherits the most recent substantive topic.
-    if explicit_visual and not current_role and active_subject:
+    elif explicit_visual and not current_role and active_subject:
         effective = (
             active_subject
             + "\n\nFOLLOW-UP VISUAL REQUEST: " + current
@@ -87951,6 +88180,8 @@ def _technical_confirmed_case_followup_prompt_v69384(prompt_text):
         if (
             not ack_only
             and not learning_only_v69387
+            and not shared_screen_redundant_v69391
+            and not case_detail_only_v69390
             and not (explicit_visual and not current_role)
         ):
             st.session_state[TECHNICAL_ACTIVE_SUBJECT_KEY_V69384] = current
@@ -88062,8 +88293,21 @@ def _technical_confirmed_payload_scope_match_v69384(payload, state):
 
 
 
+@st.cache_resource(show_spinner=False)
+def _technical_confirmed_snapshot_cache_state_v69392():
+    """Process-wide read-through cache for current learned Technical snapshots."""
+    return {"lock": threading.RLock(), "entries": {}}
+
+
 def _technical_confirmed_snapshot_v69387(state):
-    """Return only the durable snapshot for the exact user-confirmed package."""
+    """Return only the durable snapshot for the exact user-confirmed package.
+
+    v69392 keeps the v69387 authority contract but avoids repeating the same
+    Supabase learned_knowledge read several times in one Technical turn.
+    Cache identity includes Technical revision + vector store + canonical source
+    + confirmed file id, so a new website-learning revision cannot inherit an
+    older snapshot.
+    """
     if not isinstance(state, dict):
         return {}
     source_url = str(state.get("source_url") or "").strip()
@@ -88071,6 +88315,39 @@ def _technical_confirmed_snapshot_v69387(state):
         return {}
     stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
     store = str((stores or [""])[0] or "").strip()
+    file_id = str(state.get("file_id") or "").strip()
+    try:
+        revision = int(
+            _website_destination_revision_v69109("Technical Support Database") or 0
+        )
+    except Exception:
+        revision = 0
+    try:
+        canonical_source = canonical_website_url_identity(source_url)
+    except Exception:
+        canonical_source = source_url.casefold().rstrip("/")
+    cache_key = hashlib.sha256(
+        f"{revision}|{store}|{canonical_source}|{file_id}".encode("utf-8")
+    ).hexdigest()
+    cache_state = _technical_confirmed_snapshot_cache_state_v69392()
+    now = time.monotonic()
+    try:
+        with cache_state["lock"]:
+            cached = dict((cache_state.get("entries") or {}).get(cache_key) or {})
+            if cached and now - float(cached.get("stored_monotonic") or 0.0) <= 180.0:
+                snapshot = dict(cached.get("snapshot") or {})
+                diagnostic_log(
+                    "technical_confirmed_snapshot_cache_hit_v69392",
+                    key=cache_key[:16],
+                    revision=revision,
+                )
+                return snapshot
+            if cached:
+                cache_state["entries"].pop(cache_key, None)
+    except Exception:
+        pass
+
+    started = time.perf_counter()
     try:
         snapshot = _technical_durable_snapshot_row_v69171(source_url, store)
     except Exception as error:
@@ -88082,11 +88359,35 @@ def _technical_confirmed_snapshot_v69387(state):
         return {}
     if not isinstance(snapshot, dict):
         return {}
-    file_id = str(state.get("file_id") or "").strip()
     snapshot_file_id = str(snapshot.get("file_id") or "").strip()
     if file_id and snapshot_file_id and file_id != snapshot_file_id:
         return {}
-    return dict(snapshot)
+    snapshot = dict(snapshot)
+    try:
+        with cache_state["lock"]:
+            entries = cache_state["entries"]
+            entries[cache_key] = {
+                "stored_monotonic": time.monotonic(),
+                "snapshot": dict(snapshot),
+            }
+            if len(entries) > 96:
+                oldest = min(
+                    entries,
+                    key=lambda key: float(
+                        (entries.get(key) or {}).get("stored_monotonic") or 0.0
+                    ),
+                )
+                entries.pop(oldest, None)
+    except Exception:
+        pass
+    diagnostic_log(
+        "technical_confirmed_snapshot_cache_store_v69392",
+        key=cache_key[:16],
+        revision=revision,
+        elapsed_seconds=round(time.perf_counter() - started, 3),
+    )
+    return snapshot
+
 
 
 def _technical_confirmed_semantic_exact_images_v69387(prompt_text, state, max_images=2):
@@ -88307,17 +88608,17 @@ def _technical_confirmed_source_limited_car_model_answer_v69387(prompt_text):
         "technical_source_limited_car_model_direct_v69387",
         label=label[:120], family=family, protocol=protocol[:80],
     )
-    return "\\n".join(lines)
+    return "\n".join(lines)
 
 
 
 def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results=50):
-    """Recover one selected package with one bounded vector search, then stop broad recovery.
+    """Recover one selected package without broad discovery.
 
-    v69381 live production showed a user-confirmed package still fanning out through
-    50/24/28/24 searches plus the unsupported assistants-file loop, taking 147.7 s
-    before stream-ready.  Once the user selected a package we already possess its exact
-    file_id and source URL, so broad package discovery is no longer legitimate.
+    v69392 first uses the exact durable snapshot already owned by the confirmed
+    package. This removes the synchronous 50-result vector search from the common
+    path. Vector search remains only as a compatibility fallback when the durable
+    snapshot is unavailable or cannot yield any local evidence.
     """
     state = _technical_confirmed_package_state_v69382(prompt_text)
     if not state:
@@ -88330,21 +88631,155 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
     source_url = str(state.get("source_url") or "").strip()
     label = str(state.get("label") or "").strip()
     clean_prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    audio_intent = bool(re.search(r"\b(?:no audio|no sound|audio|sound|aux|bluetooth)\b", clean_prompt, flags=re.I))
+    audio_intent = bool(re.search(
+        r"\b(?:no audio|no sound|audio|sound|aux|bluetooth)\b",
+        clean_prompt,
+        flags=re.I,
+    ))
+
+    # v69392 FAST PATH: exact durable snapshot -> local section selection.
+    # This is stronger than semantic retrieval because package identity was already
+    # explicitly selected by the user.
+    try:
+        snapshot_v69392 = _technical_confirmed_snapshot_v69387(state)
+    except Exception:
+        snapshot_v69392 = {}
+    if isinstance(snapshot_v69392, dict) and snapshot_v69392:
+        package_text_v69392 = str(snapshot_v69392.get("package_text") or "").strip()
+        snapshot_file_v69392 = str(snapshot_v69392.get("file_id") or "").strip()
+        if (
+            package_text_v69392
+            and (not file_id or not snapshot_file_v69392 or snapshot_file_v69392 == file_id)
+        ):
+            hierarchy_excerpt_v69392 = ""
+            window_excerpt_v69392 = ""
+            local_section_v69392 = ""
+            try:
+                hierarchy_v69392 = _technical_hierarchy_excerpt_v69143(
+                    package_text_v69392,
+                    clean_prompt,
+                )
+            except Exception:
+                hierarchy_v69392 = {}
+            if isinstance(hierarchy_v69392, dict):
+                hierarchy_excerpt_v69392 = str(
+                    hierarchy_v69392.get("excerpt") or ""
+                ).strip()
+                local_section_v69392 = str(
+                    hierarchy_v69392.get("section_title") or ""
+                ).strip()
+            try:
+                window_excerpt_v69392 = str(
+                    _technical_package_section_excerpt_v69142(
+                        package_text_v69392,
+                        clean_prompt,
+                    )
+                    or ""
+                ).strip()
+            except Exception:
+                window_excerpt_v69392 = ""
+
+            local_parts_v69392 = []
+            for candidate_v69392 in (
+                hierarchy_excerpt_v69392,
+                window_excerpt_v69392,
+            ):
+                normalized_v69392 = re.sub(
+                    r"\s+", " ", str(candidate_v69392 or "")
+                ).strip()
+                if not normalized_v69392:
+                    continue
+                if any(
+                    normalized_v69392 == re.sub(
+                        r"\s+", " ", existing_v69392
+                    ).strip()
+                    for existing_v69392 in local_parts_v69392
+                ):
+                    continue
+                local_parts_v69392.append(str(candidate_v69392).strip())
+            local_excerpt_v69392 = (
+                "\n\n--- EXACT LOCAL SECTION SUPPORT ---\n\n".join(
+                    local_parts_v69392
+                )[:24000]
+            )
+            if not local_excerpt_v69392:
+                try:
+                    webpage_v69392 = str(
+                        _technical_package_webpage_text_v69113(package_text_v69392)
+                        or ""
+                    ).strip()
+                except Exception:
+                    webpage_v69392 = ""
+                local_excerpt_v69392 = webpage_v69392[:26000]
+
+            if local_excerpt_v69392:
+                exact_row_v69392 = {
+                    "file_id": file_id or snapshot_file_v69392,
+                    "filename": str(snapshot_v69392.get("filename") or ""),
+                    "score": 1.0,
+                    "text": local_excerpt_v69392[:24000],
+                    "technical_confirmed_snapshot_fast_v69392": True,
+                }
+                result_v69392 = {
+                    "status": "recovered",
+                    "state": state,
+                    "rows": [exact_row_v69392],
+                    "source_v69392": "durable_snapshot_local",
+                    "context": (
+                        "EXACT USER-CONFIRMED TECHNICAL PACKAGE EVIDENCE (v69392 SNAPSHOT FASTPATH):\n"
+                        f"Selected package: {label}\n"
+                        f"Source: {source_url}\n"
+                        f"File ID: {file_id or snapshot_file_v69392}\n"
+                        + (
+                            f"Selected section: {local_section_v69392}\n"
+                            if local_section_v69392 else ""
+                        )
+                        + "This exact package was selected by the user. Use only this "
+                          "source for package-specific facts. Preserve authored branch "
+                          "rules and troubleshooting order. Do not broaden to another "
+                          "generation or product.\n\n"
+                        + local_excerpt_v69392[:24000]
+                    ),
+                }
+                diagnostic_log(
+                    "technical_confirmed_package_snapshot_fast_v69392",
+                    file_id=(file_id or snapshot_file_v69392)[:160],
+                    label=label[:120],
+                    section=local_section_v69392[:200],
+                    chars=len(local_excerpt_v69392),
+                    audio_intent=audio_intent,
+                )
+                return result_v69392
+
+    # Compatibility fallback: keep v69382 vector authority only when the exact
+    # durable snapshot could not satisfy the selected package.
     query = clean_prompt
     if audio_intent:
-        query += " AUX audio rear audio signal harness dummy AUX connector original radio AUX Bluetooth Audio MyLink audio routing"
+        query += (
+            " AUX audio rear audio signal harness dummy AUX connector original "
+            "radio AUX Bluetooth Audio MyLink audio routing"
+        )
     query += f" exact package {label} source {source_url}"
     request = {
         "input": query[:7000],
         "tools": [{"type": "file_search", "vector_store_ids": [store]}],
     }
-    rows = _website_request_vector_search_rows_v69047(request, max_results=max_results)
-    exact = [dict(r) for r in rows if isinstance(r, dict) and str(r.get("file_id") or "").strip() == file_id]
+    rows = _website_request_vector_search_rows_v69047(
+        request,
+        max_results=max_results,
+    )
+    exact = [
+        dict(r)
+        for r in rows
+        if isinstance(r, dict)
+        and str(r.get("file_id") or "").strip() == file_id
+    ]
     if not exact:
         diagnostic_log(
             "technical_confirmed_package_direct_miss_v69382",
-            file_id=file_id[:160], label=label[:120], searched=len(rows or []),
+            file_id=file_id[:160],
+            label=label[:120],
+            searched=len(rows or []),
         )
         return {}
     exact.sort(key=lambda r: float(r.get("score") or 0.0), reverse=True)
@@ -88361,19 +88796,238 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
         "status": "recovered",
         "state": state,
         "rows": exact,
+        "source_v69392": "vector_fallback",
         "context": (
-            "EXACT USER-CONFIRMED TECHNICAL PACKAGE EVIDENCE (v69382):\n"
+            "EXACT USER-CONFIRMED TECHNICAL PACKAGE EVIDENCE (v69382 FALLBACK):\n"
             f"Selected package: {label}\nSource: {source_url}\nFile ID: {file_id}\n"
-            "Use only the evidence below for package-specific facts. Preserve the authored troubleshooting order. "
-            "For audio/no-sound requests, AUX routing and Bluetooth Audio routing from this source outrank generic diagnostics.\n\n"
+            "Use only the evidence below for package-specific facts. Preserve the "
+            "authored troubleshooting order. For audio/no-sound requests, AUX routing "
+            "and Bluetooth Audio routing from this source outrank generic diagnostics.\n\n"
             + context
         ),
     }
     diagnostic_log(
         "technical_confirmed_package_direct_bound_v69382",
-        file_id=file_id[:160], label=label[:120], rows=len(exact), audio_intent=audio_intent,
+        file_id=file_id[:160],
+        label=label[:120],
+        rows=len(exact),
+        audio_intent=audio_intent,
+        source="vector_fallback_v69392",
     )
     return result
+
+
+
+
+def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_images=2):
+    """Fast exact-image path from the already-confirmed package snapshot.
+
+    This avoids page-index Supabase reads, full Technical image-index scans, and
+    dedicated vector image search when authored semantic metadata already names the
+    exact first-response image. The function is deliberately narrow: Car Model/A-C
+    and the established AUX/factory-amp audio roles only. Other topics fall back to
+    the unchanged legacy image authority.
+    """
+    if not isinstance(state, dict):
+        return []
+    prompt_raw = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    prompt_cf = prompt_raw.casefold()
+    query_role = str(_website_image_query_role_v68884(prompt_raw) or "").strip()
+
+    # Preserve the exact v69387 Car Model authority and LVDS rejection.
+    if query_role == "car_model_ac":
+        return _technical_confirmed_semantic_exact_images_v69387(
+            prompt_raw,
+            state,
+            max_images=1,
+        )
+
+    audio_like = bool(re.search(
+        r"\b(?:no audio|no sound|audio|sound|aux|factory amp|amplifier|speakers?)\b",
+        prompt_cf,
+    ))
+    if not audio_like:
+        return []
+
+    snapshot = _technical_confirmed_snapshot_v69387(state)
+    if not snapshot:
+        return []
+    semantics = dict(snapshot.get("atp_semantics_v69178") or {})
+    if not semantics:
+        semantics = _technical_package_atp_semantics_v69178(
+            snapshot.get("package_text") or ""
+        )
+    rows = [
+        dict(row)
+        for row in (semantics.get("images") or [])
+        if isinstance(row, dict)
+    ]
+    if not rows:
+        return []
+
+    try:
+        state_year = int(state.get("year"))
+    except Exception:
+        state_year = None
+
+    amp_specific = bool(re.search(
+        r"\b(?:factory amp|amplifier|some speakers|missing speakers|"
+        r"speakers? (?:not|aren['’]?t|are not) (?:working|functional))\b",
+        prompt_cf,
+    ))
+    aux_specific = bool(re.search(
+        r"\b(?:no audio|no sound|aux|audio|sound)\b",
+        prompt_cf,
+    ))
+
+    # Same first-response ordering as the proven selected-package logic.
+    primary_audio_roles = {
+        "newer-platform-aux-wire": 6000,
+        "aux-rear-audio-signal-harness": 5900,
+        "dummy-aux-connector-armrest": 5800,
+    }
+    secondary_audio_roles = {
+        "replacement-armrest-aux-port": 1600,
+        "factory-amp-setting": 1200,
+    }
+
+    ranked = []
+    for row in rows:
+        role = str(row.get("data-atp-image-role") or "").casefold().strip()
+        topic = str(row.get("data-atp-topic") or "").casefold().strip()
+        topic_key = str(row.get("data-atp-topic-key") or "").casefold().strip()
+        section = str(row.get("data-atp-section") or "").casefold().strip()
+        facts = str(row.get("data-atp-fact-ids") or "").casefold()
+
+        current = str(row.get("data-atp-current-source") or "").casefold().strip()
+        status = str(row.get("data-atp-source-status") or "").casefold().strip()
+        auto = str(row.get("data-atp-auto-display") or "").casefold().strip()
+        first = str(row.get("data-atp-first-response-eligible") or "").casefold().strip()
+        if current and current not in {"true", "1", "yes"}:
+            continue
+        if status and "current" not in status:
+            continue
+        if auto and auto not in {"true", "1", "yes"}:
+            continue
+        if first and first not in {"true", "1", "yes"}:
+            continue
+
+        try:
+            start = int(str(row.get("data-atp-year-start") or "").strip())
+            end = int(str(row.get("data-atp-year-end") or "").strip())
+        except Exception:
+            start = end = None
+        if state_year is not None and start is not None and end is not None:
+            if not (start <= state_year <= end):
+                continue
+
+        if amp_specific:
+            if role != "factory-amp-setting":
+                continue
+            base_score = 8000
+        elif aux_specific:
+            if role in primary_audio_roles:
+                base_score = primary_audio_roles[role]
+            elif role in secondary_audio_roles:
+                base_score = secondary_audio_roles[role]
+            else:
+                # Do not treat camera AUX inputs/navigation/connectivity as audio.
+                continue
+            if not (
+                "audio" in section
+                or "audio" in topic
+                or "audio" in topic_key
+                or "f011_aux_audio" in facts
+                or "f012_aux_audio" in facts
+                or "f013_factory_amp" in facts
+                or "f014_factory_amp" in facts
+                or role in primary_audio_roles
+            ):
+                continue
+        else:
+            continue
+
+        url = str(
+            row.get("data-atp-full-resolution-url")
+            or row.get("data-atp-canonical-image-url")
+            or row.get("src")
+            or ""
+        ).strip()
+        if not url.startswith("https://") or url.casefold().endswith("source-not-defined"):
+            continue
+
+        semantic_meta = {
+            str(k): str(v)
+            for k, v in row.items()
+            if str(k).startswith("data-atp-")
+        }
+        payload = {
+            "image_url": url,
+            "source_page": str(state.get("source_url") or ""),
+            "page_title": str(snapshot.get("title") or ""),
+            "section_heading": str(
+                row.get("data-atp-heading-title")
+                or row.get("data-atp-intent")
+                or "Audio"
+            ),
+            "nearby_instruction_text": str(row.get("data-atp-intent") or ""),
+            "caption": str(row.get("alt") or row.get("data-atp-intent") or ""),
+            "visual_analysis": str(
+                row.get("alt")
+                or row.get("data-atp-intent")
+                or "Exact authored Technical reference image"
+            ),
+            "atp_semantic_metadata_v69363": semantic_meta,
+        }
+        record = _website_image_record_for_chat_v68883(payload)
+        if not isinstance(record, dict):
+            continue
+        record["_technical_exact_semantic_payload_v69387"] = payload
+        # Reuse the v69387 trusted embedded-payload bridge so the final
+        # publication gate does not need an image-index lookup for this exact row.
+        record["technical_exact_semantic_role_v69387"] = query_role or "audio"
+        record["technical_confirmed_package_image_v69382"] = True
+        record["technical_confirmed_semantic_fast_v69392"] = True
+        record["technical_confirmed_package_label_v69382"] = str(
+            state.get("label") or ""
+        )
+        record["technical_confirmed_package_file_id_v69382"] = str(
+            state.get("file_id") or ""
+        )
+        try:
+            priority = int(row.get("data-atp-first-response-priority") or 0)
+        except Exception:
+            priority = 0
+        ranked.append((base_score + priority, role, record))
+
+    ranked.sort(key=lambda item: item[0], reverse=True)
+
+    # Preserve proven no-audio behavior:
+    # - 2013–2019 can return the rear AUX harness + dummy armrest connector.
+    # - 2019–2023 commonly has one newer-platform AUX wire primary image.
+    primary_found = [item for item in ranked if item[1] in primary_audio_roles]
+    selected = primary_found if primary_found else ranked
+    output = []
+    seen = set()
+    for _, role, record in selected:
+        key = str(record.get("archive_web_url") or record.get("data_url") or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        output.append(record)
+        if len(output) >= max(1, int(max_images or 2)):
+            break
+
+    if output:
+        diagnostic_log(
+            "technical_confirmed_semantic_fast_images_v69392",
+            role=query_role or "audio",
+            published=len(output),
+            image_roles=[
+                str(item[1]) for item in selected[:max(1, int(max_images or 2))]
+            ],
+        )
+    return output
 
 
 def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
@@ -88391,11 +89045,11 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
     if not source_url:
         return []
 
-    semantic_exact_v69387 = _technical_confirmed_semantic_exact_images_v69387(
-        prompt_text, state, max_images=1
+    semantic_fast_v69392 = _technical_confirmed_semantic_fast_images_v69392(
+        prompt_text, state, max_images=max_images
     )
-    if semantic_exact_v69387:
-        return semantic_exact_v69387
+    if semantic_fast_v69392:
+        return semantic_fast_v69392
 
     try:
         matches, loaded_ok = _website_image_index_rows_for_page_v69003(
@@ -89689,6 +90343,18 @@ def _product_library_chat_context(lookup):
         if len(sync_options) > 1 and (str(assistant or "") != "🔧 Technical Support" or ford_case_v69362):
             missing_detail = "the factory SYNC version"
         elif len(screen_options) > 1:
+            if (
+                str(assistant or "") == "🔧 Technical Support"
+                and _technical_confirmed_shared_screen_scope_v69391("")
+            ):
+                return (
+                    "\n\nTECHNICAL SHARED-SCREEN AUTHORITY:\n"
+                    "The exact confirmed Technical source explicitly uses one shared "
+                    "instruction branch across the supported screen sizes. "
+                    "Do NOT ask the customer for screen size and do NOT use Product "
+                    "Library screen-size differences to block the Technical answer. "
+                    "Continue from the confirmed Technical source."
+                )
             missing_detail = "the desired screen size"
 
         natural_examples_v69362 = "14.4 or 17"
@@ -94762,6 +95428,31 @@ else:
                 prompt_class="configuration",
             )
 
+        # v69391: the exact confirmed Technical source is the instruction
+        # authority. If it explicitly declares one shared branch across its
+        # supported screen sizes, Product Library screen-size ambiguity is not
+        # allowed to ask the customer 15.6 vs 17.
+        technical_shared_screen_sizes_v69392 = (
+            _technical_confirmed_shared_screen_scope_v69391(
+                technical_request_prompt_v68879
+            )
+            if assistant == "🔧 Technical Support"
+            else set()
+        )
+        technical_shared_screen_source_v69391 = bool(
+            assistant == "🔧 Technical Support"
+            and technical_shared_screen_sizes_v69392
+            and not _explicit_product_library_request(
+                technical_request_prompt_v68879
+            )
+        )
+        if technical_shared_screen_source_v69391:
+            allow_product_library_lookup = False
+            diagnostic_log(
+                "technical_shared_screen_product_lookup_bypassed_v69391",
+                shared_sizes=sorted(technical_shared_screen_sizes_v69392),
+            )
+
         if assistant == "🎨 Graphic Marketing":
             explicit_graphic_library_request_v69303 = _explicit_product_library_request(interaction_prompt)
             project_for_library_v69303 = get_graphic_project_state() or {}
@@ -97783,6 +98474,69 @@ else:
                     ),
                 )
 
+        # v69392: confirmed-package semantic images are already embedded in the
+        # exact durable snapshot. Bind them BEFORE any broad/dedicated image recovery
+        # so the common confirmed-package path performs no image vector search or
+        # full destination index scan.
+        technical_confirmed_package_fast_images_v69392 = []
+        if (
+            assistant == "🔧 Technical Support"
+            and not bool(technical_preflight_safe_answer_v69377)
+            and not bool(locals().get("explicit_learning_requested"))
+            and not bool(locals().get("technical_website_learning_requested_v68870"))
+            and str(answer or "").strip()
+        ):
+            try:
+                confirmed_state_fast_v69392 = _technical_confirmed_package_state_v69382(
+                    technical_request_prompt_v68879
+                )
+                if confirmed_state_fast_v69392:
+                    technical_confirmed_package_fast_images_v69392 = (
+                        _technical_confirmed_semantic_fast_images_v69392(
+                            technical_request_prompt_v68879,
+                            confirmed_state_fast_v69392,
+                            max_images=2,
+                        )
+                    )
+                    if technical_confirmed_package_fast_images_v69392:
+                        technical_confirmed_package_fast_images_v69392 = (
+                            _technical_final_publication_filter_v69363(
+                                technical_confirmed_package_fast_images_v69392,
+                                technical_request_prompt_v68879,
+                                answer,
+                                diagnostic_event=(
+                                    "technical_confirmed_semantic_fast_gate_v69392"
+                                ),
+                            )
+                        )
+                if technical_confirmed_package_fast_images_v69392:
+                    generated_images = [
+                        image for image in (generated_images or [])
+                        if not (
+                            isinstance(image, dict)
+                            and str(image.get("source") or "") == "website_knowledge"
+                        )
+                    ]
+                    generated_images.extend(
+                        technical_confirmed_package_fast_images_v69392
+                    )
+                    generated_images = _dedupe_website_chat_images_v68883(
+                        generated_images
+                    )
+                    diagnostic_log(
+                        "technical_confirmed_semantic_fast_bound_v69392",
+                        published=len(
+                            technical_confirmed_package_fast_images_v69392
+                        ),
+                    )
+            except Exception as semantic_fast_error_v69392:
+                technical_confirmed_package_fast_images_v69392 = []
+                diagnostic_log(
+                    "technical_confirmed_semantic_fast_failed_v69392",
+                    error_type=type(semantic_fast_error_v69392).__name__,
+                    error=str(semantic_fast_error_v69392)[:500],
+                )
+
         # v69126: first-turn Technical image recovery from the exact evidence rows
         # that supported this answer. This is independent of the later active-package
         # state, which v69122 intentionally stopped binding for factual retrieval.
@@ -97991,6 +98745,7 @@ else:
             assistant == "🔧 Technical Support"
             and not bool(technical_preflight_safe_answer_v69377)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
+            and not bool(locals().get("technical_confirmed_package_fast_images_v69392"))
             and _website_image_universal_technical_candidate_v69014(
                 technical_request_prompt_v68879, answer
             )
@@ -98746,19 +99501,49 @@ else:
             )
             generated_images = list(assistant_images_to_save)
 
+        # v69390: scalar/specification replies (e.g. "15.6") update case context
+        # but are not image requests. Remove any broad website images recovered
+        # earlier in the turn and do not rematerialize package images below.
+        technical_case_detail_turn_v69390 = bool(
+            assistant == "🔧 Technical Support"
+            and (
+                _technical_case_detail_only_v69390(interaction_prompt)
+                or _technical_screen_size_is_redundant_v69391(interaction_prompt)
+            )
+        )
+        if technical_case_detail_turn_v69390:
+            assistant_images_to_save = [
+                x for x in assistant_images_to_save
+                if not (
+                    isinstance(x, dict)
+                    and str(x.get("source") or "") == "website_knowledge"
+                )
+            ]
+            generated_images = list(assistant_images_to_save)
+            diagnostic_log(
+                "technical_case_detail_images_suppressed_v69390",
+                detail=str(interaction_prompt or "")[:80],
+                published=len(assistant_images_to_save),
+            )
+
         # v69382: exact selected-package image publication.  A user-confirmed
         # package is stronger than broad topic ranking.  When that exact page has
         # authored first-response images, replace broad website candidates with the
         # exact page images before the unchanged v69363 absolute final gate.
         if (
             assistant == "🔧 Technical Support"
+            and not technical_case_detail_turn_v69390
             and not bool(locals().get("explicit_learning_requested"))
             and not bool(locals().get("technical_website_learning_requested_v68870"))
         ):
             try:
-                confirmed_images_v69382 = _technical_confirmed_package_exact_images_v69382(
-                    technical_request_prompt_v68879, max_images=2
+                confirmed_images_v69382 = list(
+                    locals().get("technical_confirmed_package_fast_images_v69392") or []
                 )
+                if not confirmed_images_v69382:
+                    confirmed_images_v69382 = _technical_confirmed_package_exact_images_v69382(
+                        technical_request_prompt_v68879, max_images=2
+                    )
             except Exception as confirmed_images_error_v69382:
                 confirmed_images_v69382 = []
                 diagnostic_log(
