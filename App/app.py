@@ -1,3 +1,4 @@
+# AutoTecPro AI v69397 - preserve exact Sales WooCommerce hero provenance through final publication gate
 # AutoTecPro AI v69396 - Sales follow-up authority reuse + canonical product dedupe + explicit-photo publication authority
 # AutoTecPro AI v69395 - universal source-driven Technical topic index + compact exact-context formatting
 # AutoTecPro AI v69394 - isolate raw user image intent + hard-lock confirmed snapshot fastpath + shrink exact context
@@ -1975,6 +1976,12 @@ def _workspace_exact_product_primary_page_fallback_v69354(source_url, destinatio
         "page_title": title,
         "section_heading": "Primary product image",
         "nearby_instruction_text": "Exact current WooCommerce product page main gallery image",
+        # v69397: deterministic provenance for the existing generic final image gate.
+        # The main product photo was fetched from the already-proven exact /product/
+        # page above; this is not model-generated visual analysis and does not broaden
+        # product authority. It simply preserves that verified provenance through the
+        # v69107A resolved-record fail-closed publication bridge.
+        "visual_analysis": "Exact current WooCommerce main product photo from the same selected product page",
         "image_structured_metadata_v69017": {
             "data-atp-image-role": "primary-product-image",
             "data-atp-authority": "primary",
