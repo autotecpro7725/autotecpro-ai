@@ -1,3 +1,4 @@
+# AutoTecPro AI v69395 - universal source-driven Technical topic index + compact exact-context formatting
 # AutoTecPro AI v69394 - isolate raw user image intent + hard-lock confirmed snapshot fastpath + shrink exact context
 # AutoTecPro AI v69393 - unique-package auto-lock + exact visual terminal + current-source Car Model fastpath
 # AutoTecPro AI v69392 - confirmed-package snapshot fastpath + semantic image fastpath
@@ -88665,13 +88666,513 @@ def _technical_confirmed_source_limited_car_model_answer_v69387(prompt_text):
 
 
 
+
+@st.cache_resource(show_spinner=False)
+def _technical_topic_index_cache_state_v69395():
+    """Process-wide cache for source-authored Technical topic indexes."""
+    return {"lock": threading.RLock(), "entries": {}}
+
+
+def _technical_topic_norm_v69395(value):
+    value = html.unescape(re.sub(r"<[^>]+>", " ", str(value or "")))
+    value = re.sub(r"[^a-z0-9]+", " ", value.casefold())
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _technical_topic_tokens_v69395(value):
+    stop = {
+        "what", "whats", "which", "where", "when", "how", "the", "this",
+        "that", "for", "with", "from", "into", "show", "tell", "need",
+        "please", "about", "my", "your", "is", "are", "do", "does", "can",
+        "could", "would", "to", "of", "and", "or", "a", "an", "photo",
+        "photos", "picture", "pictures", "image", "images", "setting",
+        "settings", "system", "systems", "vehicle", "vehicles", "technical",
+    }
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", _technical_topic_norm_v69395(value))
+        if len(token) >= 2 and token not in stop
+    }
+
+
+def _technical_topic_identity_tokens_v69395(root):
+    """Return source-authored package identity tokens that should not drive topic rank."""
+    root = dict(root or {})
+    values = []
+    for key in (
+        "data-atp-make", "data-atp-model", "data-atp-series",
+        "data-atp-year-start", "data-atp-year-end", "data-atp-screen-sizes",
+        "data-atp-generation", "data-atp-product-family",
+    ):
+        values.append(str(root.get(key) or ""))
+    # Root query-key is package identity/background. Leaf-specific query keys are
+    # compared only after removing these root terms.
+    values.append(str(root.get("data-atp-query-key") or ""))
+    return _technical_topic_tokens_v69395(" ".join(values))
+
+
+def _technical_topic_excerpt_from_hierarchy_v69395(heading, hierarchy, max_chars=7000):
+    """Bind one ATP-authored heading to its exact hierarchy segment(s), locally only."""
+    heading = dict(heading or {})
+    hierarchy = dict(hierarchy or {})
+    title = str(
+        heading.get("data-atp-title")
+        or heading.get("data-atp-heading-title")
+        or heading.get("id")
+        or ""
+    ).strip()
+    title_norm = _technical_topic_norm_v69395(title)
+    heading_id = _technical_topic_norm_v69395(heading.get("id") or "")
+    section_id = _technical_topic_norm_v69395(
+        heading.get("data-atp-section") or ""
+    )
+    route = str(heading.get("data-atp-route-specificity") or "").casefold().strip()
+    if not title_norm:
+        return {"excerpt": "", "section_title": "", "branch_paths": [], "image_urls": []}
+
+    exact = []
+    sections = [x for x in (hierarchy.get("sections") or []) if isinstance(x, dict)]
+    for section in sections:
+        target_norm = _technical_topic_norm_v69395(section.get("target_id") or "")
+        for idx, seg in enumerate(section.get("segments") or []):
+            if not isinstance(seg, dict):
+                continue
+            seg_heading = str(seg.get("heading") or "").strip()
+            seg_norm = _technical_topic_norm_v69395(seg_heading)
+            path = [str(x).strip() for x in (seg.get("path") or []) if str(x).strip()]
+            path_norms = [_technical_topic_norm_v69395(x) for x in path]
+            matched = bool(
+                seg_norm == title_norm
+                or (heading_id and target_norm == heading_id and idx == 0)
+                or (section_id and target_norm == section_id and idx == 0)
+                or (title_norm and title_norm in path_norms and seg_norm == title_norm)
+            )
+            if matched:
+                exact.append((section, idx, seg, path))
+
+    # Exact title/target identity only. Never fuzzy-bind source text to a different heading.
+    if len(exact) != 1:
+        return {"excerpt": "", "section_title": "", "branch_paths": [], "image_urls": []}
+
+    section, index, segment, base_path = exact[0]
+    selected = [(segment, base_path)]
+    base_level = int(segment.get("level") or 6)
+
+    # Source-authored overview/source-limited nodes may intentionally own child
+    # branches. Preserve descendants only while their hierarchy path retains the
+    # exact parent prefix and their level is deeper than the selected node.
+    if route in {"overview", "source-limited", "source_limited"}:
+        all_segments = [x for x in (section.get("segments") or []) if isinstance(x, dict)]
+        for child in all_segments[index + 1:]:
+            child_level = int(child.get("level") or 6)
+            child_path = [str(x).strip() for x in (child.get("path") or []) if str(x).strip()]
+            if child_level <= base_level:
+                break
+            if base_path and child_path[:len(base_path)] != base_path:
+                break
+            selected.append((child, child_path))
+            if len(selected) >= 12:
+                break
+
+    lines = [f"SOURCE_TOPIC_V69395: {title}"]
+    paths = []
+    urls = []
+    for seg, path in selected:
+        label = " > ".join(path) or str(seg.get("heading") or title)
+        paths.append(label)
+        lines.append(f"SOURCE_BRANCH_V69395: {label}")
+        body = re.sub(r"\s+", " ", str(seg.get("text") or "")).strip()
+        if body:
+            lines.append("SOURCE_CONTENT_V69395: " + body)
+        for raw in (seg.get("images") or []):
+            if isinstance(raw, dict):
+                url = str(raw.get("src") or "").strip()
+            else:
+                url = str(raw or "").strip()
+            if url.startswith("https://") and url not in urls:
+                urls.append(url)
+        lines.append("")
+    excerpt = "\n".join(lines).strip()[:max(1200, int(max_chars or 7000))]
+    return {
+        "excerpt": excerpt,
+        "section_title": title,
+        "branch_paths": paths,
+        "image_urls": urls,
+    }
+
+
+def _technical_confirmed_topic_index_v69395(state):
+    """Compile a generic per-package topic index from ATP-authored metadata.
+
+    No product/topic answer is encoded in Python. The index is built only from the
+    exact selected package's current-authoritative headings and hierarchy.
+    """
+    if not isinstance(state, dict):
+        return {}
+
+    # Cache lookup must happen before package JSON/hierarchy parsing. The exact
+    # case lock already owns source URL + file ID, and the Technical learning
+    # revision invalidates the key whenever learned source authority changes.
+    source_url = str(state.get("source_url") or "").strip()
+    file_id = str(state.get("file_id") or "").strip()
+    try:
+        revision = int(_website_destination_revision_v69109("Technical Support Database") or 0)
+    except Exception:
+        revision = 0
+    try:
+        canonical_source = canonical_website_url_identity(source_url) if source_url else ""
+    except Exception:
+        canonical_source = source_url.casefold().rstrip("/")
+    cache_key = hashlib.sha256(
+        f"{revision}|{canonical_source}|{file_id}|topic-index-v69395".encode("utf-8")
+    ).hexdigest()
+    cache_state = _technical_topic_index_cache_state_v69395()
+    now = time.monotonic()
+    if source_url and file_id:
+        try:
+            with cache_state["lock"]:
+                cached = dict((cache_state.get("entries") or {}).get(cache_key) or {})
+                if cached and now - float(cached.get("stored_monotonic") or 0.0) <= 300.0:
+                    diagnostic_log(
+                        "technical_topic_index_cache_hit_v69395",
+                        key=cache_key[:16],
+                        revision=revision,
+                        topics=len((cached.get("index") or {}).get("topics") or []),
+                    )
+                    return dict(cached.get("index") or {})
+                if cached:
+                    cache_state["entries"].pop(cache_key, None)
+        except Exception:
+            pass
+
+    started = time.perf_counter()
+    snapshot = _technical_confirmed_snapshot_v69387(state)
+    if not snapshot:
+        return {}
+    package_text = str(snapshot.get("package_text") or "")
+    if not package_text:
+        return {}
+    if not file_id:
+        file_id = str(snapshot.get("file_id") or "").strip()
+        cache_key = hashlib.sha256(
+            f"{revision}|{canonical_source}|{file_id}|topic-index-v69395".encode("utf-8")
+        ).hexdigest()
+    semantics = dict(snapshot.get("atp_semantics_v69178") or {})
+    if not semantics:
+        semantics = _technical_package_atp_semantics_v69178(package_text)
+    hierarchy = _technical_package_hierarchy_v69143(package_text)
+    headings = [dict(x) for x in (semantics.get("headings") or []) if isinstance(x, dict)]
+    if not headings or not hierarchy:
+        return {}
+    root = dict(semantics.get("root") or {})
+    identity_tokens = _technical_topic_identity_tokens_v69395(root)
+    topics = []
+    for heading in headings:
+        current = str(heading.get("data-atp-current-source") or "").casefold().strip()
+        status = str(heading.get("data-atp-source-status") or "").casefold().strip()
+        workspace = str(heading.get("data-atp-workspace") or "").casefold().strip()
+        if current and current not in {"true", "1", "yes"}:
+            continue
+        if status and "current" not in status:
+            continue
+        if workspace and workspace != "technical":
+            continue
+
+        route = str(heading.get("data-atp-route-specificity") or "").casefold().strip()
+        if not route:
+            structural_route_tokens_v69395 = _technical_topic_tokens_v69395(
+                " ".join((
+                    str(heading.get("id") or ""),
+                    str(heading.get("data-atp-section") or ""),
+                    str(heading.get("data-atp-title") or ""),
+                ))
+            )
+            if "overview" in structural_route_tokens_v69395:
+                route = "overview"
+        direct = str(heading.get("data-atp-direct-fastpath") or "").casefold().strip()
+        exact_scope = str(heading.get("data-atp-exact-scope-key") or "").strip()
+        try:
+            priority = int(float(
+                heading.get("data-atp-direct-fastpath-priority")
+                or heading.get("data-atp-search-priority")
+                or 0
+            ))
+        except Exception:
+            priority = 0
+        # Require a source-authored routing signal. Older current packages use
+        # exact-scope/search-priority; newer packages use direct-fastpath/route.
+        if not (
+            bool(route)
+            or bool(exact_scope)
+            or priority >= 900
+        ):
+            continue
+
+        bound = _technical_topic_excerpt_from_hierarchy_v69395(
+            heading,
+            hierarchy,
+            max_chars=7000,
+        )
+        if not str(bound.get("excerpt") or "").strip():
+            continue
+
+        title = str(
+            heading.get("data-atp-title")
+            or heading.get("data-atp-heading-title")
+            or heading.get("id")
+            or ""
+        ).strip()
+        aliases = []
+        for alias_field_v69395 in (
+            heading.get("data-atp-aliases"),
+            heading.get("data-atp-query-aliases"),
+        ):
+            for part in str(alias_field_v69395 or "").split("|"):
+                clean_alias_v69395 = re.sub(r"\s+", " ", part).strip()
+                if clean_alias_v69395 and clean_alias_v69395 not in aliases:
+                    aliases.append(clean_alias_v69395)
+        topic = str(heading.get("data-atp-topic") or "").strip()
+        section = str(heading.get("data-atp-section") or heading.get("id") or "").strip()
+        query_key = str(heading.get("data-atp-query-key") or "").strip()
+        query_tokens = _technical_topic_tokens_v69395(query_key) - identity_tokens
+        topic_tokens = (
+            _technical_topic_tokens_v69395(title)
+            | _technical_topic_tokens_v69395(" ".join(aliases))
+            | _technical_topic_tokens_v69395(topic)
+            | _technical_topic_tokens_v69395(section)
+            | set(query_tokens)
+        )
+        if not topic_tokens:
+            continue
+        topics.append({
+            "id": str(heading.get("id") or section or title),
+            "title": title,
+            "aliases": aliases,
+            "topic": topic,
+            "section": section,
+            "route": route,
+            "priority": priority,
+            "fact_ids": str(heading.get("data-atp-fact-ids") or ""),
+            "tokens": sorted(topic_tokens),
+            "query_tokens": sorted(query_tokens),
+            "excerpt": str(bound.get("excerpt") or "")[:7000],
+            "branch_paths": list(bound.get("branch_paths") or []),
+            "image_urls": list(bound.get("image_urls") or []),
+        })
+
+    index = {
+        "version": 69395,
+        "revision": revision,
+        "source_url": source_url,
+        "file_id": file_id,
+        "identity_tokens": sorted(identity_tokens),
+        "topics": topics,
+    }
+    try:
+        with cache_state["lock"]:
+            entries = cache_state["entries"]
+            entries[cache_key] = {
+                "stored_monotonic": time.monotonic(),
+                "index": dict(index),
+            }
+            if len(entries) > 96:
+                oldest = min(
+                    entries,
+                    key=lambda key: float((entries.get(key) or {}).get("stored_monotonic") or 0.0),
+                )
+                entries.pop(oldest, None)
+    except Exception:
+        pass
+    diagnostic_log(
+        "technical_topic_index_built_v69395",
+        key=cache_key[:16],
+        revision=revision,
+        topics=len(topics),
+        elapsed_seconds=round(time.perf_counter() - started, 4),
+    )
+    return index
+
+
+def _technical_confirmed_topic_match_v69395(prompt_text, state):
+    """Return one high-confidence source-authored topic, otherwise fail closed."""
+    prompt = _technical_user_intent_prompt_v69394(prompt_text)
+    prompt_norm = _technical_topic_norm_v69395(prompt)
+    if not prompt_norm:
+        return {}
+    index = _technical_confirmed_topic_index_v69395(state)
+    topics = [dict(x) for x in (index.get("topics") or []) if isinstance(x, dict)]
+    if not topics:
+        return {}
+    identity_tokens = set(index.get("identity_tokens") or [])
+    prompt_tokens = _technical_topic_tokens_v69395(prompt) - identity_tokens
+    if not prompt_tokens:
+        prompt_tokens = _technical_topic_tokens_v69395(prompt)
+
+    scored = []
+    for row in topics:
+        aliases = [str(x) for x in (row.get("aliases") or []) if str(x).strip()]
+        title = str(row.get("title") or "")
+        prompt_phrase_tokens_v69395 = _technical_topic_tokens_v69395(prompt_norm)
+        alias_phrase = 0
+        title_phrase = 0
+        longest_phrase = 0
+
+        for phrase in aliases:
+            phrase_norm = _technical_topic_norm_v69395(phrase)
+            if not phrase_norm or len(phrase_norm) < 3:
+                continue
+            source_phrase_tokens_v69395 = _technical_topic_tokens_v69395(phrase_norm)
+            if phrase_norm in prompt_norm:
+                alias_phrase = max(
+                    alias_phrase,
+                    min(len(source_phrase_tokens_v69395), len(prompt_phrase_tokens_v69395)),
+                )
+                longest_phrase = max(longest_phrase, min(len(phrase_norm), len(prompt_norm)))
+
+        title_norm_v69395 = _technical_topic_norm_v69395(title)
+        if title_norm_v69395 and len(title_norm_v69395) >= 3:
+            title_tokens_v69395 = _technical_topic_tokens_v69395(title_norm_v69395)
+            if title_norm_v69395 in prompt_norm:
+                title_phrase = min(
+                    len(title_tokens_v69395),
+                    len(prompt_phrase_tokens_v69395),
+                )
+                longest_phrase = max(
+                    longest_phrase,
+                    min(len(title_norm_v69395), len(prompt_norm)),
+                )
+            elif (
+                len(prompt_phrase_tokens_v69395) >= 2
+                and title_norm_v69395.startswith(prompt_norm + " ")
+            ):
+                # Safe generic prefix: the customer named the opening words of
+                # the exact source-authored title (e.g. a method name), while
+                # the remaining title words are descriptive detail.
+                title_phrase = min(
+                    len(title_tokens_v69395),
+                    len(prompt_phrase_tokens_v69395),
+                )
+                longest_phrase = max(longest_phrase, len(prompt_norm))
+        exact_phrase = max(alias_phrase, title_phrase)
+
+        row_tokens = set(row.get("tokens") or [])
+        overlap = prompt_tokens & row_tokens
+        coverage = len(overlap) / max(1, len(prompt_tokens))
+        specificity = len(overlap) / max(1, min(len(row_tokens), 12))
+        route = str(row.get("route") or "").casefold().strip()
+        priority = int(row.get("priority") or 0)
+        route_bonus = 18 if route in {"exact-leaf", "exact_leaf"} else 12 if route == "overview" else 8 if route in {"source-limited", "source_limited"} else 0
+        score = (
+            alias_phrase * 115
+            + title_phrase * 90
+            + min(longest_phrase, 80) * 0.8
+            + len(overlap) * 28
+            + coverage * 55
+            + specificity * 20
+            + route_bonus
+            + min(priority, 1500) / 150.0
+        )
+        if exact_phrase or overlap:
+            scored.append((score, exact_phrase, coverage, len(overlap), row))
+
+    scored.sort(key=lambda item: (item[0], item[1], item[2], item[3]), reverse=True)
+
+    # Source-authored overview nodes are the safe owner of broad short inquiries.
+    # If the query does not exactly name a leaf alias/title, prefer a relevant
+    # overview over one arbitrarily winning child. This is generic hierarchy
+    # behavior; no product/topic vocabulary is encoded here.
+    overview_forced_v69395 = False
+    if scored and not any(item[1] > 0 for item in scored[:3]) and len(prompt_tokens) <= 3:
+        overview_rows_v69395 = [
+            item for item in scored
+            if str((item[4] or {}).get("route") or "").casefold().strip() == "overview"
+            and item[3] >= 1
+        ]
+        if overview_rows_v69395:
+            overview_rows_v69395.sort(
+                key=lambda item: (item[2], item[3], item[0]),
+                reverse=True,
+            )
+            chosen_overview_v69395 = overview_rows_v69395[0]
+            scored = [chosen_overview_v69395] + [
+                item for item in scored if item is not chosen_overview_v69395
+            ]
+            overview_forced_v69395 = True
+
+    if scored:
+        best = scored[0]
+        second_score = scored[1][0] if len(scored) > 1 else -1.0
+        score, exact_phrase, coverage, overlap_count, row = best
+        margin = score - second_score if second_score >= 0 else score
+        # High-confidence metadata match. Short one-token questions require an
+        # exact source alias/title phrase or a clear score margin.
+        confident = bool(
+            (overview_forced_v69395 and overlap_count >= 1 and coverage >= 0.50)
+            or (exact_phrase >= 1 and score >= 95)
+            or (overlap_count >= 2 and coverage >= 0.50 and score >= 95 and margin >= 12)
+            or (overlap_count >= 1 and len(prompt_tokens) == 1 and score >= 120 and margin >= 24)
+        )
+        if confident:
+            result = dict(row)
+            result.update({
+                "match_mode_v69395": "metadata",
+                "score_v69395": round(score, 3),
+                "margin_v69395": round(margin, 3),
+            })
+            diagnostic_log(
+                "technical_topic_match_v69395",
+                mode="metadata",
+                topic=str(result.get("id") or "")[:160],
+                title=str(result.get("title") or "")[:220],
+                score=round(score, 3),
+                margin=round(margin, 3),
+            )
+            return result
+
+    # Safe bridge: reuse the existing exact-package hierarchy selector, then map
+    # only an exact returned section title back to one indexed topic. No fuzzy cross-topic jump.
+    snapshot = _technical_confirmed_snapshot_v69387(state)
+    package_text = str(snapshot.get("package_text") or "") if snapshot else ""
+    if package_text:
+        try:
+            hierarchy_pick = dict(_technical_hierarchy_excerpt_v69143(package_text, prompt) or {})
+        except Exception:
+            hierarchy_pick = {}
+        selected_title = _technical_topic_norm_v69395(hierarchy_pick.get("section_title") or "")
+        if selected_title:
+            exact_rows = [
+                row for row in topics
+                if _technical_topic_norm_v69395(row.get("title") or "") == selected_title
+            ]
+            if len(exact_rows) == 1:
+                result = dict(exact_rows[0])
+                result.update({
+                    "match_mode_v69395": "hierarchy_bridge",
+                    "score_v69395": 0.0,
+                    "margin_v69395": 0.0,
+                })
+                diagnostic_log(
+                    "technical_topic_match_v69395",
+                    mode="hierarchy_bridge",
+                    topic=str(result.get("id") or "")[:160],
+                    title=str(result.get("title") or "")[:220],
+                )
+                return result
+    diagnostic_log(
+        "technical_topic_match_miss_v69395",
+        prompt=prompt[:240],
+        indexed=len(topics),
+    )
+    return {}
+
+
 def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results=50):
     """Recover one selected package without broad discovery.
 
-    v69392 first uses the exact durable snapshot already owned by the confirmed
-    package. This removes the synchronous 50-result vector search from the common
-    path. Vector search remains only as a compatibility fallback when the durable
-    snapshot is unavailable or cannot yield any local evidence.
+    v69395 first resolves a source-authored topic from the exact confirmed package
+    and supplies only that compact section to the existing response formatter.
+    If no safe topic match exists, the v69394/v69392 exact-snapshot selector remains
+    the fallback; vector search is still last-resort compatibility only.
     """
     state = _technical_confirmed_package_state_v69382(prompt_text)
     if not state:
@@ -88704,6 +89205,80 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
             package_text_v69392
             and (not file_id or not snapshot_file_v69392 or snapshot_file_v69392 == file_id)
         ):
+            # v69395 UNIVERSAL TOPIC FASTPATH: use only source-authored heading
+            # metadata + exact hierarchy text from the already-locked package.
+            # This is generic across Technical topics/products and contains no
+            # product-specific answer or troubleshooting rules.
+            try:
+                topic_match_v69395 = _technical_confirmed_topic_match_v69395(
+                    clean_prompt,
+                    state,
+                )
+            except Exception as topic_match_error_v69395:
+                topic_match_v69395 = {}
+                diagnostic_log(
+                    "technical_topic_fastpath_failed_v69395",
+                    error_type=type(topic_match_error_v69395).__name__,
+                    error=str(topic_match_error_v69395)[:500],
+                )
+            topic_excerpt_v69395 = str(
+                (topic_match_v69395 or {}).get("excerpt") or ""
+            ).strip()
+            if topic_excerpt_v69395:
+                topic_budget_v69395 = 6000
+                topic_excerpt_v69395 = topic_excerpt_v69395[:topic_budget_v69395]
+                topic_title_v69395 = str(
+                    (topic_match_v69395 or {}).get("title") or ""
+                ).strip()
+                topic_id_v69395 = str(
+                    (topic_match_v69395 or {}).get("id") or ""
+                ).strip()
+                exact_row_v69395 = {
+                    "file_id": file_id or snapshot_file_v69392,
+                    "filename": str(snapshot_v69392.get("filename") or ""),
+                    "score": 1.0,
+                    "text": topic_excerpt_v69395,
+                    "technical_confirmed_topic_fast_v69395": True,
+                    "technical_topic_id_v69395": topic_id_v69395,
+                }
+                result_v69395 = {
+                    "status": "recovered",
+                    "state": state,
+                    "rows": [exact_row_v69395],
+                    "source_v69392": "durable_snapshot_topic_index_v69395",
+                    "topic_match_v69395": dict(topic_match_v69395),
+                    "context": (
+                        "EXACT USER-CONFIRMED TECHNICAL TOPIC EVIDENCE "
+                        "(v69395 UNIVERSAL SOURCE INDEX):\n"
+                        f"Selected package: {label}\n"
+                        f"Source: {source_url}\n"
+                        f"File ID: {file_id or snapshot_file_v69392}\n"
+                        + (
+                            f"Selected source topic: {topic_title_v69395}\n"
+                            if topic_title_v69395 else ""
+                        )
+                        + "The source-authored topic index selected this exact current "
+                          "section from the already-confirmed package. Use ONLY this "
+                          "section for topic-specific facts. Preserve authored order, "
+                          "branch conditions, warnings, and uncertainty. Do not invent "
+                          "missing values or broaden to another topic/generation. "
+                          "Format the answer naturally and concisely.\n\n"
+                        + topic_excerpt_v69395
+                    ),
+                }
+                diagnostic_log(
+                    "technical_confirmed_topic_fast_v69395",
+                    file_id=(file_id or snapshot_file_v69392)[:160],
+                    label=label[:120],
+                    topic=topic_id_v69395[:160],
+                    title=topic_title_v69395[:220],
+                    chars=len(topic_excerpt_v69395),
+                    mode=str(
+                        (topic_match_v69395 or {}).get("match_mode_v69395") or ""
+                    )[:80],
+                )
+                return result_v69395
+
             hierarchy_excerpt_v69392 = ""
             window_excerpt_v69392 = ""
             local_section_v69392 = ""
