@@ -1,3 +1,4 @@
+# AutoTecPro AI v69393 - unique-package auto-lock + exact visual terminal + current-source Car Model fastpath
 # AutoTecPro AI v69392 - confirmed-package snapshot fastpath + semantic image fastpath
 # AutoTecPro AI v69391 - shared-screen Technical source must never ask 15.6 vs 17
 # AutoTecPro AI v69390 - scalar case-detail binding + confirmed snapshot file-content bypass
@@ -87733,6 +87734,38 @@ def _technical_package_overlap_ambiguity_v69377(prompt_text):
     # package state. The v69378 image-index shortcut was invalid because image
     # rows include supporting pages and neighbouring product generations.
     options = _technical_registry_overlap_options_v69379(store, family, year)
+
+    # v69393: one authoritative package is already a complete routing decision.
+    # Do not make the customer confirm a non-ambiguity, and do not leave the case
+    # unlocked. Persist the exact registry package as conversation-scoped identity.
+    if len(options) == 1:
+        selected_v69393 = dict(options[0] or {})
+        label_v69393 = str(selected_v69393.get("label") or "").strip()
+        source_url_v69393 = str(selected_v69393.get("source_url") or "").strip()
+        file_id_v69393 = str(selected_v69393.get("file_id") or "").strip()
+        conversation_v69393 = str(st.session_state.get("conversation_id") or "")
+        if label_v69393 and source_url_v69393 and file_id_v69393 and conversation_v69393:
+            auto_state_v69393 = {
+                **selected_v69393,
+                "family": family,
+                "year": year,
+                "conversation_id": conversation_v69393,
+                "active_subject_v69384": prompt,
+                "binding_mode_v69393": "unique_authoritative_package",
+            }
+            st.session_state[TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377] = auto_state_v69393
+            st.session_state[TECHNICAL_ACTIVE_SUBJECT_KEY_V69384] = prompt
+            st.session_state.pop(TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377, None)
+            diagnostic_log(
+                "technical_unique_package_auto_bound_v69393",
+                family=family,
+                year=year,
+                label=label_v69393[:120],
+                file_id=file_id_v69393[:160],
+                source_url=source_url_v69393[:700],
+            )
+        return {}
+
     if len(options) < 2:
         return {}
     result = {"family": family, "year": year, "options": options, "source": "authoritative_registry_v69379", "original_request": prompt}
@@ -87878,10 +87911,11 @@ def _technical_package_overlap_clarification_prompt_v69377(prompt_text):
 
 
 def _technical_confirmed_package_state_v69382(prompt_text=""):
-    """Return the current conversation's explicitly selected Technical package only.
+    """Return the current conversation's exact authoritative Technical package.
 
-    The package lock is user-authored via the overlap clarification flow.  It is
-    intentionally narrower than vehicle/year inference and never imports an AI guess.
+    The lock is created either by an explicit overlap choice or, from v69393,
+    automatically when the authoritative registry proves there is exactly one
+    current package for the exact family/year. It never imports an AI guess.
     """
     if str(assistant or "") != "🔧 Technical Support":
         return {}
@@ -88536,21 +88570,39 @@ def _technical_confirmed_source_limited_car_model_answer_v69387(prompt_text):
     carriers = [root] + headings
 
     source_limited = False
+    explicit_publishable_profile_v69393 = False
     for row in carriers:
-        values = {
+        profile_values_v69393 = {
             str(row.get("data-atp-car-model-ac-profile") or "").casefold().strip(),
             str(row.get("data-atp-climate-profile") or "").casefold().strip(),
         }
-        if values & {"source-not-defined", "not-defined", "unknown"}:
-            source_limited = True
-            break
+        profile_values_v69393.discard("")
         publishable = str(row.get("data-atp-publishable-profile") or "").casefold().strip()
         limitation = str(row.get("data-atp-source-limitation") or "").casefold()
+
+        if profile_values_v69393 & {"source-not-defined", "not-defined", "unknown"}:
+            source_limited = True
+            break
         if publishable in {"false", "0", "no"} and (
             "car model" in limitation or "profile" in limitation
         ):
             source_limited = True
             break
+        if (
+            publishable in {"true", "1", "yes"}
+            and profile_values_v69393
+            and not profile_values_v69393 & {"source-not-defined", "not-defined", "unknown"}
+        ):
+            explicit_publishable_profile_v69393 = True
+
+    if not source_limited and not explicit_publishable_profile_v69393:
+        family_v69393 = str(state.get("family") or "").casefold().strip()
+        label_v69393 = str(state.get("label") or "").casefold().strip()
+        if family_v69393 in {"silverado", "sierra"} and (
+            "2013" in label_v69393 or "2019" in label_v69393 or "2023" in label_v69393
+        ):
+            source_limited = True
+
     if not source_limited:
         return ""
 
@@ -88819,6 +88871,145 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
 
 
 
+
+def _technical_confirmed_car_model_fast_image_v69393(prompt_text, state):
+    """Resolve the exact current-source Car Model image across old/new GM packages."""
+    if not isinstance(state, dict):
+        return []
+
+    try:
+        exact_new_v69393 = _technical_confirmed_semantic_exact_images_v69387(
+            prompt_text,
+            state,
+            max_images=1,
+        )
+    except Exception:
+        exact_new_v69393 = []
+    if exact_new_v69393:
+        return exact_new_v69393
+
+    snapshot_v69393 = _technical_confirmed_snapshot_v69387(state)
+    if not snapshot_v69393:
+        return []
+    semantics_v69393 = dict(snapshot_v69393.get("atp_semantics_v69178") or {})
+    if not semantics_v69393:
+        semantics_v69393 = _technical_package_atp_semantics_v69178(
+            snapshot_v69393.get("package_text") or ""
+        )
+    rows_v69393 = [
+        dict(row)
+        for row in (semantics_v69393.get("images") or [])
+        if isinstance(row, dict)
+    ]
+
+    try:
+        state_year_v69393 = int(state.get("year"))
+    except Exception:
+        state_year_v69393 = None
+
+    ranked_v69393 = []
+    for row_v69393 in rows_v69393:
+        role_v69393 = str(row_v69393.get("data-atp-image-role") or "").casefold().strip()
+        topic_v69393 = str(row_v69393.get("data-atp-topic") or "").casefold().strip()
+        section_v69393 = str(row_v69393.get("data-atp-section") or "").casefold().strip()
+        facts_v69393 = str(row_v69393.get("data-atp-fact-ids") or "").casefold()
+
+        exact_role_v69393 = bool(
+            role_v69393 == "silverado-sierra-car-model-ac-settings"
+            or (
+                topic_v69393 == "car-model-ac-protocol"
+                and section_v69393 == "protocol-settings"
+                and "f006_car_model_ac" in facts_v69393
+            )
+        )
+        if not exact_role_v69393:
+            continue
+
+        current_v69393 = str(row_v69393.get("data-atp-current-source") or "").casefold().strip()
+        status_v69393 = str(row_v69393.get("data-atp-source-status") or "").casefold().strip()
+        auto_v69393 = str(row_v69393.get("data-atp-auto-display") or "").casefold().strip()
+        first_v69393 = str(row_v69393.get("data-atp-first-response-eligible") or "").casefold().strip()
+        if current_v69393 and current_v69393 not in {"true", "1", "yes"}:
+            continue
+        if status_v69393 and "current" not in status_v69393:
+            continue
+        if auto_v69393 and auto_v69393 not in {"true", "1", "yes"}:
+            continue
+        if first_v69393 and first_v69393 not in {"true", "1", "yes"}:
+            continue
+
+        try:
+            start_v69393 = int(str(row_v69393.get("data-atp-year-start") or "").strip())
+            end_v69393 = int(str(row_v69393.get("data-atp-year-end") or "").strip())
+        except Exception:
+            start_v69393 = end_v69393 = None
+        if (
+            state_year_v69393 is not None
+            and start_v69393 is not None
+            and end_v69393 is not None
+            and not (start_v69393 <= state_year_v69393 <= end_v69393)
+        ):
+            continue
+
+        url_v69393 = str(
+            row_v69393.get("data-atp-full-resolution-url")
+            or row_v69393.get("data-atp-canonical-image-url")
+            or row_v69393.get("src")
+            or ""
+        ).strip()
+        if not url_v69393.startswith("https://"):
+            continue
+
+        semantic_meta_v69393 = {
+            str(k): str(v)
+            for k, v in row_v69393.items()
+            if str(k).startswith("data-atp-")
+        }
+        payload_v69393 = {
+            "image_url": url_v69393,
+            "source_page": str(state.get("source_url") or ""),
+            "page_title": str(snapshot_v69393.get("title") or ""),
+            "section_heading": str(
+                row_v69393.get("data-atp-heading-title")
+                or row_v69393.get("data-atp-intent")
+                or "Car Model / A/C Settings"
+            ),
+            "nearby_instruction_text": str(row_v69393.get("data-atp-intent") or ""),
+            "caption": str(row_v69393.get("alt") or row_v69393.get("data-atp-intent") or ""),
+            "visual_analysis": "Exact current-source Car Model / A/C settings reference",
+            "atp_semantic_metadata_v69363": semantic_meta_v69393,
+        }
+        record_v69393 = _website_image_record_for_chat_v68883(payload_v69393)
+        if not isinstance(record_v69393, dict):
+            continue
+        record_v69393["_technical_exact_semantic_payload_v69387"] = payload_v69393
+        record_v69393["technical_exact_semantic_role_v69387"] = "car_model_ac"
+        record_v69393["technical_confirmed_package_image_v69382"] = True
+        record_v69393["technical_confirmed_semantic_fast_v69392"] = True
+        record_v69393["technical_confirmed_car_model_fast_v69393"] = True
+        record_v69393["technical_confirmed_package_label_v69382"] = str(state.get("label") or "")
+        record_v69393["technical_confirmed_package_file_id_v69382"] = str(state.get("file_id") or "")
+        try:
+            priority_v69393 = int(row_v69393.get("data-atp-first-response-priority") or 0)
+        except Exception:
+            priority_v69393 = 0
+        ranked_v69393.append((priority_v69393, record_v69393))
+
+    ranked_v69393.sort(key=lambda item: item[0], reverse=True)
+    output_v69393 = [item[1] for item in ranked_v69393[:1]]
+    if output_v69393:
+        diagnostic_log(
+            "technical_confirmed_car_model_fast_image_v69393",
+            published=1,
+            url=str(
+                output_v69393[0].get("archive_web_url")
+                or output_v69393[0].get("data_url")
+                or ""
+            )[:500],
+        )
+    return output_v69393
+
+
 def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_images=2):
     """Fast exact-image path from the already-confirmed package snapshot.
 
@@ -88834,12 +89025,11 @@ def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_ima
     prompt_cf = prompt_raw.casefold()
     query_role = str(_website_image_query_role_v68884(prompt_raw) or "").strip()
 
-    # Preserve the exact v69387 Car Model authority and LVDS rejection.
+    # v69393: exact Car Model authority now covers both current GM generations.
     if query_role == "car_model_ac":
-        return _technical_confirmed_semantic_exact_images_v69387(
+        return _technical_confirmed_car_model_fast_image_v69393(
             prompt_raw,
             state,
-            max_images=1,
         )
 
     audio_like = bool(re.search(
@@ -88873,6 +89063,16 @@ def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_ima
     amp_specific = bool(re.search(
         r"\b(?:factory amp|amplifier|some speakers|missing speakers|"
         r"speakers? (?:not|aren['’]?t|are not) (?:working|functional))\b",
+        prompt_cf,
+    ))
+    aux_port_specific_v69393 = bool(re.search(
+        r"\b(?:aux port|armrest aux|dummy aux|center[- ]console aux|"
+        r"centre[- ]console aux)\b",
+        prompt_cf,
+    ))
+    rear_aux_harness_specific_v69393 = bool(re.search(
+        r"\b(?:rear aux|aux harness|audio signal harness|behind (?:the )?(?:new )?"
+        r"(?:android )?(?:unit|screen))\b",
         prompt_cf,
     ))
     aux_specific = bool(re.search(
@@ -88925,13 +89125,23 @@ def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_ima
             if role != "factory-amp-setting":
                 continue
             base_score = 8000
+        elif aux_port_specific_v69393:
+            if role != "dummy-aux-connector-armrest":
+                continue
+            base_score = 10000
+        elif rear_aux_harness_specific_v69393:
+            if role not in {
+                "aux-rear-audio-signal-harness",
+                "newer-platform-aux-wire",
+            }:
+                continue
+            base_score = 9800
         elif aux_specific:
             if role in primary_audio_roles:
                 base_score = primary_audio_roles[role]
             elif role in secondary_audio_roles:
                 base_score = secondary_audio_roles[role]
             else:
-                # Do not treat camera AUX inputs/navigation/connectivity as audio.
                 continue
             if not (
                 "audio" in section
@@ -89002,11 +89212,13 @@ def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_ima
 
     ranked.sort(key=lambda item: item[0], reverse=True)
 
-    # Preserve proven no-audio behavior:
-    # - 2013–2019 can return the rear AUX harness + dummy armrest connector.
-    # - 2019–2023 commonly has one newer-platform AUX wire primary image.
-    primary_found = [item for item in ranked if item[1] in primary_audio_roles]
-    selected = primary_found if primary_found else ranked
+    # Preserve general no-audio behavior, but explicit visual requests are exact.
+    if aux_port_specific_v69393 or rear_aux_harness_specific_v69393 or amp_specific:
+        selected = ranked
+        max_images = 1
+    else:
+        primary_found = [item for item in ranked if item[1] in primary_audio_roles]
+        selected = primary_found if primary_found else ranked
     output = []
     seen = set()
     for _, role, record in selected:
@@ -94751,7 +94963,7 @@ else:
                     technical_request_prompt_v68879
                 )
                 if confirmed_state_v69388:
-                    direct_images_v69388 = _technical_confirmed_semantic_exact_images_v69387(
+                    direct_images_v69388 = _technical_confirmed_semantic_fast_images_v69392(
                         technical_request_prompt_v68879,
                         confirmed_state_v69388,
                         max_images=1,
@@ -94826,6 +95038,139 @@ else:
                 conversation_id=st.session_state.get("conversation_id"),
             )
             st.rerun()
+
+        # v69393: explicit visual-only follow-ups with an exact package image
+        # terminate locally before provider/model generation or broad image search.
+        technical_visual_direct_images_v69393 = []
+        technical_visual_direct_request_v69393 = False
+        if (
+            assistant == "🔧 Technical Support"
+            and not str(technical_preflight_safe_answer_v69377 or "").strip()
+            and not str(technical_source_limited_direct_answer_v69388 or "").strip()
+            and not is_graphic_resume_v68844
+        ):
+            try:
+                technical_visual_direct_request_v69393 = bool(
+                    _website_image_explicit_visual_request_v68888(interaction_prompt)
+                )
+            except Exception:
+                technical_visual_direct_request_v69393 = False
+
+            if technical_visual_direct_request_v69393:
+                try:
+                    visual_state_v69393 = _technical_confirmed_package_state_v69382(
+                        technical_request_prompt_v68879
+                    )
+                    if visual_state_v69393:
+                        technical_visual_direct_images_v69393 = (
+                            _technical_confirmed_semantic_fast_images_v69392(
+                                technical_request_prompt_v68879,
+                                visual_state_v69393,
+                                max_images=1,
+                            )
+                        )
+                except Exception as visual_direct_resolve_error_v69393:
+                    technical_visual_direct_images_v69393 = []
+                    diagnostic_log(
+                        "technical_visual_direct_resolve_failed_v69393",
+                        error_type=type(visual_direct_resolve_error_v69393).__name__,
+                        error=str(visual_direct_resolve_error_v69393)[:500],
+                    )
+
+        if technical_visual_direct_images_v69393:
+            visual_state_v69393 = _technical_confirmed_package_state_v69382(
+                technical_request_prompt_v68879
+            )
+            label_v69393 = str(visual_state_v69393.get("label") or "").strip()
+            prompt_cf_v69393 = str(interaction_prompt or "").casefold()
+
+            if re.search(r"\b(?:aux port|armrest aux|dummy aux|center[- ]console aux|centre[- ]console aux)\b", prompt_cf_v69393):
+                visual_title_v69393 = "AUX Port Reference"
+                visual_sentence_v69393 = (
+                    "Here is the exact **dummy AUX connector / original armrest AUX-port** "
+                    "reference from the selected AutoTecPro Technical source."
+                )
+            elif re.search(r"\b(?:rear aux|aux harness|audio signal harness)\b", prompt_cf_v69393):
+                visual_title_v69393 = "AUX Harness Reference"
+                visual_sentence_v69393 = (
+                    "Here is the exact **AUX audio harness** reference from the selected "
+                    "AutoTecPro Technical source."
+                )
+            else:
+                visual_title_v69393 = "Technical Reference Photo"
+                visual_sentence_v69393 = (
+                    "Here is the exact reference image from the selected AutoTecPro "
+                    "Technical source."
+                )
+
+            if label_v69393:
+                visual_sentence_v69393 += f" Confirmed package: **{label_v69393}**."
+
+            visual_answer_v69393 = (
+                f"## {visual_title_v69393}\n\n{visual_sentence_v69393}"
+            )
+            try:
+                technical_visual_direct_images_v69393 = (
+                    _technical_final_publication_filter_v69363(
+                        technical_visual_direct_images_v69393,
+                        technical_request_prompt_v68879,
+                        visual_answer_v69393,
+                        diagnostic_event="technical_visual_direct_image_gate_v69393",
+                    )
+                )
+            except Exception as visual_direct_gate_error_v69393:
+                diagnostic_log(
+                    "technical_visual_direct_image_gate_failed_v69393",
+                    error_type=type(visual_direct_gate_error_v69393).__name__,
+                    error=str(visual_direct_gate_error_v69393)[:500],
+                )
+                technical_visual_direct_images_v69393 = []
+
+            if technical_visual_direct_images_v69393:
+                try:
+                    if early_loading_status_placeholder_v69226 is not None:
+                        early_loading_status_placeholder_v69226.empty()
+                except Exception:
+                    pass
+
+                visual_content_v69393 = (
+                    visual_answer_v69393
+                    + serialize_images_marker(technical_visual_direct_images_v69393)
+                )
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": visual_content_v69393,
+                })
+                render_chat_message(
+                    "assistant",
+                    visual_content_v69393,
+                    technical_visual_direct_images_v69393,
+                    message_index=len(st.session_state.messages) - 1,
+                )
+                if history_is_enabled() and st.session_state.get("conversation_id"):
+                    try:
+                        save_message(
+                            st.session_state.conversation_id,
+                            "assistant",
+                            visual_content_v69393,
+                        )
+                    except Exception as visual_direct_save_error_v69393:
+                        diagnostic_log(
+                            "technical_visual_direct_save_failed_v69393",
+                            error_type=type(visual_direct_save_error_v69393).__name__,
+                            error=str(visual_direct_save_error_v69393)[:500],
+                        )
+                diagnostic_log(
+                    "technical_visual_direct_committed_v69393",
+                    label=label_v69393[:120],
+                    images=len(technical_visual_direct_images_v69393),
+                    role=str(
+                        _website_image_query_role_v68884(
+                            technical_request_prompt_v68879
+                        ) or ""
+                    )[:80],
+                )
+                st.rerun()
 
         # v69380: terminal Technical overlap gate. Once authoritative package
         # ambiguity is known, the clarification itself is the complete answer.
