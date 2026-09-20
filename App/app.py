@@ -1,3 +1,4 @@
+# AutoTecPro AI v69399 - metadata-driven Sales compatibility-photo routing + preserve normal multi-product hero behavior
 # AutoTecPro AI v69398 - exact Sales primary-photo final lock + multi-product hero preservation + explicit-photo repeat allowance
 # AutoTecPro AI v69397 - preserve exact Sales WooCommerce hero provenance through final publication gate
 # AutoTecPro AI v69396 - Sales follow-up authority reuse + canonical product dedupe + explicit-photo publication authority
@@ -65778,6 +65779,17 @@ def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, 
             )
             record["website_atp_primary_product_image_v69325"] = bool(primary)
             record["website_atp_product_identity_key_v69325"] = str(meta.get("data-atp-product-identity-key") or contract.get("product_identity_key") or "")
+            # v69399: preserve authored semantic intent for final Sales visual routing.
+            record["website_atp_image_role_v69399"] = str(
+                meta.get("data-atp-image-role") or ""
+            ).strip()
+            record["website_atp_topic_v69399"] = str(
+                meta.get("data-atp-topic") or ""
+            ).strip()
+            record["website_atp_search_terms_v69399"] = str(
+                meta.get("data-atp-search-terms") or ""
+            ).strip()
+            record["website_atp_ai_priority_v69399"] = int(priority or 0)
             record["website_workspace_match_score_v69040"] = float(
                 1000 + priority + overlap * 10 + primary * 500
             )
@@ -65980,6 +65992,139 @@ def _workspace_sales_exact_primary_final_lock_v69398(
         ],
     )
     return selected
+
+
+def _workspace_sales_exact_topic_visual_final_lock_v69399(
+    workspace_label,
+    prompt_text,
+    authority,
+    max_images=12,
+):
+    """Return one exact authored topical image per exact Sales product."""
+    if not is_sales_workspace(workspace_label):
+        return []
+    if not _website_image_explicit_visual_request_v68888(prompt_text):
+        return []
+
+    authority = dict(authority or {})
+    status = str(authority.get("status") or "")
+    if status not in {"recovered", "recovered_multi"}:
+        return []
+
+    packages = (
+        [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
+        if status == "recovered_multi"
+        else [dict(authority.get("package") or authority.get("row") or authority)]
+    )
+
+    allowed_page_ids = {}
+    for order, pkg in enumerate(packages):
+        source_url = str(pkg.get("source_url") or "").strip()
+        if not source_url:
+            continue
+        page_id = _workspace_product_page_identity_v69396(source_url)
+        if page_id:
+            allowed_page_ids[page_id] = order
+    if not allowed_page_ids:
+        return []
+
+    prompt_tokens = set(_website_image_tokens_v68883(str(prompt_text or "")))
+    prompt_tokens -= {
+        "a", "an", "the", "my", "your", "our", "this", "that",
+        "do", "does", "did", "can", "could", "would", "have", "has",
+        "show", "display", "see", "need", "want", "please",
+        "photo", "photos", "picture", "pictures", "image", "images",
+        "screen", "product", "products", "vehicle", "vehicles",
+        "for", "of", "to", "and", "or", "with", "me",
+    }
+    if not prompt_tokens:
+        return []
+
+    candidates = _workspace_atp_exact_images_v69180(
+        workspace_label,
+        prompt_text,
+        authority,
+        max_images=max(6, int(max_images or 6)),
+    )
+
+    best_by_page = {}
+    for position, record in enumerate(candidates or []):
+        if not isinstance(record, dict):
+            continue
+        if bool(record.get("website_atp_primary_product_image_v69325")):
+            continue
+        if str(record.get("website_workspace_destination_v69180") or "") != "Sales Database":
+            continue
+        if not bool(record.get("website_atp_metadata_exact_v69180")):
+            continue
+
+        source_page = str(record.get("website_source_page_v69010") or "").strip()
+        page_id = _workspace_product_page_identity_v69396(source_page)
+        if not page_id or page_id not in allowed_page_ids:
+            continue
+
+        role = str(record.get("website_atp_image_role_v69399") or "").strip()
+        topic = str(record.get("website_atp_topic_v69399") or "").strip()
+        search_terms = str(record.get("website_atp_search_terms_v69399") or "").strip()
+        semantic_tokens = set(
+            _website_image_tokens_v68883(" ".join((role, topic, search_terms)))
+        )
+        overlap_tokens = prompt_tokens & semantic_tokens
+        if not overlap_tokens:
+            continue
+
+        image_url = str(
+            record.get("archive_web_url") or record.get("data_url") or ""
+        ).strip()
+        if not image_url.startswith("https://"):
+            continue
+
+        priority = int(record.get("website_atp_ai_priority_v69399") or 0)
+        score = (len(overlap_tokens) * 10000) + priority
+        rank = (score, -position)
+        current = best_by_page.get(page_id)
+        if current is None or rank > current[0]:
+            chosen = dict(record)
+            chosen["website_sales_exact_topic_visual_lock_v69399"] = True
+            chosen["website_sales_exact_topic_overlap_v69399"] = sorted(overlap_tokens)
+            chosen["website_sales_exact_product_identity_v69399"] = page_id
+            best_by_page[page_id] = (rank, chosen)
+
+    if len(best_by_page) != len(allowed_page_ids):
+        if best_by_page:
+            diagnostic_log(
+                "workspace_sales_exact_topic_visual_incomplete_v69399",
+                products=len(allowed_page_ids),
+                topical_images=len(best_by_page),
+                prompt_tokens=sorted(prompt_tokens)[:20],
+            )
+        return []
+
+    ordered = [
+        best_by_page[page_id][1]
+        for page_id, _ in sorted(
+            allowed_page_ids.items(),
+            key=lambda item: item[1],
+        )
+    ]
+    diagnostic_log(
+        "workspace_sales_exact_topic_visual_final_lock_v69399",
+        products=len(allowed_page_ids),
+        published=len(ordered),
+        topics=[
+            str(x.get("website_atp_topic_v69399") or "")[:100]
+            for x in ordered
+        ],
+        roles=[
+            str(x.get("website_atp_image_role_v69399") or "")[:100]
+            for x in ordered
+        ],
+        urls=[
+            str(x.get("archive_web_url") or x.get("data_url") or "")[:500]
+            for x in ordered
+        ],
+    )
+    return ordered
 
 @st.cache_data(ttl=120, max_entries=4, show_spinner=False)
 def _workspace_durable_image_payloads_v69041(destination):
@@ -100606,15 +100751,31 @@ else:
             (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
         ) in {"recovered", "recovered_multi"}:
             try:
-                sales_exact_primaries_v69398 = (
-                    _workspace_sales_exact_primary_final_lock_v69398(
+                sales_exact_topic_visuals_v69399 = (
+                    _workspace_sales_exact_topic_visual_final_lock_v69399(
                         assistant,
                         interaction_prompt,
                         workspace_atp_authority_v69180,
-                        max_images=6,
+                        max_images=12,
                     )
                 )
-                if sales_exact_primaries_v69398:
+                sales_exact_primaries_v69398 = []
+                if not sales_exact_topic_visuals_v69399:
+                    sales_exact_primaries_v69398 = (
+                        _workspace_sales_exact_primary_final_lock_v69398(
+                            assistant,
+                            interaction_prompt,
+                            workspace_atp_authority_v69180,
+                            max_images=6,
+                        )
+                    )
+
+                sales_final_exact_images_v69399 = (
+                    list(sales_exact_topic_visuals_v69399)
+                    if sales_exact_topic_visuals_v69399
+                    else list(sales_exact_primaries_v69398)
+                )
+                if sales_final_exact_images_v69399:
                     non_web_v69398 = [
                         image
                         for image in (generated_images or [])
@@ -100624,12 +100785,18 @@ else:
                         )
                     ]
                     generated_images = _dedupe_website_chat_images_v68883(
-                        non_web_v69398 + list(sales_exact_primaries_v69398)
+                        non_web_v69398 + sales_final_exact_images_v69399
                     )
-                    diagnostic_log(
-                        "workspace_sales_exact_primaries_restored_v69398",
-                        published=len(sales_exact_primaries_v69398),
-                    )
+                    if sales_exact_topic_visuals_v69399:
+                        diagnostic_log(
+                            "workspace_sales_exact_topic_visuals_restored_v69399",
+                            published=len(sales_exact_topic_visuals_v69399),
+                        )
+                    else:
+                        diagnostic_log(
+                            "workspace_sales_exact_primaries_restored_v69398",
+                            published=len(sales_exact_primaries_v69398),
+                        )
             except Exception as sales_final_lock_error_v69398:
                 diagnostic_log(
                     "workspace_sales_exact_primary_final_lock_failed_v69398",
