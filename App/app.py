@@ -87232,6 +87232,7 @@ def _technical_gm_generation_direct_v69376(prompt_text):
 
 TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377 = "_technical_package_ambiguity_v69377"
 TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377 = "_technical_confirmed_package_v69377"
+TECHNICAL_ACTIVE_SUBJECT_KEY_V69384 = "_technical_active_subject_v69384"
 
 
 def _technical_explicit_source_year_range_v69378(text_value):
@@ -87569,6 +87570,33 @@ def _technical_package_overlap_ambiguity_v69377(prompt_text):
     families = sorted(set(str(x or "").casefold().strip() for x in (_website_identity_vehicle_families_v69022(prompt) or []) if str(x or "").strip()))
     if len(years) != 1 or len(families) != 1:
         return {}
+
+    # v69384: a user-confirmed package is a durable case-level lock.  Do not
+    # reopen the same generation/system ambiguity on a later follow-up such as
+    # "what's the car model setting?".  The v69383 live log proved the older
+    # contextual binder re-anchored that follow-up to the original 2019 vehicle
+    # question and incorrectly asked 2013–2019 vs 2019–2023 a second time.
+    confirmed_v69384 = st.session_state.get(TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377)
+    if isinstance(confirmed_v69384, dict):
+        current_conversation_v69384 = str(st.session_state.get("conversation_id") or "")
+        confirmed_conversation_v69384 = str(confirmed_v69384.get("conversation_id") or "")
+        confirmed_family_v69384 = str(confirmed_v69384.get("family") or "").casefold().strip()
+        try:
+            confirmed_year_v69384 = int(confirmed_v69384.get("year"))
+        except Exception:
+            confirmed_year_v69384 = None
+        if (
+            current_conversation_v69384
+            and confirmed_conversation_v69384 == current_conversation_v69384
+            and confirmed_family_v69384 == families[0]
+            and confirmed_year_v69384 == int(years[0])
+        ):
+            diagnostic_log(
+                "technical_overlap_confirmed_package_reused_v69384",
+                family=families[0], year=int(years[0]),
+                label=str(confirmed_v69384.get("label") or "")[:120],
+            )
+            return {}
     # User already supplied a system or generation discriminator.
     try:
         if _technical_explicit_factory_system_v69228(prompt):
@@ -87682,6 +87710,13 @@ def _technical_package_overlap_clarification_prompt_v69377(prompt_text):
     }
     st.session_state.pop(TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377, None)
     original = str(pending.get("original_request") or "").strip()
+    if original:
+        st.session_state[TECHNICAL_ACTIVE_SUBJECT_KEY_V69384] = original
+        confirmed_state_v69384 = dict(
+            st.session_state.get(TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377) or {}
+        )
+        confirmed_state_v69384["active_subject_v69384"] = original
+        st.session_state[TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377] = confirmed_state_v69384
     label = str(selected.get("label") or "Technical configuration").strip()
     source_url = str(selected.get("source_url") or "").strip()
     diagnostic_log(
@@ -87741,6 +87776,194 @@ def _technical_confirmed_package_state_v69382(prompt_text=""):
         if years and year is not None and year not in years:
             return {}
     return dict(state)
+
+
+def _technical_confirmed_case_followup_prompt_v69384(prompt_text):
+    """Bind later Technical follow-ups to the already confirmed package and active subject.
+
+    The package is case identity; the active subject is turn/topic identity.  They must
+    not be conflated.  This prevents a later Car Model question from reopening the
+    generation ambiguity and lets a deictic request such as "show me a photo" inherit
+    Car Model rather than the original no-audio topic.
+    """
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not current:
+        return current
+
+    raw_state_v69384 = st.session_state.get(TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377)
+    if not isinstance(raw_state_v69384, dict):
+        return current
+    current_conversation_v69384 = str(st.session_state.get("conversation_id") or "")
+    if not current_conversation_v69384 or str(raw_state_v69384.get("conversation_id") or "") != current_conversation_v69384:
+        return current
+
+    # Explicitly changing the vehicle invalidates the old case lock immediately,
+    # before the generic confirmed-state helper can reject the turn.  This prevents
+    # a stale 2019 package from being silently reused by a later short follow-up after
+    # the user has switched to (for example) a 2018 vehicle in the same conversation.
+    raw_family_v69384 = str(raw_state_v69384.get("family") or "").casefold().strip()
+    try:
+        raw_year_v69384 = int(raw_state_v69384.get("year"))
+    except Exception:
+        raw_year_v69384 = None
+    explicit_families_v69384 = {str(x or "").casefold().strip() for x in (_website_identity_vehicle_families_v69022(current) or [])}
+    explicit_years_v69384 = {int(x) for x in (_website_identity_years_v69022(current) or [])}
+    if (
+        explicit_families_v69384 and raw_family_v69384 and raw_family_v69384 not in explicit_families_v69384
+    ) or (
+        explicit_years_v69384 and raw_year_v69384 is not None and raw_year_v69384 not in explicit_years_v69384
+    ):
+        st.session_state.pop(TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377, None)
+        st.session_state.pop(TECHNICAL_ACTIVE_SUBJECT_KEY_V69384, None)
+        diagnostic_log(
+            "technical_confirmed_package_cleared_new_vehicle_v69384",
+            old_family=raw_family_v69384, old_year=raw_year_v69384,
+            new_families=sorted(explicit_families_v69384), new_years=sorted(explicit_years_v69384),
+        )
+        return current
+
+    state = _technical_confirmed_package_state_v69382(current)
+    if not state:
+        return current
+
+    # A package-selection turn already contains the exact source-lock block built by
+    # v69377.  Record its original request as the active subject but do not duplicate
+    # that block.
+    if "USER-CONFIRMED TECHNICAL PACKAGE:" in current:
+        subject = current.split("USER-CONFIRMED TECHNICAL PACKAGE:", 1)[0].strip()
+        if subject:
+            st.session_state[TECHNICAL_ACTIVE_SUBJECT_KEY_V69384] = subject
+            state["active_subject_v69384"] = subject
+            st.session_state[TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377] = state
+        return current
+
+    explicit_visual = bool(_website_image_explicit_visual_request_v68888(current))
+    current_role = str(_website_image_query_role_v68884(current) or "").strip()
+    active_subject = str(
+        st.session_state.get(TECHNICAL_ACTIVE_SUBJECT_KEY_V69384)
+        or state.get("active_subject_v69384")
+        or ""
+    ).strip()
+
+    # A purely deictic visual follow-up inherits the most recent substantive topic.
+    if explicit_visual and not current_role and active_subject:
+        effective = (
+            active_subject
+            + "\n\nFOLLOW-UP VISUAL REQUEST: " + current
+        )
+        diagnostic_log(
+            "technical_active_subject_visual_inherited_v69384",
+            subject=active_subject[:180], request=current[:120],
+            label=str(state.get("label") or "")[:120],
+        )
+    else:
+        effective = current
+        ack_only = bool(re.fullmatch(
+            r"(?:ok(?:ay)?|yes|no|thanks|thank you|got it|understood|correct|right)[.! ]*",
+            current.casefold(),
+        ))
+        if not ack_only and not (explicit_visual and not current_role):
+            st.session_state[TECHNICAL_ACTIVE_SUBJECT_KEY_V69384] = current
+            state["active_subject_v69384"] = current
+            st.session_state[TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377] = state
+            active_subject = current
+            diagnostic_log(
+                "technical_active_subject_updated_v69384",
+                subject=current[:180], role=current_role[:80],
+                label=str(state.get("label") or "")[:120],
+            )
+
+    label = str(state.get("label") or "").strip()
+    source_url = str(state.get("source_url") or "").strip()
+    file_id = str(state.get("file_id") or "").strip()
+    return (
+        effective
+        + "\n\nUSER-CONFIRMED TECHNICAL PACKAGE: " + label
+        + ("\nAUTHORITATIVE SOURCE URL: " + source_url if source_url else "")
+        + ("\nAUTHORITATIVE FILE ID: " + file_id if file_id else "")
+        + "\nCASE-LOCK RULE: Keep this package for later follow-ups in this conversation until the user explicitly changes the vehicle. "
+          "Treat the current substantive follow-up as the active topic; do not resume an older troubleshooting topic merely because it opened the case."
+    )
+
+
+def _technical_confirmed_payload_scope_match_v69384(payload, state):
+    """Prove a durable Technical image belongs to the selected package scope.
+
+    Exact source-page identity wins.  Legacy durable image rows may have an image URL
+    in source_url/source_page or an older scoped key, so the fallback requires authored
+    current-source metadata plus exact vehicle family and generation range.  This is
+    still fail-closed across vehicle/generation/system boundaries.
+    """
+    if not isinstance(payload, dict) or not isinstance(state, dict):
+        return False
+    source_url = str(state.get("source_url") or "").strip()
+    if source_url:
+        try:
+            target_page = _website_image_page_identity_v69003({
+                "source_url": source_url, "requested_url": source_url
+            })
+            if target_page and _website_image_page_identity_v69003(payload) == target_page:
+                return True
+        except Exception:
+            pass
+
+    meta = _website_image_atp_semantic_metadata_v69363(payload)
+    workspace = str(meta.get("data-atp-workspace") or "").casefold().strip()
+    if workspace and workspace != "technical":
+        return False
+    current_source = str(meta.get("data-atp-current-source") or "").casefold().strip()
+    if current_source and current_source not in {"true", "1", "yes"}:
+        return False
+    source_status = str(meta.get("data-atp-source-status") or "").casefold().strip()
+    if source_status and "current" not in source_status:
+        return False
+
+    identity_text = _website_image_payload_identity_text_v69022(payload) + " " + " ".join(
+        str(meta.get(k) or "") for k in (
+            "data-atp-make", "data-atp-model", "data-atp-vehicle-key",
+            "data-atp-exact-match-keys", "data-atp-query-key",
+            "data-atp-year-key", "data-atp-applicable-years",
+        )
+    )
+    family = str(state.get("family") or "").casefold().strip()
+    payload_families = {str(x or "").casefold().strip() for x in (_website_identity_vehicle_families_v69022(identity_text) or [])}
+    if family and (not payload_families or family not in payload_families):
+        return False
+
+    generation = _technical_explicit_source_year_range_v69378(str(state.get("year_label") or state.get("label") or ""))
+    if not generation:
+        generation = _technical_explicit_source_year_range_v69378(source_url)
+    try:
+        requested_year = int(state.get("year"))
+    except Exception:
+        requested_year = None
+
+    p_start = meta.get("data-atp-year-start")
+    p_end = meta.get("data-atp-year-end")
+    try:
+        p_start = int(str(p_start).strip()) if str(p_start or "").strip() else None
+        p_end = int(str(p_end).strip()) if str(p_end or "").strip() else None
+    except Exception:
+        p_start = p_end = None
+    if p_start is None or p_end is None:
+        prange = _technical_explicit_source_year_range_v69378(identity_text)
+        if prange:
+            p_start, p_end = prange
+    if requested_year is not None and p_start is not None and p_end is not None:
+        if not (p_start <= requested_year <= p_end):
+            return False
+    if generation and p_start is not None and p_end is not None:
+        g_start, g_end = generation
+        if p_start < g_start or p_end > g_end:
+            return False
+
+    system_token = str(state.get("system_token") or "").replace("_", " ").casefold().strip()
+    if system_token:
+        normalized_identity = re.sub(r"[^a-z0-9]+", " ", identity_text.casefold()).strip()
+        aliases = {system_token, system_token.replace("sync ", "sync")}
+        if not any(alias and alias in normalized_identity for alias in aliases):
+            return False
+    return True
 
 
 def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results=50):
@@ -87852,11 +88075,24 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
                 "Technical Support Database"
             )
             exact_fallback_v69383 = []
+            exact_page_count_v69384 = 0
+            scoped_count_v69384 = 0
             for payload_v69383 in fallback_rows_v69383 or []:
                 if not isinstance(payload_v69383, dict):
                     continue
-                if _website_image_page_identity_v69003(payload_v69383) != target_page_v69383:
+                exact_page_v69384 = False
+                try:
+                    exact_page_v69384 = (
+                        _website_image_page_identity_v69003(payload_v69383) == target_page_v69383
+                    )
+                except Exception:
+                    exact_page_v69384 = False
+                if exact_page_v69384:
+                    exact_page_count_v69384 += 1
+                elif not _technical_confirmed_payload_scope_match_v69384(payload_v69383, state):
                     continue
+                else:
+                    scoped_count_v69384 += 1
                 exact_fallback_v69383.append({"row": {}, "payload": dict(payload_v69383)})
             if exact_fallback_v69383:
                 matches = exact_fallback_v69383
@@ -87865,7 +88101,15 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
                     label=str(state.get("label") or "")[:120],
                     source_url=source_url[:700],
                     matched=len(matches),
+                    exact_page=exact_page_count_v69384,
+                    exact_scope=scoped_count_v69384,
                 )
+                if scoped_count_v69384:
+                    diagnostic_log(
+                        "technical_confirmed_package_scope_fallback_v69384",
+                        label=str(state.get("label") or "")[:120],
+                        matched=scoped_count_v69384,
+                    )
             else:
                 diagnostic_log(
                     "technical_confirmed_package_image_index_fallback_miss_v69383",
@@ -87880,8 +88124,11 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
                 error=str(error_v69383)[:500],
             )
 
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    prompt_raw_v69384 = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    prompt = prompt_raw_v69384.casefold()
     audio_intent = bool(re.search(r"\b(?:no audio|no sound|audio|sound|aux|bluetooth)\b", prompt))
+    query_role_v69384 = str(_website_image_query_role_v68884(prompt_raw_v69384) or "").strip()
+    explicit_visual_v69384 = bool(_website_image_explicit_visual_request_v68888(prompt_raw_v69384))
     preferred_audio_roles = {
         "aux-rear-audio-signal-harness": 5000,
         "dummy-aux-connector-armrest": 4900,
@@ -87907,7 +88154,19 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
         section = str(meta.get("data-atp-section") or payload.get("atp_section_v69178") or payload.get("section_heading") or "").casefold().strip()
         topic = str(meta.get("data-atp-topic") or payload.get("atp_topic_v69178") or "").casefold().strip()
         fact_ids = str(meta.get("data-atp-fact-ids") or "").casefold()
-        if audio_intent:
+        if query_role_v69384 and query_role_v69384 != "audio":
+            # v69384: once a deictic visual follow-up has inherited its active
+            # subject, only an image from that exact authored subsection may win.
+            # Example: Car Model -> "show me a photo" must not return LVDS, audio,
+            # camera, or a generic package image from the same generation.
+            try:
+                if not _website_image_section_gate_v68884(prompt_raw_v69384, payload):
+                    continue
+                role_score_v69384 = float(_website_image_role_score_v68884(query_role_v69384, payload))
+            except Exception:
+                continue
+            score = 4000 + int(role_score_v69384 * 100)
+        elif audio_intent:
             if not ("audio" in section or "audio" in topic or "f012_aux_audio" in fact_ids or "f013_bluetooth_audio" in fact_ids):
                 continue
             score = preferred_audio_roles.get(role, 1000)
@@ -87940,11 +88199,13 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
         record["technical_confirmed_package_label_v69382"] = str(state.get("label") or "")
         record["technical_confirmed_package_file_id_v69382"] = str(state.get("file_id") or "")
         output.append(record)
-        if len(output) >= max(1, int(max_images or 2)):
+        effective_max_v69384 = 2 if audio_intent else (1 if query_role_v69384 else max(1, int(max_images or 2)))
+        if len(output) >= effective_max_v69384:
             break
     diagnostic_log(
         "technical_confirmed_package_images_bound_v69382",
         label=str(state.get("label") or "")[:120], audio_intent=audio_intent,
+        query_role=query_role_v69384, explicit_visual=explicit_visual_v69384,
         candidates=len(ranked), published=len(output),
         roles=[str((_website_image_atp_semantic_metadata_v69363(dict((m or {}).get('payload') or {}))).get('data-atp-image-role') or '') for m in (matches or [])][:8],
     )
@@ -93072,6 +93333,13 @@ else:
                 technical_followup_prompt_v68879 = _technical_generation_clarification_prompt_v69376(
                     interaction_prompt
                 )
+            # v69384: after generation/system selection, preserve that package as
+            # case identity and track the newest substantive topic separately.  This
+            # runs before the legacy contextual binder so it cannot re-anchor a new
+            # Car Model follow-up to the original no-audio question.
+            technical_followup_prompt_v68879 = _technical_confirmed_case_followup_prompt_v69384(
+                technical_followup_prompt_v68879
+            )
             if (
                 str(technical_followup_prompt_v68879 or "").strip()
                 == str(interaction_prompt or "").strip()
