@@ -1,3 +1,5 @@
+# AutoTecPro AI v69386 - complete first-turn overlap gate + professional clarification UI
+# AutoTecPro AI v69385 - GM 2019 joint-platform authoritative overlap completion
 # AutoTecPro AI v69383 - confirmed-package legacy image-index recovery for exact two-image audio publication
 # AutoTecPro AI v69379 - authoritative Technical overlap + deterministic readable output hardening
 # AutoTecPro AI v69378 - generic Technical overlap verification + readable step layout
@@ -87379,11 +87381,21 @@ def _technical_registry_overlap_options_v69379(store, family, year):
         packages = []
     source_kind = "compiled_hot_v69379" if packages else "registry_v69379"
 
-    if not packages:
+    # v69386: a single compiled package is not proof that an overlap year has only
+    # one valid current package. The compiled cache can be partially hydrated.
+    # Complete any 0/1-package preflight from the authoritative registry before
+    # allowing troubleshooting to proceed. This keeps the hot path when it already
+    # contains 2+ distinct packages while preventing a missed first-turn overlap.
+    registry_completion_v69386 = len(packages) < 2
+    if registry_completion_v69386:
         try:
             registry_rows = list(_technical_registry_rows_v69162(clean_store) or [])
         except Exception:
             registry_rows = []
+        if packages and registry_rows:
+            source_kind = "compiled_plus_registry_v69386"
+        elif registry_rows:
+            source_kind = "registry_v69379"
         for row in registry_rows:
             if not isinstance(row, dict):
                 continue
@@ -87392,21 +87404,58 @@ def _technical_registry_overlap_options_v69379(store, family, year):
                 for x in (row.get("vehicle_families") or [])
                 if str(x or "").strip()
             }
-            if clean_family not in families:
+
+            # v69385: legacy current-package registry rows can under-report one side
+            # of the joint Chevrolet Silverado / GMC Sierra platform even when the
+            # exact authoritative source itself explicitly names both vehicles.
+            # This caused 2019 Sierra to expose only the 2019–2023 package on the
+            # first turn, while the separate transition guard still knew 2019 spans
+            # both 2013–2019 and 2019–2023 sources. Recover ONLY that exact joint-
+            # platform identity from authoritative package source/title metadata.
+            source_identity_v69385 = re.sub(
+                r"\s+", " ",
+                " ".join((
+                    str(row.get("source_url") or ""),
+                    str(row.get("title") or row.get("page_title") or row.get("filename") or ""),
+                ))
+            ).casefold()
+            gm_joint_source_v69385 = bool(
+                clean_family in {"silverado", "sierra"}
+                and "silverado" in source_identity_v69385
+                and "sierra" in source_identity_v69385
+            )
+            if clean_family not in families and not gm_joint_source_v69385:
                 continue
+
             try:
                 years = {int(x) for x in (row.get("years") or [])}
             except Exception:
                 years = set()
-            if clean_year not in years:
+
+            # Exact source-year identity can safely repair incomplete legacy year
+            # arrays for the same authoritative package. Never infer years from
+            # troubleshooting body text.
+            explicit_range_v69385 = _technical_explicit_source_year_range_v69378(
+                source_identity_v69385
+            )
+            explicit_year_match_v69385 = bool(
+                explicit_range_v69385
+                and int(explicit_range_v69385[0]) <= clean_year <= int(explicit_range_v69385[1])
+            )
+            if clean_year not in years and not explicit_year_match_v69385:
                 continue
-            try:
-                if not _technical_package_model_year_eligible_v69242(
-                    row, clean_family, clean_year
-                ):
-                    continue
-            except Exception:
-                pass
+
+            # Preserve the existing strict eligibility check for normal rows.
+            # For the narrowly-proven joint GM legacy metadata repair, exact source
+            # identity + exact source year range is the eligibility authority.
+            if not (gm_joint_source_v69385 and explicit_year_match_v69385):
+                try:
+                    if not _technical_package_model_year_eligible_v69242(
+                        row, clean_family, clean_year
+                    ):
+                        continue
+                except Exception:
+                    pass
             packages.append(dict(row))
 
     options = []
@@ -87637,22 +87686,46 @@ def _technical_package_overlap_ambiguity_v69377(prompt_text):
 
 
 def _technical_package_overlap_answer_v69377(ambiguity):
+    """Render a concise, professional customer-facing overlap question."""
     ambiguity = dict(ambiguity or {})
     options = list(ambiguity.get("options") or [])
     if len(options) < 2:
         return ""
-    family = str(ambiguity.get("family") or "vehicle").replace("_", " ").title()
+
+    family_key = str(ambiguity.get("family") or "vehicle").casefold().strip()
+    vehicle_name = {
+        "silverado": "Chevrolet Silverado",
+        "sierra": "GMC Sierra",
+        "f150": "Ford F-150",
+        "f250": "Ford F-250",
+        "f350": "Ford F-350",
+        "f450": "Ford F-450",
+        "f550": "Ford F-550",
+        "ram": "RAM",
+        "tundra": "Toyota Tundra",
+    }.get(
+        family_key,
+        str(ambiguity.get("family") or "Vehicle").replace("_", " ").title(),
+    )
     year = str(ambiguity.get("year") or "").strip()
+    vehicle_year = " ".join(x for x in (year, vehicle_name) if x).strip()
+
     lines = [
-        f"## Please Confirm Your {year} {family} Configuration",
+        "## Please Confirm Your Vehicle Configuration",
         "",
-        "I found more than one current AutoTecPro Technical configuration that matches this vehicle/year.",
-        "Please confirm which one you have before I continue, so I do not mix instructions from different models.",
+        f"Your **{vehicle_year}** can match more than one current AutoTecPro system.",
+        "To make sure I provide the correct settings and instructions, please select your system:",
         "",
     ]
     for idx, option in enumerate(options, start=1):
-        lines.append(f"{idx}. {str(option.get('label') or 'Technical configuration')}")
-    lines += ["", "If you're not sure, send a clear photo of the original dashboard/factory screen."]
+        label = str(option.get("label") or "Technical configuration").strip()
+        if "system" not in label.casefold():
+            label = f"{label} System"
+        lines.append(f"**{idx}. {label}**")
+    lines += [
+        "",
+        "*Not sure? Send a clear photo of the original dashboard/factory screen and I’ll help identify it.*",
+    ]
     return "\n".join(lines)
 
 
