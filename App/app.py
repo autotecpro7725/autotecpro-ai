@@ -1,3 +1,4 @@
+# AutoTecPro AI v69379 - authoritative Technical overlap + deterministic readable output hardening
 # AutoTecPro AI v69378 - generic Technical overlap verification + readable step layout
 # AutoTecPro AI v69376 - targeted Technical latency + generation follow-up fastpath hardening
 # AutoTecPro AI v69370 - durable direct WooCommerce order lookup preservation
@@ -87346,6 +87347,136 @@ def _technical_fast_overlap_options_v69378(prompt_text, family, year):
     return options
 
 
+def _technical_registry_overlap_options_v69379(store, family, year):
+    """Return overlap choices only from the authoritative current-package registry.
+
+    v69378 incorrectly used the image index as a package catalogue. Image rows are
+    intentionally broad and can include audio guides, cameras, neighbouring model
+    years, and other supporting pages. They must never create vehicle-generation
+    choices. This helper reads only the current Technical package registry (or the
+    already-hot compiled package bucket) and coalesces duplicate source records into
+    one user-facing generation/system branch. No vector search, image-index scan,
+    OpenAI file download, or durable-snapshot reparse is performed here.
+    """
+    clean_store = str(store or "").strip()
+    clean_family = str(family or "").casefold().strip()
+    try:
+        clean_year = int(year)
+    except Exception:
+        return []
+
+    packages = []
+    try:
+        packages = list(_technical_compiled_packages_for_family_year_v69239(
+            clean_store, clean_family, clean_year
+        ) or [])
+    except Exception:
+        packages = []
+    source_kind = "compiled_hot_v69379" if packages else "registry_v69379"
+
+    if not packages:
+        try:
+            registry_rows = list(_technical_registry_rows_v69162(clean_store) or [])
+        except Exception:
+            registry_rows = []
+        for row in registry_rows:
+            if not isinstance(row, dict):
+                continue
+            families = {
+                str(x or "").casefold().strip()
+                for x in (row.get("vehicle_families") or [])
+                if str(x or "").strip()
+            }
+            if clean_family not in families:
+                continue
+            try:
+                years = {int(x) for x in (row.get("years") or [])}
+            except Exception:
+                years = set()
+            if clean_year not in years:
+                continue
+            try:
+                if not _technical_package_model_year_eligible_v69242(
+                    row, clean_family, clean_year
+                ):
+                    continue
+            except Exception:
+                pass
+            packages.append(dict(row))
+
+    options = []
+    seen_source = set()
+    seen_branch = set()
+    for package in packages:
+        option = _technical_package_option_v69377(package, clean_family)
+        if not option:
+            continue
+        source_url = str(option.get("source_url") or "").strip()
+        try:
+            canonical = canonical_website_url_identity(source_url) if source_url else ""
+        except Exception:
+            canonical = source_url.casefold()
+        ident = canonical or str(option.get("file_id") or "").strip().casefold()
+        if not ident or ident in seen_source:
+            continue
+        seen_source.add(ident)
+        branch_key = (
+            str(option.get("year_label") or "").casefold().strip(),
+            str(option.get("system_label") or "").casefold().strip(),
+        )
+        if branch_key == ("", ""):
+            continue
+        if branch_key in seen_branch:
+            continue
+        seen_branch.add(branch_key)
+        options.append(option)
+
+    options.sort(key=lambda x: (
+        str(x.get("year_label") or ""),
+        str(x.get("system_label") or ""),
+        str(x.get("label") or ""),
+    ))
+    if options:
+        diagnostic_log(
+            "technical_overlap_authoritative_registry_v69379",
+            family=clean_family, year=clean_year, matches=len(options),
+            labels=[str(x.get("label") or "")[:120] for x in options],
+            source=source_kind,
+        )
+    return options
+
+
+def _technical_strip_internal_tool_markup_v69379(text):
+    """Remove provider/tool-control markup from Technical customer-visible text."""
+    value = str(text or "")
+    # Remove complete file-search control blocks first. The model occasionally
+    # echoes these provider directives verbatim; they are never customer content.
+    value = re.sub(
+        r"<file_search(?:\.[a-z_]+)?\b[^>]*>[\s\S]*?</file_search(?:\.[a-z_]+)?>",
+        "", value, flags=re.I,
+    )
+    value = re.sub(r"</?file_search(?:\.[a-z_]+)?\b[^>]*>", "", value, flags=re.I)
+    return value.strip()
+
+
+def _technical_readable_layout_v69379(text):
+    """Deterministically keep Technical steps/results/bullets on separate lines."""
+    value = _technical_strip_internal_tool_markup_v69379(text)
+    if not value:
+        return value
+    # Numbered actions must never be compressed into one paragraph.
+    value = re.sub(r"(?<!\n)\s+(?=(?:[2-9]|1[0-9])\.\s)", "\n", value)
+    # Each bullet is its own line.
+    value = re.sub(r"[ \t]*•[ \t]*", "\n• ", value)
+    # Operational labels are always block labels.
+    value = re.sub(r"[ \t]*(Expected result:)[ \t]*", r"\n\1\n", value, flags=re.I)
+    value = re.sub(r"[ \t]*(What it means:)[ \t]*", r"\n\1\n", value, flags=re.I)
+    # Keep Step headings visually separated even if provider omitted spacing.
+    value = re.sub(r"(?<![\n#])(?=#+\s*Step\s+\d+)", "\n\n", value, flags=re.I)
+    value = re.sub(r"\n{3,}", "\n\n", value)
+    return value.strip()
+
+
 def _technical_package_option_v69377(package, family=""):
     """Return one human-readable, source-bound Technical package option."""
     package = dict(package or {})
@@ -87451,70 +87582,13 @@ def _technical_package_overlap_ambiguity_v69377(prompt_text):
     if not store:
         return {}
 
-    fast_options_v69378 = _technical_fast_overlap_options_v69378(prompt, family, year)
-    if len(fast_options_v69378) >= 2:
-        result = {"family": family, "year": year, "options": fast_options_v69378, "source": "image_index_source_url_fast_v69378", "original_request": prompt}
-        st.session_state[TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377] = {
-            **result,
-            "conversation_id": str(st.session_state.get("conversation_id") or ""),
-            "created_at": time.time(),
-        }
-        diagnostic_log(
-            "technical_package_overlap_verification_required_v69377",
-            family=family, year=year, matches=len(fast_options_v69378),
-            labels=[str(x.get("label") or "")[:120] for x in fast_options_v69378],
-            source="image_index_source_url_fast_v69378",
-        )
-        diagnostic_log(
-            "technical_overlap_fast_source_index_v69378",
-            family=family, year=year, matches=len(fast_options_v69378),
-        )
-        return result
-
-    packages = list(_technical_compiled_packages_for_family_year_v69239(store, family, year) or [])
-    source = "compiled"
-    if len(packages) < 2:
-        # Accuracy fallback only when the fast source index cannot establish overlap.
-        try:
-            snapshots = list(_technical_durable_snapshot_candidates_v69233(prompt, store) or [])
-        except Exception:
-            snapshots = []
-        packages = []
-        seen = set()
-        for payload in snapshots:
-            payload = dict(payload or {})
-            try:
-                payload_families = {str(x or "").casefold().strip() for x in (payload.get("vehicle_families") or []) if str(x or "").strip()}
-            except Exception:
-                payload_families = set()
-            if family not in payload_families:
-                continue
-            if not _technical_package_model_year_eligible_v69242(payload, family, year):
-                continue
-            ident = str(payload.get("source_url") or payload.get("file_id") or "").strip().casefold()
-            if not ident or ident in seen:
-                continue
-            seen.add(ident)
-            packages.append(payload)
-        source = "durable_snapshot"
-    if len(packages) < 2:
-        return {}
-
-    options, seen_ids = [], set()
-    for package in packages:
-        if not _technical_package_model_year_eligible_v69242(package, family, year):
-            continue
-        option = _technical_package_option_v69377(package, family)
-        ident = str(option.get("source_url") or option.get("file_id") or option.get("label") or "").casefold().strip()
-        if not ident or ident in seen_ids:
-            continue
-        seen_ids.add(ident)
-        options.append(option)
+    # v69379: overlap choices come ONLY from authoritative current Technical
+    # package state. The v69378 image-index shortcut was invalid because image
+    # rows include supporting pages and neighbouring product generations.
+    options = _technical_registry_overlap_options_v69379(store, family, year)
     if len(options) < 2:
         return {}
-    # Deterministic ordering makes numeric replies (1/2/3) stable.
-    options.sort(key=lambda x: (str(x.get("year_label") or ""), str(x.get("system_label") or ""), str(x.get("label") or "")))
-    result = {"family": family, "year": year, "options": options, "source": source, "original_request": prompt}
+    result = {"family": family, "year": year, "options": options, "source": "authoritative_registry_v69379", "original_request": prompt}
     st.session_state[TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377] = {
         **result,
         "conversation_id": str(st.session_state.get("conversation_id") or ""),
@@ -87523,7 +87597,7 @@ def _technical_package_overlap_ambiguity_v69377(prompt_text):
     diagnostic_log(
         "technical_package_overlap_verification_required_v69377",
         family=family, year=year, matches=len(options),
-        labels=[str(x.get("label") or "")[:120] for x in options], source=source,
+        labels=[str(x.get("label") or "")[:120] for x in options], source="authoritative_registry_v69379",
     )
     return result
 
@@ -94588,8 +94662,8 @@ else:
                                     visible_stream
                                 )
                             if assistant == "🔧 Technical Support":
-                                visible_stream = remove_technical_pricing(
-                                    visible_stream
+                                visible_stream = _technical_readable_layout_v69379(
+                                    remove_technical_pricing(visible_stream)
                                 )
 
                             combined_stream = visible_stream
@@ -96065,7 +96139,16 @@ else:
                         if explicit_learning_requested:
                             answer_body = format_learning_record_for_display(answer_body)
                         if assistant == "🔧 Technical Support":
-                            answer_body = remove_technical_pricing(answer_body)
+                            answer_body = _technical_readable_layout_v69379(
+                                remove_technical_pricing(answer_body)
+                            )
+                            # v69379 hard stop: when package ambiguity is unresolved,
+                            # the deterministic clarification is the entire answer.
+                            # Provider/tool text can never replace or append to it.
+                            if technical_preflight_safe_answer_v69377:
+                                answer_body = _technical_readable_layout_v69379(
+                                    technical_preflight_safe_answer_v69377
+                                )
 
                             # v69163: after the proven v69050 provider file_search has
                             # completed, optionally derive stronger structural authority
