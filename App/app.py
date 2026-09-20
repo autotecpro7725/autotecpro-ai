@@ -1,4 +1,4 @@
-# AutoTecPro AI v69377 - generic Technical overlap verification + readable step layout
+# AutoTecPro AI v69378 - generic Technical overlap verification + readable step layout
 # AutoTecPro AI v69376 - targeted Technical latency + generation follow-up fastpath hardening
 # AutoTecPro AI v69370 - durable direct WooCommerce order lookup preservation
 # AutoTecPro AI v69369 - exact Technical video-resource branch binding + provider bypass
@@ -87229,6 +87229,123 @@ TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377 = "_technical_package_ambiguity_v69377"
 TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377 = "_technical_confirmed_package_v69377"
 
 
+def _technical_explicit_source_year_range_v69378(text_value):
+    """Return the exact authored year range embedded in one source identity.
+
+    Source URL/title identity is intentionally stronger than merged package-year
+    arrays for presentation because legacy packages may accumulate years mentioned
+    inside troubleshooting prose from neighbouring generations.
+    """
+    value = str(text_value or "")
+    matches = re.findall(r"(?<!\d)((?:19|20)\d{2})\s*[-–—_/]\s*((?:19|20)\d{2})(?!\d)", value)
+    ranges = []
+    for a, b in matches:
+        try:
+            lo, hi = int(a), int(b)
+        except Exception:
+            continue
+        if 1980 <= lo <= hi <= 2100 and (hi - lo) <= 30:
+            ranges.append((lo, hi))
+    if not ranges:
+        return ()
+    # Prefer the narrowest explicit authored range; ties keep first source order.
+    ranges.sort(key=lambda pair: (pair[1] - pair[0]))
+    return ranges[0]
+
+
+def _technical_source_option_fast_v69378(source_url, family, requested_year):
+    """Build one overlap option from exact Technical source identity only."""
+    source_url = str(source_url or "").strip()
+    if not source_url:
+        return {}
+    try:
+        canonical = canonical_website_url_identity(source_url)
+    except Exception:
+        canonical = source_url.casefold()
+    try:
+        scope = dict(_technical_source_url_scope_v69141(source_url, "") or {})
+    except Exception:
+        scope = {}
+    scope_families = {str(x or "").casefold().strip() for x in (scope.get("families") or []) if str(x or "").strip()}
+    if scope_families and str(family or "").casefold().strip() not in scope_families:
+        return {}
+    explicit_range = _technical_explicit_source_year_range_v69378(source_url)
+    if explicit_range:
+        lo, hi = explicit_range
+    else:
+        years = sorted({int(x) for x in (scope.get("years") or []) if str(x).strip()})
+        if not years:
+            return {}
+        lo, hi = min(years), max(years)
+    try:
+        requested_year = int(requested_year)
+    except Exception:
+        return {}
+    if not (lo <= requested_year <= hi):
+        return {}
+    tokens = set(_technical_factory_system_tokens_v69231(source_url, []) or [])
+    system_token = next(iter(tokens)) if len(tokens) == 1 else ""
+    system_label = {
+        "no_sync": "No SYNC", "sync1": "SYNC 1", "sync2": "SYNC 2",
+        "sync3": "SYNC 3", "sync4": "SYNC 4",
+    }.get(system_token, system_token.replace("_", " ") if system_token else "")
+    year_label = str(lo) if lo == hi else f"{lo}–{hi}"
+    label = " — ".join(x for x in (year_label, system_label) if x)
+    aliases = {
+        re.sub(r"[^a-z0-9]+", " ", x.casefold()).strip()
+        for x in (label, year_label, system_label) if x
+    }
+    if system_token:
+        aliases.add(system_token.replace("_", " "))
+    return {
+        "label": label or source_url,
+        "year_label": year_label,
+        "system_label": system_label,
+        "system_token": system_token,
+        "title": "",
+        "source_url": source_url,
+        "file_id": "",
+        "aliases": sorted(x for x in aliases if x),
+        "canonical_source_v69378": canonical,
+    }
+
+
+def _technical_fast_overlap_options_v69378(prompt_text, family, year):
+    """Resolve generic overlap from the already-indexed exact source URLs only.
+
+    This avoids SHA/package rehydration on the user-facing ambiguity turn. The
+    normal full package validation still runs after the user selects a branch.
+    """
+    try:
+        urls = list(_technical_image_index_source_urls_v69162(prompt_text, max_sources=10) or [])
+    except Exception:
+        urls = []
+    options, seen = [], set()
+    seen_branches = set()
+    for url in urls:
+        option = _technical_source_option_fast_v69378(url, family, year)
+        if not option:
+            continue
+        ident = str(option.get("canonical_source_v69378") or option.get("source_url") or "").strip()
+        if not ident or ident in seen:
+            continue
+        seen.add(ident)
+        branch_key = (
+            str(option.get("year_label") or "").casefold().strip(),
+            str(option.get("system_label") or "").casefold().strip(),
+        )
+        # Multiple learned pages can belong to the same actual generation/system.
+        # They are one user-facing choice, not separate model options.
+        if branch_key != ("", "") and branch_key in seen_branches:
+            continue
+        if branch_key != ("", ""):
+            seen_branches.add(branch_key)
+        options.append(option)
+    # Require genuinely distinct user-facing branches, not duplicate source pages.
+    options.sort(key=lambda x: (str(x.get("year_label") or ""), str(x.get("system_label") or ""), str(x.get("label") or "")))
+    return options
+
+
 def _technical_package_option_v69377(package, family=""):
     """Return one human-readable, source-bound Technical package option."""
     package = dict(package or {})
@@ -87237,12 +87354,32 @@ def _technical_package_option_v69377(package, family=""):
     clean_family = str(family or "").casefold().strip()
     discriminator = dict(_technical_package_exact_discriminators_v69243(package) or {})
     system_label = str(discriminator.get("system_label") or "").strip()
+    title = re.sub(r"\s+", " ", str(package.get("title") or package.get("page_title") or package.get("filename") or "")).strip()
+    source_url = str(package.get("source_url") or "").strip()
     years = set()
-    try:
-        mapping = _technical_model_year_scope_map_v69242(package)
-        years.update(int(x) for x in (mapping.get(clean_family) or set()))
-    except Exception:
-        pass
+    # v69378: exact source identity outranks merged package/body-year arrays for
+    # the user-facing overlap label. This fixes legacy 2013–2019 packages whose
+    # parsed package metadata can also mention 2020–2023 in troubleshooting text.
+    explicit_range_v69378 = _technical_explicit_source_year_range_v69378(" ".join((source_url, title)))
+    if explicit_range_v69378:
+        lo, hi = explicit_range_v69378
+        years.update(range(lo, hi + 1))
+    if not years:
+        semantics_v69378 = dict(package.get("atp_semantics_v69178") or {})
+        root_v69378 = dict(semantics_v69378.get("root") or {})
+        try:
+            lo = int(str(root_v69378.get("data-atp-year-start") or "").strip())
+            hi = int(str(root_v69378.get("data-atp-year-end") or "").strip())
+            if 1980 <= lo <= hi <= 2100:
+                years.update(range(lo, hi + 1))
+        except Exception:
+            pass
+    if not years:
+        try:
+            mapping = _technical_model_year_scope_map_v69242(package)
+            years.update(int(x) for x in (mapping.get(clean_family) or set()))
+        except Exception:
+            pass
     if not years:
         for raw in package.get("years") or []:
             try:
@@ -87253,8 +87390,6 @@ def _technical_package_option_v69377(package, family=""):
     if years:
         lo, hi = min(years), max(years)
         year_label = str(lo) if lo == hi else f"{lo}–{hi}"
-    title = re.sub(r"\s+", " ", str(package.get("title") or package.get("page_title") or package.get("filename") or "")).strip()
-    source_url = str(package.get("source_url") or "").strip()
     file_id = str(package.get("file_id") or "").strip()
     parts = [x for x in (year_label, system_label) if x]
     label = " — ".join(parts)
@@ -87316,10 +87451,30 @@ def _technical_package_overlap_ambiguity_v69377(prompt_text):
     if not store:
         return {}
 
+    fast_options_v69378 = _technical_fast_overlap_options_v69378(prompt, family, year)
+    if len(fast_options_v69378) >= 2:
+        result = {"family": family, "year": year, "options": fast_options_v69378, "source": "image_index_source_url_fast_v69378", "original_request": prompt}
+        st.session_state[TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377] = {
+            **result,
+            "conversation_id": str(st.session_state.get("conversation_id") or ""),
+            "created_at": time.time(),
+        }
+        diagnostic_log(
+            "technical_package_overlap_verification_required_v69377",
+            family=family, year=year, matches=len(fast_options_v69378),
+            labels=[str(x.get("label") or "")[:120] for x in fast_options_v69378],
+            source="image_index_source_url_fast_v69378",
+        )
+        diagnostic_log(
+            "technical_overlap_fast_source_index_v69378",
+            family=family, year=year, matches=len(fast_options_v69378),
+        )
+        return result
+
     packages = list(_technical_compiled_packages_for_family_year_v69239(store, family, year) or [])
     source = "compiled"
     if len(packages) < 2:
-        # Cold-start fallback: exact durable snapshots only. No broad vector search.
+        # Accuracy fallback only when the fast source index cannot establish overlap.
         try:
             snapshots = list(_technical_durable_snapshot_candidates_v69233(prompt, store) or [])
         except Exception:
@@ -96675,6 +96830,7 @@ else:
         # one clearly labelled same-product reference may be used.
         if (
             assistant == "🔧 Technical Support"
+            and not bool(technical_preflight_safe_answer_v69377)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
             and str(answer or "").strip()
         ):
@@ -96750,7 +96906,11 @@ else:
         # primary/major/after-installation product roles. Settings/configuration
         # inquiries are explicitly excluded and the shared final Technical gate still
         # runs later before save/render.
-        if assistant == "🔧 Technical Support" and str(answer or "").strip():
+        if (
+            assistant == "🔧 Technical Support"
+            and not bool(technical_preflight_safe_answer_v69377)
+            and str(answer or "").strip()
+        ):
             existing_technical_website_images_v69364 = [
                 image for image in (generated_images or [])
                 if isinstance(image, dict) and str(image.get("source") or "") == "website_knowledge"
