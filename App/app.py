@@ -1,3 +1,4 @@
+# AutoTecPro AI v69382 - confirmed-package direct authority and exact Technical image publication
 # AutoTecPro AI v69379 - authoritative Technical overlap + deterministic readable output hardening
 # AutoTecPro AI v69378 - generic Technical overlap verification + readable step layout
 # AutoTecPro AI v69376 - targeted Technical latency + generation follow-up fastpath hardening
@@ -87695,12 +87696,214 @@ def _technical_package_overlap_clarification_prompt_v69377(prompt_text):
         + ("\nAUTHORITATIVE SOURCE URL: " + source_url if source_url else "")
         + ("\nAUTHORITATIVE FILE ID: " + file_id if file_id else "")
         + "\nSOURCE-LOCK RULES: Use only this confirmed Technical package for this request. "
-          "Do not mix instructions, images, settings, or facts from another overlapping package. "
+          "Do not mix procedures, images, or facts from another overlapping package. "
           "Preserve the source-authored troubleshooting sequence and terminology as the primary answer. "
           "If the confirmed source contains product-specific audio routing such as AUX routing or Bluetooth Audio routing, "
           "present those source-authored routes before generic CANBUS, harness, amplifier, or replacement diagnostics. "
           "Generic troubleshooting may be added only after the exact source-authored procedure, and must not replace it."
     )
+
+
+
+def _technical_confirmed_package_state_v69382(prompt_text=""):
+    """Return the current conversation's explicitly selected Technical package only.
+
+    The package lock is user-authored via the overlap clarification flow.  It is
+    intentionally narrower than vehicle/year inference and never imports an AI guess.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return {}
+    state = st.session_state.get(TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377)
+    if not isinstance(state, dict):
+        return {}
+    current_conversation = str(st.session_state.get("conversation_id") or "")
+    if not current_conversation or str(state.get("conversation_id") or "") != current_conversation:
+        return {}
+    file_id = str(state.get("file_id") or "").strip()
+    source_url = str(state.get("source_url") or "").strip()
+    label = str(state.get("label") or "").strip()
+    if not (file_id and source_url and label):
+        return {}
+    prompt = str(prompt_text or "")
+    # A direct selected-package turn always carries the explicit source-lock marker.
+    # Short follow-ups may reuse the session lock only when they still mention the
+    # same vehicle family/year context; never silently apply a stale lock to a new car.
+    if "USER-CONFIRMED TECHNICAL PACKAGE:" not in prompt:
+        families = set(_website_identity_vehicle_families_v69022(prompt) or [])
+        years = set(_website_identity_years_v69022(prompt) or [])
+        family = str(state.get("family") or "").casefold().strip()
+        try:
+            year = int(state.get("year"))
+        except Exception:
+            year = None
+        if families and family and family not in {str(x).casefold().strip() for x in families}:
+            return {}
+        if years and year is not None and year not in years:
+            return {}
+    return dict(state)
+
+
+def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results=50):
+    """Recover one selected package with one bounded vector search, then stop broad recovery.
+
+    v69381 live production showed a user-confirmed package still fanning out through
+    50/24/28/24 searches plus the unsupported assistants-file loop, taking 147.7 s
+    before stream-ready.  Once the user selected a package we already possess its exact
+    file_id and source URL, so broad package discovery is no longer legitimate.
+    """
+    state = _technical_confirmed_package_state_v69382(prompt_text)
+    if not state:
+        return {}
+    stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not stores:
+        return {}
+    store = str(stores[0] or "").strip()
+    file_id = str(state.get("file_id") or "").strip()
+    source_url = str(state.get("source_url") or "").strip()
+    label = str(state.get("label") or "").strip()
+    clean_prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    audio_intent = bool(re.search(r"\b(?:no audio|no sound|audio|sound|aux|bluetooth)\b", clean_prompt, flags=re.I))
+    query = clean_prompt
+    if audio_intent:
+        query += " AUX audio rear audio signal harness dummy AUX connector original radio AUX Bluetooth Audio MyLink audio routing"
+    query += f" exact package {label} source {source_url}"
+    request = {
+        "input": query[:7000],
+        "tools": [{"type": "file_search", "vector_store_ids": [store]}],
+    }
+    rows = _website_request_vector_search_rows_v69047(request, max_results=max_results)
+    exact = [dict(r) for r in rows if isinstance(r, dict) and str(r.get("file_id") or "").strip() == file_id]
+    if not exact:
+        diagnostic_log(
+            "technical_confirmed_package_direct_miss_v69382",
+            file_id=file_id[:160], label=label[:120], searched=len(rows or []),
+        )
+        return {}
+    exact.sort(key=lambda r: float(r.get("score") or 0.0), reverse=True)
+    exact = exact[:12]
+    chunks = []
+    for row in exact:
+        value = str(row.get("text") or "").strip()
+        if value:
+            chunks.append(value[:9000])
+    context = "\n\n--- EXACT SELECTED PACKAGE CHUNK ---\n".join(chunks)[:36000]
+    if not context:
+        return {}
+    result = {
+        "status": "recovered",
+        "state": state,
+        "rows": exact,
+        "context": (
+            "EXACT USER-CONFIRMED TECHNICAL PACKAGE EVIDENCE (v69382):\n"
+            f"Selected package: {label}\nSource: {source_url}\nFile ID: {file_id}\n"
+            "Use only the evidence below for package-specific facts. Preserve the authored troubleshooting order. "
+            "For audio/no-sound requests, AUX routing and Bluetooth Audio routing from this source outrank generic diagnostics.\n\n"
+            + context
+        ),
+    }
+    diagnostic_log(
+        "technical_confirmed_package_direct_bound_v69382",
+        file_id=file_id[:160], label=label[:120], rows=len(exact), audio_intent=audio_intent,
+    )
+    return result
+
+
+def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
+    """Return authored first-response images from exactly the selected package/page.
+
+    For audio/no-sound on the 2013–2019 Silverado/Sierra source this deterministically
+    selects the two authored primary AUX procedure images (rear AUX signal harness and
+    dummy armrest AUX connector), instead of allowing a later broad image ranker to
+    collapse the result to one image or substitute a secondary Factory AMP image.
+    """
+    state = _technical_confirmed_package_state_v69382(prompt_text)
+    if not state:
+        return []
+    source_url = str(state.get("source_url") or "").strip()
+    if not source_url:
+        return []
+    try:
+        matches, loaded_ok = _website_image_index_rows_for_page_v69003(
+            {"source_url": source_url, "requested_url": source_url},
+            "Technical Support Database",
+        )
+    except Exception as error:
+        diagnostic_log(
+            "technical_confirmed_package_images_load_failed_v69382",
+            error_type=type(error).__name__, error=str(error)[:500],
+        )
+        return []
+    if not loaded_ok:
+        return []
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    audio_intent = bool(re.search(r"\b(?:no audio|no sound|audio|sound|aux|bluetooth)\b", prompt))
+    preferred_audio_roles = {
+        "aux-rear-audio-signal-harness": 5000,
+        "dummy-aux-connector-armrest": 4900,
+        "replacement-armrest-aux-port": 1600,
+        "factory-amp-setting": 700,
+    }
+    ranked = []
+    for entry in matches or []:
+        payload = dict((entry or {}).get("payload") or {})
+        if not payload:
+            continue
+        meta = _website_image_atp_semantic_metadata_v69363(payload)
+        current_source = str(meta.get("data-atp-current-source") or "").casefold().strip()
+        auto_display = str(meta.get("data-atp-auto-display") or "").casefold().strip()
+        first_eligible = str(meta.get("data-atp-first-response-eligible") or "").casefold().strip()
+        if current_source and current_source not in {"true", "1", "yes"}:
+            continue
+        if auto_display and auto_display not in {"true", "1", "yes"}:
+            continue
+        if first_eligible and first_eligible not in {"true", "1", "yes"}:
+            continue
+        role = str(meta.get("data-atp-image-role") or payload.get("atp_image_role_v69178") or "").casefold().strip()
+        section = str(meta.get("data-atp-section") or payload.get("atp_section_v69178") or payload.get("section_heading") or "").casefold().strip()
+        topic = str(meta.get("data-atp-topic") or payload.get("atp_topic_v69178") or "").casefold().strip()
+        fact_ids = str(meta.get("data-atp-fact-ids") or "").casefold()
+        if audio_intent:
+            if not ("audio" in section or "audio" in topic or "f012_aux_audio" in fact_ids or "f013_bluetooth_audio" in fact_ids):
+                continue
+            score = preferred_audio_roles.get(role, 1000)
+        else:
+            score = 1000
+        try:
+            score += int(meta.get("data-atp-first-response-priority") or 0)
+        except Exception:
+            pass
+        try:
+            score += int(meta.get("data-atp-priority") or payload.get("atp_priority_v69178") or 0)
+        except Exception:
+            pass
+        # For audio, the two installation/routing images are the intended first response.
+        # Secondary replacement/amp diagnostics cannot outrank them.
+        ranked.append((score, role, payload))
+    ranked.sort(key=lambda x: x[0], reverse=True)
+    output, seen = [], set()
+    for _, role, payload in ranked:
+        if audio_intent and role in {"replacement-armrest-aux-port", "factory-amp-setting"} and len(output) < 2:
+            continue
+        record = _website_image_record_for_chat_v68883(payload)
+        if not isinstance(record, dict):
+            continue
+        key = str(record.get("archive_web_url") or record.get("data_url") or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        record["technical_confirmed_package_image_v69382"] = True
+        record["technical_confirmed_package_label_v69382"] = str(state.get("label") or "")
+        record["technical_confirmed_package_file_id_v69382"] = str(state.get("file_id") or "")
+        output.append(record)
+        if len(output) >= max(1, int(max_images or 2)):
+            break
+    diagnostic_log(
+        "technical_confirmed_package_images_bound_v69382",
+        label=str(state.get("label") or "")[:120], audio_intent=audio_intent,
+        candidates=len(ranked), published=len(output),
+        roles=[str((_website_image_atp_semantic_metadata_v69363(dict((m or {}).get('payload') or {}))).get('data-atp-image-role') or '') for m in (matches or [])][:8],
+    )
+    return output
 
 
 def _technical_speed_response_profile_v69376(prompt_text):
@@ -92698,6 +92901,61 @@ else:
             attachment_only=attachment_only_mode,
         )
 
+        # v69381: optimistic text-turn acknowledgement. For ordinary text-only
+        # Technical/Sales/Marketing turns, put the user's message into the visible
+        # transcript before any package-overlap lookup, Technical preflight, vector
+        # search, learning detection, or provider work. This is presentation/session
+        # ordering only; durable persistence still follows through the existing path.
+        optimistic_user_rendered_v69381 = False
+        early_loading_status_placeholder_v69226 = None
+        if (
+            not is_graphic_resume_v68844
+            and assistant != "🎨 Graphic Marketing"
+            and not uploaded_files
+            and not attachment_only_mode
+            and str(user_display or "").strip()
+        ):
+            try:
+                st.session_state.messages.append({
+                    "role": "user",
+                    "content": str(user_display or ""),
+                })
+                render_chat_message("user", user_display, [])
+                optimistic_user_rendered_v69381 = True
+                early_loading_status_placeholder_v69226 = st.empty()
+                early_loading_status_placeholder_v69226.markdown(
+                    _loading_status_html(
+                        "Analyzing Technical sources..."
+                        if assistant == "🔧 Technical Support"
+                        else (
+                            "Checking Sales sources..."
+                            if is_sales_workspace(assistant)
+                            else (
+                                "Checking Marketing sources..."
+                                if is_marketing_workspace(assistant)
+                                else "Preparing your request..."
+                            )
+                        )
+                    ),
+                    unsafe_allow_html=True,
+                )
+                diagnostic_log(
+                    "user_turn_optimistic_render_v69381",
+                    workspace=str(assistant),
+                    elapsed_seconds=round(
+                        time.perf_counter() - command_preflight_started_v68864, 3
+                    ),
+                )
+            except Exception as optimistic_render_error_v69381:
+                optimistic_user_rendered_v69381 = False
+                early_loading_status_placeholder_v69226 = None
+                diagnostic_log(
+                    "user_turn_optimistic_render_failed_v69381",
+                    workspace=str(assistant),
+                    error_type=type(optimistic_render_error_v69381).__name__,
+                    error=str(optimistic_render_error_v69381)[:500],
+                )
+
         # Defer every Product Library side effect until attachments are normalized
         # and the final Graphic intent has been resolved exactly once.
         product_library_lookup = None
@@ -92977,41 +93235,52 @@ else:
         )
 
         if not is_graphic_resume_v68844:
-            # v68864: render and commit the local session turn immediately so the
-            # interface reacts as soon as Send is pressed. Supabase persistence
-            # follows afterward and no longer delays the visible acknowledgement.
-            st.session_state.messages.append({
-                "role": "user",
-                "content": user_content_to_save
-            })
-            render_chat_message("user", user_display, uploaded_image_previews)
+            # v68864/v69381: ordinary text-only turns may already be visible from
+            # the optimistic path above. Do not append/render them a second time.
+            # Upload-bearing turns retain the existing proven render path so their
+            # attachment previews and serialized markers remain unchanged.
+            if not optimistic_user_rendered_v69381:
+                st.session_state.messages.append({
+                    "role": "user",
+                    "content": user_content_to_save
+                })
+                render_chat_message("user", user_display, uploaded_image_previews)
+            else:
+                # The optimistic text-only message is already the exact durable
+                # content for this path; keep session content synchronized explicitly.
+                try:
+                    st.session_state.messages[-1]["content"] = user_content_to_save
+                except Exception:
+                    pass
 
-            # v69226: immediate acknowledgement. Presentation-only.
-            early_loading_status_placeholder_v69226 = None
-            try:
-                early_loading_status_placeholder_v69226 = st.empty()
-                early_loading_status_placeholder_v69226.markdown(
-                    _loading_status_html(
-                        "Analyzing Technical sources..."
-                        if assistant == "🔧 Technical Support"
-                        else (
-                            "Checking Sales sources..."
-                            if is_sales_workspace(assistant)
+            # v69226: immediate acknowledgement. Presentation-only. For v69381
+            # text-only turns the placeholder is already on-screen; other paths use
+            # the original acknowledgement path unchanged.
+            if early_loading_status_placeholder_v69226 is None:
+                try:
+                    early_loading_status_placeholder_v69226 = st.empty()
+                    early_loading_status_placeholder_v69226.markdown(
+                        _loading_status_html(
+                            "Analyzing Technical sources..."
+                            if assistant == "🔧 Technical Support"
                             else (
-                                "Checking Marketing sources..."
-                                if is_marketing_workspace(assistant)
-                                else "Preparing your request..."
+                                "Checking Sales sources..."
+                                if is_sales_workspace(assistant)
+                                else (
+                                    "Checking Marketing sources..."
+                                    if is_marketing_workspace(assistant)
+                                    else "Preparing your request..."
+                                )
                             )
-                        )
-                    ),
-                    unsafe_allow_html=True,
-                )
-                diagnostic_log(
-                    "command_status_published_early_v69226",
-                    workspace=str(assistant),
-                )
-            except Exception:
-                early_loading_status_placeholder_v69226 = None
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                    diagnostic_log(
+                        "command_status_published_early_v69226",
+                        workspace=str(assistant),
+                    )
+                except Exception:
+                    early_loading_status_placeholder_v69226 = None
 
             deferred_new_conversation_v68872 = False
             user_message_persisted_preflight_v69026 = False
@@ -93263,6 +93532,38 @@ else:
                 use_file_search=bool(use_file_search),
                 explicit_visual=bool(explicit_visual_followup_v69114),
             )
+
+        # v69382: once the user has explicitly selected one overlapping Technical
+        # package, package discovery is finished. Recover evidence from that exact
+        # file in one bounded vector search and prevent the legacy broad-recovery
+        # fan-out / unsupported assistants-file loop from running for this turn.
+        technical_confirmed_package_direct_v69382 = {}
+        if assistant == "🔧 Technical Support":
+            try:
+                technical_confirmed_package_direct_v69382 = (
+                    _technical_confirmed_package_direct_evidence_v69382(
+                        technical_request_prompt_v68879
+                    )
+                )
+            except Exception as confirmed_direct_error_v69382:
+                technical_confirmed_package_direct_v69382 = {}
+                diagnostic_log(
+                    "technical_confirmed_package_direct_failed_v69382",
+                    error_type=type(confirmed_direct_error_v69382).__name__,
+                    error=str(confirmed_direct_error_v69382)[:500],
+                )
+            if str(technical_confirmed_package_direct_v69382.get("status") or "") == "recovered":
+                use_file_search = False
+                direct_rows_v69382 = [
+                    dict(row) for row in (technical_confirmed_package_direct_v69382.get("rows") or [])
+                    if isinstance(row, dict)
+                ]
+                st.session_state["_technical_file_search_results_v69012"] = direct_rows_v69382[:12]
+                st.session_state["_workspace_file_search_results_v69040"] = direct_rows_v69382[:12]
+                diagnostic_log(
+                    "technical_confirmed_package_broad_recovery_bypassed_v69382",
+                    rows=len(direct_rows_v69382),
+                )
 
         technical_compiled_preflight_v69198 = {}
         # v69375 PERFORMANCE: compiled-contract hydration is configuration authority,
@@ -94467,6 +94768,11 @@ else:
                     ai_request_prompt += _technical_case_identity_guard_v69362(
                         technical_request_prompt_v68879
                     )
+                    direct_context_v69382 = str(
+                        (locals().get("technical_confirmed_package_direct_v69382") or {}).get("context") or ""
+                    ).strip()
+                    if direct_context_v69382:
+                        ai_request_prompt += "\n\n" + direct_context_v69382
                 auto_visual_topic_v68888 = ""
                 if assistant == "🔧 Technical Support":
                     auto_visual_topic_v68888 = _website_image_auto_topic_v68888(
@@ -97630,6 +97936,36 @@ else:
                 technical_request_prompt_v68879,
             )
             generated_images = list(assistant_images_to_save)
+
+        # v69382: exact selected-package image publication.  A user-confirmed
+        # package is stronger than broad topic ranking.  When that exact page has
+        # authored first-response images, replace broad website candidates with the
+        # exact page images before the unchanged v69363 absolute final gate.
+        if assistant == "🔧 Technical Support":
+            try:
+                confirmed_images_v69382 = _technical_confirmed_package_exact_images_v69382(
+                    technical_request_prompt_v68879, max_images=2
+                )
+            except Exception as confirmed_images_error_v69382:
+                confirmed_images_v69382 = []
+                diagnostic_log(
+                    "technical_confirmed_package_images_failed_v69382",
+                    error_type=type(confirmed_images_error_v69382).__name__,
+                    error=str(confirmed_images_error_v69382)[:500],
+                )
+            if confirmed_images_v69382:
+                non_web_confirmed_v69382 = [
+                    x for x in assistant_images_to_save
+                    if not (isinstance(x, dict) and str(x.get("source") or "") == "website_knowledge")
+                ]
+                assistant_images_to_save = _dedupe_website_chat_images_v68883(
+                    non_web_confirmed_v69382 + list(confirmed_images_v69382)
+                )
+                generated_images = list(assistant_images_to_save)
+                diagnostic_log(
+                    "technical_confirmed_package_images_replace_broad_v69382",
+                    published=len(confirmed_images_v69382),
+                )
 
         # v69363 absolute last Technical publication gate. This runs AFTER the
         # settings/current-package rematerialization blocks above, so no late exact
