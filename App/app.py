@@ -10,6 +10,9 @@
 # AutoTecPro AI v69363 - Technical semantic image metadata + final publication authority hardening
 # AutoTecPro AI v69360 - safe performance + image provenance hardening
 # AutoTecPro AI v69359 - email-safe assistant clipboard normalization
+# AutoTecPro AI v69380 - terminal Technical overlap gate + confirmed-source troubleshooting authority
+# Scope: Technical Support only. Generic overlap clarification terminates before provider/model/image work;
+# pending branch is rebound to the durable conversation; confirmed branch preserves exact source-authored troubleshooting.
 # AutoTecPro AI v69358 - exact Sales product/photo provenance hardening
 # AutoTecPro AI v69352 — v69321 rich Sales first-fitment exact-product contract
 # v69347 — v69343 output + live USD equivalent + exact-only repeat-image suppression hardening
@@ -87464,13 +87467,15 @@ def _technical_readable_layout_v69379(text):
     value = _technical_strip_internal_tool_markup_v69379(text)
     if not value:
         return value
-    # Numbered actions must never be compressed into one paragraph.
-    value = re.sub(r"(?<!\n)\s+(?=(?:[2-9]|1[0-9])\.\s)", "\n", value)
-    # Each bullet is its own line.
+    # Numbered actions must never be compressed into one paragraph. Use a blank
+    # line before later list items so Streamlit Markdown and PDF printing cannot
+    # collapse them back into a single visual paragraph.
+    value = re.sub(r"(?<!\n)\s+(?=(?:[2-9]|1[0-9])\.\s)", "\n\n", value)
+    # Each bullet is its own visible line/block.
     value = re.sub(r"[ \t]*•[ \t]*", "\n• ", value)
-    # Operational labels are always block labels.
-    value = re.sub(r"[ \t]*(Expected result:)[ \t]*", r"\n\1\n", value, flags=re.I)
-    value = re.sub(r"[ \t]*(What it means:)[ \t]*", r"\n\1\n", value, flags=re.I)
+    # Operational labels are always separate blocks.
+    value = re.sub(r"[ \t]*(Expected result:)[ \t]*", r"\n\n\1\n", value, flags=re.I)
+    value = re.sub(r"[ \t]*(What it means:)[ \t]*", r"\n\n\1\n", value, flags=re.I)
     # Keep Step headings visually separated even if provider omitted spacing.
     value = re.sub(r"(?<![\n#])(?=#+\s*Step\s+\d+)", "\n\n", value, flags=re.I)
     value = re.sub(r"\n{3,}", "\n\n", value)
@@ -87683,11 +87688,18 @@ def _technical_package_overlap_clarification_prompt_v69377(prompt_text):
         family=str(pending.get("family") or ""), year=pending.get("year"), label=label[:120],
         file_id=str(selected.get("file_id") or "")[:160], source_url=source_url[:700],
     )
+    file_id = str(selected.get("file_id") or "").strip()
     return (
         original
         + "\n\nUSER-CONFIRMED TECHNICAL PACKAGE: " + label
         + ("\nAUTHORITATIVE SOURCE URL: " + source_url if source_url else "")
-        + "\nUse only this confirmed Technical package for this request. Do not mix instructions, images, settings, or facts from another overlapping package."
+        + ("\nAUTHORITATIVE FILE ID: " + file_id if file_id else "")
+        + "\nSOURCE-LOCK RULES: Use only this confirmed Technical package for this request. "
+          "Do not mix instructions, images, settings, or facts from another overlapping package. "
+          "Preserve the source-authored troubleshooting sequence and terminology as the primary answer. "
+          "If the confirmed source contains product-specific audio routing such as AUX routing or Bluetooth Audio routing, "
+          "present those source-authored routes before generic CANBUS, harness, amplifier, or replacement diagnostics. "
+          "Generic troubleshooting may be added only after the exact source-authored procedure, and must not replace it."
     )
 
 
@@ -93070,6 +93082,75 @@ else:
                             error_type=type(_mobile_checkpoint_error_v69026).__name__,
                             error=str(_mobile_checkpoint_error_v69026)[:500],
                         )
+
+        # v69380: terminal Technical overlap gate. Once authoritative package
+        # ambiguity is known, the clarification itself is the complete answer.
+        # Commit it immediately and end the turn BEFORE execution-plan detection,
+        # provider/model generation, file_search, recent-case lookup, or image work.
+        # This prevents generic troubleshooting from replacing the clarification
+        # and makes the ambiguity turn deterministic and fast.
+        if (
+            assistant == "🔧 Technical Support"
+            and str(technical_preflight_safe_answer_v69377 or "").strip()
+            and not is_graphic_resume_v68844
+        ):
+            terminal_answer_v69380 = _technical_readable_layout_v69379(
+                technical_preflight_safe_answer_v69377
+            )
+            # Ambiguity was detected before a new durable conversation may have
+            # been created. Rebind the pending choice to the now-current case so
+            # the next reply (e.g. 2019-2023 / SYNC 2) can resolve it reliably.
+            pending_overlap_v69380 = st.session_state.get(
+                TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377
+            )
+            if isinstance(pending_overlap_v69380, dict):
+                pending_overlap_v69380 = dict(pending_overlap_v69380)
+                pending_overlap_v69380["conversation_id"] = str(
+                    st.session_state.get("conversation_id") or ""
+                )
+                st.session_state[TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377] = (
+                    pending_overlap_v69380
+                )
+
+            try:
+                if early_loading_status_placeholder_v69226 is not None:
+                    early_loading_status_placeholder_v69226.empty()
+            except Exception:
+                pass
+
+            assistant_content_v69380 = terminal_answer_v69380
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": assistant_content_v69380,
+            })
+            render_chat_message("assistant", assistant_content_v69380, [])
+
+            if history_is_enabled() and st.session_state.get("conversation_id"):
+                try:
+                    save_message(
+                        st.session_state.conversation_id,
+                        "assistant",
+                        assistant_content_v69380,
+                    )
+                except Exception as terminal_save_error_v69380:
+                    diagnostic_log(
+                        "technical_overlap_terminal_save_failed_v69380",
+                        error_type=type(terminal_save_error_v69380).__name__,
+                        error=str(terminal_save_error_v69380)[:500],
+                    )
+
+            diagnostic_log(
+                "technical_overlap_terminal_committed_v69380",
+                family=str((technical_package_overlap_v69377 or {}).get("family") or ""),
+                year=(technical_package_overlap_v69377 or {}).get("year"),
+                matches=len((technical_package_overlap_v69377 or {}).get("options") or []),
+                elapsed_seconds=round(
+                    time.perf_counter() - command_preflight_started_v68864, 3
+                ),
+                conversation_id=st.session_state.get("conversation_id"),
+            )
+            # No model/provider/image pipeline is allowed to run for this turn.
+            st.rerun()
 
         generated_images = list(product_library_images)
         generated_documents = []
