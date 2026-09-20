@@ -1,3 +1,4 @@
+# AutoTecPro AI v69376 - targeted Technical latency + generation follow-up fastpath hardening
 # AutoTecPro AI v69370 - durable direct WooCommerce order lookup preservation
 # AutoTecPro AI v69369 - exact Technical video-resource branch binding + provider bypass
 # AutoTecPro AI v69368 - mobile table CSS isolation + response rendering hardening
@@ -5005,11 +5006,20 @@ def detect_live_request(prompt, selected_assistant=None):
                 flags=re.IGNORECASE,
             )
             if short_order_match:
-                return {
-                    "type": "woocommerce_order",
-                    "order_number": short_order_match.group(1),
-                    "access_level": access_level,
-                }
+                short_order_number_v69376 = str(short_order_match.group(1) or "")
+                # v69376: a leading four-digit vehicle year (for example
+                # "2019 Silverado no audio") is Technical vehicle identity, not
+                # an order number. Five+ digit internal order lookups such as 43852
+                # are unchanged, as are explicit "order 2019" / "#2019" forms.
+                if not (
+                    len(short_order_number_v69376) == 4
+                    and 1900 <= int(short_order_number_v69376) <= 2100
+                ):
+                    return {
+                        "type": "woocommerce_order",
+                        "order_number": short_order_number_v69376,
+                        "access_level": access_level,
+                    }
 
     tracking_number = extract_tracking_number(value)
 
@@ -45698,11 +45708,24 @@ def _build_ai_request(
                 },
             )
 
+    technical_speed_profile_v69376 = {}
+    if assistant == "🔧 Technical Support":
+        try:
+            technical_speed_profile_v69376 = _technical_speed_response_profile_v69376(prompt_text)
+        except Exception:
+            technical_speed_profile_v69376 = {}
+        if technical_speed_profile_v69376:
+            instructions += "\n\n" + str(technical_speed_profile_v69376.get("instruction") or "")
+            diagnostic_log(
+                "technical_response_budget_fastpath_v69376",
+                max_output_tokens=int(technical_speed_profile_v69376.get("max_output_tokens") or 0),
+            )
+
     request = {
         "model": "gpt-5.5",
         "instructions": instructions,
         "input": user_input,
-        "max_output_tokens": MAX_AI_OUTPUT_TOKENS,
+        "max_output_tokens": int(technical_speed_profile_v69376.get("max_output_tokens") or MAX_AI_OUTPUT_TOKENS),
     }
     if tools:
         request["tools"] = tools
@@ -87111,6 +87134,116 @@ def _technical_gm_2019_transition_safe_answer_v69374(prompt_text):
     )
 
 
+
+def _technical_generation_clarification_prompt_v69376(prompt_text):
+    """Bind a generation-only user clarification to the pending Technical setting request.
+
+    User messages remain the only routing authority. This helper never imports
+    vehicle identity from assistant text. It only combines a generation/body-style
+    clarification with the nearest prior user vehicle identity and configuration
+    request in the current conversation.
+    """
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not current or len(current) > 120:
+        return current
+    lower = current.casefold()
+    old_branch = bool(re.search(r"\b(?:2013\s*[-–]\s*2019|old[\s-]*body(?:\s+style)?|legacy[\s-]*body)\b", lower))
+    new_branch = bool(re.search(r"\b(?:2019\s*[-–]\s*2023|new[\s-]*body(?:\s+style)?|newer[\s-]*body)\b", lower))
+    if old_branch == new_branch:
+        return current
+
+    messages = list(st.session_state.get("messages") or [])
+    skipped_current = False
+    nearest_config = ""
+    nearest_identity = ""
+    current_norm = current.casefold()
+    for message in reversed(messages):
+        if str((message or {}).get("role") or "").strip().casefold() != "user":
+            continue
+        visible, _ = extract_images_from_message_content(str((message or {}).get("content") or ""))
+        visible = re.sub(r"\s+", " ", clean_visible_chat_text(visible)).strip()
+        if not visible:
+            continue
+        if not skipped_current and visible.casefold() == current_norm:
+            skipped_current = True
+            continue
+        if not nearest_config and _technical_configuration_query_v69155(visible):
+            nearest_config = visible
+        years = set(_website_identity_years_v69022(visible))
+        families = set(_website_identity_vehicle_families_v69022(visible))
+        if not nearest_identity and len(years) == 1 and len(families) == 1:
+            nearest_identity = visible
+        if nearest_config and nearest_identity:
+            break
+    if not nearest_identity:
+        return current
+
+    branch_label = "2013-2019 old-body/current-source branch" if old_branch else "2019-2023 new-body/current-source branch"
+    effective = (
+        nearest_identity
+        + "\n\nFOLLOW-UP TECHNICAL CONFIGURATION REQUEST: "
+        + (nearest_config or "Car Model / A/C setting")
+        + "\nUSER-CONFIRMED GENERATION: " + branch_label
+        + "\nAnswer the pending configuration question using only this confirmed generation. "
+          "Do not ask for the body generation again and do not import vehicle identity from assistant replies."
+    )
+    diagnostic_log(
+        "technical_generation_clarification_bound_v69376",
+        clarification=current[:120],
+        generation="2013-2019" if old_branch else "2019-2023",
+        anchor=nearest_identity[:180],
+    )
+    return effective
+
+
+def _technical_gm_generation_direct_v69376(prompt_text):
+    """Fast-route explicit Silverado/Sierra generation configuration queries.
+
+    Once the user explicitly supplies 2013-2019/old-body or 2019-2023/new-body,
+    broad compiled hydration is unnecessary before the provider's normal exact
+    Technical file_search. Existing final setting/image safety gates still apply.
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt or not _technical_configuration_query_v69155(prompt):
+        return False
+    families = {str(x or "").strip().casefold() for x in _website_identity_vehicle_families_v69022(prompt)}
+    if not (families & {"silverado", "sierra"}):
+        return False
+    lower = prompt.casefold()
+    old_branch = bool(re.search(r"\b(?:2013\s*[-–]\s*2019|old[\s-]*body(?:\s+style)?|legacy[\s-]*body)\b", lower))
+    new_branch = bool(re.search(r"\b(?:2019\s*[-–]\s*2023|new[\s-]*body(?:\s+style)?|newer[\s-]*body)\b", lower))
+    return bool(old_branch ^ new_branch)
+
+
+def _technical_speed_response_profile_v69376(prompt_text):
+    """Return a narrow response-latency profile for ordinary Technical chat turns."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return {}
+    lower = prompt.casefold()
+    # Never alter document/export/order-enrichment behavior.
+    if re.search(r"\b(?:pdf|docx|word document|report|manual export|order #|woocommerce)\b", lower):
+        return {}
+    explicit_visual = bool(_website_image_explicit_visual_request_v68888(prompt))
+    config = bool(_technical_configuration_query_v69155(prompt))
+    troubleshoot = bool(re.search(
+        r"\b(?:no audio|no sound|not working|doesn['’]?t work|issue|problem|black screen|no power|"
+        r"carplay|android auto|bluetooth|camera|microphone|mic|troubleshoot|diagnose)\b",
+        lower,
+    ))
+    if not (explicit_visual or config or troubleshoot):
+        return {}
+    return {
+        "max_output_tokens": 700 if troubleshoot and not config else 520,
+        "instruction": (
+            "FAST TECHNICAL RESPONSE (v69376): Optimize staff latency without changing factual authority. "
+            "Give the complete actionable answer in at most 350 words. Lead with the verified answer or most likely cause. "
+            "Use no more than 5 numbered troubleshooting steps unless the user explicitly asks for a full procedure. "
+            "Do not include a Customer Reply Draft unless explicitly requested. Do not repeat background, duplicate links, "
+            "or restate the same warning. Preserve every existing compatibility, generation, source, and verification safety rule."
+        ),
+    }
+
 def _technical_clear_photo_context_v68879():
     st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
 
@@ -92138,6 +92271,13 @@ else:
                 str(technical_followup_prompt_v68879 or "").strip()
                 == str(interaction_prompt or "").strip()
             ):
+                technical_followup_prompt_v68879 = _technical_generation_clarification_prompt_v69376(
+                    interaction_prompt
+                )
+            if (
+                str(technical_followup_prompt_v68879 or "").strip()
+                == str(interaction_prompt or "").strip()
+            ):
                 technical_followup_prompt_v68879 = _technical_contextual_followup_prompt_v69374(
                     interaction_prompt
                 )
@@ -92542,6 +92682,15 @@ else:
                 technical_request_prompt_v68879
             )
         )
+        technical_gm_generation_direct_v69376 = bool(
+            assistant == "🔧 Technical Support"
+            and _technical_gm_generation_direct_v69376(technical_request_prompt_v68879)
+        )
+        if technical_gm_generation_direct_v69376:
+            diagnostic_log(
+                "technical_gm_generation_direct_file_search_v69376",
+                reason="explicit_generation_skips_compiled_hydration",
+            )
         # v69241: every Technical execution route owns a defined evidence mapping.
         # This is initialization only; later authoritative paths overwrite it.
         if assistant == "🔧 Technical Support":
@@ -92550,6 +92699,7 @@ else:
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
             and bool(technical_configuration_request_v69375)
+            and not bool(technical_gm_generation_direct_v69376)
             and str(technical_request_prompt_v68879 or "").strip()
         ):
             try:
@@ -92635,6 +92785,7 @@ else:
         technical_verified_hot_preflight_v69195 = False
         if (
             assistant == "🔧 Technical Support"
+            and not bool(technical_gm_generation_direct_v69376)
             and _technical_configuration_query_v69155(
                 technical_request_prompt_v68879
             )
@@ -96087,7 +96238,11 @@ else:
                 if isinstance(image, dict)
                 and str(image.get("source") or "") == "website_knowledge"
             ]
-            if not existing_product_bridge_v69365 and not existing_website_v69365:
+            if (
+                not existing_product_bridge_v69365
+                and not existing_website_v69365
+                and not _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
+            ):
                 try:
                     early_bridge_images_v69365 = _technical_sales_product_image_bridge_v69364(
                         technical_request_prompt_v68879,
@@ -96315,7 +96470,10 @@ else:
                 image for image in (generated_images or [])
                 if isinstance(image, dict) and str(image.get("source") or "") == "website_knowledge"
             ]
-            if not existing_technical_website_images_v69364:
+            if (
+                not existing_technical_website_images_v69364
+                and not _technical_protected_settings_inquiry_v69145(technical_request_prompt_v68879)
+            ):
                 try:
                     technical_sales_product_images_v69364 = _technical_sales_product_image_bridge_v69364(
                         technical_request_prompt_v68879,
@@ -96816,6 +96974,33 @@ else:
                     source_url=str(
                         current_final_authority_v69184.get("source_url") or ""
                     )[:700],
+                )
+            elif bool(locals().get("technical_gm_generation_direct_v69376")):
+                # v69376: once the user explicitly supplied the Silverado/Sierra
+                # generation, keep only website images that independently pass the
+                # absolute v69363 metadata/answer publication gate. This permits a
+                # reference settings screen without treating it as proof of an
+                # unverified A/C sub-profile. No broader image source is introduced.
+                non_web_v69376 = [
+                    x for x in assistant_images_to_save
+                    if not (isinstance(x, dict) and str(x.get("source") or "") == "website_knowledge")
+                ]
+                web_v69376 = [
+                    x for x in assistant_images_to_save
+                    if isinstance(x, dict) and str(x.get("source") or "") == "website_knowledge"
+                ]
+                web_v69376 = _technical_final_publication_filter_v69363(
+                    web_v69376,
+                    technical_request_prompt_v68879,
+                    answer,
+                    diagnostic_event="technical_generation_reference_image_gate_v69376",
+                ) if web_v69376 else []
+                assistant_images_to_save = _dedupe_website_chat_images_v68883(
+                    non_web_v69376 + list(web_v69376 or [])
+                )
+                diagnostic_log(
+                    "technical_generation_reference_image_preserved_v69376",
+                    published=len(web_v69376 or []),
                 )
             else:
                 assistant_images_to_save = [
