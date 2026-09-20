@@ -1,3 +1,4 @@
+# AutoTecPro AI v69398 - exact Sales primary-photo final lock + multi-product hero preservation + explicit-photo repeat allowance
 # AutoTecPro AI v69397 - preserve exact Sales WooCommerce hero provenance through final publication gate
 # AutoTecPro AI v69396 - Sales follow-up authority reuse + canonical product dedupe + explicit-photo publication authority
 # AutoTecPro AI v69395 - universal source-driven Technical topic index + compact exact-context formatting
@@ -65868,6 +65869,118 @@ def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, 
 
 
 
+
+def _workspace_sales_exact_primary_final_lock_v69398(
+    workspace_label,
+    prompt_text,
+    authority,
+    max_images=6,
+):
+    """Return one exact current main-product photo per exact Sales product."""
+    if not is_sales_workspace(workspace_label):
+        return []
+
+    authority = dict(authority or {})
+    if str(authority.get("status") or "") not in {"recovered", "recovered_multi"}:
+        return []
+
+    if str(authority.get("status") or "") == "recovered_multi":
+        packages = [
+            dict(pkg)
+            for pkg in (authority.get("packages") or [])
+            if isinstance(pkg, dict)
+        ]
+    else:
+        one = dict(authority.get("package") or authority.get("row") or {})
+        if not one:
+            one = dict(authority)
+        packages = [one] if one else []
+
+    allowed_page_ids = set()
+    for pkg in packages:
+        source_url = str(pkg.get("source_url") or "").strip()
+        if not source_url:
+            continue
+        page_id = _workspace_product_page_identity_v69396(source_url)
+        if page_id:
+            allowed_page_ids.add(page_id)
+
+    if not allowed_page_ids:
+        return []
+
+    exact_images = _workspace_atp_exact_images_v69180(
+        workspace_label,
+        prompt_text,
+        authority,
+        max_images=max(1, int(max_images or 1)),
+    )
+
+    selected = []
+    seen_products = set()
+    seen_urls = set()
+
+    for record in exact_images or []:
+        if not isinstance(record, dict):
+            continue
+        if not bool(record.get("website_atp_primary_product_image_v69325")):
+            continue
+        if str(record.get("website_workspace_destination_v69180") or "") != "Sales Database":
+            continue
+        if not bool(record.get("website_atp_metadata_exact_v69180")):
+            continue
+
+        source_page = str(record.get("website_source_page_v69010") or "").strip()
+        page_id = _workspace_product_page_identity_v69396(source_page)
+        if not page_id or page_id not in allowed_page_ids:
+            continue
+
+        image_url = str(
+            record.get("archive_web_url") or record.get("data_url") or ""
+        ).strip()
+        if not image_url.startswith("https://"):
+            continue
+        if page_id in seen_products or image_url in seen_urls:
+            continue
+
+        meta = dict(record.get("website_structured_metadata_v69017") or {})
+        role = str(meta.get("data-atp-image-role") or "").casefold().strip()
+        main_photo = str(meta.get("data-atp-main-product-photo") or "").casefold().strip()
+        is_primary = str(meta.get("data-atp-is-primary-product-image") or "").casefold().strip()
+
+        if role and role != "primary-product-image":
+            continue
+        if main_photo and main_photo not in {"true", "1", "yes"}:
+            continue
+        if is_primary and is_primary not in {"true", "1", "yes"}:
+            continue
+
+        record = dict(record)
+        record["website_sales_exact_primary_final_lock_v69398"] = True
+        record["website_sales_exact_product_identity_v69398"] = page_id
+        seen_products.add(page_id)
+        seen_urls.add(image_url)
+        selected.append(record)
+
+    # Multi-product answers must never degrade to a partial hero set.
+    if len(selected) != len(allowed_page_ids):
+        diagnostic_log(
+            "workspace_sales_exact_primary_final_lock_incomplete_v69398",
+            products=len(allowed_page_ids),
+            primaries=len(selected),
+        )
+        return []
+
+    diagnostic_log(
+        "workspace_sales_exact_primary_final_lock_v69398",
+        products=len(allowed_page_ids),
+        published=len(selected),
+        urls=[
+            str(x.get("archive_web_url") or x.get("data_url") or "")[:500]
+            for x in selected
+        ],
+    )
+    return selected
+
 @st.cache_data(ttl=120, max_entries=4, show_spinner=False)
 def _workspace_durable_image_payloads_v69041(destination):
     """Return QA-approved durable payloads for exactly one non-Graphic database."""
@@ -100487,6 +100600,43 @@ else:
                     error_type=type(error).__name__,
                     error=str(error)[:500],
                 )
+        # v69398: restore only the exact primary photo for every exact Sales
+        # product after the unchanged generic website publication gate.
+        if is_sales_workspace(assistant) and str(
+            (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
+        ) in {"recovered", "recovered_multi"}:
+            try:
+                sales_exact_primaries_v69398 = (
+                    _workspace_sales_exact_primary_final_lock_v69398(
+                        assistant,
+                        interaction_prompt,
+                        workspace_atp_authority_v69180,
+                        max_images=6,
+                    )
+                )
+                if sales_exact_primaries_v69398:
+                    non_web_v69398 = [
+                        image
+                        for image in (generated_images or [])
+                        if not (
+                            isinstance(image, dict)
+                            and str(image.get("source") or "") == "website_knowledge"
+                        )
+                    ]
+                    generated_images = _dedupe_website_chat_images_v68883(
+                        non_web_v69398 + list(sales_exact_primaries_v69398)
+                    )
+                    diagnostic_log(
+                        "workspace_sales_exact_primaries_restored_v69398",
+                        published=len(sales_exact_primaries_v69398),
+                    )
+            except Exception as sales_final_lock_error_v69398:
+                diagnostic_log(
+                    "workspace_sales_exact_primary_final_lock_failed_v69398",
+                    error_type=type(sales_final_lock_error_v69398).__name__,
+                    error=str(sales_final_lock_error_v69398)[:500],
+                )
+
         elif generated_images and assistant == "🔧 Technical Support":
             # v69363: keep v69123 late recovery, but never let it bypass the SAME
             # completed-answer/image-provenance authority used by the main path.
@@ -100505,13 +100655,24 @@ else:
         # after all existing product/image authority gates.
         if generated_images and (is_sales_workspace(assistant) or is_marketing_workspace(assistant)):
             try:
-                generated_images, repeat_images_suppressed_v69346 = (
-                    _workspace_suppress_repeat_product_images_v69346(
-                        assistant,
-                        generated_images,
-                        list(st.session_state.get("messages") or []),
-                    )
+                explicit_sales_photo_request_v69398 = bool(
+                    is_sales_workspace(assistant)
+                    and _website_image_explicit_visual_request_v68888(interaction_prompt)
                 )
+                if explicit_sales_photo_request_v69398:
+                    repeat_images_suppressed_v69346 = 0
+                    diagnostic_log(
+                        "workspace_sales_explicit_photo_repeat_allowed_v69398",
+                        published=len(generated_images or []),
+                    )
+                else:
+                    generated_images, repeat_images_suppressed_v69346 = (
+                        _workspace_suppress_repeat_product_images_v69346(
+                            assistant,
+                            generated_images,
+                            list(st.session_state.get("messages") or []),
+                        )
+                    )
                 diagnostic_log(
                     "workspace_repeat_product_images_suppressed_v69346",
                     workspace=str(assistant),
