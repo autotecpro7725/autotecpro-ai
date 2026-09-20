@@ -1,3 +1,4 @@
+# AutoTecPro AI v69377 - generic Technical overlap verification + readable step layout
 # AutoTecPro AI v69376 - targeted Technical latency + generation follow-up fastpath hardening
 # AutoTecPro AI v69370 - durable direct WooCommerce order lookup preservation
 # AutoTecPro AI v69369 - exact Technical video-resource branch binding + provider bypass
@@ -45710,6 +45711,14 @@ def _build_ai_request(
 
     technical_speed_profile_v69376 = {}
     if assistant == "🔧 Technical Support":
+        instructions += (
+            "\n\nTECHNICAL RESPONSE LAYOUT (v69377): Make every action easy to scan. "
+            "Never place two numbered steps on the same line. Every numbered instruction must be its own Markdown line. "
+            "Put a blank line before and after each Step heading. Put 'Expected result:' on its own line, followed by the result on the next line. "
+            "Put 'What it means:' on its own line, then put each explanation as a separate bullet on its own line. "
+            "Put each requested photo/information item and each installation resource on its own line. "
+            "Do not use backslash line-break escapes and do not compress numbered instructions into paragraph text."
+        )
         try:
             technical_speed_profile_v69376 = _technical_speed_response_profile_v69376(prompt_text)
         except Exception:
@@ -87215,6 +87224,244 @@ def _technical_gm_generation_direct_v69376(prompt_text):
     return bool(old_branch ^ new_branch)
 
 
+
+TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377 = "_technical_package_ambiguity_v69377"
+TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377 = "_technical_confirmed_package_v69377"
+
+
+def _technical_package_option_v69377(package, family=""):
+    """Return one human-readable, source-bound Technical package option."""
+    package = dict(package or {})
+    if not package:
+        return {}
+    clean_family = str(family or "").casefold().strip()
+    discriminator = dict(_technical_package_exact_discriminators_v69243(package) or {})
+    system_label = str(discriminator.get("system_label") or "").strip()
+    years = set()
+    try:
+        mapping = _technical_model_year_scope_map_v69242(package)
+        years.update(int(x) for x in (mapping.get(clean_family) or set()))
+    except Exception:
+        pass
+    if not years:
+        for raw in package.get("years") or []:
+            try:
+                years.add(int(raw))
+            except Exception:
+                pass
+    year_label = ""
+    if years:
+        lo, hi = min(years), max(years)
+        year_label = str(lo) if lo == hi else f"{lo}–{hi}"
+    title = re.sub(r"\s+", " ", str(package.get("title") or package.get("page_title") or package.get("filename") or "")).strip()
+    source_url = str(package.get("source_url") or "").strip()
+    file_id = str(package.get("file_id") or "").strip()
+    parts = [x for x in (year_label, system_label) if x]
+    label = " — ".join(parts)
+    if not label:
+        label = title[:120] or source_url or file_id or "Technical configuration"
+    aliases = set()
+    for value in (label, year_label, system_label, title):
+        norm = re.sub(r"[^a-z0-9]+", " ", str(value or "").casefold()).strip()
+        if norm:
+            aliases.add(norm)
+    token = str(discriminator.get("system_token") or "").strip()
+    if token:
+        aliases.add(re.sub(r"[^a-z0-9]+", " ", token.casefold()).strip())
+    return {
+        "label": label,
+        "year_label": year_label,
+        "system_label": system_label,
+        "system_token": token,
+        "title": title,
+        "source_url": source_url,
+        "file_id": file_id,
+        "aliases": sorted(x for x in aliases if x),
+    }
+
+
+def _technical_package_overlap_ambiguity_v69377(prompt_text):
+    """Detect generic current-package overlap before Technical troubleshooting.
+
+    This is intentionally model-agnostic: any exact vehicle family/year with two or
+    more current Technical packages must be disambiguated before factual output.
+    Explicit generation/system wording bypasses the question because the user has
+    already supplied the discriminator.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return {}
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt or "USER-CONFIRMED TECHNICAL PACKAGE:" in prompt:
+        return {}
+    years = sorted(set(_website_identity_years_v69022(prompt) or []))
+    families = sorted(set(str(x or "").casefold().strip() for x in (_website_identity_vehicle_families_v69022(prompt) or []) if str(x or "").strip()))
+    if len(years) != 1 or len(families) != 1:
+        return {}
+    # User already supplied a system or generation discriminator.
+    try:
+        if _technical_explicit_factory_system_v69228(prompt):
+            return {}
+    except Exception:
+        pass
+    if re.search(r"\b(?:19|20)\d{2}\s*[-–—]\s*(?:19|20)\d{2}\b", prompt):
+        return {}
+    if re.search(r"\b(?:old|new|newer|legacy)[\s-]*body(?:\s+style)?\b", prompt, flags=re.I):
+        return {}
+
+    family, year = families[0], int(years[0])
+    stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not stores:
+        return {}
+    store = str(stores[0] or "").strip()
+    if not store:
+        return {}
+
+    packages = list(_technical_compiled_packages_for_family_year_v69239(store, family, year) or [])
+    source = "compiled"
+    if len(packages) < 2:
+        # Cold-start fallback: exact durable snapshots only. No broad vector search.
+        try:
+            snapshots = list(_technical_durable_snapshot_candidates_v69233(prompt, store) or [])
+        except Exception:
+            snapshots = []
+        packages = []
+        seen = set()
+        for payload in snapshots:
+            payload = dict(payload or {})
+            try:
+                payload_families = {str(x or "").casefold().strip() for x in (payload.get("vehicle_families") or []) if str(x or "").strip()}
+            except Exception:
+                payload_families = set()
+            if family not in payload_families:
+                continue
+            if not _technical_package_model_year_eligible_v69242(payload, family, year):
+                continue
+            ident = str(payload.get("source_url") or payload.get("file_id") or "").strip().casefold()
+            if not ident or ident in seen:
+                continue
+            seen.add(ident)
+            packages.append(payload)
+        source = "durable_snapshot"
+    if len(packages) < 2:
+        return {}
+
+    options, seen_ids = [], set()
+    for package in packages:
+        if not _technical_package_model_year_eligible_v69242(package, family, year):
+            continue
+        option = _technical_package_option_v69377(package, family)
+        ident = str(option.get("source_url") or option.get("file_id") or option.get("label") or "").casefold().strip()
+        if not ident or ident in seen_ids:
+            continue
+        seen_ids.add(ident)
+        options.append(option)
+    if len(options) < 2:
+        return {}
+    # Deterministic ordering makes numeric replies (1/2/3) stable.
+    options.sort(key=lambda x: (str(x.get("year_label") or ""), str(x.get("system_label") or ""), str(x.get("label") or "")))
+    result = {"family": family, "year": year, "options": options, "source": source, "original_request": prompt}
+    st.session_state[TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377] = {
+        **result,
+        "conversation_id": str(st.session_state.get("conversation_id") or ""),
+        "created_at": time.time(),
+    }
+    diagnostic_log(
+        "technical_package_overlap_verification_required_v69377",
+        family=family, year=year, matches=len(options),
+        labels=[str(x.get("label") or "")[:120] for x in options], source=source,
+    )
+    return result
+
+
+def _technical_package_overlap_answer_v69377(ambiguity):
+    ambiguity = dict(ambiguity or {})
+    options = list(ambiguity.get("options") or [])
+    if len(options) < 2:
+        return ""
+    family = str(ambiguity.get("family") or "vehicle").replace("_", " ").title()
+    year = str(ambiguity.get("year") or "").strip()
+    lines = [
+        f"## Please Confirm Your {year} {family} Configuration",
+        "",
+        "I found more than one current AutoTecPro Technical configuration that matches this vehicle/year.",
+        "Please confirm which one you have before I continue, so I do not mix instructions from different models.",
+        "",
+    ]
+    for idx, option in enumerate(options, start=1):
+        lines.append(f"{idx}. {str(option.get('label') or 'Technical configuration')}")
+    lines += ["", "If you're not sure, send a clear photo of the original dashboard/factory screen."]
+    return "\n".join(lines)
+
+
+def _technical_package_overlap_clarification_prompt_v69377(prompt_text):
+    """Resolve a pending overlap choice and bind it to the original user request."""
+    current = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not current or len(current) > 180:
+        return current
+    pending = st.session_state.get(TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377)
+    if not isinstance(pending, dict):
+        return current
+    current_conversation = str(st.session_state.get("conversation_id") or "")
+    if str(pending.get("conversation_id") or "") != current_conversation:
+        st.session_state.pop(TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377, None)
+        return current
+    options = [dict(x) for x in (pending.get("options") or []) if isinstance(x, dict)]
+    if len(options) < 2:
+        st.session_state.pop(TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377, None)
+        return current
+    normalized = re.sub(r"[^a-z0-9]+", " ", current.casefold()).strip()
+    selected = None
+    numeric = re.fullmatch(r"(?:option\s*)?([1-9])", normalized)
+    if numeric:
+        idx = int(numeric.group(1)) - 1
+        if 0 <= idx < len(options):
+            selected = options[idx]
+    if selected is None:
+        matches = []
+        for option in options:
+            aliases = set(option.get("aliases") or [])
+            system_token = str(option.get("system_token") or "").replace("_", " ").strip()
+            if system_token:
+                aliases.add(system_token)
+            # Natural forms: sync2/no sync and exact year ranges.
+            aliases |= {a.replace("sync 2", "sync2").replace("sync 3", "sync3").replace("sync 1", "sync1") for a in list(aliases)}
+            if any(a and (a == normalized or a in normalized or normalized in a) for a in aliases):
+                matches.append(option)
+        if len(matches) == 1:
+            selected = matches[0]
+    if selected is None:
+        # Generic old/new body wording maps to earliest/latest generation only when
+        # the package options actually have distinct year ranges.
+        if re.search(r"\bold[\s-]*body\b|\blegacy[\s-]*body\b", current, flags=re.I):
+            selected = options[0]
+        elif re.search(r"\bnew(?:er)?[\s-]*body\b", current, flags=re.I):
+            selected = options[-1]
+    if selected is None:
+        return current
+
+    st.session_state[TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377] = {
+        **selected,
+        "family": str(pending.get("family") or ""),
+        "year": pending.get("year"),
+        "conversation_id": current_conversation,
+    }
+    st.session_state.pop(TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377, None)
+    original = str(pending.get("original_request") or "").strip()
+    label = str(selected.get("label") or "Technical configuration").strip()
+    source_url = str(selected.get("source_url") or "").strip()
+    diagnostic_log(
+        "technical_package_overlap_choice_bound_v69377",
+        family=str(pending.get("family") or ""), year=pending.get("year"), label=label[:120],
+        file_id=str(selected.get("file_id") or "")[:160], source_url=source_url[:700],
+    )
+    return (
+        original
+        + "\n\nUSER-CONFIRMED TECHNICAL PACKAGE: " + label
+        + ("\nAUTHORITATIVE SOURCE URL: " + source_url if source_url else "")
+        + "\nUse only this confirmed Technical package for this request. Do not mix instructions, images, settings, or facts from another overlapping package."
+    )
+
+
 def _technical_speed_response_profile_v69376(prompt_text):
     """Return a narrow response-latency profile for ordinary Technical chat turns."""
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
@@ -92271,6 +92518,13 @@ else:
                 str(technical_followup_prompt_v68879 or "").strip()
                 == str(interaction_prompt or "").strip()
             ):
+                technical_followup_prompt_v68879 = _technical_package_overlap_clarification_prompt_v69377(
+                    interaction_prompt
+                )
+            if (
+                str(technical_followup_prompt_v68879 or "").strip()
+                == str(interaction_prompt or "").strip()
+            ):
                 technical_followup_prompt_v68879 = _technical_generation_clarification_prompt_v69376(
                     interaction_prompt
                 )
@@ -92387,16 +92641,39 @@ else:
             if assistant == "🔧 Technical Support"
             else interaction_prompt
         )
+        technical_package_overlap_v69377 = {}
+        technical_package_overlap_safe_answer_v69377 = ""
         technical_transition_ambiguity_v69374 = {}
         technical_transition_safe_answer_v69374 = ""
+        technical_preflight_safe_answer_v69377 = ""
         if assistant == "🔧 Technical Support":
-            technical_transition_ambiguity_v69374 = _technical_gm_2019_transition_ambiguity_v69374(
-                technical_request_prompt_v68879
-            )
-            if technical_transition_ambiguity_v69374:
-                technical_transition_safe_answer_v69374 = _technical_gm_2019_transition_safe_answer_v69374(
+            try:
+                technical_package_overlap_v69377 = _technical_package_overlap_ambiguity_v69377(
                     technical_request_prompt_v68879
                 )
+            except Exception as overlap_error_v69377:
+                technical_package_overlap_v69377 = {}
+                diagnostic_log(
+                    "technical_package_overlap_detection_failed_v69377",
+                    error_type=type(overlap_error_v69377).__name__,
+                    error=str(overlap_error_v69377)[:500],
+                )
+            if technical_package_overlap_v69377:
+                technical_package_overlap_safe_answer_v69377 = _technical_package_overlap_answer_v69377(
+                    technical_package_overlap_v69377
+                )
+            if not technical_package_overlap_safe_answer_v69377:
+                technical_transition_ambiguity_v69374 = _technical_gm_2019_transition_ambiguity_v69374(
+                    technical_request_prompt_v68879
+                )
+                if technical_transition_ambiguity_v69374:
+                    technical_transition_safe_answer_v69374 = _technical_gm_2019_transition_safe_answer_v69374(
+                        technical_request_prompt_v68879
+                    )
+            technical_preflight_safe_answer_v69377 = (
+                technical_package_overlap_safe_answer_v69377
+                or technical_transition_safe_answer_v69374
+            )
 
         technical_website_learning_url_v68870 = (
             detect_technical_website_learning_command(
@@ -92655,14 +92932,22 @@ else:
             )
             # Restore the execution-plan decision used by the proven baseline.
             use_file_search = bool(execution_plan["use_file_search"])
-            if technical_transition_safe_answer_v69374:
+            if technical_preflight_safe_answer_v69377:
                 use_file_search = False
-                diagnostic_log(
-                    "technical_2019_generation_overlap_fail_closed_v69374",
-                    family=str(technical_transition_ambiguity_v69374.get("family") or ""),
-                    year=2019,
-                    reason=str(technical_transition_ambiguity_v69374.get("reason") or ""),
-                )
+                if technical_package_overlap_safe_answer_v69377:
+                    diagnostic_log(
+                        "technical_generic_overlap_fail_closed_v69377",
+                        family=str(technical_package_overlap_v69377.get("family") or ""),
+                        year=technical_package_overlap_v69377.get("year"),
+                        matches=len(technical_package_overlap_v69377.get("options") or []),
+                    )
+                else:
+                    diagnostic_log(
+                        "technical_2019_generation_overlap_fail_closed_v69374",
+                        family=str(technical_transition_ambiguity_v69374.get("family") or ""),
+                        year=2019,
+                        reason=str(technical_transition_ambiguity_v69374.get("reason") or ""),
+                    )
             diagnostic_log(
                 "technical_v69050_factual_authority_restored_v69122",
                 use_file_search=bool(use_file_search),
@@ -94468,7 +94753,7 @@ else:
                     technical_v69156_configuration_required = bool(
                         assistant == "🔧 Technical Support"
                         and bool(execution_plan.get("use_file_search"))
-                        and not bool(technical_transition_safe_answer_v69374)
+                        and not bool(technical_preflight_safe_answer_v69377)
                         and not bool(technical_website_learning_requested_v68870)
                         and not bool(explicit_learning_requested)
                         and str(
@@ -95529,8 +95814,8 @@ else:
                                     )[:300],
                                 )
 
-                        if technical_transition_safe_answer_v69374:
-                            stream_source_v69158 = [technical_transition_safe_answer_v69374]
+                        if technical_preflight_safe_answer_v69377:
+                            stream_source_v69158 = [technical_preflight_safe_answer_v69377]
                         else:
                             stream_source_v69158 = (
                                 [technical_current_source_safe_answer_v69164]
@@ -96107,7 +96392,7 @@ else:
         # the v69373 reference-image allowance once old/new body is actually known.
         if (
             assistant == "🔧 Technical Support"
-            and bool(technical_transition_safe_answer_v69374)
+            and bool(technical_preflight_safe_answer_v69377)
         ):
             generated_images = [
                 image for image in (generated_images or [])
@@ -96129,7 +96414,7 @@ else:
         if (
             assistant == "🔧 Technical Support"
             and str(answer or "").strip()
-            and not bool(technical_transition_safe_answer_v69374)
+            and not bool(technical_preflight_safe_answer_v69377)
         ):
             active_package_state_v69115 = dict(
                 st.session_state.get("_technical_active_admin_package_v69113") or {}
@@ -96180,7 +96465,7 @@ else:
         # weakly-related image to bypass the existing fail-closed authority rules.
         if (
             assistant == "🔧 Technical Support"
-            and not bool(technical_transition_safe_answer_v69374)
+            and not bool(technical_preflight_safe_answer_v69377)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
         ):
             existing_website_images_v69008 = [
@@ -96226,7 +96511,7 @@ else:
         if (
             assistant == "🔧 Technical Support"
             and str(answer or "").strip()
-            and not bool(technical_transition_safe_answer_v69374)
+            and not bool(technical_preflight_safe_answer_v69377)
         ):
             existing_product_bridge_v69365 = [
                 image for image in (generated_images or [])
@@ -96270,7 +96555,7 @@ else:
         # authority; broad same-page similarity alone is never sufficient.
         if (
             assistant == "🔧 Technical Support"
-            and not bool(technical_transition_safe_answer_v69374)
+            and not bool(technical_preflight_safe_answer_v69377)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
             and _website_image_universal_technical_candidate_v69014(
                 technical_request_prompt_v68879, answer
