@@ -1,4 +1,4 @@
-# AutoTecPro AI v69382 - confirmed-package direct authority and exact Technical image publication
+# AutoTecPro AI v69383 - confirmed-package legacy image-index recovery for exact two-image audio publication
 # AutoTecPro AI v69379 - authoritative Technical overlap + deterministic readable output hardening
 # AutoTecPro AI v69378 - generic Technical overlap verification + readable step layout
 # AutoTecPro AI v69376 - targeted Technical latency + generation follow-up fastpath hardening
@@ -87835,6 +87835,51 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
         return []
     if not loaded_ok:
         return []
+
+    # v69383: v69382 live production proved the page-scoped durable index lookup can
+    # legitimately return zero rows for a learned page even when the same image rows
+    # are present in the durable Technical image index (legacy rows were keyed with an
+    # older scoped-issue hash).  Do not treat that migration/key mismatch as evidence
+    # that the selected package has no images.  Fall back to the already-cached durable
+    # Technical image rows, but keep authority exact by requiring the canonical source
+    # page identity to equal the user-confirmed package source.
+    if not matches:
+        try:
+            target_page_v69383 = _website_image_page_identity_v69003({
+                "source_url": source_url, "requested_url": source_url
+            })
+            fallback_rows_v69383 = _website_image_rows_for_destination_v69360(
+                "Technical Support Database"
+            )
+            exact_fallback_v69383 = []
+            for payload_v69383 in fallback_rows_v69383 or []:
+                if not isinstance(payload_v69383, dict):
+                    continue
+                if _website_image_page_identity_v69003(payload_v69383) != target_page_v69383:
+                    continue
+                exact_fallback_v69383.append({"row": {}, "payload": dict(payload_v69383)})
+            if exact_fallback_v69383:
+                matches = exact_fallback_v69383
+                diagnostic_log(
+                    "technical_confirmed_package_image_index_fallback_v69383",
+                    label=str(state.get("label") or "")[:120],
+                    source_url=source_url[:700],
+                    matched=len(matches),
+                )
+            else:
+                diagnostic_log(
+                    "technical_confirmed_package_image_index_fallback_miss_v69383",
+                    label=str(state.get("label") or "")[:120],
+                    source_url=source_url[:700],
+                    durable_rows=len(fallback_rows_v69383 or []),
+                )
+        except Exception as error_v69383:
+            diagnostic_log(
+                "technical_confirmed_package_image_index_fallback_failed_v69383",
+                error_type=type(error_v69383).__name__,
+                error=str(error_v69383)[:500],
+            )
+
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     audio_intent = bool(re.search(r"\b(?:no audio|no sound|audio|sound|aux|bluetooth)\b", prompt))
     preferred_audio_roles = {
