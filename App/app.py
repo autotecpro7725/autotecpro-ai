@@ -1,3 +1,4 @@
+# AutoTecPro AI v69387 - source-limited Car Model answer + exact semantic image + learning isolation
 # AutoTecPro AI v69386 - complete first-turn overlap gate + professional clarification UI
 # AutoTecPro AI v69385 - GM 2019 joint-platform authoritative overlap completion
 # AutoTecPro AI v69383 - confirmed-package legacy image-index recovery for exact two-image audio publication
@@ -61123,6 +61124,12 @@ def _website_image_payload_for_chat_record_v69005(image_record):
     """Resolve a model-emitted website image back to its approved durable payload."""
     if not isinstance(image_record, dict):
         return None
+    exact_semantic_payload_v69387 = image_record.get("_technical_exact_semantic_payload_v69387")
+    if (
+        image_record.get("technical_exact_semantic_role_v69387")
+        and isinstance(exact_semantic_payload_v69387, dict)
+    ):
+        return dict(exact_semantic_payload_v69387)
     digest = str(image_record.get("website_image_sha256") or "").strip().lower()
     candidate_urls = {
         str(image_record.get("archive_web_url") or "").strip(),
@@ -87935,7 +87942,16 @@ def _technical_confirmed_case_followup_prompt_v69384(prompt_text):
             r"(?:ok(?:ay)?|yes|no|thanks|thank you|got it|understood|correct|right)[.! ]*",
             current.casefold(),
         ))
-        if not ack_only and not (explicit_visual and not current_role):
+        learning_only_v69387 = bool(re.match(
+            r"^\s*(?:please\s+)?(?:learn|save|remember)(?:\s+and\s+save)?\b",
+            current,
+            flags=re.I,
+        ))
+        if (
+            not ack_only
+            and not learning_only_v69387
+            and not (explicit_visual and not current_role)
+        ):
             st.session_state[TECHNICAL_ACTIVE_SUBJECT_KEY_V69384] = current
             state["active_subject_v69384"] = current
             st.session_state[TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377] = state
@@ -87943,6 +87959,11 @@ def _technical_confirmed_case_followup_prompt_v69384(prompt_text):
             diagnostic_log(
                 "technical_active_subject_updated_v69384",
                 subject=current[:180], role=current_role[:80],
+                label=str(state.get("label") or "")[:120],
+            )
+        elif learning_only_v69387:
+            diagnostic_log(
+                "technical_active_subject_learning_ignored_v69387",
                 label=str(state.get("label") or "")[:120],
             )
 
@@ -88039,6 +88060,256 @@ def _technical_confirmed_payload_scope_match_v69384(payload, state):
     return True
 
 
+
+def _technical_confirmed_snapshot_v69387(state):
+    """Return only the durable snapshot for the exact user-confirmed package."""
+    if not isinstance(state, dict):
+        return {}
+    source_url = str(state.get("source_url") or "").strip()
+    if not source_url:
+        return {}
+    stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    store = str((stores or [""])[0] or "").strip()
+    try:
+        snapshot = _technical_durable_snapshot_row_v69171(source_url, store)
+    except Exception as error:
+        diagnostic_log(
+            "technical_confirmed_snapshot_failed_v69387",
+            error_type=type(error).__name__,
+            error=str(error)[:500],
+        )
+        return {}
+    if not isinstance(snapshot, dict):
+        return {}
+    file_id = str(state.get("file_id") or "").strip()
+    snapshot_file_id = str(snapshot.get("file_id") or "").strip()
+    if file_id and snapshot_file_id and file_id != snapshot_file_id:
+        return {}
+    return dict(snapshot)
+
+
+def _technical_confirmed_semantic_exact_images_v69387(prompt_text, state, max_images=2):
+    """Return only exact authored semantic image roles from the selected package."""
+    query_role = str(_website_image_query_role_v68884(prompt_text) or "").strip()
+    if not query_role:
+        return []
+    snapshot = _technical_confirmed_snapshot_v69387(state)
+    if not snapshot:
+        return []
+    semantics = dict(snapshot.get("atp_semantics_v69178") or {})
+    if not semantics:
+        semantics = _technical_package_atp_semantics_v69178(
+            snapshot.get("package_text") or ""
+        )
+    rows = [dict(row) for row in (semantics.get("images") or []) if isinstance(row, dict)]
+    if not rows:
+        return []
+
+    exact_role_rules = {
+        "car_model_ac": {
+            "roles": {"car-model-ac-settings-lvds-cable"},
+            "topic_keys": {"car-model-ac"},
+        },
+    }
+    rule = exact_role_rules.get(query_role)
+    if not rule:
+        return []
+
+    ranked = []
+    for row in rows:
+        role = str(row.get("data-atp-image-role") or "").casefold().strip()
+        topic_key = str(row.get("data-atp-topic-key") or "").casefold().strip()
+        topic = str(row.get("data-atp-topic") or "").casefold().strip()
+        if role not in rule["roles"] and topic_key not in rule["topic_keys"]:
+            continue
+        if query_role == "car_model_ac" and (
+            role == "lvds-cable-adapter-reference"
+            or topic_key == "lvds"
+            or topic == "lvds"
+        ):
+            continue
+
+        current = str(row.get("data-atp-current-source") or "").casefold().strip()
+        status = str(row.get("data-atp-source-status") or "").casefold().strip()
+        auto = str(row.get("data-atp-auto-display") or "").casefold().strip()
+        if current and current not in {"true", "1", "yes"}:
+            continue
+        if status and "current" not in status:
+            continue
+        if auto and auto not in {"true", "1", "yes"}:
+            continue
+
+        try:
+            state_year = int(state.get("year"))
+        except Exception:
+            state_year = None
+        try:
+            start = int(str(row.get("data-atp-year-start") or "").strip())
+            end = int(str(row.get("data-atp-year-end") or "").strip())
+        except Exception:
+            start = end = None
+        if state_year is not None and start is not None and end is not None:
+            if not (start <= state_year <= end):
+                continue
+
+        url = str(
+            row.get("data-atp-full-resolution-url")
+            or row.get("data-atp-canonical-image-url")
+            or row.get("src")
+            or ""
+        ).strip()
+        if not url.startswith("https://"):
+            continue
+
+        semantic_meta = {
+            str(k): str(v)
+            for k, v in row.items()
+            if str(k).startswith("data-atp-")
+        }
+        payload = {
+            "image_url": url,
+            "source_page": str(state.get("source_url") or ""),
+            "page_title": str(snapshot.get("title") or ""),
+            "section_heading": str(
+                row.get("data-atp-heading-title")
+                or row.get("data-atp-intent")
+                or "Car Model / A/C Settings"
+            ),
+            "nearby_instruction_text": str(row.get("data-atp-intent") or ""),
+            "caption": str(row.get("alt") or row.get("data-atp-intent") or ""),
+            "visual_analysis": (
+                "Exact authored Car Model / A/C settings selection screenshot"
+                if query_role == "car_model_ac"
+                else str(row.get("alt") or "")
+            ),
+            "atp_semantic_metadata_v69363": semantic_meta,
+        }
+        record = _website_image_record_for_chat_v68883(payload)
+        if not isinstance(record, dict):
+            continue
+        record["_technical_exact_semantic_payload_v69387"] = payload
+        record["technical_confirmed_package_image_v69382"] = True
+        record["technical_exact_semantic_role_v69387"] = query_role
+        record["technical_confirmed_package_label_v69382"] = str(state.get("label") or "")
+        record["technical_confirmed_package_file_id_v69382"] = str(state.get("file_id") or "")
+
+        try:
+            priority = int(row.get("data-atp-first-response-priority") or 0)
+        except Exception:
+            priority = 0
+        answer_role = str(row.get("data-atp-answer-role") or "").casefold().strip()
+        ranked.append((1 if answer_role == "primary-answer-image" else 0, priority, record))
+
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    output = [item[2] for item in ranked[:max(1, int(max_images or 1))]]
+    if output:
+        diagnostic_log(
+            "technical_confirmed_semantic_exact_images_v69387",
+            role=query_role,
+            published=len(output),
+            urls=[str(x.get("archive_web_url") or x.get("data_url") or "")[:500] for x in output],
+        )
+    return output
+
+
+def _technical_confirmed_source_limited_car_model_answer_v69387(prompt_text):
+    """Return a deterministic answer when the exact selected source forbids a profile guess."""
+    if str(_website_image_query_role_v68884(prompt_text) or "") != "car_model_ac":
+        return ""
+    state = _technical_confirmed_package_state_v69382(prompt_text)
+    if not state:
+        return ""
+    snapshot = _technical_confirmed_snapshot_v69387(state)
+    if not snapshot:
+        return ""
+
+    semantics = dict(snapshot.get("atp_semantics_v69178") or {})
+    if not semantics:
+        semantics = _technical_package_atp_semantics_v69178(snapshot.get("package_text") or "")
+    if not semantics:
+        return ""
+
+    root = dict(semantics.get("root") or {})
+    headings = [dict(row) for row in (semantics.get("headings") or []) if isinstance(row, dict)]
+    carriers = [root] + headings
+
+    source_limited = False
+    for row in carriers:
+        values = {
+            str(row.get("data-atp-car-model-ac-profile") or "").casefold().strip(),
+            str(row.get("data-atp-climate-profile") or "").casefold().strip(),
+        }
+        if values & {"source-not-defined", "not-defined", "unknown"}:
+            source_limited = True
+            break
+        publishable = str(row.get("data-atp-publishable-profile") or "").casefold().strip()
+        limitation = str(row.get("data-atp-source-limitation") or "").casefold()
+        if publishable in {"false", "0", "no"} and (
+            "car model" in limitation or "profile" in limitation
+        ):
+            source_limited = True
+            break
+    if not source_limited:
+        return ""
+
+    protocol = ""
+    password = ""
+    gmc_rule = ""
+    for row in carriers:
+        protocol = protocol or str(row.get("data-atp-protocol") or "").strip()
+        password = password or str(
+            row.get("data-atp-protocol-password")
+            or row.get("data-atp-setting-guide-password")
+            or ""
+        ).strip()
+        gmc_rule = gmc_rule or str(row.get("data-atp-gmc-profile-rule") or "").strip()
+
+    label = str(state.get("label") or "").strip()
+    family = str(state.get("family") or "").casefold().strip()
+    vehicle_name = {
+        "silverado": "Chevrolet Silverado",
+        "sierra": "GMC Sierra",
+    }.get(family, str(state.get("family") or "vehicle").replace("_", " ").title())
+    title = " / ".join(part for part in (label, vehicle_name) if part)
+
+    lines = [
+        f"## {title} Car Model Settings",
+        "",
+        "The current AutoTecPro source does **not** define one exact Car Model/A/C profile by model year, so I should not give you a guessed year-to-profile table.",
+        "",
+        "### Verified Settings",
+    ]
+    if protocol:
+        lines.append(f"- **Protocol:** {protocol}")
+    lines.append("- **Menu:** Settings → Systems → Setting Guide → Car Model/AC Model")
+    if password:
+        lines.append(f"- **Password:** {password}")
+    if family == "sierra" or "corresponding-silverado" in gmc_rule.casefold():
+        lines.append("- **GMC Sierra:** select the corresponding **Silverado** option in the Car Model/A/C menu.")
+
+    lines += ["", "### How to Set It", "1. Open **Settings**.", "2. Go to **Systems → Setting Guide → Car Model/AC Model**."]
+    next_num = 3
+    if password:
+        lines.append(f"{next_num}. Enter password **{password}**.")
+        next_num += 1
+    if protocol:
+        lines.append(f"{next_num}. Set **Protocol** to **{protocol}**.")
+        next_num += 1
+    lines += [
+        f"{next_num}. Choose the option that matches the vehicle’s **original factory screen** and **manual/automatic climate control**.",
+        f"{next_num + 1}. **Double-click** the selected option on the right side.",
+        f"{next_num + 2}. Allow the system to restart.",
+        "",
+        "If one matching option does not work correctly, try another matching option and restart again.",
+    ]
+    diagnostic_log(
+        "technical_source_limited_car_model_direct_v69387",
+        label=label[:120], family=family, protocol=protocol[:80],
+    )
+    return "\\n".join(lines)
+
+
+
 def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results=50):
     """Recover one selected package with one bounded vector search, then stop broad recovery.
 
@@ -88118,6 +88389,13 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
     source_url = str(state.get("source_url") or "").strip()
     if not source_url:
         return []
+
+    semantic_exact_v69387 = _technical_confirmed_semantic_exact_images_v69387(
+        prompt_text, state, max_images=1
+    )
+    if semantic_exact_v69387:
+        return semantic_exact_v69387
+
     try:
         matches, loaded_ok = _website_image_index_rows_for_page_v69003(
             {"source_url": source_url, "requested_url": source_url},
@@ -88226,7 +88504,24 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
         role = str(meta.get("data-atp-image-role") or payload.get("atp_image_role_v69178") or "").casefold().strip()
         section = str(meta.get("data-atp-section") or payload.get("atp_section_v69178") or payload.get("section_heading") or "").casefold().strip()
         topic = str(meta.get("data-atp-topic") or payload.get("atp_topic_v69178") or "").casefold().strip()
+        topic_key_v69387 = str(meta.get("data-atp-topic-key") or "").casefold().strip()
+        image_key_v69387 = str(meta.get("data-atp-image-key") or "").casefold().strip()
         fact_ids = str(meta.get("data-atp-fact-ids") or "").casefold()
+
+        if query_role_v69384 == "car_model_ac":
+            exact_car_model_v69387 = bool(
+                role == "car-model-ac-settings-lvds-cable"
+                or image_key_v69387 == "car-model-ac-settings-lvds-cable"
+                or topic_key_v69387 == "car-model-ac"
+            )
+            wrong_lvds_only_v69387 = bool(
+                role == "lvds-cable-adapter-reference"
+                or topic_key_v69387 == "lvds"
+                or topic == "lvds"
+            )
+            if not exact_car_model_v69387 or wrong_lvds_only_v69387:
+                continue
+
         if query_role_v69384 and query_role_v69384 != "audio":
             # v69384: once a deictic visual follow-up has inherited its active
             # subject, only an image from that exact authored subsection may win.
@@ -93559,10 +93854,21 @@ else:
                 technical_package_overlap_safe_answer_v69377
                 or technical_transition_safe_answer_v69374
             )
+            if not technical_preflight_safe_answer_v69377:
+                source_limited_car_model_v69387 = (
+                    _technical_confirmed_source_limited_car_model_answer_v69387(
+                        technical_request_prompt_v68879
+                    )
+                )
+                if source_limited_car_model_v69387:
+                    technical_preflight_safe_answer_v69377 = source_limited_car_model_v69387
 
+        # v69387: website learning is a user-authored command. Never inspect the
+        # augmented Technical request here because the case-lock appends an
+        # AUTHORITATIVE SOURCE URL to ordinary follow-ups.
         technical_website_learning_url_v68870 = (
             detect_technical_website_learning_command(
-                technical_request_prompt_v68879,
+                interaction_prompt,
                 assistant,
             )
         )
@@ -98327,7 +98633,11 @@ else:
         # package is stronger than broad topic ranking.  When that exact page has
         # authored first-response images, replace broad website candidates with the
         # exact page images before the unchanged v69363 absolute final gate.
-        if assistant == "🔧 Technical Support":
+        if (
+            assistant == "🔧 Technical Support"
+            and not bool(locals().get("explicit_learning_requested"))
+            and not bool(locals().get("technical_website_learning_requested_v68870"))
+        ):
             try:
                 confirmed_images_v69382 = _technical_confirmed_package_exact_images_v69382(
                     technical_request_prompt_v68879, max_images=2
