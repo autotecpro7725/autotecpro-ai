@@ -1,3 +1,4 @@
+# AutoTecPro AI v69396 - Sales follow-up authority reuse + canonical product dedupe + explicit-photo publication authority
 # AutoTecPro AI v69395 - universal source-driven Technical topic index + compact exact-context formatting
 # AutoTecPro AI v69394 - isolate raw user image intent + hard-lock confirmed snapshot fastpath + shrink exact context
 # AutoTecPro AI v69393 - unique-package auto-lock + exact visual terminal + current-source Car Model fastpath
@@ -12777,6 +12778,35 @@ def serialize_images_marker(images):
             error=str(fallback_error_v69297)[:300],
         )
         return ""
+
+
+
+def _workspace_product_page_identity_v69396(raw_url):
+    """Stable identity for one AutoTecPro /product/ page.
+
+    WooCommerce presentation/query tokens such as ?v= or ?currency= do not create
+    a different sellable product. The canonical product path is the authority.
+    Non-product URLs keep the existing canonical URL identity behavior.
+    """
+    value = str(raw_url or "").strip()
+    if not value:
+        return ""
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        host = (parsed.hostname or "").strip().casefold()
+        if host.startswith("www."):
+            host = host[4:]
+        path = re.sub(r"/+", "/", parsed.path or "/")
+        if path != "/":
+            path = path.rstrip("/")
+        if host in {"autotecpro.com"} and "/product/" in path.casefold():
+            return f"product:{host}{path.casefold()}"
+    except Exception:
+        pass
+    try:
+        return canonical_website_url_identity(value)
+    except Exception:
+        return value
 
 
 def _workspace_product_image_identity_v69346(image):
@@ -65490,10 +65520,11 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
         seen_source_ids_v69357 = set()
         for score_v69357, extracted_v69357, filename_v69357, package_v69357 in candidate_rows_v69357:
             source_v69357 = str(package_v69357.get("source_url") or "").strip()
-            try:
-                source_id_v69357 = canonical_website_url_identity(source_v69357) if source_v69357 else source_v69357
-            except Exception:
-                source_id_v69357 = source_v69357
+            source_id_v69357 = (
+                _workspace_product_page_identity_v69396(source_v69357)
+                if source_v69357
+                else source_v69357
+            )
             if source_id_v69357 in seen_source_ids_v69357:
                 continue
             seen_source_ids_v69357.add(source_id_v69357)
@@ -66179,6 +66210,7 @@ def _workspace_explicit_answer_image_recovery_v69120(
 
     records = []
     seen_records = set()
+    seen_record_urls_v69396 = set()
     for payload in candidate_payloads:
         # Keep the existing strict Technical payload authority. Sales/Marketing
         # retain explicit user vehicle/year fitment authority.
@@ -66198,13 +66230,19 @@ def _workspace_explicit_answer_image_recovery_v69120(
         record = _website_image_record_for_chat_v68883(payload)
         if not record:
             continue
+        record_url_v69396 = str(
+            record.get("archive_web_url") or record.get("data_url") or ""
+        ).strip()
+        if record_url_v69396 and record_url_v69396 in seen_record_urls_v69396:
+            continue
         identity = (
             str(record.get("website_image_sha256") or "").strip()
-            or str(record.get("archive_web_url") or "").strip()
-            or str(record.get("data_url") or "").strip()
+            or record_url_v69396
         )
         if identity and identity in seen_records:
             continue
+        if record_url_v69396:
+            seen_record_urls_v69396.add(record_url_v69396)
         if identity:
             seen_records.add(identity)
         record["website_explicit_answer_url_v69120"] = True
@@ -98772,68 +98810,171 @@ else:
                     workspace_atp_authority_v69180 = {}
                     if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
                         try:
-                            workspace_atp_authority_v69180 = _workspace_atp_metadata_fast_authority_v69180(
-                                assistant, interaction_prompt
+                            # v69396: identity-free follow-ups should reuse the exact
+                            # conversation-scoped product authority BEFORE issuing another
+                            # 3-query metadata/vector recovery. Any explicit new vehicle,
+                            # year, or product identity still fails this reuse gate and
+                            # resolves fresh through the unchanged metadata path.
+                            followup_authority_pre_v69396 = _workspace_atp_followup_authority_v69205(
+                                assistant,
+                                interaction_prompt,
+                                st.session_state.get("_workspace_last_atp_authority_v69205") or {},
+                                conversation_id=st.session_state.get("conversation_id"),
                             )
-                            if str(workspace_atp_authority_v69180.get("status") or "") in {"recovered", "recovered_multi"}:
-                                ai_request_prompt += str(workspace_atp_authority_v69180.get("context") or "")
-                                if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi":
-                                    exact_rows_v69180 = [dict(x) for x in (workspace_atp_authority_v69180.get("rows") or []) if isinstance(x, dict)]
+                            if str(followup_authority_pre_v69396.get("status") or "") in {
+                                "recovered", "recovered_multi"
+                            }:
+                                workspace_atp_authority_v69180 = followup_authority_pre_v69396
+                                ai_request_prompt += str(
+                                    workspace_atp_authority_v69180.get("context") or ""
+                                )
+                                followup_status_v69396 = str(
+                                    workspace_atp_authority_v69180.get("status") or ""
+                                )
+                                if followup_status_v69396 == "recovered_multi":
+                                    exact_rows_v69396 = [
+                                        dict(x)
+                                        for x in (
+                                            workspace_atp_authority_v69180.get("rows") or []
+                                        )
+                                        if isinstance(x, dict)
+                                    ]
+                                    if exact_rows_v69396:
+                                        st.session_state[
+                                            "_workspace_file_search_results_v69040"
+                                        ] = exact_rows_v69396
                                 else:
-                                    exact_row_v69180 = dict(workspace_atp_authority_v69180.get("row") or {})
-                                    exact_rows_v69180 = [exact_row_v69180] if exact_row_v69180 else []
-                                if exact_rows_v69180:
-                                    st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69180
-                                destination_v69205 = str(workspace_atp_authority_v69180.get("destination") or "")
-                                st.session_state["_workspace_last_atp_authority_v69205"] = {
-                                    "workspace": str(assistant),
-                                    "conversation_id": str(st.session_state.get("conversation_id") or ""),
-                                    "destination": destination_v69205,
-                                    "revision": int(_website_destination_revision_v69109(destination_v69205) or 0),
-                                    "authority": dict(workspace_atp_authority_v69180),
-                                }
-                                # Keep the existing Sales/Marketing multi-store file_search enabled.
-                                # ATP metadata is priority context, not a replacement for the established
-                                # Sales→Technical and Marketing→Sales→Technical retrieval contracts.
+                                    exact_row_v69396 = dict(
+                                        workspace_atp_authority_v69180.get("row") or {}
+                                    )
+                                    if exact_row_v69396:
+                                        st.session_state[
+                                            "_workspace_file_search_results_v69040"
+                                        ] = [exact_row_v69396]
+
+                                explicit_visual_followup_v69396 = bool(
+                                    _website_image_explicit_visual_request_v68888(
+                                        interaction_prompt
+                                    )
+                                )
+                                if explicit_visual_followup_v69396:
+                                    # The exact current product package(s) already carry
+                                    # their image authority. A broad provider file_search
+                                    # cannot improve a pure photo follow-up and can only
+                                    # introduce unrelated sibling products.
+                                    use_file_search = False
+
                                 diagnostic_log(
-                                    "workspace_atp_metadata_first_bound_v69180",
+                                    "workspace_atp_followup_presearch_reused_v69396",
                                     workspace=str(assistant),
-                                    destination=destination_v69205,
-                                    source_url=str(workspace_atp_authority_v69180.get("source_url") or "")[:600],
-                                    score=int(workspace_atp_authority_v69180.get("score") or 0),
-                                    product_count=len(workspace_atp_authority_v69180.get("packages") or []) if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi" else 1,
+                                    destination=str(
+                                        workspace_atp_authority_v69180.get(
+                                            "destination"
+                                        ) or ""
+                                    ),
+                                    status=followup_status_v69396,
+                                    product_count=(
+                                        len(
+                                            workspace_atp_authority_v69180.get(
+                                                "packages"
+                                            ) or []
+                                        )
+                                        if followup_status_v69396 == "recovered_multi"
+                                        else 1
+                                    ),
+                                    explicit_visual=explicit_visual_followup_v69396,
+                                    use_file_search=bool(use_file_search),
                                 )
                             else:
-                                followup_authority_v69205 = _workspace_atp_followup_authority_v69205(
-                                    assistant,
-                                    interaction_prompt,
-                                    st.session_state.get("_workspace_last_atp_authority_v69205") or {},
-                                    conversation_id=st.session_state.get("conversation_id"),
+                                workspace_atp_authority_v69180 = (
+                                    _workspace_atp_metadata_fast_authority_v69180(
+                                        assistant, interaction_prompt
+                                    )
                                 )
-                                if str(followup_authority_v69205.get("status") or "") in {"recovered", "recovered_multi"}:
-                                    workspace_atp_authority_v69180 = followup_authority_v69205
-                                    ai_request_prompt += str(workspace_atp_authority_v69180.get("context") or "")
-                                    followup_status_v69338 = str(workspace_atp_authority_v69180.get("status") or "")
-                                    if followup_status_v69338 == "recovered_multi":
-                                        exact_rows_v69338 = [dict(x) for x in (workspace_atp_authority_v69180.get("rows") or []) if isinstance(x, dict)]
-                                        if exact_rows_v69338:
-                                            st.session_state["_workspace_file_search_results_v69040"] = exact_rows_v69338
-                                        diagnostic_log(
-                                            "workspace_atp_followup_multi_authority_reused_v69338",
-                                            workspace=str(assistant),
-                                            destination=str(workspace_atp_authority_v69180.get("destination") or ""),
-                                            product_count=len(workspace_atp_authority_v69180.get("packages") or []),
-                                        )
+                                if str(
+                                    workspace_atp_authority_v69180.get("status") or ""
+                                ) in {"recovered", "recovered_multi"}:
+                                    ai_request_prompt += str(
+                                        workspace_atp_authority_v69180.get("context") or ""
+                                    )
+                                    if str(
+                                        workspace_atp_authority_v69180.get("status") or ""
+                                    ) == "recovered_multi":
+                                        exact_rows_v69180 = [
+                                            dict(x)
+                                            for x in (
+                                                workspace_atp_authority_v69180.get(
+                                                    "rows"
+                                                ) or []
+                                            )
+                                            if isinstance(x, dict)
+                                        ]
                                     else:
-                                        exact_row_v69205 = dict(workspace_atp_authority_v69180.get("row") or {})
-                                        if exact_row_v69205:
-                                            st.session_state["_workspace_file_search_results_v69040"] = [exact_row_v69205]
-                                        diagnostic_log(
-                                            "workspace_atp_followup_authority_reused_v69205",
-                                            workspace=str(assistant),
-                                            destination=str(workspace_atp_authority_v69180.get("destination") or ""),
-                                            source_url=str(workspace_atp_authority_v69180.get("source_url") or "")[:600],
+                                        exact_row_v69180 = dict(
+                                            workspace_atp_authority_v69180.get("row")
+                                            or {}
                                         )
+                                        exact_rows_v69180 = (
+                                            [exact_row_v69180]
+                                            if exact_row_v69180
+                                            else []
+                                        )
+                                    if exact_rows_v69180:
+                                        st.session_state[
+                                            "_workspace_file_search_results_v69040"
+                                        ] = exact_rows_v69180
+                                    destination_v69205 = str(
+                                        workspace_atp_authority_v69180.get(
+                                            "destination"
+                                        ) or ""
+                                    )
+                                    st.session_state[
+                                        "_workspace_last_atp_authority_v69205"
+                                    ] = {
+                                        "workspace": str(assistant),
+                                        "conversation_id": str(
+                                            st.session_state.get(
+                                                "conversation_id"
+                                            ) or ""
+                                        ),
+                                        "destination": destination_v69205,
+                                        "revision": int(
+                                            _website_destination_revision_v69109(
+                                                destination_v69205
+                                            ) or 0
+                                        ),
+                                        "authority": dict(
+                                            workspace_atp_authority_v69180
+                                        ),
+                                    }
+                                    diagnostic_log(
+                                        "workspace_atp_metadata_first_bound_v69180",
+                                        workspace=str(assistant),
+                                        destination=destination_v69205,
+                                        source_url=str(
+                                            workspace_atp_authority_v69180.get(
+                                                "source_url"
+                                            ) or ""
+                                        )[:600],
+                                        score=int(
+                                            workspace_atp_authority_v69180.get(
+                                                "score"
+                                            ) or 0
+                                        ),
+                                        product_count=(
+                                            len(
+                                                workspace_atp_authority_v69180.get(
+                                                    "packages"
+                                                ) or []
+                                            )
+                                            if str(
+                                                workspace_atp_authority_v69180.get(
+                                                    "status"
+                                                ) or ""
+                                            ) == "recovered_multi"
+                                            else 1
+                                        ),
+                                    )
                         except Exception as error_v69180:
                             workspace_atp_authority_v69180 = {}
                             diagnostic_log(
@@ -100107,7 +100248,37 @@ else:
                     )
                 )
                 if explicit_images_v69120:
-                    generated_images.extend(explicit_images_v69120)
+                    if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
+                        broad_website_count_v69396 = len([
+                            image
+                            for image in (generated_images or [])
+                            if (
+                                isinstance(image, dict)
+                                and str(image.get("source") or "")
+                                == "website_knowledge"
+                            )
+                        ])
+                        non_website_images_v69396 = [
+                            image
+                            for image in (generated_images or [])
+                            if not (
+                                isinstance(image, dict)
+                                and str(image.get("source") or "")
+                                == "website_knowledge"
+                            )
+                        ]
+                        generated_images = (
+                            non_website_images_v69396
+                            + list(explicit_images_v69120)
+                        )
+                        diagnostic_log(
+                            "workspace_explicit_answer_images_replace_broad_v69396",
+                            workspace=str(assistant),
+                            exact_images=len(explicit_images_v69120),
+                            removed_broad=broad_website_count_v69396,
+                        )
+                    else:
+                        generated_images.extend(explicit_images_v69120)
                     generated_images = _dedupe_website_chat_images_v68883(
                         generated_images
                     )
