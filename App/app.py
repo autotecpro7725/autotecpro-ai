@@ -1,3 +1,4 @@
+# AutoTecPro AI v69394 - isolate raw user image intent + hard-lock confirmed snapshot fastpath + shrink exact context
 # AutoTecPro AI v69393 - unique-package auto-lock + exact visual terminal + current-source Car Model fastpath
 # AutoTecPro AI v69392 - confirmed-package snapshot fastpath + semantic image fastpath
 # AutoTecPro AI v69391 - shared-screen Technical source must never ask 15.6 vs 17
@@ -88749,10 +88750,11 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
                 ):
                     continue
                 local_parts_v69392.append(str(candidate_v69392).strip())
+            local_excerpt_budget_v69394 = 12000
             local_excerpt_v69392 = (
                 "\n\n--- EXACT LOCAL SECTION SUPPORT ---\n\n".join(
                     local_parts_v69392
-                )[:24000]
+                )[:local_excerpt_budget_v69394]
             )
             if not local_excerpt_v69392:
                 try:
@@ -88769,7 +88771,7 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
                     "file_id": file_id or snapshot_file_v69392,
                     "filename": str(snapshot_v69392.get("filename") or ""),
                     "score": 1.0,
-                    "text": local_excerpt_v69392[:24000],
+                    "text": local_excerpt_v69392[:local_excerpt_budget_v69394],
                     "technical_confirmed_snapshot_fast_v69392": True,
                 }
                 result_v69392 = {
@@ -88790,7 +88792,7 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
                           "source for package-specific facts. Preserve authored branch "
                           "rules and troubleshooting order. Do not broaden to another "
                           "generation or product.\n\n"
-                        + local_excerpt_v69392[:24000]
+                        + local_excerpt_v69392[:local_excerpt_budget_v69394]
                     ),
                 }
                 diagnostic_log(
@@ -88870,6 +88872,42 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
 
 
 
+
+
+
+def _technical_user_intent_prompt_v69394(prompt_text):
+    """Return only the user-authored turn/topic for classifiers and image routing.
+
+    Technical request prompts intentionally carry internal package-lock directives.
+    Those directives include words such as "harness" and "amplifier" and must never
+    be interpreted as things the customer asked to see.
+    """
+    value = str(prompt_text or "").strip()
+    if not value:
+        return ""
+
+    marker = "USER-CONFIRMED TECHNICAL PACKAGE:"
+    if marker in value:
+        value = value.split(marker, 1)[0].strip()
+
+    visual_marker = "FOLLOW-UP VISUAL REQUEST:"
+    if visual_marker in value:
+        followup = value.rsplit(visual_marker, 1)[-1].strip()
+        if followup:
+            return re.sub(r"\s+", " ", followup).strip()
+
+    for internal_marker in (
+        "AUTHORITATIVE SHARED-SCREEN NOTE:",
+        "USER-PROVIDED CASE DETAIL:",
+        "SOURCE-LOCK RULES:",
+        "CASE-LOCK RULE:",
+        "AUTHORITATIVE SOURCE URL:",
+        "AUTHORITATIVE FILE ID:",
+    ):
+        if internal_marker in value:
+            value = value.split(internal_marker, 1)[0].strip()
+
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def _technical_confirmed_car_model_fast_image_v69393(prompt_text, state):
@@ -89021,7 +89059,7 @@ def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_ima
     """
     if not isinstance(state, dict):
         return []
-    prompt_raw = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    prompt_raw = _technical_user_intent_prompt_v69394(prompt_text)
     prompt_cf = prompt_raw.casefold()
     query_role = str(_website_image_query_role_v68884(prompt_raw) or "").strip()
 
@@ -95062,9 +95100,12 @@ else:
                         technical_request_prompt_v68879
                     )
                     if visual_state_v69393:
+                        visual_intent_v69394 = _technical_user_intent_prompt_v69394(
+                            technical_request_prompt_v68879
+                        )
                         technical_visual_direct_images_v69393 = (
                             _technical_confirmed_semantic_fast_images_v69392(
-                                technical_request_prompt_v68879,
+                                visual_intent_v69394,
                                 visual_state_v69393,
                                 max_images=1,
                             )
@@ -95113,7 +95154,9 @@ else:
                 technical_visual_direct_images_v69393 = (
                     _technical_final_publication_filter_v69363(
                         technical_visual_direct_images_v69393,
-                        technical_request_prompt_v68879,
+                        _technical_user_intent_prompt_v69394(
+                            technical_request_prompt_v68879
+                        ),
                         visual_answer_v69393,
                         diagnostic_event="technical_visual_direct_image_gate_v69393",
                     )
@@ -95392,15 +95435,22 @@ else:
         # before stream-ready while hydrating the overlapping 2019 configuration
         # packages. Normal Technical file_search already owns factual troubleshooting
         # authority, so keep the expensive compiled path strictly configuration-only.
+        technical_user_intent_v69394 = (
+            _technical_user_intent_prompt_v69394(technical_request_prompt_v68879)
+            if assistant == "🔧 Technical Support"
+            else str(interaction_prompt or "")
+        )
         technical_configuration_request_v69375 = bool(
             assistant == "🔧 Technical Support"
             and _technical_configuration_query_v69155(
-                technical_request_prompt_v68879
+                technical_user_intent_v69394
             )
         )
         technical_gm_generation_direct_v69376 = bool(
             assistant == "🔧 Technical Support"
-            and _technical_gm_generation_direct_v69376(technical_request_prompt_v68879)
+            and _technical_gm_generation_direct_v69376(
+                technical_user_intent_v69394
+            )
         )
         if technical_gm_generation_direct_v69376:
             diagnostic_log(
@@ -96669,20 +96719,18 @@ else:
                     ai_request_prompt += build_graphic_project_context()
 
                 if assistant == "🔧 Technical Support":
-                    active_admin_rows_v69113 = list(
-                        (
-                            st.session_state.get(
-                                "_technical_active_admin_package_v69113"
-                            )
-                            or {}
-                        ).get("rows") or []
-                    )
-                    st.session_state["_technical_file_search_results_v69012"] = (
-                        active_admin_rows_v69113[:12]
-                    )
-                if not is_graphic_workspace(assistant):
-                    active_workspace_rows_v69113 = (
-                        list(
+                    confirmed_direct_rows_v69394 = [
+                        dict(row)
+                        for row in (
+                            (locals().get("technical_confirmed_package_direct_v69382") or {}).get("rows")
+                            or []
+                        )
+                        if isinstance(row, dict)
+                    ]
+                    if confirmed_direct_rows_v69394:
+                        active_admin_rows_v69113 = confirmed_direct_rows_v69394
+                    else:
+                        active_admin_rows_v69113 = list(
                             (
                                 st.session_state.get(
                                     "_technical_active_admin_package_v69113"
@@ -96690,8 +96738,38 @@ else:
                                 or {}
                             ).get("rows") or []
                         )
-                        if assistant == "🔧 Technical Support"
-                        else []
+                    st.session_state["_technical_file_search_results_v69012"] = (
+                        active_admin_rows_v69113[:12]
+                    )
+                if not is_graphic_workspace(assistant):
+                    active_workspace_rows_v69113 = (
+                        [
+                            dict(row)
+                            for row in (
+                                (locals().get("technical_confirmed_package_direct_v69382") or {}).get("rows")
+                                or []
+                            )
+                            if isinstance(row, dict)
+                        ]
+                        if (
+                            assistant == "🔧 Technical Support"
+                            and str(
+                                (locals().get("technical_confirmed_package_direct_v69382") or {}).get("status")
+                                or ""
+                            ) == "recovered"
+                        )
+                        else (
+                            list(
+                                (
+                                    st.session_state.get(
+                                        "_technical_active_admin_package_v69113"
+                                    )
+                                    or {}
+                                ).get("rows") or []
+                            )
+                            if assistant == "🔧 Technical Support"
+                            else []
+                        )
                     )
                     st.session_state["_workspace_file_search_results_v69040"] = (
                         active_workspace_rows_v69113[:12]
@@ -96781,6 +96859,38 @@ else:
                                     ) or ""
                                 )[:120],
                             )
+
+                    # v69394: exact confirmed-package evidence is already attached to
+                    # ai_request_prompt. Legacy compatibility branches must not re-enable
+                    # provider file_search after that exact authority has been recovered.
+                    confirmed_direct_final_v69394 = dict(
+                        locals().get("technical_confirmed_package_direct_v69382") or {}
+                    )
+                    if (
+                        assistant == "🔧 Technical Support"
+                        and str(confirmed_direct_final_v69394.get("status") or "") == "recovered"
+                    ):
+                        use_file_search = False
+                        final_direct_rows_v69394 = [
+                            dict(row)
+                            for row in (confirmed_direct_final_v69394.get("rows") or [])
+                            if isinstance(row, dict)
+                        ]
+                        if final_direct_rows_v69394:
+                            st.session_state["_technical_file_search_results_v69012"] = (
+                                final_direct_rows_v69394[:12]
+                            )
+                            st.session_state["_workspace_file_search_results_v69040"] = (
+                                final_direct_rows_v69394[:12]
+                            )
+                        diagnostic_log(
+                            "technical_confirmed_package_file_search_locked_v69394",
+                            source=str(
+                                confirmed_direct_final_v69394.get("source_v69392") or ""
+                            )[:80],
+                            rows=len(final_direct_rows_v69394),
+                            use_file_search=False,
+                        )
 
                     try:
                         diagnostic_log(
@@ -97222,7 +97332,7 @@ else:
                             or ""
                         ) != "section"
                         and _technical_configuration_query_v69155(
-                            technical_request_prompt_v68879
+                            technical_user_intent_v69394
                         )
                     )
 
@@ -98835,10 +98945,13 @@ else:
                 confirmed_state_fast_v69392 = _technical_confirmed_package_state_v69382(
                     technical_request_prompt_v68879
                 )
+                technical_image_intent_v69394 = _technical_user_intent_prompt_v69394(
+                    technical_request_prompt_v68879
+                )
                 if confirmed_state_fast_v69392:
                     technical_confirmed_package_fast_images_v69392 = (
                         _technical_confirmed_semantic_fast_images_v69392(
-                            technical_request_prompt_v68879,
+                            technical_image_intent_v69394,
                             confirmed_state_fast_v69392,
                             max_images=2,
                         )
@@ -98847,7 +98960,7 @@ else:
                         technical_confirmed_package_fast_images_v69392 = (
                             _technical_final_publication_filter_v69363(
                                 technical_confirmed_package_fast_images_v69392,
-                                technical_request_prompt_v68879,
+                                technical_image_intent_v69394,
                                 answer,
                                 diagnostic_event=(
                                     "technical_confirmed_semantic_fast_gate_v69392"
