@@ -1,3 +1,4 @@
+# AutoTecPro AI v69406 - generic sibling-product completeness recovery
 # AutoTecPro AI v69405 - partial topical publication + fast first-turn fitment + Marketing parity
 # AutoTecPro AI v69404 - human customer voice + Sales/Marketing visual wording
 # AutoTecPro AI v69403 - Sales follow-up routing + topical fail-closed + visual provider bypass + restored prewarm hardening
@@ -68,8 +69,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69405"
-AUTOTECPRO_RELEASE_BUILD = "v69405-partial-topical-fast-fitment-20260921"
+AUTOTECPRO_RELEASE_VERSION = "v69406"
+AUTOTECPRO_RELEASE_BUILD = "v69406-generic-sibling-completeness-20260921"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -307,7 +308,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69405",
+        "app_release_v69406",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -63893,6 +63894,62 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
     return packages
 
 
+def _workspace_atp_recovery_queries_v69406(prompt_text):
+    """Build a bounded source-driven query plan for exact current-product recovery."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return []
+
+    prompt_cf = prompt.casefold()
+    families = set(_website_identity_vehicle_families_v69022(prompt))
+    years = set(_website_identity_years_v69022(prompt))
+    discovery_intent = bool(re.search(
+        r"\b(offer|offers|carry|available|have|screen|radio|stereo|"
+        r"infotainment|navigation|head unit|unit|model|models|option|options|"
+        r"fit|fits|support|supports|compatible|compatibility|which|what)\b",
+        prompt_cf,
+    ))
+    broad_vehicle_discovery = bool(families and years and discovery_intent)
+
+    queries = [
+        prompt,
+        prompt + " AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE Final source URL Page title current product",
+    ]
+
+    if broad_vehicle_discovery:
+        queries.extend([
+            (
+                prompt
+                + " same vehicle same year alternate current product options "
+                "screen size factory radio system version"
+            ),
+            (
+                prompt
+                + " same vehicle same year current product original factory "
+                "screen radio dashboard climate configuration"
+            ),
+        ])
+    else:
+        queries.append(
+            prompt
+            + " ATP_IMAGE_ROLE_V69178 primary-product-image AUTO_DISPLAY_IMAGE"
+        )
+
+    if re.search(r"\b(model|fit|fits|support|compatible|platform|android)\b", prompt_cf):
+        queries.append(prompt + " Android 13 Android 14 current product")
+
+    deduped = []
+    seen = set()
+    for query in queries:
+        normalized = re.sub(r"\s+", " ", str(query or "")).strip()
+        key = normalized.casefold()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(normalized)
+    return deduped[:5]
+
+
 @st.cache_data(ttl=90, max_entries=96, show_spinner=False)
 def _workspace_atp_turn_local_recovery_v69338(destination, prompt_text):
     """Bounded cold-start recovery that queries the configured vector store, never downloads assistants files."""
@@ -63901,16 +63958,17 @@ def _workspace_atp_turn_local_recovery_v69338(destination, prompt_text):
     stores=_configured_vector_store_ids(mapping.get(target,""))
     if not stores or not prompt: return []
     store=str(stores[0] or "").strip()
-    queries=[
-        prompt,
-        prompt + " AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE Final source URL Page title current product",
-        prompt + " ATP_IMAGE_ROLE_V69178 primary-product-image AUTO_DISPLAY_IMAGE",
-    ]
-    # Automotive infotainment sibling versions are often differentiated by platform generation;
-    # issue platform queries only when the retrieved corpus can prove them, never as assumed facts.
-    if re.search(r"\b(model|fit|fits|support|compatible)\b", prompt.casefold()):
-        queries += [prompt + " Android 13 current product", prompt + " Android 14 current product"]
+    queries = _workspace_atp_recovery_queries_v69406(prompt)
     merged=[]; seen=set()
+    diagnostic_log(
+        "workspace_atp_recovery_query_plan_v69406",
+        destination=target,
+        query_count=len(queries),
+        sibling_completeness=any(
+            "alternate current product options" in str(q).casefold()
+            for q in queries
+        ),
+    )
 
     # v69356: these vector searches are independent evidence queries. Run them concurrently
     # with a small bounded worker pool, then merge results in the exact original query order.
