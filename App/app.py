@@ -1,3 +1,4 @@
+# AutoTecPro AI v69400 - Sales product-identity consistency + exact-authority provider lock + bounded chat resilience + cold-path stability
 # AutoTecPro AI v69399 - metadata-driven Sales compatibility-photo routing + preserve normal multi-product hero behavior
 # AutoTecPro AI v69398 - exact Sales primary-photo final lock + multi-product hero preservation + explicit-photo repeat allowance
 # AutoTecPro AI v69397 - preserve exact Sales WooCommerce hero provenance through final publication gate
@@ -62,8 +63,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69362"
-AUTOTECPRO_RELEASE_BUILD = "v69362-technical-vehicle-identity-lock-20260917"
+AUTOTECPRO_RELEASE_VERSION = "v69400"
+AUTOTECPRO_RELEASE_BUILD = "v69400-sales-identity-speed-stability-20260921"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -279,6 +280,83 @@ def diagnostic_log(event, **fields):
     except Exception:
         # Diagnostics must never affect application behavior.
         pass
+
+
+OPENAI_CHAT_TIMEOUT_SECONDS_V69400 = 45.0
+
+
+@st.cache_resource(show_spinner=False)
+def _runtime_source_sha_v69400(source_path):
+    try:
+        return hashlib.sha256(Path(str(source_path)).read_bytes()).hexdigest()[:12]
+    except Exception:
+        return "unavailable"
+
+
+def _log_runtime_release_v69400():
+    marker = f"{AUTOTECPRO_RELEASE_VERSION}|{AUTOTECPRO_RELEASE_BUILD}"
+    try:
+        if str(st.session_state.get("_app_release_logged_v69400") or "") == marker:
+            return
+        st.session_state["_app_release_logged_v69400"] = marker
+    except Exception:
+        pass
+    diagnostic_log(
+        "app_release_v69400",
+        release=AUTOTECPRO_RELEASE_VERSION,
+        build=AUTOTECPRO_RELEASE_BUILD,
+        source_sha=_runtime_source_sha_v69400(__file__),
+    )
+
+
+def _openai_chat_client_v69400():
+    """Bound ordinary chat networking without touching Graphic-specific clients."""
+    try:
+        return client.with_options(timeout=OPENAI_CHAT_TIMEOUT_SECONDS_V69400)
+    except Exception:
+        return client
+
+
+def _openai_transient_pre_token_error_v69400(error):
+    """True only for failures safe to retry before any answer text is emitted."""
+    if error is None:
+        return False
+
+    name = type(error).__name__.casefold()
+    message = str(error or "").casefold()
+    status = getattr(error, "status_code", None)
+    try:
+        status = int(status) if status is not None else None
+    except Exception:
+        status = None
+
+    if status is not None and 400 <= status < 500 and status not in {408, 409, 429}:
+        return False
+    if any(token in name for token in (
+        "badrequest", "authentication", "permission", "notfound", "unprocessable",
+    )):
+        return False
+    if any(token in message for token in (
+        "invalid_request", "invalid request", "authentication",
+        "permission denied", "unauthorized", "forbidden",
+    )):
+        return False
+
+    if status in {408, 409, 429} or (status is not None and status >= 500):
+        return True
+    if name in {
+        "apierror", "apiconnectionerror", "apitimeouterror",
+        "ratelimiterror", "internalservererror",
+    }:
+        return True
+    return any(token in message for token in (
+        "timed out", "timeout", "connection reset", "connection aborted",
+        "connection error", "temporarily unavailable", "service unavailable",
+        "gateway timeout", "rate limit",
+    ))
+
+
+_log_runtime_release_v69400()
 
 
 # ============================================================
@@ -9277,6 +9355,31 @@ def switch_workspace(assistant_name):
                 error_type=type(prewarm_error_v69360).__name__,
             )
 
+    if assistant_name in {"📈 Sales", "📣 Marketing"}:
+        destination_v69400 = (
+            "Sales Database" if assistant_name == "📈 Sales"
+            else "Marketing Database"
+        )
+        st.session_state["_workspace_atp_entry_prewarm_v69400"] = destination_v69400
+        try:
+            prewarm_v69400 = globals().get(
+                "_workspace_atp_package_prewarm_start_v69180"
+            )
+            if callable(prewarm_v69400):
+                prewarm_v69400(destination_v69400)
+                diagnostic_log(
+                    "workspace_atp_entry_prewarm_started_v69400",
+                    workspace=assistant_name,
+                    destination=destination_v69400,
+                )
+        except Exception as prewarm_error_v69400:
+            diagnostic_log(
+                "workspace_atp_entry_prewarm_failed_v69400",
+                workspace=assistant_name,
+                destination=destination_v69400,
+                error_type=type(prewarm_error_v69400).__name__,
+            )
+
     # A pending Technical-photo clarification belongs to the old case/workspace.
     # Clear it on workspace navigation so it cannot bleed into a later case.
     st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
@@ -12816,6 +12919,43 @@ def _workspace_product_page_identity_v69396(raw_url):
         return canonical_website_url_identity(value)
     except Exception:
         return value
+
+
+def _workspace_sales_authority_complete_v69400(authority):
+    """True only when exact current Sales authority fully supplies its product set."""
+    authority = dict(authority or {})
+    if str(authority.get("destination") or "") != "Sales Database":
+        return False
+    status = str(authority.get("status") or "")
+    if status not in {"recovered", "recovered_multi"}:
+        return False
+    if not str(authority.get("context") or "").strip():
+        return False
+
+    if status == "recovered_multi":
+        packages = [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
+        rows = [dict(x) for x in (authority.get("rows") or []) if isinstance(x, dict)]
+        if not packages or len(rows) < len(packages):
+            return False
+    else:
+        package = dict(authority.get("package") or {})
+        row = dict(authority.get("row") or {})
+        packages = [package] if package else []
+        rows = [row] if row else []
+        if not packages or not rows:
+            return False
+
+    for package in packages:
+        if str(package.get("destination") or "") != "Sales Database":
+            return False
+        if not str(package.get("source_url") or "").strip():
+            return False
+        if not (
+            isinstance(package.get("atp_semantics_v69178"), dict)
+            or str(package.get("package_text") or "").strip()
+        ):
+            return False
+    return True
 
 
 def _workspace_product_image_identity_v69346(image):
@@ -42343,11 +42483,10 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
     rows = []
     max_schema_repairs = 6
     for schema_attempt in range(max_schema_repairs):
-        selected_columns = [c for c in base_columns if c not in missing_columns]
         try:
             query = (
                 supabase.table("learned_knowledge")
-                .select(",".join(selected_columns))
+                .select("*")
                 .eq("source_conversation_id", conversation_id)
                 .eq("assistant", clean_assistant)
                 .order("updated_at", desc=True)
@@ -42355,9 +42494,29 @@ def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
                 .execute()
             )
             rows = [dict(row or {}) for row in list(query.data or [])]
+            observed_columns_v69400 = set()
             for row in rows:
-                for optional in ("record_type", "staff_confirmed", "source_type", "confidence_score"):
-                    row.setdefault(optional, "" if optional != "staff_confirmed" else False)
+                observed_columns_v69400.update(str(key) for key in row.keys())
+            for optional in ("record_type", "staff_confirmed", "source_type", "confidence_score"):
+                if rows and optional not in observed_columns_v69400:
+                    missing_columns.add(optional)
+                for row in rows:
+                    row.setdefault(
+                        optional,
+                        "" if optional != "staff_confirmed" else False,
+                    )
+            if rows:
+                diagnostic_log(
+                    "recent_case_learned_context_schema_star_v69400",
+                    row_count=len(rows),
+                    optional_missing=sorted(
+                        x for x in (
+                            "record_type", "staff_confirmed",
+                            "source_type", "confidence_score",
+                        )
+                        if x in missing_columns
+                    ),
+                )
             if missing_columns:
                 diagnostic_log(
                     "recent_case_learned_context_schema_compatible_v69262",
@@ -46319,173 +46478,196 @@ def _stream_one_ai_response(request):
     """
     Yield text for one Responses API call and return its final response object.
 
-    The generator return value is captured with ``yield from`` by ask_ai_stream.
-    A single safe retry is allowed when the API rejects a request containing
-    file_search. This keeps normal Graphic Chat available even when a configured
-    vector store or multi-tool combination is temporarily invalid.
+    Existing file_search bad-request safety is preserved. v69400 adds one bounded
+    identical retry for a transient failure only before any answer text is emitted.
     """
     active_request = dict(request or {})
     retried_without_file_search = False
     retried_without_file_search_results_include_v69012 = False
+    transient_pre_token_retry_used_v69400 = False
+    chat_client_v69400 = _openai_chat_client_v69400()
 
     while True:
-        try:
-            stream = client.responses.create(
-                **active_request,
-                stream=True,
-            )
-            break
-        except TypeError as error:
-            error_text = str(error or "").lower()
-            if "stream" in error_text and (
-                "unexpected keyword" in error_text
-                or "unexpected argument" in error_text
-                or "not supported" in error_text
-            ):
-                raise _StreamingNotSupportedError(str(error)) from error
-            raise
-        except Exception as error:
-            has_file_search = any(
-                isinstance(tool, dict) and tool.get("type") == "file_search"
-                for tool in (active_request.get("tools") or [])
-            )
-            if _is_openai_bad_request(error) and has_file_search:
-                if (
-                    "file_search_call.results" in (active_request.get("include") or [])
-                    and not retried_without_file_search_results_include_v69012
+        while True:
+            try:
+                stream = chat_client_v69400.responses.create(
+                    **active_request,
+                    stream=True,
+                )
+                break
+            except TypeError as error:
+                error_text = str(error or "").lower()
+                if "stream" in error_text and (
+                    "unexpected keyword" in error_text
+                    or "unexpected argument" in error_text
+                    or "not supported" in error_text
                 ):
-                    fallback_rows_v69047 = _website_request_vector_search_rows_v69047(
-                        active_request
-                    )
-                    if fallback_rows_v69047:
-                        _capture_file_search_rows_v69047(fallback_rows_v69047)
-                    diagnostic_log(
-                        "responses_bad_request_file_search_results_include_retry_v69012",
-                        workspace=str(assistant),
-                        error_type=type(error).__name__,
-                        recovered_rows=len(fallback_rows_v69047),
-                    )
-                    active_request = _request_without_file_search_results_include_v69012(
-                        active_request
-                    )
-                    retried_without_file_search_results_include_v69012 = True
-                    continue
-                if not retried_without_file_search:
-                    # v69193 all-workspace authority protection: after the
-                    # optional file_search results include has already been
-                    # removed once, a remaining file_search bad request must
-                    # fail closed for every conversational workspace. Never
-                    # remove the workspace's internal vector-store authority
-                    # and return a provider-only answer that looks normal.
-                    protected_workspace_v69193 = bool(
-                        str(assistant or "") in {
-                            "🔧 Technical Support",
-                            "📈 Sales",
-                            "📣 Marketing",
-                            "🎨 Graphic Marketing",
-                        }
-                    )
-                    if protected_workspace_v69193:
+                    raise _StreamingNotSupportedError(str(error)) from error
+                raise
+            except Exception as error:
+                has_file_search = any(
+                    isinstance(tool, dict) and tool.get("type") == "file_search"
+                    for tool in (active_request.get("tools") or [])
+                )
+                if _is_openai_bad_request(error) and has_file_search:
+                    if (
+                        "file_search_call.results"
+                        in (active_request.get("include") or [])
+                        and not retried_without_file_search_results_include_v69012
+                    ):
+                        fallback_rows_v69047 = _website_request_vector_search_rows_v69047(
+                            active_request
+                        )
+                        if fallback_rows_v69047:
+                            _capture_file_search_rows_v69047(fallback_rows_v69047)
                         diagnostic_log(
-                            "workspace_file_search_fail_closed_v69193",
+                            "responses_bad_request_file_search_results_include_retry_v69012",
+                            workspace=str(assistant),
+                            error_type=type(error).__name__,
+                            recovered_rows=len(fallback_rows_v69047),
+                        )
+                        active_request = _request_without_file_search_results_include_v69012(
+                            active_request
+                        )
+                        retried_without_file_search_results_include_v69012 = True
+                        continue
+                    if not retried_without_file_search:
+                        protected_workspace_v69193 = bool(
+                            str(assistant or "") in {
+                                "🔧 Technical Support",
+                                "📈 Sales",
+                                "📣 Marketing",
+                                "🎨 Graphic Marketing",
+                            }
+                        )
+                        if protected_workspace_v69193:
+                            diagnostic_log(
+                                "workspace_file_search_fail_closed_v69193",
+                                workspace=str(assistant),
+                                error_type=type(error).__name__,
+                            )
+                            raise RuntimeError(
+                                f"{str(assistant or 'AutoTecPro AI')} internal "
+                                "knowledge retrieval is temporarily unavailable. "
+                                "Please retry the request; no provider-only fallback "
+                                "answer was published."
+                            ) from error
+
+                        diagnostic_log(
+                            "responses_bad_request_file_search_retry",
                             workspace=str(assistant),
                             error_type=type(error).__name__,
                         )
-                        raise RuntimeError(
-                            f"{str(assistant or 'AutoTecPro AI')} internal "
-                            "knowledge retrieval is temporarily unavailable. "
-                            "Please retry the request; no provider-only fallback "
-                            "answer was published."
-                        ) from error
+                        active_request = _request_without_file_search(active_request)
+                        retried_without_file_search = True
+                        continue
 
-                    # Preserve the legacy availability fallback only for any
-                    # future/unclassified workspace not covered by the explicit
-                    # protected workspace set above.
+                if (
+                    not transient_pre_token_retry_used_v69400
+                    and _openai_transient_pre_token_error_v69400(error)
+                ):
+                    transient_pre_token_retry_used_v69400 = True
                     diagnostic_log(
-                        "responses_bad_request_file_search_retry",
+                        "ai_transient_pre_token_retry_v69400",
                         workspace=str(assistant),
+                        stage="request_create",
                         error_type=type(error).__name__,
+                        status_code=getattr(error, "status_code", None),
                     )
-                    active_request = _request_without_file_search(active_request)
-                    retried_without_file_search = True
+                    time.sleep(0.20)
                     continue
+                raise
+
+        received_text = False
+        final_response = None
+        try:
+            for event in stream:
+                event_type = str(getattr(event, "type", "") or "")
+                if event_type == "response.output_text.delta":
+                    delta = str(getattr(event, "delta", "") or "")
+                    if delta:
+                        received_text = True
+                        yield delta
+                elif event_type == "response.refusal.delta":
+                    delta = str(getattr(event, "delta", "") or "")
+                    if delta:
+                        received_text = True
+                        yield delta
+                elif event_type in {
+                    "response.completed",
+                    "response.incomplete",
+                    "response.failed",
+                }:
+                    final_response = getattr(event, "response", None)
+                elif event_type == "error":
+                    message = str(
+                        getattr(event, "message", "")
+                        or getattr(event, "error", "")
+                        or "OpenAI streaming request failed."
+                    )
+                    raise RuntimeError(message)
+        except Exception as error:
+            if (
+                not received_text
+                and not transient_pre_token_retry_used_v69400
+                and _openai_transient_pre_token_error_v69400(error)
+            ):
+                transient_pre_token_retry_used_v69400 = True
+                diagnostic_log(
+                    "ai_transient_pre_token_retry_v69400",
+                    workspace=str(assistant),
+                    stage="stream_before_text",
+                    error_type=type(error).__name__,
+                    status_code=getattr(error, "status_code", None),
+                )
+                time.sleep(0.20)
+                continue
             raise
 
-    received_text = False
-    final_response = None
-
-    for event in stream:
-        event_type = str(getattr(event, "type", "") or "")
-
-        if event_type == "response.output_text.delta":
-            delta = str(getattr(event, "delta", "") or "")
-            if delta:
-                received_text = True
-                yield delta
-
-        elif event_type == "response.refusal.delta":
-            delta = str(getattr(event, "delta", "") or "")
-            if delta:
-                received_text = True
-                yield delta
-
-        elif event_type in {
-            "response.completed",
-            "response.incomplete",
-            "response.failed",
-        }:
-            final_response = getattr(event, "response", None)
-
-        elif event_type == "error":
-            message = str(
-                getattr(event, "message", "")
-                or getattr(event, "error", "")
-                or "OpenAI streaming request failed."
+        if final_response is not None:
+            _capture_response_file_search_results_v69012(final_response)
+            final_text = str(
+                getattr(final_response, "output_text", "") or ""
             )
-            raise RuntimeError(message)
+            if not received_text and final_text:
+                yield final_text
 
-    if final_response is not None:
-        _capture_response_file_search_results_v69012(final_response)
-        final_text = str(
-            getattr(final_response, "output_text", "") or ""
-        )
-        if not received_text and final_text:
-            yield final_text
+            workspace_file_search_active_v69193 = any(
+                isinstance(tool, dict) and tool.get("type") == "file_search"
+                for tool in (active_request.get("tools") or [])
+            )
+            final_status_v69193 = str(
+                getattr(final_response, "status", "") or ""
+            ).strip().lower()
+            if (
+                final_status_v69193 == "completed"
+                and not received_text
+                and not final_text.strip()
+            ):
+                diagnostic_log(
+                    "workspace_empty_completion_detected_v69193",
+                    workspace=str(assistant),
+                    file_search=bool(workspace_file_search_active_v69193),
+                )
+                raise _WorkspaceEmptyCompletionError(
+                    "The AI response completed without answer text."
+                )
+            return final_response
 
-        # v69193: a completed conversational response with zero answer text is
-        # never a successful result. This applies to Technical, Sales, Marketing,
-        # and Graphic ordinary chat, with or without file_search. Any file_search
-        # evidence has already been captured above. ask_ai_stream retries the
-        # exact original request once and never silently publishes a blank turn.
-        workspace_file_search_active_v69193 = any(
-            isinstance(tool, dict) and tool.get("type") == "file_search"
-            for tool in (active_request.get("tools") or [])
-        )
-        final_status_v69193 = str(
-            getattr(final_response, "status", "") or ""
-        ).strip().lower()
-        if (
-            final_status_v69193 == "completed"
-            and not received_text
-            and not final_text.strip()
-        ):
+        if not received_text and not transient_pre_token_retry_used_v69400:
+            transient_pre_token_retry_used_v69400 = True
             diagnostic_log(
-                "workspace_empty_completion_detected_v69193",
+                "ai_transient_pre_token_retry_v69400",
                 workspace=str(assistant),
-                file_search=bool(workspace_file_search_active_v69193),
+                stage="stream_ended_without_final",
+                error_type="MissingFinalResponse",
             )
-            raise _WorkspaceEmptyCompletionError(
-                "The AI response completed without answer text."
-            )
+            time.sleep(0.20)
+            continue
 
-        return final_response
-
-    # A streaming connection that ends without a completed/incomplete/failed
-    # event is not a successful response. Raise so the caller preserves the
-    # partial answer instead of silently treating the truncated stream as done.
-    raise RuntimeError(
-        "The OpenAI response stream ended before a final response event."
-    )
+        raise RuntimeError(
+            "The OpenAI response stream ended before a final response event."
+        )
 
 
 def ask_ai_stream(
@@ -46606,8 +46788,28 @@ def ask_ai_stream(
     # Non-streaming compatibility fallback with the same bounded continuation.
     request = original_request
     workspace_nonstream_empty_retry_used_v69193 = False
+    nonstream_transient_retry_used_v69400 = False
+    nonstream_client_v69400 = _openai_chat_client_v69400()
     for continuation_index in range(MAX_AI_AUTO_CONTINUATIONS + 1):
-        response = client.responses.create(**request)
+        while True:
+            try:
+                response = nonstream_client_v69400.responses.create(**request)
+                break
+            except Exception as error:
+                if (
+                    not nonstream_transient_retry_used_v69400
+                    and _openai_transient_pre_token_error_v69400(error)
+                ):
+                    nonstream_transient_retry_used_v69400 = True
+                    diagnostic_log(
+                        "ai_nonstream_transient_retry_v69400",
+                        workspace=str(assistant),
+                        error_type=type(error).__name__,
+                        status_code=getattr(error, "status_code", None),
+                    )
+                    time.sleep(0.20)
+                    continue
+                raise
         _capture_response_file_search_results_v69012(response)
         fallback_text = str(getattr(response, "output_text", "") or "")
         if fallback_text:
@@ -63468,7 +63670,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
             platforms={v["platform"].casefold() for v in vals if v["platform"]}
             sources=set()
             for v in vals:
-                try: sources.add(canonical_website_url_identity(v["source_url"]))
+                try: sources.add(_workspace_product_page_identity_v69396(v["source_url"]))
                 except Exception: sources.add(v["source_url"].rstrip('/').casefold())
             # Generic "which model" prefers a real sibling product family over a singleton unrelated family.
             return (len(platforms), len(sources), max((v["score"] for v in vals), default=0.0), 1 if fam=="infotainment" else 0)
@@ -63481,7 +63683,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
     # copies of the same canonical product page.
     best={}
     for c in selected:
-        try: key=canonical_website_url_identity(c["source_url"])
+        try: key=_workspace_product_page_identity_v69396(c["source_url"])
         except Exception: key=c["source_url"].rstrip('/').casefold()
         prior=best.get(key)
         rank=(float(c["score"]), str(c["extracted_at"]), str(c["source_url"]))
@@ -63625,13 +63827,13 @@ def _workspace_atp_source_current_revalidate_v69338(destination, source_url):
              "tools":[{"type":"file_search","vector_store_ids":[str(stores[0])]}]}
     try: rows=list(_website_request_vector_search_rows_v69047(request,max_results=8) or [])
     except Exception: return False
-    try: wanted=canonical_website_url_identity(source)
+    try: wanted=_workspace_product_page_identity_v69396(source)
     except Exception: wanted=source.rstrip('/').casefold()
     for row in rows:
         text=str((row or {}).get("text") or "")
         found=_workspace_atp_recovery_header_v69338(text,"Final source URL") or _workspace_atp_recovery_header_v69338(text,"Requested URL")
         if not found: continue
-        try: ident=canonical_website_url_identity(found)
+        try: ident=_workspace_product_page_identity_v69396(found)
         except Exception: ident=found.rstrip('/').casefold()
         if ident==wanted: return True
     return False
@@ -63704,7 +63906,7 @@ def _workspace_atp_package_inject_v69180(file_id, filename, package_text, destin
     state = _workspace_atp_package_state_v69180()
     target = str(destination or "").strip()
     source = str(package.get("source_url") or "").strip()
-    try: canonical = canonical_website_url_identity(source) if source else ""
+    try: canonical = _workspace_product_page_identity_v69396(source) if source else ""
     except Exception: canonical = ""
     with state["lock"]:
         bucket = state["destinations"][target]
@@ -63715,7 +63917,7 @@ def _workspace_atp_package_inject_v69180(file_id, filename, package_text, destin
             same_source = False
             old_source = str(item.get("source_url") or "").strip()
             if canonical and old_source:
-                try: same_source = canonical_website_url_identity(old_source) == canonical
+                try: same_source = _workspace_product_page_identity_v69396(old_source) == canonical
                 except Exception: same_source = False
             if not (same_file or same_source): kept.append(dict(item))
         kept.append(dict(package))
@@ -63833,7 +64035,7 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
                     best={}
                     for item in merged:
                         source=str(item.get("source_url") or "").strip()
-                        try: canon=canonical_website_url_identity(source) if source else ""
+                        try: canon=_workspace_product_page_identity_v69396(source) if source else ""
                         except Exception: canon=""
                         identity="url:"+canon if canon else "file:"+str(item.get("file_id") or item.get("filename") or "")
                         prior=best.get(identity)
@@ -64784,7 +64986,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
             for pkg_v69348 in multi_packages_v69325:
                 src_v69348 = str(pkg_v69348.get("source_url") or "").strip()
                 try:
-                    key_v69348 = canonical_website_url_identity(src_v69348) if src_v69348 else src_v69348
+                    key_v69348 = _workspace_product_page_identity_v69396(src_v69348) if src_v69348 else src_v69348
                 except Exception:
                     key_v69348 = src_v69348
                 package_by_source_v69348[key_v69348] = dict(pkg_v69348)
@@ -64801,7 +65003,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
             all_notes_v69348 = []
             for idx_v69348, (title_v69348, fit_label_v69348, source_v69348) in enumerate(rows_v69325, 1):
                 try:
-                    key_v69348 = canonical_website_url_identity(source_v69348) if source_v69348 else source_v69348
+                    key_v69348 = _workspace_product_page_identity_v69396(source_v69348) if source_v69348 else source_v69348
                 except Exception:
                     key_v69348 = source_v69348
                 contract_v69348 = dict(contract_by_source_v69348.get(key_v69348) or {})
@@ -65355,7 +65557,7 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
             for package_v69357 in list(packages or []) + [dict(x) for x in recovered_v69338]:
                 source_v69357 = str(package_v69357.get("source_url") or "").strip()
                 try:
-                    source_id_v69357 = canonical_website_url_identity(source_v69357) if source_v69357 else source_v69357
+                    source_id_v69357 = _workspace_product_page_identity_v69396(source_v69357) if source_v69357 else source_v69357
                 except Exception:
                     source_id_v69357 = source_v69357.rstrip('/').casefold()
                 if source_id_v69357 in seen_sources_v69357:
@@ -65680,7 +65882,10 @@ def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, 
     def _same_page_payloads(pkg):
         source = str(pkg.get("source_url") or "").strip()
         try:
-            source_identity = canonical_website_url_identity(source) if source else ""
+            source_identity = (
+                _workspace_product_page_identity_v69396(source)
+                if source else ""
+            )
         except Exception:
             source_identity = ""
         rows = {}
@@ -65688,7 +65893,14 @@ def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, 
             url = str(payload.get("image_url") or "").strip()
             page = str(payload.get("source_page") or "").strip()
             try:
-                same_page = bool(source_identity and page and canonical_website_url_identity(page) == source_identity)
+                page_identity = (
+                    _workspace_product_page_identity_v69396(page)
+                    if page else ""
+                )
+                same_page = bool(
+                    source_identity and page_identity
+                    and page_identity == source_identity
+                )
             except Exception:
                 same_page = False
             if same_page and url:
@@ -99248,6 +99460,34 @@ else:
                                 error_type=type(error_v69180).__name__,
                                 error=str(error_v69180)[:500],
                             )
+
+                    if (
+                        is_sales_workspace(assistant)
+                        and _workspace_sales_authority_complete_v69400(
+                            workspace_atp_authority_v69180
+                        )
+                    ):
+                        use_file_search = False
+                        diagnostic_log(
+                            "workspace_sales_exact_authority_file_search_locked_v69400",
+                            status=str(
+                                workspace_atp_authority_v69180.get("status") or ""
+                            ),
+                            product_count=(
+                                len(
+                                    workspace_atp_authority_v69180.get(
+                                        "packages"
+                                    ) or []
+                                )
+                                if str(
+                                    workspace_atp_authority_v69180.get(
+                                        "status"
+                                    ) or ""
+                                ) == "recovered_multi"
+                                else 1
+                            ),
+                            use_file_search=False,
+                        )
 
                     workspace_atp_direct_answer_v69205 = ""
                     if (
