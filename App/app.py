@@ -1,3 +1,4 @@
+# AutoTecPro AI v69408 - exact same-case factual fast paths + intent diagnostics
 # AutoTecPro AI v69407 - same-case nonvisual fitment provider/image bypass
 # AutoTecPro AI v69406 - generic sibling-product completeness recovery
 # AutoTecPro AI v69405 - partial topical publication + fast first-turn fitment + Marketing parity
@@ -70,8 +71,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69407"
-AUTOTECPRO_RELEASE_BUILD = "v69407-same-case-fitment-fastpath-20260921"
+AUTOTECPRO_RELEASE_VERSION = "v69408"
+AUTOTECPRO_RELEASE_BUILD = "v69408-same-case-factual-fastpath-20260921"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -309,7 +310,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69407",
+        "app_release_v69408",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -65160,6 +65161,421 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
     return "\n".join(lines)
 
 
+
+def _workspace_sales_same_case_fact_intent_v69408(prompt_text):
+    """Classify only safe factual same-case Sales follow-ups.
+
+    No raw customer text is returned or logged. Subjective, diagnostic, installation,
+    pricing, visual and creative requests remain on their existing paths.
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    p = prompt.casefold()
+    if not p:
+        return {"category": "provider_fallback", "topic": ""}
+
+    if _website_image_explicit_visual_request_v68888(prompt):
+        return {"category": "visual_existing_path", "topic": ""}
+
+    # Hardware quantities such as "how much RAM/storage" are factual, not pricing.
+    if re.search(r"\b(ram|storage|processor|cpu|hardware|memory)\b", p):
+        return {"category": "hardware_fact", "topic": "hardware"}
+
+    # Installation-video availability is a source-authored feature fact.
+    if re.search(r"\b(installation video|install video)\b", p):
+        return {"category": "specific_feature", "topic": "installation_video"}
+
+    # Existing authority-specific/live/complex routes remain untouched.
+    if re.search(
+        r"\b(price|prices|cost|costs|quote|stock|inventory|available now|"
+        r"discount|coupon|dealer|wholesale|install|installation|wiring|wire|harness|"
+        r"connector|troubleshoot|troubleshooting|problem|issue|not working|camera issue|"
+        r"audio issue|sound issue|write|draft|caption|campaign|facebook|instagram|"
+        r"social|advertis|email|blog|seo)\b",
+        p,
+    ) or ("how much" in p and not re.search(r"\b(ram|storage|memory)\b", p)):
+        return {"category": "provider_required", "topic": "specialized"}
+
+    # Recommendations / subjective winners stay with the provider.
+    if re.search(
+        r"\b(better|best|choose|pick|buy|should i|which should|recommend|"
+        r"recommendation|worth it|prefer|preference)\b",
+        p,
+    ):
+        return {"category": "provider_required", "topic": "subjective"}
+
+    if re.search(
+        r"\b(what years?|which years?|year range|supported years?|"
+        r"years? (?:does|do) (?:it|they|this|these) (?:fit|support)|"
+        r"support(?:s|ed)? which years?)\b",
+        p,
+    ):
+        return {"category": "years_support", "topic": "fitment_years"}
+
+    if re.search(
+        r"\b(difference|differences|different|compare|comparison|versus|vs\.?)\b",
+        p,
+    ):
+        return {"category": "known_differences", "topic": "exact_fields_only"}
+
+    if re.search(r"\b(product link|product links|link|links|url|urls|page|pages)\b", p):
+        return {"category": "product_links", "topic": "source_url"}
+
+    if re.search(r"\b(screen size|screen sizes|display size|display sizes|display|screen)\b", p):
+        return {"category": "display_fact", "topic": "display"}
+
+    if re.search(r"\b(android version|android versions|platform|operating system|os version)\b", p):
+        return {"category": "platform_fact", "topic": "platform"}
+
+    feature_patterns = (
+        ("carplay", r"\b(carplay|apple carplay)\b"),
+        ("android_auto", r"\b(android auto)\b"),
+        ("bluetooth", r"\b(bluetooth|bt audio|a2dp)\b"),
+        ("wifi", r"\b(wi[\s-]?fi)\b"),
+        ("lte", r"\b(4g|lte|4g lte)\b"),
+        ("steering", r"\b(steering wheel|steering-wheel|swc)\b"),
+        ("climate", r"\b(climate control|climate-control|a/?c control)\b"),
+        ("reverse_camera", r"\b(reverse camera|backup camera|factory camera)\b"),
+        ("cargo_camera", r"\b(cargo camera)\b"),
+        ("premium_audio", r"\b(premium sound|premium audio|bose|alpine|harman)\b"),
+        ("installation_video", r"\b(installation video|install video)\b"),
+    )
+    for topic, pattern in feature_patterns:
+        if re.search(pattern, p):
+            return {"category": "specific_feature", "topic": topic}
+
+    if re.search(
+        r"\b(spec|specs|specification|specifications|features?|details?|"
+        r"what does it have|what do they have|what comes with)\b",
+        p,
+    ):
+        return {"category": "spec_summary", "topic": "exact_summary"}
+
+    return {"category": "provider_fallback", "topic": ""}
+
+
+def _workspace_sales_same_case_factual_direct_answer_v69408(
+    workspace_label,
+    prompt_text,
+    authority,
+    followup_reused=False,
+):
+    """Deterministic exact-contract answer for safe same-case factual Sales follow-ups.
+
+    The helper never expands authority, never chooses a preferred product, and never
+    converts missing metadata into a negative claim. If exact metadata is insufficient,
+    it returns "" so the existing provider path remains the fallback.
+    """
+    if not is_sales_workspace(workspace_label) or not bool(followup_reused):
+        return ""
+
+    authority = dict(authority or {})
+    status = str(authority.get("status") or "")
+    if status not in {"recovered", "recovered_multi"}:
+        return ""
+
+    intent = _workspace_sales_same_case_fact_intent_v69408(prompt_text)
+    category = str(intent.get("category") or "")
+    topic = str(intent.get("topic") or "")
+    if category in {"visual_existing_path", "provider_required", "provider_fallback"}:
+        diagnostic_log(
+            "workspace_sales_same_case_fact_intent_v69408",
+            category=category,
+            topic=topic,
+            route="provider" if category != "visual_existing_path" else "visual_existing_path",
+        )
+        return ""
+
+    packages = (
+        [dict(pkg) for pkg in (authority.get("packages") or []) if isinstance(pkg, dict)]
+        if status == "recovered_multi"
+        else [dict(authority.get("package") or authority.get("row") or authority)]
+    )
+    packages = [
+        pkg
+        for pkg in packages
+        if str(pkg.get("destination") or "") == "Sales Database"
+        and str(pkg.get("source_url") or "").strip()
+    ]
+    if not packages:
+        diagnostic_log(
+            "workspace_sales_same_case_fact_intent_v69408",
+            category=category,
+            topic=topic,
+            route="provider",
+            reason="no_exact_packages",
+        )
+        return ""
+
+    rows = []
+    seen = set()
+    for pkg in packages:
+        source = str(pkg.get("source_url") or "").strip()
+        try:
+            page_id = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            page_id = source.rstrip("/").casefold()
+        if not page_id or page_id in seen:
+            continue
+        seen.add(page_id)
+
+        contract = _workspace_atp_product_contract_cached_v69227(pkg)
+        title = re.sub(
+            r"\s+",
+            " ",
+            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
+        ).strip()
+        if not title:
+            try:
+                title = re.sub(
+                    r"\s+",
+                    " ",
+                    str(
+                        _technical_package_header_value_v69113(
+                            str(pkg.get("package_text") or ""),
+                            "Page title",
+                        )
+                        or ""
+                    ).split("|", 1)[0],
+                ).strip()
+            except Exception:
+                title = ""
+        if not title:
+            title = "AutoTecPro product"
+
+        rows.append({
+            "title": title,
+            "source": source,
+            "contract": contract,
+            "fitment": _workspace_atp_first_response_fitment_v69348(contract, None),
+            "display": _workspace_atp_first_response_display_v69348(contract),
+            "hardware": _workspace_atp_first_response_hardware_v69348(contract),
+            "platform": re.sub(r"\s+", " ", str(contract.get("platform") or "")).strip(),
+            "factory_setup": _workspace_sales_package_factory_setup_v69407(pkg),
+            "features": _workspace_atp_first_response_feature_labels_v69348(contract),
+        })
+
+    if not rows:
+        return ""
+
+    def table(headers, data_rows):
+        return "\n".join([
+            "| " + " | ".join(headers) + " |",
+            "|" + "|".join("---" for _ in headers) + "|",
+            *[
+                "| "
+                + " | ".join(
+                    _workspace_markdown_table_cell_v69347(value)
+                    for value in row
+                )
+                + " |"
+                for row in data_rows
+            ],
+        ])
+
+    answer = ""
+
+    if category == "years_support":
+        data = []
+        for index, row in enumerate(rows, 1):
+            if not row["fitment"]:
+                continue
+            data.append((str(index), row["title"], row["fitment"]))
+        if not data:
+            answer = ""
+        elif len(data) == 1:
+            answer = (
+                f"Yes — **{data[0][1]}** is listed for **{data[0][2]}**."
+            )
+        else:
+            answer = (
+                "Here are the supported model years listed for each matching option:\n\n"
+                + table(("Option", "Product", "Supported years"), data)
+            )
+
+    elif category == "product_links":
+        lines = ["Here are the exact product pages for the options already matched to this case:"]
+        for index, row in enumerate(rows, 1):
+            lines.append(f"{index}. **{row['title']}** — {row['source']}")
+        answer = "\n".join(lines)
+
+    elif category == "display_fact":
+        data = [
+            (str(i), row["title"], row["display"])
+            for i, row in enumerate(rows, 1)
+            if row["display"]
+        ]
+        if data:
+            answer = "Here are the display details listed for the matching options:\n\n" + table(
+                ("Option", "Product", "Display"),
+                data,
+            )
+
+    elif category == "platform_fact":
+        data = [
+            (str(i), row["title"], row["platform"])
+            for i, row in enumerate(rows, 1)
+            if row["platform"]
+        ]
+        if data:
+            answer = "Here are the Android/platform details listed for the matching options:\n\n" + table(
+                ("Option", "Product", "Platform"),
+                data,
+            )
+
+    elif category == "hardware_fact":
+        data = [
+            (str(i), row["title"], row["hardware"])
+            for i, row in enumerate(rows, 1)
+            if row["hardware"]
+        ]
+        if data:
+            answer = "Here are the hardware details listed for the matching options:\n\n" + table(
+                ("Option", "Product", "Hardware"),
+                data,
+            )
+
+    elif category == "specific_feature":
+        label_map = {
+            "carplay": "Wireless Apple CarPlay",
+            "android_auto": "Wireless Android Auto",
+            "bluetooth": "Bluetooth",
+            "wifi": "Wi-Fi",
+            "lte": "4G LTE",
+            "steering": "Steering-wheel controls",
+            "climate": "Original climate-control retention",
+            "reverse_camera": "Original reverse-camera retention",
+            "cargo_camera": "Cargo-camera retention",
+            "premium_audio": "Premium-sound-system support",
+            "installation_video": "Installation video available",
+        }
+        label = label_map.get(topic, "")
+        if label:
+            positive_count = sum(label in set(row["features"] or []) for row in rows)
+            if positive_count:
+                data = []
+                for i, row in enumerate(rows, 1):
+                    status_label = (
+                        "Listed"
+                        if label in set(row["features"] or [])
+                        else "Not stated on the current product page"
+                    )
+                    data.append((str(i), row["title"], status_label))
+                answer = (
+                    f"For **{label}**, this is what the current product information shows:\n\n"
+                    + table(("Option", "Product", label), data)
+                    + "\n\n“Not stated” means I don’t have enough exact page evidence to call it unsupported."
+                )
+
+    elif category == "spec_summary":
+        data = []
+        for i, row in enumerate(rows, 1):
+            if not any((row["display"], row["platform"], row["hardware"], row["fitment"])):
+                continue
+            feature_text = " · ".join(row["features"][:6]) if row["features"] else "—"
+            data.append((
+                str(i),
+                row["title"],
+                row["display"] or "—",
+                row["platform"] or "—",
+                row["hardware"] or "—",
+                row["fitment"] or "—",
+                feature_text,
+            ))
+        if data:
+            answer = (
+                "Here are the main confirmed details for the matching options:\n\n"
+                + table(
+                    ("Option", "Product", "Display", "Platform", "Hardware", "Years", "Listed features"),
+                    data,
+                )
+            )
+
+    elif category == "known_differences":
+        candidate_fields = [
+            ("Factory setup", "factory_setup"),
+            ("Display", "display"),
+            ("Platform", "platform"),
+            ("Hardware", "hardware"),
+            ("Supported years", "fitment"),
+        ]
+
+        varying_fields = []
+        for label, key in candidate_fields:
+            values = {
+                re.sub(r"\s+", " ", str(row.get(key) or "")).strip()
+                for row in rows
+                if re.sub(r"\s+", " ", str(row.get(key) or "")).strip()
+            }
+            if len(values) > 1:
+                varying_fields.append((label, key))
+
+        all_feature_labels = sorted({
+            label for row in rows for label in (row["features"] or [])
+        })
+        varying_features = []
+        for label in all_feature_labels:
+            flags = [label in set(row["features"] or []) for row in rows]
+            if any(flags) and not all(flags):
+                varying_features.append(label)
+
+        if varying_fields or varying_features:
+            headers = ["Option", "Product"] + [label for label, _ in varying_fields]
+            data = []
+            for i, row in enumerate(rows, 1):
+                values = [str(i), row["title"]]
+                values.extend(row.get(key) or "Not stated" for _, key in varying_fields)
+                data.append(tuple(values))
+
+            parts = [
+                "These are the differences I can confirm from the current product information:",
+                "",
+                table(tuple(headers), data),
+            ]
+            if varying_features:
+                parts.extend(["", "### Feature differences", ""])
+                for label in varying_features[:8]:
+                    listed = [
+                        str(i)
+                        for i, row in enumerate(rows, 1)
+                        if label in set(row["features"] or [])
+                    ]
+                    parts.append(
+                        f"- **{label}:** listed for option"
+                        + ("s " if len(listed) > 1 else " ")
+                        + ", ".join(listed)
+                        + "."
+                    )
+                parts.append(
+                    "\nIf a field says “Not stated,” I’m not treating that as a confirmed difference."
+                )
+            answer = "\n".join(parts)
+
+    if not str(answer or "").strip():
+        diagnostic_log(
+            "workspace_sales_same_case_fact_intent_v69408",
+            category=category,
+            topic=topic,
+            route="provider",
+            reason="insufficient_exact_metadata",
+            products=len(rows),
+        )
+        return ""
+
+    diagnostic_log(
+        "workspace_sales_same_case_fact_intent_v69408",
+        category=category,
+        topic=topic,
+        route="deterministic",
+        products=len(rows),
+    )
+    diagnostic_log(
+        "workspace_sales_same_case_factual_provider_bypass_v69408",
+        category=category,
+        products=len(rows),
+    )
+    return answer
+
+
 def _workspace_sales_visual_followup_direct_answer_v69403(
     workspace_label,
     prompt_text,
@@ -100971,6 +101387,33 @@ else:
                                 "workspace_sales_same_case_fitment_provider_bypass_failed_v69407",
                                 error_type=type(same_case_fitment_error_v69407).__name__,
                                 error=str(same_case_fitment_error_v69407)[:500],
+                            )
+
+                    # v69408: exact same-case factual Sales follow-ups such as
+                    # supported years, display/platform/hardware facts, source-authored
+                    # feature support, exact known differences, and product links can be
+                    # answered from the already-bound exact contracts. Complex/subjective
+                    # prompts still fall through to the existing provider path.
+                    if (
+                        is_sales_workspace(assistant)
+                        and not workspace_atp_direct_answer_v69205
+                        and bool(locals().get("workspace_atp_followup_reused_v69403"))
+                    ):
+                        try:
+                            workspace_atp_direct_answer_v69205 = (
+                                _workspace_sales_same_case_factual_direct_answer_v69408(
+                                    assistant,
+                                    interaction_prompt,
+                                    workspace_atp_authority_v69180,
+                                    followup_reused=True,
+                                )
+                            )
+                        except Exception as same_case_fact_error_v69408:
+                            workspace_atp_direct_answer_v69205 = ""
+                            diagnostic_log(
+                                "workspace_sales_same_case_factual_provider_bypass_failed_v69408",
+                                error_type=type(same_case_fact_error_v69408).__name__,
+                                error=str(same_case_fact_error_v69408)[:500],
                             )
 
                     if (
