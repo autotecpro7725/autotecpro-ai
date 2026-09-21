@@ -1,3 +1,4 @@
+# AutoTecPro AI v69407 - same-case nonvisual fitment provider/image bypass
 # AutoTecPro AI v69406 - generic sibling-product completeness recovery
 # AutoTecPro AI v69405 - partial topical publication + fast first-turn fitment + Marketing parity
 # AutoTecPro AI v69404 - human customer voice + Sales/Marketing visual wording
@@ -69,8 +70,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69406"
-AUTOTECPRO_RELEASE_BUILD = "v69406-generic-sibling-completeness-20260921"
+AUTOTECPRO_RELEASE_VERSION = "v69407"
+AUTOTECPRO_RELEASE_BUILD = "v69407-same-case-fitment-fastpath-20260921"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -308,7 +309,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69406",
+        "app_release_v69407",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -64932,6 +64933,233 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
     return "\n".join(lines)
 
 
+def _workspace_sales_package_factory_setup_v69407(package):
+    """Return a concise source-authored factory-system distinction for one exact product."""
+    package = dict(package or {})
+    raw = str(package.get("package_text") or package.get("webpage_text") or "")
+    if not raw:
+        return ""
+
+    def first_attr(name):
+        match = re.search(
+            rf'{re.escape(name)}\s*=\s*["\']([^"\']+)["\']',
+            raw,
+            flags=re.I,
+        )
+        if not match:
+            return ""
+        return re.sub(r"\s+", " ", html.unescape(str(match.group(1) or ""))).strip()
+
+    for name in (
+        "data-atp-factory-system",
+        "data-atp-retained-factory-system",
+        "data-atp-factory-system-scope",
+    ):
+        value = first_attr(name)
+        if value:
+            return value
+
+    excluded = first_attr("data-atp-factory-system-exclusion")
+    if excluded:
+        return f"Excludes {excluded}"
+
+    incompatible = first_attr("data-atp-incompatible-factory-system")
+    if incompatible:
+        return f"Not for {incompatible}"
+
+    return ""
+
+
+def _workspace_sales_same_case_fitment_direct_answer_v69407(
+    workspace_label,
+    prompt_text,
+    authority,
+    followup_reused=False,
+):
+    """Fast, fail-safe answer for simple same-case nonvisual Sales fitment follow-ups.
+
+    It never creates product authority and never guesses a winner. It only summarizes
+    the exact product contracts already bound to the same conversation. Complex
+    comparison/recommendation/specification requests return an empty string and fall
+    back to the existing provider path.
+    """
+    if not is_sales_workspace(workspace_label) or not bool(followup_reused):
+        return ""
+
+    authority = dict(authority or {})
+    status = str(authority.get("status") or "")
+    if status not in {"recovered", "recovered_multi"}:
+        return ""
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    p = prompt.casefold()
+    if not p or _website_image_explicit_visual_request_v68888(prompt):
+        return ""
+
+    # Existing exact price/live-stock/creative/comparison paths remain authoritative.
+    if re.search(
+        r"\b(price|prices|cost|costs|how much|quote|stock|inventory|available now|"
+        r"discount|coupon|dealer|wholesale|compare|comparison|versus|vs\.?|better|best|"
+        r"choose|pick|buy|should|recommend|recommendation|feature|features|spec|specs|specification|"
+        r"installation|install|wiring|wire|harness|connector|camera|audio|sound|"
+        r"write|draft|caption|campaign|facebook|instagram|social|advertis|email|blog|seo)\b",
+        p,
+    ):
+        return ""
+
+    simple_fitment_intent = bool(re.search(
+        r"\b(which one|which version|which model|what version|what model|"
+        r"tell which|how (?:do|can) i (?:tell|know|check|identify)|"
+        r"how to (?:tell|know|check|identify)|fit|fits|fitting|compatible|"
+        r"compatibility|identify|identification|work with|works with|"
+        r"correct version|correct model|right version|right model)\b",
+        p,
+    ))
+    if not simple_fitment_intent:
+        return ""
+
+    packages = (
+        [dict(pkg) for pkg in (authority.get("packages") or []) if isinstance(pkg, dict)]
+        if status == "recovered_multi"
+        else [dict(authority.get("package") or authority.get("row") or authority)]
+    )
+    packages = [
+        pkg for pkg in packages
+        if str(pkg.get("destination") or "") == "Sales Database"
+        and str(pkg.get("source_url") or "").strip()
+    ]
+    if not packages:
+        return ""
+
+    rows = []
+    seen = set()
+    for pkg in packages:
+        source = str(pkg.get("source_url") or "").strip()
+        try:
+            page_id = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            page_id = source.rstrip("/").casefold()
+        if not page_id or page_id in seen:
+            continue
+        seen.add(page_id)
+
+        contract = _workspace_atp_product_contract_cached_v69227(pkg)
+        title = re.sub(
+            r"\s+",
+            " ",
+            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
+        ).strip()
+        if not title:
+            try:
+                title = re.sub(
+                    r"\s+",
+                    " ",
+                    str(
+                        _technical_package_header_value_v69113(
+                            str(pkg.get("package_text") or ""),
+                            "Page title",
+                        )
+                        or ""
+                    ).split("|", 1)[0],
+                ).strip()
+            except Exception:
+                title = ""
+        if not title:
+            title = "AutoTecPro infotainment system"
+
+        fitment = _workspace_atp_first_response_fitment_v69348(contract, None)
+        display = _workspace_atp_first_response_display_v69348(contract)
+        platform = re.sub(r"\s+", " ", str(contract.get("platform") or "")).strip()
+        rows.append({
+            "title": title,
+            "fitment": fitment or "Compatible",
+            "display": display,
+            "platform": platform,
+            "factory_setup": _workspace_sales_package_factory_setup_v69407(pkg),
+            "source": source,
+            "contract": contract,
+            "package": pkg,
+        })
+
+    if not rows:
+        return ""
+
+    if len(rows) == 1:
+        row = rows[0]
+        details = [
+            x
+            for x in (row["display"], row["factory_setup"], row["fitment"])
+            if x
+        ]
+        detail_text = " · ".join(details)
+        answer = f"Yes — the matching option is **{row['title']}**."
+        if detail_text:
+            answer += f" ({detail_text})"
+        answer += (
+            "\n\nIf you want, send me a clear photo of the factory dashboard/radio "
+            "and I can double-check the configuration before you order."
+        )
+        diagnostic_log(
+            "workspace_sales_same_case_fitment_provider_bypass_v69407",
+            products=1,
+            mode="single",
+        )
+        return answer
+
+    lines = [
+        f"There are **{len(rows)} matching product versions** for the vehicle we already checked.",
+        (
+            "The correct one depends on the original factory dashboard/radio setup, "
+            "so I wouldn’t choose one based on the model year alone."
+        ),
+        "",
+        "| Option | Product | Factory setup | Display | Fitment |",
+        "|---:|---|---|---|---|",
+    ]
+
+    for index, row in enumerate(rows, 1):
+        values = (
+            str(index),
+            row["title"],
+            row["factory_setup"] or "—",
+            row["display"] or "—",
+            row["fitment"] or "Compatible",
+        )
+        lines.append(
+            "| "
+            + " | ".join(_workspace_markdown_table_cell_v69347(v) for v in values)
+            + " |"
+        )
+
+    notes = []
+    for row in rows:
+        notes.extend(
+            _workspace_atp_first_response_notes_v69348(
+                row["contract"],
+                row["package"],
+            )
+        )
+    notes = list(dict.fromkeys(str(x).strip() for x in notes if str(x).strip()))[:2]
+    if notes:
+        lines.extend(["", "### What to check", ""])
+        lines.extend(f"- {note}" for note in notes)
+
+    lines.extend([
+        "",
+        (
+            "If you send me a clear photo of the factory dashboard/radio, I can help "
+            "narrow these down to the correct version without guessing."
+        ),
+    ])
+
+    diagnostic_log(
+        "workspace_sales_same_case_fitment_provider_bypass_v69407",
+        products=len(rows),
+        mode="multi",
+    )
+    return "\n".join(lines)
+
+
 def _workspace_sales_visual_followup_direct_answer_v69403(
     workspace_label,
     prompt_text,
@@ -100683,6 +100911,14 @@ else:
                         )
 
                     workspace_atp_direct_answer_v69205 = ""
+                    workspace_sales_same_case_nonvisual_direct_v69407 = False
+                    workspace_same_case_nonvisual_no_repeat_images_v69407 = bool(
+                        (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+                        and bool(locals().get("workspace_atp_followup_reused_v69403"))
+                        and not _website_image_explicit_visual_request_v68888(
+                            interaction_prompt
+                        )
+                    )
 
                     # v69405: exact first-turn Sales product discovery/fitment can be
                     # answered from the already-selected product pages without another
@@ -100706,6 +100942,35 @@ else:
                                 "workspace_sales_first_turn_fitment_provider_bypass_failed_v69405",
                                 error_type=type(first_turn_fast_error_v69405).__name__,
                                 error=str(first_turn_fast_error_v69405)[:500],
+                            )
+
+                    # v69407: simple same-case nonvisual fitment clarification already
+                    # has exact conversation-scoped product authority. Answer it locally
+                    # instead of paying a provider round-trip.
+                    if (
+                        is_sales_workspace(assistant)
+                        and not workspace_atp_direct_answer_v69205
+                        and bool(locals().get("workspace_atp_followup_reused_v69403"))
+                    ):
+                        try:
+                            workspace_atp_direct_answer_v69205 = (
+                                _workspace_sales_same_case_fitment_direct_answer_v69407(
+                                    assistant,
+                                    interaction_prompt,
+                                    workspace_atp_authority_v69180,
+                                    followup_reused=True,
+                                )
+                            )
+                            workspace_sales_same_case_nonvisual_direct_v69407 = bool(
+                                str(workspace_atp_direct_answer_v69205 or "").strip()
+                            )
+                        except Exception as same_case_fitment_error_v69407:
+                            workspace_atp_direct_answer_v69205 = ""
+                            workspace_sales_same_case_nonvisual_direct_v69407 = False
+                            diagnostic_log(
+                                "workspace_sales_same_case_fitment_provider_bypass_failed_v69407",
+                                error_type=type(same_case_fitment_error_v69407).__name__,
+                                error=str(same_case_fitment_error_v69407)[:500],
                             )
 
                     if (
@@ -101947,9 +102212,31 @@ else:
         # v69180/v69181: exact ATP images first. v69181 skips the legacy v69050
         # dedicated image search when these exact, already-gated images survive.
         workspace_atp_images_v69180 = []
-        if (is_sales_workspace(assistant) or is_marketing_workspace(assistant)) and str(
-            (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
-        ) in {"recovered", "recovered_multi"}:
+        skip_same_case_nonvisual_images_v69407 = bool(
+            locals().get("workspace_same_case_nonvisual_no_repeat_images_v69407")
+        )
+        if skip_same_case_nonvisual_images_v69407:
+            generated_images = [
+                image
+                for image in (generated_images or [])
+                if not (
+                    isinstance(image, dict)
+                    and str(image.get("source") or "") == "website_knowledge"
+                )
+            ]
+            diagnostic_log(
+                "workspace_sales_same_case_nonvisual_images_skipped_v69407",
+                workspace=str(assistant),
+                reason="SAME_CASE_NONVISUAL_REPEAT_IMAGES_SUPPRESSED_UPSTREAM",
+            )
+
+        if (
+            not skip_same_case_nonvisual_images_v69407
+            and (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+            and str(
+                (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
+            ) in {"recovered", "recovered_multi"}
+        ):
             try:
                 workspace_atp_images_v69180 = _workspace_atp_exact_images_v69180(
                     assistant, interaction_prompt, workspace_atp_authority_v69180, max_images=3
@@ -101975,7 +102262,8 @@ else:
         # the active workspace's own store and reconstruct a structured image
         # record for the unchanged final publisher.
         exact_sales_authority_missing_primary_v69358 = bool(
-            is_sales_workspace(assistant)
+            not skip_same_case_nonvisual_images_v69407
+            and is_sales_workspace(assistant)
             and str((locals().get("workspace_atp_authority_v69180") or {}).get("status") or "") in {"recovered", "recovered_multi"}
             and not workspace_atp_images_v69180
         )
@@ -101990,7 +102278,8 @@ else:
             )
 
         if (
-            (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+            not skip_same_case_nonvisual_images_v69407
+            and (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
             and not workspace_atp_images_v69180
             and not exact_sales_authority_missing_primary_v69358
         ):
@@ -102283,9 +102572,13 @@ else:
                 )
         # v69398: restore only the exact primary photo for every exact Sales
         # product after the unchanged generic website publication gate.
-        if (is_sales_workspace(assistant) or is_marketing_workspace(assistant)) and str(
-            (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
-        ) in {"recovered", "recovered_multi"}:
+        if (
+            not bool(locals().get("workspace_same_case_nonvisual_no_repeat_images_v69407"))
+            and (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+            and str(
+                (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
+            ) in {"recovered", "recovered_multi"}
+        ):
             try:
                 sales_exact_topic_visuals_v69399 = (
                     _workspace_sales_exact_topic_visual_final_lock_v69399(
