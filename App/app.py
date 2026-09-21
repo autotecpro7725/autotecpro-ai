@@ -1,3 +1,4 @@
+# AutoTecPro AI v69403 - Sales follow-up routing + topical fail-closed + visual provider bypass + restored prewarm hardening
 # AutoTecPro AI v69402 - exact current-page topical semantics recovery for Sales compatibility visuals
 # AutoTecPro AI v69401 - exact Sales topical-image semantic fallback + backward-compatible product-page image-index lookup
 # AutoTecPro AI v69400 - Sales product-identity consistency + exact-authority provider lock + bounded chat resilience + cold-path stability
@@ -65,8 +66,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69402"
-AUTOTECPRO_RELEASE_BUILD = "v69402-sales-live-topical-semantics-20260921"
+AUTOTECPRO_RELEASE_VERSION = "v69403"
+AUTOTECPRO_RELEASE_BUILD = "v69403-sales-followup-routing-stability-20260921"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -304,7 +305,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69402",
+        "app_release_v69403",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -64125,9 +64126,73 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
             packages=[]
             try:
                 rows=[dict(r) for r in (_website_vector_store_file_rows_v68892(store) or []) if isinstance(r,dict) and str(r.get("file_id") or "").strip() and str(r.get("filename") or "").startswith("website_")]
-                # Concurrent file reads keep cold-start bounded without serial N-file latency.
+
+                # v69403: assistants-purpose file download capability is process-wide.
+                # Probe one row before creating the worker fanout. If this first read
+                # proves the capability unsupported, stop immediately rather than
+                # submitting every remaining file only to emit skip warnings.
+                remaining_rows_v69403 = list(rows)
+                if remaining_rows_v69403:
+                    probe_row_v69403 = remaining_rows_v69403.pop(0)
+                    try:
+                        probe_raw_v69403 = str(
+                            _technical_exact_file_text_v69182(
+                                str(probe_row_v69403.get("file_id") or ""),
+                                timeout_seconds=2.5,
+                            )
+                            or ""
+                        )
+                    except Exception:
+                        probe_raw_v69403 = ""
+
+                    if probe_raw_v69403:
+                        probe_package_v69403 = _workspace_atp_package_from_text_v69180(
+                            str(probe_row_v69403.get("file_id") or ""),
+                            str(probe_row_v69403.get("filename") or ""),
+                            probe_raw_v69403,
+                            target,
+                        )
+                        if isinstance(probe_package_v69403, dict):
+                            packages.append(probe_package_v69403)
+
+                    try:
+                        capability_after_probe_v69403 = (
+                            _technical_file_content_capability_state_v69324()
+                        )
+                        unsupported_after_probe_v69403 = bool(
+                            _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228
+                            or capability_after_probe_v69403.get(
+                                "assistants_content_unsupported"
+                            )
+                        )
+                    except Exception:
+                        unsupported_after_probe_v69403 = bool(
+                            _TECHNICAL_ASSISTANTS_FILE_CONTENT_UNSUPPORTED_V69228
+                        )
+
+                    if unsupported_after_probe_v69403:
+                        with state["lock"]:
+                            if bucket.get("key") == key:
+                                bucket["status"] = (
+                                    "stale_ready"
+                                    if bucket.get("packages")
+                                    else "failed"
+                                )
+                                bucket["future"] = None
+                                bucket["error"] = (
+                                    "ASSISTANTS_FILE_CONTENT_UNSUPPORTED"
+                                )
+                        diagnostic_log(
+                            "workspace_atp_package_prewarm_probe_short_circuit_v69403",
+                            destination=target,
+                            remaining_skipped=len(remaining_rows_v69403),
+                        )
+                        return packages
+
+                # Concurrent file reads keep cold-start bounded once capability is
+                # proven usable or still genuinely unknown.
                 from concurrent.futures import ThreadPoolExecutor as Pool, as_completed
-                workers=max(2,min(4,len(rows) or 2))
+                workers=max(2,min(4,len(remaining_rows_v69403) or 2))
                 with Pool(max_workers=workers,thread_name_prefix="atp-workspace-files-v69180") as pool:
                     futures={
                         pool.submit(
@@ -64135,7 +64200,7 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
                             str(r.get("file_id") or ""),
                             timeout_seconds=2.5,
                         ): r
-                        for r in rows
+                        for r in remaining_rows_v69403
                     }
                     for future in as_completed(futures):
                         row=futures[future]
@@ -64624,6 +64689,85 @@ def _workspace_atp_first_response_product_row_v69349(index, title, fit_label, so
     ]
     return [_workspace_markdown_table_cell_v69347(value) for value in values]
 
+
+
+def _workspace_sales_visual_followup_direct_answer_v69403(
+    workspace_label,
+    prompt_text,
+    authority,
+    followup_reused=False,
+):
+    """Provider-bypass text for an identity-free same-case explicit photo follow-up.
+
+    Image selection remains entirely downstream in the existing exact image-authority
+    pipeline. This helper never chooses an image and never creates product authority.
+    """
+    if not is_sales_workspace(workspace_label) or not bool(followup_reused):
+        return ""
+
+    authority = dict(authority or {})
+    if str(authority.get("status") or "") not in {"recovered", "recovered_multi"}:
+        return ""
+
+    if not _website_image_explicit_visual_request_v68888(prompt_text):
+        return ""
+
+    prompt_tokens = _workspace_sales_visual_topic_tokens_v69401(prompt_text)
+    if prompt_tokens:
+        return (
+            "I’ll use only verified reference photos from the exact current product "
+            "pages already matched to this case. I won’t substitute the general "
+            "product photos if a matching topical reference can’t be verified."
+        )
+
+    return (
+        "Yes — here are the exact current product photos for the products already "
+        "matched to this case."
+    )
+
+
+def _workspace_sales_followup_compact_format_context_v69403(
+    authority,
+    prompt_text,
+):
+    """Compact provider contract for same-case non-visual Sales fitment follow-ups."""
+    authority = dict(authority or {})
+    if str(authority.get("status") or "") not in {"recovered", "recovered_multi"}:
+        return ""
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    p = prompt.casefold()
+    if not p:
+        return ""
+
+    fitment_intent = bool(re.search(
+        r"\b(fit|fits|fitting|compatible|compatibility|identify|identification|"
+        r"which one|tell which|difference|different|work with|works with|for my|"
+        r"support(?:s|ed)?|which years?|what years?|which model|what model)\b",
+        p,
+    ))
+    price_intent = bool(re.search(
+        r"\b(price|prices|cost|costs|how much|selling price|current price|"
+        r"base price|quote)\b",
+        p,
+    ))
+    visual_intent = bool(_website_image_explicit_visual_request_v68888(prompt))
+
+    if not fitment_intent or price_intent or visual_intent:
+        return ""
+
+    return (
+        "\n\nAUTOTECPRO SALES SAME-CASE FOLLOW-UP CONTRACT (v69403)\n"
+        "The exact current product authority from the earlier turn is already binding.\n"
+        "- Answer ONLY the user's current follow-up; do not repeat the full first-fitment response.\n"
+        "- Do not repeat the original Product Specifications, Product Features, Installation Resources, "
+        "Current Product Pages, or Customer Reply Draft sections unless the user explicitly asks for them.\n"
+        "- Keep the answer concise (normally under 220 words).\n"
+        "- Preserve every distinct exact product when the distinction matters to the question.\n"
+        "- Use only facts supported by the exact current authority/context already supplied.\n"
+        "- If the exact evidence is insufficient to distinguish the products, state exactly what remains "
+        "to be verified rather than guessing.\n"
+    )
 
 
 def _workspace_sales_v69321_first_fitment_format_context_v69352(authority, prompt_text):
@@ -83002,6 +83146,45 @@ except Exception as _v69119_prewarm_start_error:
         error=str(_v69119_prewarm_start_error)[:500],
     )
 
+# v69403: restored/login-created Sales and Marketing sessions do not execute the
+# manual workspace-switch callback. Start the existing non-blocking prewarm once
+# after the active workspace is known so cold capability discovery does not wait
+# for the first customer question.
+try:
+    _v69403_workspace = str(
+        st.session_state.get("current_assistant") or ""
+    ).strip()
+    _v69403_destination = (
+        "Sales Database"
+        if _v69403_workspace == "📈 Sales"
+        else (
+            "Marketing Database"
+            if _v69403_workspace == "📣 Marketing"
+            else ""
+        )
+    )
+    if _v69403_destination:
+        _v69403_marker = (
+            "_workspace_restored_entry_prewarm_v69403_"
+            + _v69403_destination.replace(" ", "_")
+        )
+        if not st.session_state.get(_v69403_marker):
+            st.session_state[_v69403_marker] = True
+            _workspace_atp_package_prewarm_start_v69180(
+                _v69403_destination
+            )
+            diagnostic_log(
+                "workspace_atp_restored_entry_prewarm_started_v69403",
+                workspace=_v69403_workspace,
+                destination=_v69403_destination,
+            )
+except Exception as _v69403_prewarm_error:
+    diagnostic_log(
+        "workspace_atp_restored_entry_prewarm_failed_v69403",
+        error_type=type(_v69403_prewarm_error).__name__,
+        error=str(_v69403_prewarm_error)[:500],
+    )
+
 
 def _website_remove_superseded_vectors_v69109(vector_store_id, rows):
     """Detach every superseded same-URL vector. Fail closed if any old vector remains."""
@@ -99942,6 +100125,7 @@ else:
                                 diagnostic_log("technical_exact_source_fail_closed_v69145", status=section_status_v69142)
 
                     workspace_atp_authority_v69180 = {}
+                    workspace_atp_followup_reused_v69403 = False
                     if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
                         try:
                             # v69396: identity-free follow-ups should reuse the exact
@@ -99959,6 +100143,7 @@ else:
                                 "recovered", "recovered_multi"
                             }:
                                 workspace_atp_authority_v69180 = followup_authority_pre_v69396
+                                workspace_atp_followup_reused_v69403 = True
                                 ai_request_prompt += str(
                                     workspace_atp_authority_v69180.get("context") or ""
                                 )
@@ -100173,12 +100358,50 @@ else:
                                 error=str(error_v69205)[:500],
                             )
 
+                    # v69403: a same-case explicit visual follow-up already has exact
+                    # product authority. Provider generation cannot improve image
+                    # authority, so bypass it with a minimal deterministic sentence.
+                    if (
+                        is_sales_workspace(assistant)
+                        and not workspace_atp_direct_answer_v69205
+                        and bool(locals().get("workspace_atp_followup_reused_v69403"))
+                    ):
+                        try:
+                            workspace_atp_direct_answer_v69205 = (
+                                _workspace_sales_visual_followup_direct_answer_v69403(
+                                    assistant,
+                                    interaction_prompt,
+                                    workspace_atp_authority_v69180,
+                                    followup_reused=True,
+                                )
+                            )
+                            if workspace_atp_direct_answer_v69205:
+                                diagnostic_log(
+                                    "workspace_sales_visual_followup_provider_bypass_v69403",
+                                    topical=bool(
+                                        _workspace_sales_visual_topic_tokens_v69401(
+                                            interaction_prompt
+                                        )
+                                    ),
+                                    authority_status=str(
+                                        workspace_atp_authority_v69180.get("status") or ""
+                                    ),
+                                )
+                        except Exception as visual_bypass_error_v69403:
+                            workspace_atp_direct_answer_v69205 = ""
+                            diagnostic_log(
+                                "workspace_sales_visual_followup_provider_bypass_failed_v69403",
+                                error_type=type(visual_bypass_error_v69403).__name__,
+                                error=str(visual_bypass_error_v69403)[:500],
+                            )
+
                     # v69352: when v69351 intentionally routes first Sales fitment through
                     # the provider/file-search path, enforce the original v69321 response
                     # structure while preserving every exact current-product option.
                     if (
                         is_sales_workspace(assistant)
                         and not workspace_atp_direct_answer_v69205
+                        and not bool(locals().get("workspace_atp_followup_reused_v69403"))
                         and str((workspace_atp_authority_v69180 or {}).get("status") or "") in {"recovered", "recovered_multi"}
                     ):
                         try:
@@ -100198,6 +100421,35 @@ else:
                                 "workspace_sales_v69321_first_fitment_contract_failed_v69352",
                                 error_type=type(error_v69352).__name__,
                                 error=str(error_v69352)[:500],
+                            )
+
+                    # v69403: reused same-case fitment questions get a compact
+                    # follow-up contract instead of the nine-section first response.
+                    if (
+                        is_sales_workspace(assistant)
+                        and not workspace_atp_direct_answer_v69205
+                        and bool(locals().get("workspace_atp_followup_reused_v69403"))
+                    ):
+                        try:
+                            sales_followup_contract_v69403 = (
+                                _workspace_sales_followup_compact_format_context_v69403(
+                                    workspace_atp_authority_v69180,
+                                    interaction_prompt,
+                                )
+                            )
+                            if sales_followup_contract_v69403:
+                                ai_request_prompt += sales_followup_contract_v69403
+                                diagnostic_log(
+                                    "workspace_sales_compact_followup_contract_v69403",
+                                    authority_status=str(
+                                        workspace_atp_authority_v69180.get("status") or ""
+                                    ),
+                                )
+                        except Exception as followup_contract_error_v69403:
+                            diagnostic_log(
+                                "workspace_sales_compact_followup_contract_failed_v69403",
+                                error_type=type(followup_contract_error_v69403).__name__,
+                                error=str(followup_contract_error_v69403)[:500],
                             )
 
                     try:
@@ -101657,7 +101909,26 @@ else:
                     )
                 )
                 sales_exact_primaries_v69398 = []
-                if not sales_exact_topic_visuals_v69399:
+                explicit_visual_v69403 = bool(
+                    _website_image_explicit_visual_request_v68888(
+                        interaction_prompt
+                    )
+                )
+                topical_tokens_v69403 = (
+                    _workspace_sales_visual_topic_tokens_v69401(
+                        interaction_prompt
+                    )
+                    if explicit_visual_v69403
+                    else set()
+                )
+                topical_visual_request_v69403 = bool(
+                    explicit_visual_v69403 and topical_tokens_v69403
+                )
+
+                if (
+                    not sales_exact_topic_visuals_v69399
+                    and not topical_visual_request_v69403
+                ):
                     sales_exact_primaries_v69398 = (
                         _workspace_sales_exact_primary_final_lock_v69398(
                             assistant,
@@ -101665,6 +101936,30 @@ else:
                             workspace_atp_authority_v69180,
                             max_images=6,
                         )
+                    )
+                elif (
+                    topical_visual_request_v69403
+                    and not sales_exact_topic_visuals_v69399
+                ):
+                    # Explicit topical visual requests fail closed. Never replace
+                    # a missing compatibility/reference image with a general hero.
+                    generated_images = [
+                        image
+                        for image in (generated_images or [])
+                        if not (
+                            isinstance(image, dict)
+                            and str(image.get("source") or "") == "website_knowledge"
+                        )
+                    ]
+                    diagnostic_log(
+                        "workspace_sales_topical_visual_fail_closed_v69403",
+                        prompt_tokens=sorted(topical_tokens_v69403)[:20],
+                        products=(
+                            len(workspace_atp_authority_v69180.get("packages") or [])
+                            if str(workspace_atp_authority_v69180.get("status") or "")
+                            == "recovered_multi"
+                            else 1
+                        ),
                     )
 
                 sales_final_exact_images_v69399 = (
