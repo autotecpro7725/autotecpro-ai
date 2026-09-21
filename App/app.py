@@ -1,3 +1,4 @@
+# AutoTecPro AI v69402 - exact current-page topical semantics recovery for Sales compatibility visuals
 # AutoTecPro AI v69401 - exact Sales topical-image semantic fallback + backward-compatible product-page image-index lookup
 # AutoTecPro AI v69400 - Sales product-identity consistency + exact-authority provider lock + bounded chat resilience + cold-path stability
 # AutoTecPro AI v69399 - metadata-driven Sales compatibility-photo routing + preserve normal multi-product hero behavior
@@ -64,8 +65,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69401"
-AUTOTECPRO_RELEASE_BUILD = "v69401-sales-topical-image-authority-20260921"
+AUTOTECPRO_RELEASE_VERSION = "v69402"
+AUTOTECPRO_RELEASE_BUILD = "v69402-sales-live-topical-semantics-20260921"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -303,7 +304,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69400",
+        "app_release_v69402",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -66326,6 +66327,137 @@ def _workspace_sales_exact_primary_final_lock_v69398(
     return selected
 
 
+@st.cache_data(ttl=120, max_entries=128, show_spinner=False)
+def _workspace_exact_product_atp_semantics_v69402(source_url):
+    """Fetch ATP semantic metadata only from an already-proven exact product page.
+
+    This helper cannot create product authority. It accepts only AutoTecPro /product/
+    URLs and rejects any redirect that changes the exact sellable product identity.
+    """
+    source = str(source_url or "").strip()
+    if not source:
+        return {"status": "unavailable", "reason": "missing_source_url"}
+
+    try:
+        parsed = urllib.parse.urlsplit(source)
+        if "/product/" not in str(parsed.path or "").casefold():
+            return {"status": "unavailable", "reason": "not_product_page"}
+        source_identity = _workspace_product_page_identity_v69396(source)
+        if not str(source_identity).startswith("product:"):
+            return {"status": "unavailable", "reason": "invalid_product_identity"}
+    except Exception:
+        return {"status": "unavailable", "reason": "invalid_source_url"}
+
+    try:
+        response = http_session.get(
+            source,
+            headers={
+                "Accept": "text/html,application/xhtml+xml",
+                "User-Agent": "AutoTecPro-AI/1.0",
+            },
+            timeout=LIVE_HTTP_TIMEOUT,
+            allow_redirects=True,
+        )
+        response.raise_for_status()
+    except Exception as error:
+        diagnostic_log(
+            "workspace_exact_product_atp_semantics_failed_v69402",
+            source_url=source[:500],
+            reason="fetch_failed",
+            error_type=type(error).__name__,
+            error=str(error)[:400],
+        )
+        return {
+            "status": "unavailable",
+            "reason": "fetch_failed",
+            "error_type": type(error).__name__,
+        }
+
+    final_url = str(getattr(response, "url", "") or source).strip()
+    try:
+        final_identity = _workspace_product_page_identity_v69396(final_url)
+    except Exception:
+        return {"status": "unavailable", "reason": "invalid_final_url"}
+
+    if final_identity != source_identity:
+        diagnostic_log(
+            "workspace_exact_product_atp_semantics_failed_v69402",
+            source_url=source[:500],
+            final_url=final_url[:500],
+            reason="exact_product_identity_mismatch",
+        )
+        return {
+            "status": "unavailable",
+            "reason": "exact_product_identity_mismatch",
+        }
+
+    html_text = str(getattr(response, "text", "") or "")
+    if not html_text:
+        return {"status": "unavailable", "reason": "empty_product_page"}
+
+    semantics = dict(
+        _website_extract_atp_semantics_v69178(
+            html_text,
+            final_url,
+        ) or {}
+    )
+    images = [
+        dict(item)
+        for item in (semantics.get("images") or [])
+        if isinstance(item, dict)
+    ]
+    if not images:
+        diagnostic_log(
+            "workspace_exact_product_atp_semantics_failed_v69402",
+            source_url=source[:500],
+            final_url=final_url[:500],
+            reason="no_atp_images",
+        )
+        return {
+            "status": "unavailable",
+            "reason": "no_atp_images",
+        }
+
+    product_keys = sorted({
+        str(item.get("data-atp-product-identity-key") or "").strip()
+        for item in images
+        if str(item.get("data-atp-product-identity-key") or "").strip()
+    })
+    if len(product_keys) != 1:
+        reason_v69402 = (
+            "missing_product_identity"
+            if not product_keys
+            else "ambiguous_product_identity"
+        )
+        diagnostic_log(
+            "workspace_exact_product_atp_semantics_failed_v69402",
+            source_url=source[:500],
+            final_url=final_url[:500],
+            reason=reason_v69402,
+            product_identity_count=len(product_keys),
+        )
+        return {
+            "status": "unavailable",
+            "reason": reason_v69402,
+        }
+
+    diagnostic_log(
+        "workspace_exact_product_atp_semantics_v69402",
+        source_url=source[:500],
+        final_url=final_url[:500],
+        image_count=len(images),
+        product_identity=(product_keys[0] if product_keys else "")[:200],
+    )
+    return {
+        "status": "ok",
+        "source_url": source,
+        "final_url": final_url,
+        "source_identity": source_identity,
+        "product_identity_key": product_keys[0] if product_keys else "",
+        "semantics": semantics,
+    }
+
+
 def _workspace_sales_visual_topic_tokens_v69401(prompt_text):
     tokens = set(_website_image_tokens_v68883(str(prompt_text or "")))
     tokens -= {
@@ -66335,6 +66467,7 @@ def _workspace_sales_visual_topic_tokens_v69401(prompt_text):
         "photo", "photos", "picture", "pictures", "image", "images",
         "screen", "product", "products", "vehicle", "vehicles",
         "for", "of", "to", "and", "or", "with", "me",
+        "you", "i", "we", "us", "it", "there", "any", "some",
     }
     return tokens
 
@@ -66344,11 +66477,11 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
     prompt_text,
     package,
 ):
-    """Resolve one explicit topical image from exact current package metadata.
+    """Resolve one explicit topical image from exact current Sales authority.
 
-    This is fail-closed and never creates product authority. Supporting images
-    remain non-automatic on ordinary turns; missing data-atp-sales-auto-display
-    is allowed only because the customer explicitly requested a topical visual.
+    v69402 preserves the v69401 fail-closed exact-package path, then—only when
+    that recovered package lacks a usable non-primary topical image—re-reads ATP
+    semantic metadata from the already-proven exact current product page.
     """
     if not is_sales_workspace(workspace_label):
         return None
@@ -66373,104 +66506,178 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
     if not prompt_tokens:
         return None
 
-    semantics = dict(package.get("atp_semantics_v69178") or {})
-    images = [
-        dict(item)
-        for item in (semantics.get("images") or [])
-        if isinstance(item, dict)
-    ]
-    if not images:
-        return None
-
     contract = _workspace_atp_product_contract_v69205(package)
     expected_identity = str(
         contract.get("product_identity_key")
         or package.get("product_identity_key")
         or ""
     ).strip()
+    synthetic_expected_identity = bool(
+        re.fullmatch(r"[0-9a-f]{24}", expected_identity.casefold())
+    )
 
-    best = None
-    for position, meta in enumerate(images):
-        if str(
-            meta.get("data-atp-current-source") or ""
-        ).strip().casefold() != "true":
-            continue
+    def _select_from_images(images, required_identity, provenance):
+        best = None
+        for position, meta in enumerate(images or []):
+            if not isinstance(meta, dict):
+                continue
+            meta = dict(meta)
 
-        source_authority = str(
-            meta.get("data-atp-source-authority") or ""
-        ).strip().casefold()
-        if (
-            "exact-current-source" not in source_authority
-            and not source_authority.startswith("current-")
-        ):
-            continue
+            if str(
+                meta.get("data-atp-current-source") or ""
+            ).strip().casefold() != "true":
+                continue
 
-        role = str(meta.get("data-atp-image-role") or "").strip()
-        topic = str(meta.get("data-atp-topic") or "").strip()
-        search_terms = str(
-            meta.get("data-atp-search-terms") or ""
-        ).strip()
+            source_authority = str(
+                meta.get("data-atp-source-authority") or ""
+            ).strip().casefold()
+            if (
+                "exact-current-source" not in source_authority
+                and not source_authority.startswith("current-")
+            ):
+                continue
 
-        is_primary = bool(
-            role.casefold() == "primary-product-image"
-            or str(
-                meta.get("data-atp-is-primary-product-image") or ""
-            ).strip().casefold() == "true"
-            or str(
-                meta.get("data-atp-main-product-photo") or ""
-            ).strip().casefold() == "true"
-        )
-        if is_primary:
-            continue
+            role = str(meta.get("data-atp-image-role") or "").strip()
+            topic = str(meta.get("data-atp-topic") or "").strip()
+            search_terms = str(
+                meta.get("data-atp-search-terms") or ""
+            ).strip()
 
-        product_identity = str(
-            meta.get("data-atp-product-identity-key") or ""
-        ).strip()
-        if expected_identity and product_identity != expected_identity:
-            continue
-
-        semantic_tokens = set(
-            _website_image_tokens_v68883(
-                " ".join((role, topic, search_terms))
+            is_primary = bool(
+                role.casefold() == "primary-product-image"
+                or str(
+                    meta.get("data-atp-is-primary-product-image") or ""
+                ).strip().casefold() == "true"
+                or str(
+                    meta.get("data-atp-main-product-photo") or ""
+                ).strip().casefold() == "true"
             )
+            if is_primary:
+                continue
+
+            product_identity = str(
+                meta.get("data-atp-product-identity-key") or ""
+            ).strip()
+            if required_identity and product_identity != required_identity:
+                continue
+
+            semantic_tokens = set(
+                _website_image_tokens_v68883(
+                    " ".join((role, topic, search_terms))
+                )
+            )
+            overlap_tokens = prompt_tokens & semantic_tokens
+            if not overlap_tokens:
+                continue
+
+            image_url = str(
+                meta.get("data-atp-full-resolution-url")
+                or meta.get("data-atp-canonical-image-url")
+                or meta.get("data-atp-source-url")
+                or meta.get("src")
+                or ""
+            ).strip()
+            if not image_url.startswith("https://"):
+                continue
+
+            try:
+                priority = int(float(
+                    meta.get("data-atp-ai-priority")
+                    or meta.get("data-atp-priority")
+                    or meta.get("data-atp-seo-priority")
+                    or 0
+                ))
+            except Exception:
+                priority = 0
+
+            score = (len(overlap_tokens) * 10000) + priority
+            rank = (score, -position)
+            if best is None or rank > best[0]:
+                best = (
+                    rank,
+                    image_url,
+                    meta,
+                    sorted(overlap_tokens),
+                    role,
+                    topic,
+                    search_terms,
+                    priority,
+                    product_identity,
+                    provenance,
+                )
+        return best
+
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    package_images = [
+        dict(item)
+        for item in (semantics.get("images") or [])
+        if isinstance(item, dict)
+    ]
+
+    # Recovery packages can carry a synthetic 24-hex identity key. Do not use that
+    # synthetic key to reject source-authored image identities on the same exact page.
+    package_required_identity = (
+        ""
+        if synthetic_expected_identity
+        else expected_identity
+    )
+    best = _select_from_images(
+        package_images,
+        package_required_identity,
+        "exact-recovered-package",
+    )
+
+    live_result_v69402 = {}
+    if best is None:
+        live_result_v69402 = dict(
+            _workspace_exact_product_atp_semantics_v69402(
+                source_url
+            ) or {}
         )
-        overlap_tokens = prompt_tokens & semantic_tokens
-        if not overlap_tokens:
-            continue
+        if str(live_result_v69402.get("status") or "") == "ok":
+            live_identity_v69402 = str(
+                live_result_v69402.get("product_identity_key") or ""
+            ).strip()
 
-        image_url = str(
-            meta.get("data-atp-full-resolution-url")
-            or meta.get("data-atp-canonical-image-url")
-            or meta.get("data-atp-source-url")
-            or meta.get("src")
-            or ""
-        ).strip()
-        if not image_url.startswith("https://"):
-            continue
+            # A non-synthetic package identity is source-authored authority and must
+            # agree with the current exact page. Synthetic recovery identities are
+            # intentionally replaced by the page's unique authored identity key.
+            if (
+                expected_identity
+                and not synthetic_expected_identity
+                and live_identity_v69402
+                and expected_identity != live_identity_v69402
+            ):
+                diagnostic_log(
+                    "workspace_sales_exact_topic_live_identity_mismatch_v69402",
+                    source_url=source_url[:500],
+                    package_identity=expected_identity[:200],
+                    live_identity=live_identity_v69402[:200],
+                )
+                return None
 
-        try:
-            priority = int(float(
-                meta.get("data-atp-ai-priority")
-                or meta.get("data-atp-priority")
-                or meta.get("data-atp-seo-priority")
-                or 0
-            ))
-        except Exception:
-            priority = 0
-
-        score = (len(overlap_tokens) * 10000) + priority
-        rank = (score, -position)
-        if best is None or rank > best[0]:
-            best = (
-                rank,
-                image_url,
-                meta,
-                sorted(overlap_tokens),
-                role,
-                topic,
-                search_terms,
-                priority,
-                product_identity,
+            live_semantics_v69402 = dict(
+                live_result_v69402.get("semantics") or {}
+            )
+            live_images_v69402 = [
+                dict(item)
+                for item in (
+                    live_semantics_v69402.get("images") or []
+                )
+                if isinstance(item, dict)
+            ]
+            required_live_identity_v69402 = (
+                live_identity_v69402
+                or (
+                    expected_identity
+                    if not synthetic_expected_identity
+                    else ""
+                )
+            )
+            best = _select_from_images(
+                live_images_v69402,
+                required_live_identity_v69402,
+                "exact-current-page-v69402",
             )
 
     if best is None:
@@ -66486,12 +66693,19 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
         search_terms,
         priority,
         product_identity,
+        provenance,
     ) = best
+
+    source_page_v69402 = str(
+        live_result_v69402.get("final_url")
+        if provenance == "exact-current-page-v69402"
+        else source_url
+    ).strip() or source_url
 
     payload = {
         "database_choice": "Sales Database",
         "image_url": image_url,
-        "source_page": source_url,
+        "source_page": source_page_v69402,
         "page_title": str(
             package.get("page_title")
             or package.get("title")
@@ -66504,7 +66718,7 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
         ),
         "visual_analysis": (
             "Exact current-source topical image authored inside the same "
-            "selected AutoTecPro product package"
+            "selected AutoTecPro product page"
         ),
         "image_structured_metadata_v69017": dict(meta),
     }
@@ -66526,7 +66740,12 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
     record["website_atp_metadata_exact_v69180"] = True
     record["website_atp_primary_product_image_v69325"] = False
     record["website_atp_product_identity_key_v69325"] = (
-        product_identity or expected_identity
+        product_identity
+        or (
+            expected_identity
+            if not synthetic_expected_identity
+            else ""
+        )
     )
     record["website_atp_image_role_v69399"] = role
     record["website_atp_topic_v69399"] = topic
@@ -66538,6 +66757,20 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
     record["website_sales_exact_topic_semantic_fallback_v69401"] = True
     record["website_sales_exact_product_identity_v69401"] = page_id
     record["website_sales_exact_topic_overlap_v69401"] = overlap_tokens
+    record["website_sales_exact_topic_provenance_v69402"] = provenance
+
+    if provenance == "exact-current-page-v69402":
+        record["website_sales_exact_topic_live_semantics_v69402"] = True
+        diagnostic_log(
+            "workspace_sales_exact_topic_live_semantics_v69402",
+            source_url=source_url[:500],
+            final_url=source_page_v69402[:500],
+            topic=topic[:100],
+            role=role[:100],
+            image_url=image_url[:500],
+            overlap=overlap_tokens,
+            priority=int(priority or 0),
+        )
 
     diagnostic_log(
         "workspace_sales_exact_topic_semantic_fallback_v69401",
@@ -66547,8 +66780,10 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
         image_url=image_url[:500],
         overlap=overlap_tokens,
         priority=int(priority or 0),
+        provenance=provenance,
     )
     return record
+
 
 
 def _workspace_sales_exact_topic_visual_final_lock_v69399(
