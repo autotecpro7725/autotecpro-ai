@@ -1,3 +1,4 @@
+# AutoTecPro AI v69404 - human customer voice + Sales/Marketing visual wording
 # AutoTecPro AI v69403 - Sales follow-up routing + topical fail-closed + visual provider bypass + restored prewarm hardening
 # AutoTecPro AI v69402 - exact current-page topical semantics recovery for Sales compatibility visuals
 # AutoTecPro AI v69401 - exact Sales topical-image semantic fallback + backward-compatible product-page image-index lookup
@@ -66,8 +67,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69403"
-AUTOTECPRO_RELEASE_BUILD = "v69403-sales-followup-routing-stability-20260921"
+AUTOTECPRO_RELEASE_VERSION = "v69404"
+AUTOTECPRO_RELEASE_BUILD = "v69404-human-customer-voice-20260921"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -305,7 +306,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69403",
+        "app_release_v69404",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -4296,7 +4297,7 @@ Preferred response:
 - Compatible AutoTecPro options
 - Required harness/accessories
 - Missing information
-"""
+""" + _customer_facing_voice_policy_v69404()
 
     if tool_type == "sales_compatibility_advisor":
         return """
@@ -4306,24 +4307,24 @@ ACTIVE TOOL: AI Compatibility Advisor
 - Search the Sales Vector Store and Technical Support Vector Store before making a compatibility statement.
 - Verify year, make, model, trim, factory screen/radio, factory audio, cameras,
   climate controls, steering side, and requested AutoTecPro product as needed.
-- Return one status: VERIFIED COMPATIBLE, CONDITIONALLY COMPATIBLE,
-  NOT COMPATIBLE, or INSUFFICIENT INFORMATION.
+- Determine internally whether the fitment is confirmed, conditional, incompatible,
+  or needs more information. In the visible answer, use natural customer language
+  instead of printing an internal status label.
 - Preserve every distinct exact current AutoTecPro product page supplied by the application as a separate sellable option.
-- Use the v69321 Sales response structure for the first compatibility/fitment answer, with more detail when verified:
-  1. ## AutoTecPro Model Match — compact table with product/model, screen size, vehicle/year range, climate version, drive side, Android version, RAM/storage, camera option, and match confidence.
-  2. ## Product Specifications — compact table containing only verified specifications.
-  3. ## Product Features — one verified feature per checklist line.
-  4. ## Compatibility Notes — one verified note per line, including retained OEM functions, configuration limits, and missing information.
-  5. ## Staff Note — short internal sales note when useful.
-  6. ## Brief Installation Details — concise table/checklist for installation type, climate version, camera compatibility, harness/CANBUS, modification/wire-cutting status, and preparation notes when verified.
-  7. ## Installation Resources — exact verified installation video/manual/PDF URLs only.
-  8. ## Current Product Pages — list each exact current source URL on its own line; never put long product URLs inside a wide table.
-  9. ## Customer Reply Draft — short ready-to-send reply, last.
+- For the first compatibility/fitment answer, speak directly to the customer:
+  1. Start with a direct answer in one or two natural sentences.
+  2. ## Which Version Fits Your Vehicle? — compact table, one row per distinct product.
+  3. ## Key Product Details — concise confirmed details only.
+  4. ## How to Choose the Correct Version — explain the factory setup difference clearly.
+  5. ## Installation — short customer-safe notes only when useful.
+  6. ## Helpful Resources — real installation links only when available.
+  7. ## Product Links — each matching product on its own line.
+- Never show Staff Note or Customer Reply Draft unless the user explicitly asks for internal staff content or a draft.
 - For detailed facts, prefer reviewed current webpage text and verified Sales/Technical file-search evidence. Do not map generic metadata tokens such as GPS, BT, Wi-Fi, CarPlay, or Android Auto into unrelated specification fields.
-- If a field is not explicitly verified, omit it or mark it Requires Verification instead of guessing.
+- If a field is not confirmed, omit it or say naturally that one more detail is needed to confirm it.
 - Do not infer compatibility from nearby years or similar trims.
 - Never invent pricing, stock, specifications, product URLs, installation resources, or policy details.
-"""
+""" + _customer_facing_voice_policy_v69404()
 
     if tool_type == "sales_advisor":
         return """
@@ -4338,7 +4339,7 @@ ACTIVE TOOL: AI Sales Advisor
 - Offer an upgrade only when it genuinely fits the customer's needs.
 - Never invent compatibility, specifications, pricing, promotions, stock,
   warranty terms, or order information.
-"""
+""" + _customer_facing_voice_policy_v69404()
 
     if tool_type == "marketing_consultant":
         score_requested = bool(routing.get("score_requested"))
@@ -4366,7 +4367,7 @@ ACTIVE TOOL: AI Marketing Consultant
 - Provide practical, prioritized improvements and, when useful, a ready-to-use
   redesign brief for the Advanced AI Image Designer.
 - {score_rule}
-"""
+""" + _customer_facing_voice_policy_v69404()
 
     return ""
 
@@ -41085,6 +41086,31 @@ TECHNICAL CAR MODEL / PROTOCOL / A-C SETTINGS PRESENTATION:
 
 
 @st.cache_data(ttl=3600, max_entries=32, show_spinner=False)
+def _customer_facing_voice_policy_v69404():
+    """Shared visible-language policy for Sales and Marketing provider replies."""
+    return """
+CUSTOMER-FACING VOICE POLICY (v69404):
+- Speak like a knowledgeable AutoTecPro representative talking directly to the customer.
+- Be natural, confident, concise, and helpful. Do not sound like a software system,
+  audit report, retrieval engine, or internal staff console.
+- Never expose internal implementation terms in a normal customer reply, including:
+  vector store, database, file_search, provider, authority, current-source,
+  exact current source, source-authored, semantic metadata, package, retrieval,
+  fail closed, verification gate, internal route, or internal source ID.
+- Do not print internal status labels such as VERIFIED COMPATIBLE,
+  CONDITIONALLY COMPATIBLE, INSUFFICIENT INFORMATION, or Requires Verification.
+  Translate them naturally: "Yes, this fits", "This depends on...", "This one does
+  not fit", or "I need one more detail to confirm".
+- Do not show Staff Note or Customer Reply Draft unless the user explicitly asks
+  for an internal note or a draft message.
+- When information is missing, ask for the smallest useful detail or photo rather
+  than explaining the app's validation process.
+- When showing photos, simply explain what the customer should compare or look for.
+- Accuracy rules still apply: never guess product fitment, pricing, specifications,
+  links, or installation details.
+"""
+
+
 def get_instructions(selected_assistant):
     if selected_assistant == "🔧 Technical Support":
         return """
@@ -41295,7 +41321,7 @@ workflow. Image identification must distinguish visible facts from inference.
 
 Never invent pricing, order details, analytics results, or compatibility.
 Do not output HTML or code-fence formatting.
-""" + _workspace_response_formatting_rules()
+""" + _customer_facing_voice_policy_v69404() + _workspace_response_formatting_rules()
 
     if is_marketing_workspace(selected_assistant):
         return """
@@ -41419,7 +41445,7 @@ When the application identifies a MARKETING TOOL request:
 - Never treat generic marketing assumptions as verified AutoTecPro facts.
 
 Do not output HTML or code-fence formatting.
-""" + _workspace_response_formatting_rules()
+""" + _customer_facing_voice_policy_v69404() + _workspace_response_formatting_rules()
 
     return """
 You are AutoTecPro Graphic Marketing AI and a professional automotive Creative Director.
@@ -45562,7 +45588,7 @@ def _technical_video_direct_answer_v69369(prompt_text, rows):
         file_id=str(resource.get("file_id") or ""),
         url_sha256=hashlib.sha256(str(resource.get("url") or "").encode("utf-8")).hexdigest()[:16],
     )
-    return f"## Verified Installation Video\n\n- **{label}:** {resource['url']}"
+    return f"## Installation Video\n\n- **{label}:** {resource['url']}"
 
 def build_user_input(
     prompt_text,
@@ -64661,11 +64687,11 @@ def _workspace_atp_first_response_notes_v69348(contract, package):
     if "manual climate" in blob and ("automatic climate" in blob or "auto climate" in blob):
         notes.append("Manual and automatic climate-control configurations are supported; the correct configuration should be selected for the vehicle.")
     elif "climate-control-identification-guide" in blob or "climate control identification guide" in blob:
-        notes.append("Confirm the climate-control version before ordering using the current-source identification guide.")
+        notes.append("Confirm the climate-control version before ordering using the identification guide for this model.")
     if "upload" in blob and "photo" in blob and ("dash" in blob or "instrument cluster" in blob or "radio" in blob):
-        notes.append("The current product source asks for a vehicle/dashboard photo to confirm the exact configuration before ordering.")
+        notes.append("Please send a clear vehicle/dashboard photo so I can confirm the correct configuration before ordering.")
     if ("no modification" in blob or "no wiring modification" in blob or "plug-and-play" in blob or "plug and play" in blob):
-        notes.append("The current source describes the installation as OEM-fit / no wiring modification required.")
+        notes.append("Installation is OEM-fit and does not require wiring modification.")
     return list(dict.fromkeys(notes))[:4]
 
 
@@ -64681,7 +64707,7 @@ def _workspace_atp_first_response_product_row_v69349(index, title, fit_label, so
         str(int(index)),
         title,
         platform or "—",
-        fit_label or "Compatible per current source",
+        fit_label or "Compatible",
         display or "—",
         hardware or "—",
         feature_text or "—",
@@ -64697,12 +64723,12 @@ def _workspace_sales_visual_followup_direct_answer_v69403(
     authority,
     followup_reused=False,
 ):
-    """Provider-bypass text for an identity-free same-case explicit photo follow-up.
-
-    Image selection remains entirely downstream in the existing exact image-authority
-    pipeline. This helper never chooses an image and never creates product authority.
-    """
-    if not is_sales_workspace(workspace_label) or not bool(followup_reused):
+    """Natural same-case photo reply; image authority remains downstream and unchanged."""
+    workspace = str(workspace_label or "")
+    if not (
+        is_sales_workspace(workspace)
+        or is_marketing_workspace(workspace)
+    ) or not bool(followup_reused):
         return ""
 
     authority = dict(authority or {})
@@ -64713,16 +64739,42 @@ def _workspace_sales_visual_followup_direct_answer_v69403(
         return ""
 
     prompt_tokens = _workspace_sales_visual_topic_tokens_v69401(prompt_text)
+    lowered = {str(x or "").casefold() for x in prompt_tokens}
+
+    if lowered & {
+        "compatibility", "compatible", "identify", "identification",
+        "fit", "fits", "fitting",
+    }:
+        return (
+            "Yes — these are the compatibility photos for the options we found. "
+            "Compare them with your factory dashboard/radio setup. If you’re still "
+            "not sure which one matches, send me a clear photo of your current dash "
+            "and I can help confirm the correct version."
+        )
+
+    if lowered & {"installation", "install", "wiring", "harness", "connector"}:
+        return (
+            "Yes — here are the relevant installation reference photos for these "
+            "options. If you want help with a specific connection or step, send me "
+            "a photo of what you’re looking at and I can guide you from there."
+        )
+
+    if lowered & {"camera", "backup", "reverse"}:
+        return (
+            "Yes — here are the camera-related reference photos for these options. "
+            "If you want me to confirm the correct connection, send me a clear photo "
+            "of your factory camera setup or connector."
+        )
+
     if prompt_tokens:
         return (
-            "I’ll use only verified reference photos from the exact current product "
-            "pages already matched to this case. I won’t substitute the general "
-            "product photos if a matching topical reference can’t be verified."
+            "Yes — here are the relevant reference photos for these options. "
+            "If you’re checking something specific, tell me what you want to compare "
+            "and I’ll point it out."
         )
 
     return (
-        "Yes — here are the exact current product photos for the products already "
-        "matched to this case."
+        "Yes — here are the product photos for the options we found for your vehicle."
     )
 
 
@@ -64832,50 +64884,43 @@ def _workspace_sales_v69321_first_fitment_format_context_v69352(authority, promp
         if platform:
             label += f" — {platform}"
         option_lines.append(
-            f"{label}\nProduct: {title or 'Current AutoTecPro product'}\nExact current product URL: {source}"
+            f"{label}\nProduct: {title or 'AutoTecPro product'}\nProduct URL: {source}"
         )
 
     if not option_lines:
         return ""
 
     return (
-        "\n\nAUTOTECPRO SALES FIRST-FITMENT OUTPUT CONTRACT (v69352)\n"
-        "Use the original v69321 Sales response depth and section organization for this FIRST fitment/compatibility answer. "
-        "The exact current-product authority below is binding.\n\n"
-        "CRITICAL DISTINCT-PRODUCT RULES:\n"
-        "- Every exact current product option listed below is a separate sellable product and MUST remain a separate row/option in the answer.\n"
-        "- Never collapse Android 13 and Android 14 into one recommended model, one row, or wording such as 'Android 13 or Android 14 page options'.\n"
-        "- Do not choose one as the single 'Best recommendation' unless the user explicitly asks which one is better.\n"
-        "- The full product URLs below are exact authority. Do not rewrite, shorten, swap, or infer a different URL.\n"
-        "- Do NOT put full product URLs inside wide Markdown tables. Put them in the separate Current Product Pages section.\n\n"
-        "EXACT CURRENT PRODUCT OPTIONS:\n" + "\n\n".join(option_lines) + "\n\n"
-        "REQUIRED FIRST-RESPONSE SECTION ORDER (v69321 content contract):\n"
-        "1. ## AutoTecPro Model Match\n"
-        "   - Compact Markdown table. One separate row per exact product option above.\n"
-        "   - Include only supported fields: AutoTecPro product/model, screen size, vehicle/year range, climate version, drive side, Android version, RAM/storage, camera option, and match confidence.\n"
-        "   - If a field is not verified in reviewed Sales/Technical evidence, write 'Requires Verification' or omit the field; never substitute another feature token.\n"
-        "2. ## Product Specifications\n"
-        "   - Compact Markdown table containing verified specifications only.\n"
-        "   - Never map GPS/BT/Wi-Fi/CarPlay/Android Auto into unrelated fields such as fitment, display, hardware, or URL.\n"
-        "3. ## Product Features\n"
-        "   - Put each verified feature on its own checklist line.\n"
-        "4. ## Compatibility Notes\n"
-        "   - Put each verified note on its own bullet line. Do not compress multiple notes into one paragraph.\n"
-        "5. ## Staff Note\n"
-        "   - Short internal note, clearly separate from customer-facing text.\n"
-        "6. ## Brief Installation Details\n"
-        "   - Compact table or short checklist. Include only verified installation type, climate version, camera compatibility, required harness/CANBUS, modification/wire-cutting requirement, and preparation note.\n"
-        "7. ## Installation Resources\n"
-        "   - Show exact verified video/manual/PDF URLs when present. If none are verified, say so. Never invent a resource.\n"
-        "8. ## Current Product Pages\n"
-        "   - List every exact current product option above on its own line with its full URL.\n"
-        "9. ## Customer Reply Draft\n"
-        "   - Always last. Short ready-to-send customer response in Markdown blockquote paragraphs.\n\n"
-        "ALIGNMENT / ACCURACY RULES:\n"
-        "- Keep tables compact; do not create a single extra-wide table containing features and URLs.\n"
-        "- Keep Android version, fitment, display, hardware, features, and URL semantically separate.\n"
-        "- Use Sales knowledge first for product facts and Technical knowledge for installation/support facts.\n"
-        "- If evidence conflicts or is absent, state uncertainty instead of guessing.\n"
+        "\n\nAUTOTECPRO SALES FIRST-FITMENT CUSTOMER RESPONSE CONTRACT (v69404)\n"
+        "Answer the customer directly and naturally. The product identities below are binding, "
+        "but do not mention internal authority, source-validation, retrieval, or database language.\n\n"
+        "DISTINCT-PRODUCT RULES:\n"
+        "- Every product option below is a separate sellable version and must remain separate.\n"
+        "- Never collapse Android 13 and Android 14 into one model or one row.\n"
+        "- Do not choose one as the single best option unless the customer asks you to compare them.\n"
+        "- Keep every supplied full product URL attached to the correct product; never swap or infer a different URL.\n"
+        "- Keep long URLs outside wide tables under a simple Product Links section.\n\n"
+        "PRODUCT OPTIONS:\n" + "\n\n".join(option_lines) + "\n\n"
+        "CUSTOMER-FACING RESPONSE STYLE:\n"
+        "1. Start with a direct answer to the customer's question in one or two natural sentences.\n"
+        "2. ## Which Version Fits Your Vehicle?\n"
+        "   - Use a compact table with one row per product option. Include only useful confirmed fields.\n"
+        "   - If a detail is not confirmed, omit it or say 'I need one more detail to confirm this'.\n"
+        "3. ## Key Product Details\n"
+        "   - Keep the most relevant specifications/features concise. Do not dump every available field.\n"
+        "4. ## How to Choose the Correct Version\n"
+        "   - Explain the factory-radio/screen/climate distinction in plain customer language.\n"
+        "   - If a photo would confirm the version, ask for one clear dashboard/radio photo.\n"
+        "5. ## Installation\n"
+        "   - Include a short customer-safe note only when useful and supported.\n"
+        "6. ## Helpful Resources\n"
+        "   - Show real installation video/manual/PDF links when available. If none are available, omit this section.\n"
+        "7. ## Product Links\n"
+        "   - List each matching product on its own line with the full URL.\n\n"
+        "DO NOT show Staff Note, Customer Reply Draft, internal verification labels, or system/source terminology "
+        "unless the user explicitly asks for internal staff content.\n"
+        "Keep the answer professional and knowledgeable, but conversational rather than report-like.\n"
+        "Accuracy rules remain unchanged: never guess missing fitment, specifications, pricing, or resources.\n"
     )
 
 def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, authority):
@@ -65112,7 +65157,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     product_v69326 = dict(lookup_v69326.get("product") or {})
                     regular_v69326 = str(lookup_v69326.get("regular_price") or "").strip()
                     sale_v69326 = str(lookup_v69326.get("sale_price") or "").strip()
-                    note_v69326 = "Verified live WooCommerce price"
+                    note_v69326 = "Current store price"
                     if bool(lookup_v69326.get("on_sale")) and sale_v69326 and regular_v69326 and sale_v69326 != regular_v69326:
                         note_v69326 = f"Live sale price; regular price {(_woocommerce_store_currency_v69326() or 'store currency')} {regular_v69326}"
                     live_rows_v69326.append((str(product_v69326.get("name") or title_v69326), fit_label_v69326, price_label_v69326, note_v69326))
@@ -65132,7 +65177,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                             title_v69326,
                             fit_label_v69326,
                             page_price_label_v69340,
-                            "Verified from exact current product page (WooCommerce REST unavailable for this price)",
+                            "Current product-page price",
                         ))
                     else:
                         diagnostic_log(
@@ -65144,7 +65189,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                             page_error_type=str(page_lookup_v69340.get("error_type") or "")[:120],
                             page_final_url=str(page_lookup_v69340.get("final_url") or "")[:700],
                         )
-                        live_rows_v69326.append((title_v69326, fit_label_v69326, "Not verified", "Current price could not be verified from WooCommerce REST or the exact current product page; I will not guess"))
+                        live_rows_v69326.append((title_v69326, fit_label_v69326, "Unavailable", "I can’t confirm the current price right now, so I don’t want to give you the wrong number."))
 
             diagnostic_log(
                 "workspace_sales_live_multi_price_v69342",
@@ -65205,7 +65250,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 lines_v69326.append(f"**{variant_label_v69343} — {display_price_v69347}**")
             lines_v69326.extend([
                 "",
-                "| Product | Variant | Current price | Verification |",
+                "| Product | Variant | Current price | Note |",
                 "|---|---|---:|---|",
             ])
             for title_v69347, variant_v69347, display_price_v69347, note_v69347, _usd_v69347 in display_rows_v69347:
@@ -65234,14 +65279,14 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 })
                 fx_date_note_v69347 = f" ({', '.join(fx_dates_v69347)})" if fx_dates_v69347 else ""
                 lines_v69326.append(
-                    f"\nUSD equivalents are approximate and use the latest available Frankfurter reference exchange rate{fx_date_note_v69347}; the verified product price remains the store-currency amount."
+                    f"\nUSD equivalents are approximate and use the latest available exchange rate{fx_date_note_v69347}; the store-currency price shown above is the current product price."
                 )
             elif currencies_v69347:
                 lines_v69326.append(
                     "\nUSD conversion is temporarily unavailable; I will not guess an exchange rate."
                 )
             if verified_count_v69326 != len(selected_rows_v69326):
-                lines_v69326.append("\nI only quote prices verified from the exact current WooCommerce product record or, if REST cannot verify it, that exact current product page.")
+                lines_v69326.append("\nIf I can’t confirm a current price, I’ll leave it unavailable rather than risk giving you the wrong amount.")
             return "\n".join(lines_v69326)
 
         if fitment_intent_v69325 and rows_v69325:
@@ -65260,9 +65305,9 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
             lines = [
                 "### Confirmed fitment",
                 "",
-                f"We found **{len(rows_v69325)} separate current AutoTecPro product options** that match the vehicle in your inquiry{intro_year}.",
+                f"I found **{len(rows_v69325)} AutoTecPro options** that fit the vehicle you asked about{intro_year}.",
                 "",
-                "| Option | Product | Platform | Fitment | Display | Hardware | Key features / OEM integration | Current product URL |",
+                "| Option | Product | Platform | Fitment | Display | Hardware | Key features / OEM integration | Product link |",
                 "|---:|---|---|---|---|---|---|---|",
             ]
             all_notes_v69348 = []
@@ -65277,7 +65322,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     contract_v69348, requested_years_v69325
                 )
                 row_v69349 = _workspace_atp_first_response_product_row_v69349(
-                    idx_v69348, title_v69348, true_fitment_v69348 or "Compatible per current source", source_v69348, contract_v69348
+                    idx_v69348, title_v69348, true_fitment_v69348 or "Compatible", source_v69348, contract_v69348
                 )
                 lines.append("| " + " | ".join(row_v69349) + " |")
                 all_notes_v69348.extend(_workspace_atp_first_response_notes_v69348(contract_v69348, pkg_v69348))
@@ -65286,11 +65331,11 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 "",
                 "### Compatibility notes",
                 "",
-                "- These are separate current product pages, so they remain distinct sellable options rather than being collapsed into one model.",
+                "- These are separate product versions, so the correct choice depends on the vehicle’s factory setup.",
             ])
             for note_v69348 in list(dict.fromkeys(all_notes_v69348))[:4]:
                 lines.append(f"- {note_v69348}")
-            lines.append("- The authoritative primary product image for each matched option is shown below on the first inquiry; same-product follow-up questions do not repeat those images.")
+            lines.append("- The main product photo for each option is shown below.")
             diagnostic_log(
                 "workspace_sales_first_response_table_v69350",
                 product_count=len(rows_v69325),
@@ -65475,7 +65520,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     lines_v69350 = [
                         "### Confirmed fitment",
                         "",
-                        f"The exact current product source confirms fitment for **{span}** in the vehicle/model inquiry you provided.",
+                        f"This model supports **{span}** for the vehicle you asked about.",
                         "",
                         "| Option | Product | Platform | Fitment | Display | Hardware | Key features / OEM integration | Current product URL |",
                         "|---:|---|---|---|---|---|---|---|",
@@ -65488,7 +65533,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     if notes_v69348:
                         lines_v69350.extend(["", "### Compatibility notes", ""])
                         lines_v69350.extend(f"- {note}" for note in notes_v69348)
-                    lines_v69350.append("\nThe authoritative primary product image is shown below on this first inquiry; same-product follow-up questions do not repeat it.")
+                    lines_v69350.append("\nThe main product photo is shown below.")
                     diagnostic_log(
                         "workspace_sales_first_response_table_v69350",
                         product_count=1,
@@ -65499,19 +65544,19 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     return "\n".join(lines_v69350)
 
                 return (
-                    f"For the requested years, this {product_label} has the following current-source compatibility: "
+                    f"For the years you asked about, this {product_label} fits: "
                     + "; ".join(parts)
                     + "."
                 )
 
             if requested_models:
                 return (
-                    f"The current product source does **not list {_year_span(requested_years)} {model_label}** "
+                    f"This product is **not listed for {_year_span(requested_years)} {model_label}** "
                     "in this product's compatible fitment branches."
                 )
 
     if visual_intent and contract.get("primary_images"):
-        return "Here is the **primary current-source product image** for this exact product."
+        return "Here’s the main product photo for this model."
 
     if spec_intent:
         wanted = []
@@ -65560,7 +65605,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
             if any("steering" in str(x).casefold() or "swc" in str(x).casefold() for x in contract.get("facts") or []):
                 add("Steering-wheel controls", "Supported")
         if wanted:
-            return "\n".join(["| Product specification | Current source |", "|---|---|"] + [f"| {k} | {v} |" for k, v in wanted])
+            return "\n".join(["| Product specification | Details |", "|---|---|"] + [f"| {k} | {v} |" for k, v in wanted])
 
     webpage_text = str(package.get("webpage_text") or "")
     if warranty_intent:
@@ -65568,14 +65613,14 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
         if m:
             return (
                 f"This product comes with a **{m.group(1)} year factory warranty**. "
-                "The current product source also states that extended warranty can be purchased separately."
+                "Extended warranty is also available separately."
             )
 
     if installation_intent and any("installation-video" in str(x).casefold() for x in contract.get("features") or []):
-        return "Yes. The current product source states that an **installation video is available**."
+        return "Yes — an **installation video is available** for this model."
 
     if climate_guide_intent and any("climate-control-identification-guide" in str(x).casefold() for x in contract.get("features") or []):
-        return "Yes. The current product source includes an **authoritative climate-control identification guide** to confirm the correct vehicle version before ordering."
+        return "Yes — there’s a **climate-control identification guide** for this model that can help confirm the correct version before ordering."
 
     return ""
 
@@ -81424,7 +81469,7 @@ def _technical_direct_section_answer_v69199(prompt_text, compiled_result):
     )
     return (
         f"## {display_title or title}\n\n"
-        "Verified AutoTecPro Technical instructions from the exact current source:\n\n"
+        "Here are the AutoTecPro instructions for this product:\n\n"
         + body
     ).strip()
 
@@ -88558,17 +88603,15 @@ def _technical_gm_2019_transition_safe_answer_v69374(prompt_text):
         return ""
     family = str(ambiguity.get("family") or "Silverado")
     return (
-        f"## 2019 {family} Car Model / A/C Setting — Requires Verification\n\n"
-        f"2019 {family} is a transition year in the current AutoTecPro Technical sources: "
-        "one current source covers the 2013–2019 platform and another covers the 2019–2023 platform. "
-        "The year alone is not enough to choose one Car Model / A/C profile safely.\n\n"
-        "**Do not select a profile yet.** Please confirm the original dash/factory screen style "
-        "and whether the truck has Manual A/C or Auto A/C. A clear photo of the original dash "
-        "is the fastest way to identify the correct branch.\n\n"
-        "**Common menu path after the branch is verified:** Settings → System → Setting Guide "
-        "→ Car Model / A/C Model → password **666888** → Protocol **Xinbasi**.\n\n"
-        "Until the body/generation is verified, AutoTecPro AI will not publish one "
-        "generation-specific Car Model screenshot or exact A/C profile as the answer."
+        f"## 2019 {family} Car Model / A/C Setting\n\n"
+        f"2019 {family} can use two different dashboard generations, so the model year alone "
+        "isn’t enough to choose the correct Car Model / A/C setting.\n\n"
+        "Before changing the setting, please check the original factory screen style and whether "
+        "the truck has Manual A/C or Auto A/C. If you send me a clear photo of the original dash, "
+        "I can help identify which version you have.\n\n"
+        "**Menu path:** Settings → System → Setting Guide → Car Model / A/C Model "
+        "→ password **666888** → Protocol **Xinbasi**.\n\n"
+        "Once I can confirm the dashboard version, I can point you to the correct setting and reference image."
     )
 
 
@@ -89986,9 +90029,9 @@ def _technical_confirmed_source_limited_car_model_answer_v69387(prompt_text):
     lines = [
         f"## {title} Car Model Settings",
         "",
-        "The current AutoTecPro source does **not** define one exact Car Model/A/C profile by model year, so I should not give you a guessed year-to-profile table.",
+        "The available settings are not mapped to one profile for each model year, so the safest way is to match the vehicle’s original screen and climate controls instead of choosing by year alone.",
         "",
-        "### Verified Settings",
+        "### Settings to Use",
     ]
     if protocol:
         lines.append(f"- **Protocol:** {protocol}")
@@ -100362,7 +100405,7 @@ else:
                     # product authority. Provider generation cannot improve image
                     # authority, so bypass it with a minimal deterministic sentence.
                     if (
-                        is_sales_workspace(assistant)
+                        (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
                         and not workspace_atp_direct_answer_v69205
                         and bool(locals().get("workspace_atp_followup_reused_v69403"))
                     ):
@@ -100376,17 +100419,27 @@ else:
                                 )
                             )
                             if workspace_atp_direct_answer_v69205:
+                                visual_topical_v69404 = bool(
+                                    _workspace_sales_visual_topic_tokens_v69401(
+                                        interaction_prompt
+                                    )
+                                )
                                 diagnostic_log(
-                                    "workspace_sales_visual_followup_provider_bypass_v69403",
-                                    topical=bool(
-                                        _workspace_sales_visual_topic_tokens_v69401(
-                                            interaction_prompt
-                                        )
-                                    ),
+                                    "workspace_customer_visual_followup_provider_bypass_v69404",
+                                    workspace=str(assistant),
+                                    topical=visual_topical_v69404,
                                     authority_status=str(
                                         workspace_atp_authority_v69180.get("status") or ""
                                     ),
                                 )
+                                if is_sales_workspace(assistant):
+                                    diagnostic_log(
+                                        "workspace_sales_visual_followup_provider_bypass_v69403",
+                                        topical=visual_topical_v69404,
+                                        authority_status=str(
+                                            workspace_atp_authority_v69180.get("status") or ""
+                                        ),
+                                    )
                         except Exception as visual_bypass_error_v69403:
                             workspace_atp_direct_answer_v69205 = ""
                             diagnostic_log(
