@@ -1,3 +1,4 @@
+# AutoTecPro AI v69405 - partial topical publication + fast first-turn fitment + Marketing parity
 # AutoTecPro AI v69404 - human customer voice + Sales/Marketing visual wording
 # AutoTecPro AI v69403 - Sales follow-up routing + topical fail-closed + visual provider bypass + restored prewarm hardening
 # AutoTecPro AI v69402 - exact current-page topical semantics recovery for Sales compatibility visuals
@@ -67,8 +68,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69404"
-AUTOTECPRO_RELEASE_BUILD = "v69404-human-customer-voice-20260921"
+AUTOTECPRO_RELEASE_VERSION = "v69405"
+AUTOTECPRO_RELEASE_BUILD = "v69405-partial-topical-fast-fitment-20260921"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -306,7 +307,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69404",
+        "app_release_v69405",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -64717,6 +64718,162 @@ def _workspace_atp_first_response_product_row_v69349(index, title, fit_label, so
 
 
 
+def _workspace_sales_first_turn_fitment_direct_answer_v69405(
+    workspace_label,
+    prompt_text,
+    authority,
+):
+    """Fast first-turn Sales fitment/discovery response from already-proven exact products."""
+    if not is_sales_workspace(workspace_label):
+        return ""
+
+    authority = dict(authority or {})
+    status = str(authority.get("status") or "")
+    if status not in {"recovered", "recovered_multi"}:
+        return ""
+
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    p = prompt.casefold()
+    if not p:
+        return ""
+
+    if _website_image_explicit_visual_request_v68888(prompt):
+        return ""
+    if re.search(
+        r"\b(price|prices|cost|costs|how much|quote|discount|coupon|dealer|"
+        r"compare|comparison|versus|vs\.?|write|draft|caption|campaign|"
+        r"facebook|instagram|social|ad copy|advertis|email|blog|seo)\b",
+        p,
+    ):
+        return ""
+
+    prompt_years = sorted(_website_identity_years_v69022(prompt))
+    prompt_families = sorted(_website_identity_vehicle_families_v69022(prompt))
+    fitment_or_discovery = bool(re.search(
+        r"\b(fit|fits|compatible|compatibility|work with|works with|for my|"
+        r"support(?:s|ed)?|which|what|offer|offers|carry|available|have|"
+        r"screen|radio|stereo|infotainment|head unit|unit|model|models|"
+        r"option|options)\b",
+        p,
+    ))
+    if not fitment_or_discovery or not (prompt_years or prompt_families):
+        return ""
+
+    packages = (
+        [dict(pkg) for pkg in (authority.get("packages") or []) if isinstance(pkg, dict)]
+        if status == "recovered_multi"
+        else [dict(authority.get("package") or authority.get("row") or authority)]
+    )
+    packages = [
+        pkg
+        for pkg in packages
+        if str(pkg.get("destination") or "") == "Sales Database"
+        and str(pkg.get("source_url") or "").strip()
+    ]
+    if not packages:
+        return ""
+
+    rows = []
+    seen_pages = set()
+    for pkg in packages:
+        source = str(pkg.get("source_url") or "").strip()
+        try:
+            page_id = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            page_id = source.rstrip("/").casefold()
+        if not page_id or page_id in seen_pages:
+            continue
+
+        contract = _workspace_atp_product_contract_v69205(pkg)
+        fitment = _workspace_atp_first_response_fitment_v69348(
+            contract,
+            prompt_years,
+        )
+        if prompt_years and not fitment:
+            continue
+
+        title = re.sub(
+            r"\s+",
+            " ",
+            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
+        ).strip()
+        if not title:
+            try:
+                title = re.sub(
+                    r"\s+",
+                    " ",
+                    str(
+                        _technical_package_header_value_v69113(
+                            str(pkg.get("package_text") or ""),
+                            "Page title",
+                        )
+                        or ""
+                    ).split("|", 1)[0],
+                ).strip()
+            except Exception:
+                title = ""
+        if not title:
+            title = "AutoTecPro infotainment system"
+
+        seen_pages.add(page_id)
+        rows.append((title, fitment or "Compatible", source, contract, pkg))
+
+    if not rows:
+        return ""
+
+    plural = "option" if len(rows) == 1 else "options"
+    lines = [
+        f"Yes — I found **{len(rows)} AutoTecPro {plural}** that match the vehicle/year you asked about."
+    ]
+    if len(rows) > 1:
+        lines.append(
+            "The correct version depends on the factory dashboard/radio setup, "
+            "so keep the options separate until the original setup is confirmed."
+        )
+
+    lines.extend([
+        "",
+        "| Option | Product | Fitment | Product link |",
+        "|---:|---|---|---|",
+    ])
+
+    notes = []
+    for index, (title, fitment, source, contract, pkg) in enumerate(rows, 1):
+        lines.append(
+            "| "
+            + " | ".join(
+                _workspace_markdown_table_cell_v69347(value)
+                for value in (str(index), title, fitment, source)
+            )
+            + " |"
+        )
+        notes.extend(_workspace_atp_first_response_notes_v69348(contract, pkg))
+
+    unique_notes = list(dict.fromkeys(notes))[:3]
+    if unique_notes:
+        lines.extend(["", "### What to check", ""])
+        lines.extend(f"- {note}" for note in unique_notes)
+
+    if len(rows) > 1:
+        lines.extend([
+            "",
+            (
+                "If you’re not sure which factory version you have, send me a clear "
+                "photo of the current dashboard/radio and I can help narrow it down."
+            ),
+        ])
+
+    lines.extend(["", "The main product photo for each matching option is shown below."])
+
+    diagnostic_log(
+        "workspace_sales_first_turn_fitment_provider_bypass_v69405",
+        products=len(rows),
+        prompt_years=prompt_years[:8],
+        prompt_families=prompt_families[:8],
+    )
+    return "\n".join(lines)
+
+
 def _workspace_sales_visual_followup_direct_answer_v69403(
     workspace_label,
     prompt_text,
@@ -64746,10 +64903,10 @@ def _workspace_sales_visual_followup_direct_answer_v69403(
         "fit", "fits", "fitting",
     }:
         return (
-            "Yes — these are the compatibility photos for the options we found. "
-            "Compare them with your factory dashboard/radio setup. If you’re still "
-            "not sure which one matches, send me a clear photo of your current dash "
-            "and I can help confirm the correct version."
+            "The easiest way to confirm the correct version is to compare your "
+            "factory dashboard/radio setup with the available compatibility photos. "
+            "If one of the matching versions doesn’t have a separate comparison photo, "
+            "send me a clear photo of your current dash and I can help confirm the correct one."
         )
 
     if lowered & {"installation", "install", "wiring", "harness", "connector"}:
@@ -66672,13 +66829,22 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
     that recovered package lacks a usable non-primary topical image—re-reads ATP
     semantic metadata from the already-proven exact current product page.
     """
-    if not is_sales_workspace(workspace_label):
+    workspace = str(workspace_label or "")
+    if not (
+        is_sales_workspace(workspace)
+        or is_marketing_workspace(workspace)
+    ):
         return None
     if not _website_image_explicit_visual_request_v68888(prompt_text):
         return None
 
+    destination = (
+        "Sales Database"
+        if is_sales_workspace(workspace)
+        else "Marketing Database"
+    )
     package = dict(package or {})
-    if str(package.get("destination") or "") != "Sales Database":
+    if str(package.get("destination") or "") != destination:
         return None
 
     source_url = str(package.get("source_url") or "").strip()
@@ -66892,7 +67058,7 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
     ).strip() or source_url
 
     payload = {
-        "database_choice": "Sales Database",
+        "database_choice": destination,
         "image_url": image_url,
         "source_page": source_page_v69402,
         "page_title": str(
@@ -66925,7 +67091,7 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
     if not record:
         return None
 
-    record["website_workspace_destination_v69180"] = "Sales Database"
+    record["website_workspace_destination_v69180"] = destination
     record["website_atp_metadata_exact_v69180"] = True
     record["website_atp_primary_product_image_v69325"] = False
     record["website_atp_product_identity_key_v69325"] = (
@@ -66951,7 +67117,9 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
     if provenance == "exact-current-page-v69402":
         record["website_sales_exact_topic_live_semantics_v69402"] = True
         diagnostic_log(
-            "workspace_sales_exact_topic_live_semantics_v69402",
+            "workspace_customer_exact_topic_live_semantics_v69405",
+            workspace=workspace,
+            destination=destination,
             source_url=source_url[:500],
             final_url=source_page_v69402[:500],
             topic=topic[:100],
@@ -66960,6 +67128,17 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
             overlap=overlap_tokens,
             priority=int(priority or 0),
         )
+        if is_sales_workspace(workspace):
+            diagnostic_log(
+                "workspace_sales_exact_topic_live_semantics_v69402",
+                source_url=source_url[:500],
+                final_url=source_page_v69402[:500],
+                topic=topic[:100],
+                role=role[:100],
+                image_url=image_url[:500],
+                overlap=overlap_tokens,
+                priority=int(priority or 0),
+            )
 
     diagnostic_log(
         "workspace_sales_exact_topic_semantic_fallback_v69401",
@@ -66981,9 +67160,22 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
     authority,
     max_images=12,
 ):
-    """Return one exact authored topical image per exact Sales product."""
-    if not is_sales_workspace(workspace_label):
+    """Return every exact topical image that can be verified for the matched products.
+
+    Missing topical imagery for one product no longer discards valid imagery for the
+    other products. A zero-image topical request still fails closed.
+    """
+    workspace = str(workspace_label or "")
+    if not (
+        is_sales_workspace(workspace)
+        or is_marketing_workspace(workspace)
+    ):
         return []
+    destination = (
+        "Sales Database"
+        if is_sales_workspace(workspace)
+        else "Marketing Database"
+    )
     if not _website_image_explicit_visual_request_v68888(prompt_text):
         return []
 
@@ -67000,6 +67192,8 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
 
     allowed_page_ids = {}
     for order, pkg in enumerate(packages):
+        if str(pkg.get("destination") or "") != destination:
+            continue
         source_url = str(pkg.get("source_url") or "").strip()
         if not source_url:
             continue
@@ -67028,7 +67222,7 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
             continue
         if bool(record.get("website_atp_primary_product_image_v69325")):
             continue
-        if str(record.get("website_workspace_destination_v69180") or "") != "Sales Database":
+        if str(record.get("website_workspace_destination_v69180") or "") != destination:
             continue
         if not bool(record.get("website_atp_metadata_exact_v69180")):
             continue
@@ -67146,26 +67340,63 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
         )
         semantic_fallback_count_v69401 += 1
 
-    if len(best_by_page) != len(allowed_page_ids):
-        if best_by_page:
-            diagnostic_log(
-                "workspace_sales_exact_topic_visual_incomplete_v69399",
-                products=len(allowed_page_ids),
-                topical_images=len(best_by_page),
-                prompt_tokens=sorted(prompt_tokens)[:20],
-                semantic_fallbacks=semantic_fallback_count_v69401,
-            )
-        return []
-
     ordered = [
         best_by_page[page_id][1]
         for page_id, _ in sorted(
             allowed_page_ids.items(),
             key=lambda item: item[1],
         )
+        if page_id in best_by_page
     ]
+
+    if len(best_by_page) != len(allowed_page_ids):
+        missing_page_ids_v69405 = [
+            page_id
+            for page_id, _ in sorted(
+                allowed_page_ids.items(),
+                key=lambda item: item[1],
+            )
+            if page_id not in best_by_page
+        ]
+        if ordered:
+            for record_v69405 in ordered:
+                record_v69405["website_exact_topic_partial_publication_v69405"] = True
+                record_v69405["website_exact_topic_partial_total_products_v69405"] = len(allowed_page_ids)
+                record_v69405["website_exact_topic_partial_published_v69405"] = len(ordered)
+
+            diagnostic_log(
+                "workspace_exact_topic_visual_partial_v69405",
+                workspace=workspace,
+                destination=destination,
+                products=len(allowed_page_ids),
+                published=len(ordered),
+                missing=len(missing_page_ids_v69405),
+                missing_product_ids=[str(x)[:220] for x in missing_page_ids_v69405],
+                prompt_tokens=sorted(prompt_tokens)[:20],
+                semantic_fallbacks=semantic_fallback_count_v69401,
+            )
+            if is_sales_workspace(workspace):
+                diagnostic_log(
+                    "workspace_sales_exact_topic_visual_incomplete_v69399",
+                    products=len(allowed_page_ids),
+                    topical_images=len(ordered),
+                    prompt_tokens=sorted(prompt_tokens)[:20],
+                    semantic_fallbacks=semantic_fallback_count_v69401,
+                )
+            return ordered
+
+        diagnostic_log(
+            "workspace_exact_topic_visual_zero_v69405",
+            workspace=workspace,
+            destination=destination,
+            products=len(allowed_page_ids),
+            prompt_tokens=sorted(prompt_tokens)[:20],
+        )
+        return []
     diagnostic_log(
-        "workspace_sales_exact_topic_visual_final_lock_v69399",
+        "workspace_exact_topic_visual_final_lock_v69405",
+        workspace=workspace,
+        destination=destination,
         products=len(allowed_page_ids),
         published=len(ordered),
         semantic_fallbacks=semantic_fallback_count_v69401,
@@ -67182,6 +67413,25 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
             for x in ordered
         ],
     )
+    if is_sales_workspace(workspace):
+        diagnostic_log(
+            "workspace_sales_exact_topic_visual_final_lock_v69399",
+            products=len(allowed_page_ids),
+            published=len(ordered),
+            semantic_fallbacks=semantic_fallback_count_v69401,
+            topics=[
+                str(x.get("website_atp_topic_v69399") or "")[:100]
+                for x in ordered
+            ],
+            roles=[
+                str(x.get("website_atp_image_role_v69399") or "")[:100]
+                for x in ordered
+            ],
+            urls=[
+                str(x.get("archive_web_url") or x.get("data_url") or "")[:500]
+                for x in ordered
+            ],
+        )
     return ordered
 
 @st.cache_data(ttl=120, max_entries=4, show_spinner=False)
@@ -100375,8 +100625,34 @@ else:
                         )
 
                     workspace_atp_direct_answer_v69205 = ""
+
+                    # v69405: exact first-turn Sales product discovery/fitment can be
+                    # answered from the already-selected product pages without another
+                    # model-generation pass.
                     if (
-                        (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+                        is_sales_workspace(assistant)
+                        and not bool(locals().get("workspace_atp_followup_reused_v69403"))
+                        and str((workspace_atp_authority_v69180 or {}).get("status") or "") in {"recovered", "recovered_multi"}
+                    ):
+                        try:
+                            workspace_atp_direct_answer_v69205 = (
+                                _workspace_sales_first_turn_fitment_direct_answer_v69405(
+                                    assistant,
+                                    interaction_prompt,
+                                    workspace_atp_authority_v69180,
+                                )
+                            )
+                        except Exception as first_turn_fast_error_v69405:
+                            workspace_atp_direct_answer_v69205 = ""
+                            diagnostic_log(
+                                "workspace_sales_first_turn_fitment_provider_bypass_failed_v69405",
+                                error_type=type(first_turn_fast_error_v69405).__name__,
+                                error=str(first_turn_fast_error_v69405)[:500],
+                            )
+
+                    if (
+                        not workspace_atp_direct_answer_v69205
+                        and (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
                         and str((workspace_atp_authority_v69180 or {}).get("status") or "") in {"recovered", "recovered_multi"}
                     ):
                         try:
@@ -101949,7 +102225,7 @@ else:
                 )
         # v69398: restore only the exact primary photo for every exact Sales
         # product after the unchanged generic website publication gate.
-        if is_sales_workspace(assistant) and str(
+        if (is_sales_workspace(assistant) or is_marketing_workspace(assistant)) and str(
             (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
         ) in {"recovered", "recovered_multi"}:
             try:
@@ -101979,7 +102255,8 @@ else:
                 )
 
                 if (
-                    not sales_exact_topic_visuals_v69399
+                    is_sales_workspace(assistant)
+                    and not sales_exact_topic_visuals_v69399
                     and not topical_visual_request_v69403
                 ):
                     sales_exact_primaries_v69398 = (
@@ -102004,16 +102281,24 @@ else:
                             and str(image.get("source") or "") == "website_knowledge"
                         )
                     ]
-                    diagnostic_log(
-                        "workspace_sales_topical_visual_fail_closed_v69403",
-                        prompt_tokens=sorted(topical_tokens_v69403)[:20],
-                        products=(
-                            len(workspace_atp_authority_v69180.get("packages") or [])
-                            if str(workspace_atp_authority_v69180.get("status") or "")
-                            == "recovered_multi"
-                            else 1
-                        ),
+                    topical_product_count_v69405 = (
+                        len(workspace_atp_authority_v69180.get("packages") or [])
+                        if str(workspace_atp_authority_v69180.get("status") or "")
+                        == "recovered_multi"
+                        else 1
                     )
+                    diagnostic_log(
+                        "workspace_topical_visual_fail_closed_v69405",
+                        workspace=str(assistant),
+                        prompt_tokens=sorted(topical_tokens_v69403)[:20],
+                        products=topical_product_count_v69405,
+                    )
+                    if is_sales_workspace(assistant):
+                        diagnostic_log(
+                            "workspace_sales_topical_visual_fail_closed_v69403",
+                            prompt_tokens=sorted(topical_tokens_v69403)[:20],
+                            products=topical_product_count_v69405,
+                        )
 
                 sales_final_exact_images_v69399 = (
                     list(sales_exact_topic_visuals_v69399)
@@ -102034,10 +102319,16 @@ else:
                     )
                     if sales_exact_topic_visuals_v69399:
                         diagnostic_log(
-                            "workspace_sales_exact_topic_visuals_restored_v69399",
+                            "workspace_exact_topic_visuals_restored_v69405",
+                            workspace=str(assistant),
                             published=len(sales_exact_topic_visuals_v69399),
                         )
-                    else:
+                        if is_sales_workspace(assistant):
+                            diagnostic_log(
+                                "workspace_sales_exact_topic_visuals_restored_v69399",
+                                published=len(sales_exact_topic_visuals_v69399),
+                            )
+                    elif sales_exact_primaries_v69398:
                         diagnostic_log(
                             "workspace_sales_exact_primaries_restored_v69398",
                             published=len(sales_exact_primaries_v69398),
@@ -102068,7 +102359,7 @@ else:
         if generated_images and (is_sales_workspace(assistant) or is_marketing_workspace(assistant)):
             try:
                 explicit_sales_photo_request_v69398 = bool(
-                    is_sales_workspace(assistant)
+                    (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
                     and _website_image_explicit_visual_request_v68888(interaction_prompt)
                 )
                 if explicit_sales_photo_request_v69398:
