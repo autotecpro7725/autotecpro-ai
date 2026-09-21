@@ -1,3 +1,4 @@
+# AutoTecPro AI v69401 - exact Sales topical-image semantic fallback + backward-compatible product-page image-index lookup
 # AutoTecPro AI v69400 - Sales product-identity consistency + exact-authority provider lock + bounded chat resilience + cold-path stability
 # AutoTecPro AI v69399 - metadata-driven Sales compatibility-photo routing + preserve normal multi-product hero behavior
 # AutoTecPro AI v69398 - exact Sales primary-photo final lock + multi-product hero preservation + explicit-photo repeat allowance
@@ -63,8 +64,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69400"
-AUTOTECPRO_RELEASE_BUILD = "v69400-sales-identity-speed-stability-20260921"
+AUTOTECPRO_RELEASE_VERSION = "v69401"
+AUTOTECPRO_RELEASE_BUILD = "v69401-sales-topical-image-authority-20260921"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -58785,6 +58786,43 @@ def _website_image_page_identity_v69003(payload_or_extraction):
 
 
 
+def _website_image_page_identity_candidates_v69401(payload_or_extraction):
+    """Return backward-compatible exact page identities for durable image lookup.
+
+    Existing durable rows may have been written with a query-sensitive page hash.
+    AutoTecPro WooCommerce product pages also need a query-insensitive identity so
+    harmless ?v=/currency presentation tokens do not hide the same product's images.
+
+    Non-product URLs keep the legacy behavior exactly.
+    """
+    source = dict(payload_or_extraction or {})
+    raw_url = (
+        str(source.get("requested_page") or "").strip()
+        or str(source.get("source_page") or "").strip()
+        or str(source.get("requested_url") or "").strip()
+        or str(source.get("source_url") or "").strip()
+    )
+    if not raw_url:
+        return []
+
+    identities = []
+    legacy_identity = _website_image_page_identity_v69003(source)
+    if legacy_identity:
+        identities.append(str(legacy_identity))
+
+    try:
+        product_identity = _workspace_product_page_identity_v69396(raw_url)
+    except Exception:
+        product_identity = ""
+
+    if str(product_identity).startswith("product:"):
+        legacy_product_identity = str(product_identity)[len("product:"):]
+        if legacy_product_identity and legacy_product_identity not in identities:
+            identities.append(legacy_product_identity)
+
+    return identities
+
+
 def _website_image_scoped_issue_v69003(payload):
     """Use page + database + image identity so the same image can safely exist on multiple pages."""
     payload = dict(payload or {})
@@ -58985,45 +59023,108 @@ def _website_image_index_db_rows_v69005(columns, *, order_recent=False, max_rows
 def _website_image_index_rows_for_page_v69003(extraction, database_choice):
     """Load durable image rows for exactly one page/database without a table-wide scan.
 
-    v69324 uses the deterministic scoped-issue prefix already written by
-    ``_website_image_scoped_issue_v69003``. The payload is still re-validated after
-    retrieval, so the optimization cannot broaden authority. Query failure falls back
-    to the prior exhaustive reader and therefore remains fail closed.
+    v69401 preserves the original query-sensitive scoped issue lookup and also
+    searches the query-insensitive AutoTecPro /product/ identity. This is backward
+    compatible with existing rows and does not broaden to a different product slug.
     """
+    target_pages_v69401 = set(
+        _website_image_page_identity_candidates_v69401(extraction) or []
+    )
     target_page = _website_image_page_identity_v69003(extraction)
+    if target_page:
+        target_pages_v69401.add(target_page)
+
     target_database = str(database_choice or "").strip().casefold()
-    page_hash = hashlib.sha256(
-        f"{target_database}|{target_page}".encode("utf-8")
-    ).hexdigest()[:16]
-    issue_prefix = f"website-image:{page_hash}:"
+    page_hashes_v69401 = [
+        hashlib.sha256(
+            f"{target_database}|{page_identity}".encode("utf-8")
+        ).hexdigest()[:16]
+        for page_identity in sorted(target_pages_v69401)
+        if page_identity
+    ]
+    issue_prefixes_v69401 = [
+        f"website-image:{page_hash}:"
+        for page_hash in page_hashes_v69401
+    ]
     matches = []
 
     profile = dict(_website_image_index_schema_profile_v69129() or {})
     mode = str(profile.get("mode") or "")
     available = set(profile.get("columns") or [])
     lookup = "issue" if mode == "modern" else "question"
-    select = [x for x in ("id", "issue", "question", "solution", "approved_answer", "source_type") if x in available]
-    targeted_ok = bool(profile.get("ready") and lookup in available and select)
+    select = [
+        x for x in (
+            "id", "issue", "question", "solution",
+            "approved_answer", "source_type",
+        )
+        if x in available
+    ]
+    targeted_ok = bool(
+        profile.get("ready")
+        and lookup in available
+        and select
+        and issue_prefixes_v69401
+    )
     rows = []
+
     if targeted_ok:
         try:
-            query = supabase.table("learned_knowledge").select(",".join(select)).like(lookup, issue_prefix + "%")
-            if mode == "modern" and "source_type" in available:
-                query = query.eq("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
-            rows = list(query.limit(max(64, WEBSITE_MAX_ANALYZED_IMAGES * 8)).execute().data or [])
-            if mode == "legacy":
-                for row in rows:
-                    row.setdefault("issue", str(row.get("question") or ""))
-                    row.setdefault("solution", str(row.get("approved_answer") or ""))
-                    row.setdefault("source_type", WEBSITE_IMAGE_INDEX_SOURCE_V68883)
+            merged_rows_v69401 = {}
+            limit_v69401 = max(64, WEBSITE_MAX_ANALYZED_IMAGES * 8)
+            for issue_prefix_v69401 in issue_prefixes_v69401:
+                query = (
+                    supabase.table("learned_knowledge")
+                    .select(",".join(select))
+                    .like(lookup, issue_prefix_v69401 + "%")
+                )
+                if mode == "modern" and "source_type" in available:
+                    query = query.eq(
+                        "source_type",
+                        WEBSITE_IMAGE_INDEX_SOURCE_V68883,
+                    )
+                page_rows_v69401 = list(
+                    query.limit(limit_v69401).execute().data or []
+                )
+                for row_v69401 in page_rows_v69401:
+                    if not isinstance(row_v69401, dict):
+                        continue
+                    row_v69401 = dict(row_v69401)
+                    if mode == "legacy":
+                        row_v69401.setdefault(
+                            "issue",
+                            str(row_v69401.get("question") or ""),
+                        )
+                        row_v69401.setdefault(
+                            "solution",
+                            str(row_v69401.get("approved_answer") or ""),
+                        )
+                        row_v69401.setdefault(
+                            "source_type",
+                            WEBSITE_IMAGE_INDEX_SOURCE_V68883,
+                        )
+                    dedupe_key_v69401 = str(
+                        row_v69401.get("id")
+                        or row_v69401.get("issue")
+                        or row_v69401.get("question")
+                        or ""
+                    )
+                    if dedupe_key_v69401:
+                        merged_rows_v69401[dedupe_key_v69401] = row_v69401
+
+            rows = list(merged_rows_v69401.values())
             diagnostic_log(
-                "website_image_page_targeted_load_v69324",
-                mode=mode, loaded=len(rows), page_hash=page_hash,
+                "website_image_page_targeted_load_v69401",
+                mode=mode,
+                loaded=len(rows),
+                page_hashes=page_hashes_v69401,
+                identity_count=len(target_pages_v69401),
             )
         except Exception as error:
             diagnostic_log(
-                "website_image_page_targeted_load_failed_v69324",
-                mode=mode, error_type=type(error).__name__, error=str(error)[:400],
+                "website_image_page_targeted_load_failed_v69401",
+                mode=mode,
+                error_type=type(error).__name__,
+                error=str(error)[:400],
             )
             targeted_ok = False
 
@@ -59044,19 +59145,38 @@ def _website_image_index_rows_for_page_v69003(extraction, database_choice):
         if not raw.startswith(WEBSITE_IMAGE_INDEX_PREFIX_V68883):
             continue
         try:
-            payload = json.loads(raw[len(WEBSITE_IMAGE_INDEX_PREFIX_V68883):])
+            payload = json.loads(
+                raw[len(WEBSITE_IMAGE_INDEX_PREFIX_V68883):]
+            )
         except Exception:
             continue
         if not isinstance(payload, dict):
             continue
-        if str(payload.get("database_choice") or "").strip().casefold() != target_database:
+        if (
+            str(payload.get("database_choice") or "")
+            .strip()
+            .casefold()
+            != target_database
+        ):
             continue
-        if _website_image_page_identity_v69003(payload) != target_page:
+
+        payload_pages_v69401 = set(
+            _website_image_page_identity_candidates_v69401(payload) or []
+        )
+        payload_page_legacy_v69401 = _website_image_page_identity_v69003(payload)
+        if payload_page_legacy_v69401:
+            payload_pages_v69401.add(payload_page_legacy_v69401)
+
+        if not (target_pages_v69401 & payload_pages_v69401):
             continue
-        # Exact issue-prefix verification protects against a malformed/legacy row
-        # accidentally returned by a permissive backend LIKE implementation.
-        if not str(row.get("issue") or "").startswith(issue_prefix):
+
+        issue_value_v69401 = str(row.get("issue") or "")
+        if targeted_ok and not any(
+            issue_value_v69401.startswith(prefix_v69401)
+            for prefix_v69401 in issue_prefixes_v69401
+        ):
             continue
+
         matches.append({"row": row, "payload": payload})
     return matches, True
 
@@ -66206,6 +66326,231 @@ def _workspace_sales_exact_primary_final_lock_v69398(
     return selected
 
 
+def _workspace_sales_visual_topic_tokens_v69401(prompt_text):
+    tokens = set(_website_image_tokens_v68883(str(prompt_text or "")))
+    tokens -= {
+        "a", "an", "the", "my", "your", "our", "this", "that",
+        "do", "does", "did", "can", "could", "would", "have", "has",
+        "show", "display", "see", "need", "want", "please",
+        "photo", "photos", "picture", "pictures", "image", "images",
+        "screen", "product", "products", "vehicle", "vehicles",
+        "for", "of", "to", "and", "or", "with", "me",
+    }
+    return tokens
+
+
+def _workspace_sales_exact_topic_semantic_record_v69401(
+    workspace_label,
+    prompt_text,
+    package,
+):
+    """Resolve one explicit topical image from exact current package metadata.
+
+    This is fail-closed and never creates product authority. Supporting images
+    remain non-automatic on ordinary turns; missing data-atp-sales-auto-display
+    is allowed only because the customer explicitly requested a topical visual.
+    """
+    if not is_sales_workspace(workspace_label):
+        return None
+    if not _website_image_explicit_visual_request_v68888(prompt_text):
+        return None
+
+    package = dict(package or {})
+    if str(package.get("destination") or "") != "Sales Database":
+        return None
+
+    source_url = str(package.get("source_url") or "").strip()
+    if not source_url:
+        return None
+    try:
+        page_id = _workspace_product_page_identity_v69396(source_url)
+    except Exception:
+        return None
+    if not str(page_id).startswith("product:"):
+        return None
+
+    prompt_tokens = _workspace_sales_visual_topic_tokens_v69401(prompt_text)
+    if not prompt_tokens:
+        return None
+
+    semantics = dict(package.get("atp_semantics_v69178") or {})
+    images = [
+        dict(item)
+        for item in (semantics.get("images") or [])
+        if isinstance(item, dict)
+    ]
+    if not images:
+        return None
+
+    contract = _workspace_atp_product_contract_v69205(package)
+    expected_identity = str(
+        contract.get("product_identity_key")
+        or package.get("product_identity_key")
+        or ""
+    ).strip()
+
+    best = None
+    for position, meta in enumerate(images):
+        if str(
+            meta.get("data-atp-current-source") or ""
+        ).strip().casefold() != "true":
+            continue
+
+        source_authority = str(
+            meta.get("data-atp-source-authority") or ""
+        ).strip().casefold()
+        if (
+            "exact-current-source" not in source_authority
+            and not source_authority.startswith("current-")
+        ):
+            continue
+
+        role = str(meta.get("data-atp-image-role") or "").strip()
+        topic = str(meta.get("data-atp-topic") or "").strip()
+        search_terms = str(
+            meta.get("data-atp-search-terms") or ""
+        ).strip()
+
+        is_primary = bool(
+            role.casefold() == "primary-product-image"
+            or str(
+                meta.get("data-atp-is-primary-product-image") or ""
+            ).strip().casefold() == "true"
+            or str(
+                meta.get("data-atp-main-product-photo") or ""
+            ).strip().casefold() == "true"
+        )
+        if is_primary:
+            continue
+
+        product_identity = str(
+            meta.get("data-atp-product-identity-key") or ""
+        ).strip()
+        if expected_identity and product_identity != expected_identity:
+            continue
+
+        semantic_tokens = set(
+            _website_image_tokens_v68883(
+                " ".join((role, topic, search_terms))
+            )
+        )
+        overlap_tokens = prompt_tokens & semantic_tokens
+        if not overlap_tokens:
+            continue
+
+        image_url = str(
+            meta.get("data-atp-full-resolution-url")
+            or meta.get("data-atp-canonical-image-url")
+            or meta.get("data-atp-source-url")
+            or meta.get("src")
+            or ""
+        ).strip()
+        if not image_url.startswith("https://"):
+            continue
+
+        try:
+            priority = int(float(
+                meta.get("data-atp-ai-priority")
+                or meta.get("data-atp-priority")
+                or meta.get("data-atp-seo-priority")
+                or 0
+            ))
+        except Exception:
+            priority = 0
+
+        score = (len(overlap_tokens) * 10000) + priority
+        rank = (score, -position)
+        if best is None or rank > best[0]:
+            best = (
+                rank,
+                image_url,
+                meta,
+                sorted(overlap_tokens),
+                role,
+                topic,
+                search_terms,
+                priority,
+                product_identity,
+            )
+
+    if best is None:
+        return None
+
+    (
+        rank,
+        image_url,
+        meta,
+        overlap_tokens,
+        role,
+        topic,
+        search_terms,
+        priority,
+        product_identity,
+    ) = best
+
+    payload = {
+        "database_choice": "Sales Database",
+        "image_url": image_url,
+        "source_page": source_url,
+        "page_title": str(
+            package.get("page_title")
+            or package.get("title")
+            or ""
+        ).strip(),
+        "section_heading": topic or role or "Exact product visual reference",
+        "nearby_instruction_text": (
+            str(meta.get("alt") or "").strip()
+            or search_terms
+        ),
+        "visual_analysis": (
+            "Exact current-source topical image authored inside the same "
+            "selected AutoTecPro product package"
+        ),
+        "image_structured_metadata_v69017": dict(meta),
+    }
+
+    try:
+        if not _website_image_vehicle_fitment_gate_v68997(
+            prompt_text,
+            payload,
+        ):
+            return None
+    except Exception:
+        return None
+
+    record = _website_image_record_for_chat_v68883(payload)
+    if not record:
+        return None
+
+    record["website_workspace_destination_v69180"] = "Sales Database"
+    record["website_atp_metadata_exact_v69180"] = True
+    record["website_atp_primary_product_image_v69325"] = False
+    record["website_atp_product_identity_key_v69325"] = (
+        product_identity or expected_identity
+    )
+    record["website_atp_image_role_v69399"] = role
+    record["website_atp_topic_v69399"] = topic
+    record["website_atp_search_terms_v69399"] = search_terms
+    record["website_atp_ai_priority_v69399"] = int(priority or 0)
+    record["website_workspace_match_score_v69040"] = float(
+        2000 + rank[0]
+    )
+    record["website_sales_exact_topic_semantic_fallback_v69401"] = True
+    record["website_sales_exact_product_identity_v69401"] = page_id
+    record["website_sales_exact_topic_overlap_v69401"] = overlap_tokens
+
+    diagnostic_log(
+        "workspace_sales_exact_topic_semantic_fallback_v69401",
+        source_url=source_url[:500],
+        topic=topic[:100],
+        role=role[:100],
+        image_url=image_url[:500],
+        overlap=overlap_tokens,
+        priority=int(priority or 0),
+    )
+    return record
+
+
 def _workspace_sales_exact_topic_visual_final_lock_v69399(
     workspace_label,
     prompt_text,
@@ -66240,15 +66585,9 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
     if not allowed_page_ids:
         return []
 
-    prompt_tokens = set(_website_image_tokens_v68883(str(prompt_text or "")))
-    prompt_tokens -= {
-        "a", "an", "the", "my", "your", "our", "this", "that",
-        "do", "does", "did", "can", "could", "would", "have", "has",
-        "show", "display", "see", "need", "want", "please",
-        "photo", "photos", "picture", "pictures", "image", "images",
-        "screen", "product", "products", "vehicle", "vehicles",
-        "for", "of", "to", "and", "or", "with", "me",
-    }
+    prompt_tokens = _workspace_sales_visual_topic_tokens_v69401(
+        prompt_text
+    )
     if not prompt_tokens:
         return []
 
@@ -66302,6 +66641,87 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
             chosen["website_sales_exact_product_identity_v69399"] = page_id
             best_by_page[page_id] = (rank, chosen)
 
+    package_by_page_v69401 = {}
+    for pkg_v69401 in packages:
+        source_v69401 = str(pkg_v69401.get("source_url") or "").strip()
+        if not source_v69401:
+            continue
+        try:
+            page_v69401 = _workspace_product_page_identity_v69396(
+                source_v69401
+            )
+        except Exception:
+            page_v69401 = ""
+        if page_v69401:
+            package_by_page_v69401[page_v69401] = pkg_v69401
+
+    semantic_fallback_count_v69401 = 0
+    for page_id_v69401 in allowed_page_ids:
+        if page_id_v69401 in best_by_page:
+            continue
+        fallback_record_v69401 = (
+            _workspace_sales_exact_topic_semantic_record_v69401(
+                workspace_label,
+                prompt_text,
+                package_by_page_v69401.get(page_id_v69401) or {},
+            )
+        )
+        if not fallback_record_v69401:
+            continue
+
+        role_v69401 = str(
+            fallback_record_v69401.get(
+                "website_atp_image_role_v69399"
+            ) or ""
+        ).strip()
+        topic_v69401 = str(
+            fallback_record_v69401.get(
+                "website_atp_topic_v69399"
+            ) or ""
+        ).strip()
+        terms_v69401 = str(
+            fallback_record_v69401.get(
+                "website_atp_search_terms_v69399"
+            ) or ""
+        ).strip()
+        semantic_tokens_v69401 = set(
+            _website_image_tokens_v68883(
+                " ".join((
+                    role_v69401,
+                    topic_v69401,
+                    terms_v69401,
+                ))
+            )
+        )
+        overlap_v69401 = prompt_tokens & semantic_tokens_v69401
+        if not overlap_v69401:
+            continue
+
+        priority_v69401 = int(
+            fallback_record_v69401.get(
+                "website_atp_ai_priority_v69399"
+            ) or 0
+        )
+        rank_v69401 = (
+            (len(overlap_v69401) * 10000) + priority_v69401,
+            0,
+        )
+        chosen_v69401 = dict(fallback_record_v69401)
+        chosen_v69401[
+            "website_sales_exact_topic_visual_lock_v69399"
+        ] = True
+        chosen_v69401[
+            "website_sales_exact_topic_overlap_v69399"
+        ] = sorted(overlap_v69401)
+        chosen_v69401[
+            "website_sales_exact_product_identity_v69399"
+        ] = page_id_v69401
+        best_by_page[page_id_v69401] = (
+            rank_v69401,
+            chosen_v69401,
+        )
+        semantic_fallback_count_v69401 += 1
+
     if len(best_by_page) != len(allowed_page_ids):
         if best_by_page:
             diagnostic_log(
@@ -66309,6 +66729,7 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
                 products=len(allowed_page_ids),
                 topical_images=len(best_by_page),
                 prompt_tokens=sorted(prompt_tokens)[:20],
+                semantic_fallbacks=semantic_fallback_count_v69401,
             )
         return []
 
@@ -66323,6 +66744,7 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
         "workspace_sales_exact_topic_visual_final_lock_v69399",
         products=len(allowed_page_ids),
         published=len(ordered),
+        semantic_fallbacks=semantic_fallback_count_v69401,
         topics=[
             str(x.get("website_atp_topic_v69399") or "")[:100]
             for x in ordered
