@@ -1,3 +1,4 @@
+# AutoTecPro AI v69413 - WooCommerce catalog authority + exact primary images
 # AutoTecPro AI v69412 - mobile product cards + clickable View Product links
 # AutoTecPro AI v69411 - production-schema catalog authority + consistent images
 # AutoTecPro AI v69410 - deterministic Sales catalog completeness + mobile table cards
@@ -75,8 +76,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69412"
-AUTOTECPRO_RELEASE_BUILD = "v69412-mobile-product-cards-20260922"
+AUTOTECPRO_RELEASE_VERSION = "v69413"
+AUTOTECPRO_RELEASE_BUILD = "v69413-woocommerce-catalog-authority-20260922"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -314,7 +315,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69412",
+        "app_release_v69413",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -66933,6 +66934,536 @@ def _technical_exact_atp_image_ready_v69181(prompt_text):
 
 
 
+
+def _workspace_sales_woocommerce_years_v69413(value):
+    """Return all model years explicitly represented by WooCommerce product identity text."""
+    text_value = re.sub(r"\s+", " ", str(value or "")).strip()
+    years = set()
+    for start, end in re.findall(
+        r"\b(19\d{2}|20\d{2})\s*(?:-|–|—|to)\s*(19\d{2}|20\d{2})\b",
+        text_value,
+        flags=re.I,
+    ):
+        try:
+            a, b = int(start), int(end)
+        except Exception:
+            continue
+        if a > b:
+            a, b = b, a
+        if 1980 <= a <= 2100 and 1980 <= b <= 2100 and (b - a) <= 40:
+            years.update(range(a, b + 1))
+    for raw in _website_identity_years_v69022(text_value) or []:
+        try:
+            year = int(raw)
+        except Exception:
+            continue
+        if 1980 <= year <= 2100:
+            years.add(year)
+    return sorted(years)
+
+
+def _workspace_sales_woocommerce_product_kind_v69413(prompt_text, product):
+    """Classify broad Sales WooCommerce products without vehicle-specific hardcoding."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).casefold()
+    product = dict(product or {})
+    attributes = product.get("attributes") or []
+    categories = product.get("categories") or []
+    tags = product.get("tags") or []
+    blob = " ".join([
+        str(product.get("name") or ""),
+        str(product.get("slug") or ""),
+        str(product.get("permalink") or ""),
+        str(product.get("short_description") or ""),
+        " ".join(str(x.get("name") or "") for x in categories if isinstance(x, dict)),
+        " ".join(str(x.get("name") or "") for x in tags if isinstance(x, dict)),
+        " ".join(
+            " ".join([
+                str(x.get("name") or ""),
+                " ".join(str(v or "") for v in (x.get("options") or [])),
+            ])
+            for x in attributes if isinstance(x, dict)
+        ),
+    ]).casefold()
+
+    wants_cluster = bool(re.search(
+        r"\b(gauge|gauge cluster|digital cluster|instrument cluster|digital cockpit|cockpit)\b",
+        prompt,
+    ))
+    wants_camera = bool(re.search(
+        r"\b(camera|backup camera|reverse camera|dash cam)\b",
+        prompt,
+    ))
+
+    cluster = bool(re.search(
+        r"\b(gauge cluster|digital cluster|instrument cluster|digital cockpit|cluster cockpit)\b",
+        blob,
+    ))
+    camera_only = bool(re.search(
+        r"\b(backup camera|reverse camera|dash cam|camera kit)\b",
+        blob,
+    ))
+    accessory = bool(re.search(
+        r"\b(bracket|bezel|cable|harness|adapter|module|replacement part|accessory)\b",
+        blob,
+    ))
+    infotainment = bool(re.search(
+        r"\b(navigation|infotainment|touch[-\s]?screen|android|tesla[-\s]?style|"
+        r"head unit|car stereo|radio)\b",
+        blob,
+    ))
+
+    if wants_cluster:
+        return "cluster" if cluster else ""
+    if wants_camera:
+        return "camera" if camera_only else ""
+    if cluster or camera_only or accessory:
+        return ""
+    return "infotainment" if infotainment else ""
+
+
+@st.cache_data(ttl=90, max_entries=128, show_spinner=False)
+def _workspace_sales_woocommerce_search_v69413(search_term):
+    """Read every published WooCommerce product for one bounded family search term."""
+    term = re.sub(r"\s+", " ", str(search_term or "")).strip()
+    if not term or not woocommerce_is_configured():
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_not_configured" if not woocommerce_is_configured() else "missing_search_term",
+            "products": [],
+        }
+
+    products = []
+    try:
+        for page in range(1, 11):
+            batch = woocommerce_api_request(
+                "products",
+                params={
+                    "search": term,
+                    "status": "publish",
+                    "per_page": 100,
+                    "page": page,
+                    "orderby": "id",
+                    "order": "asc",
+                },
+            )
+            if not isinstance(batch, list):
+                return {
+                    "status": "unavailable",
+                    "reason": "unexpected_product_response",
+                    "products": [],
+                }
+            products.extend(dict(x) for x in batch if isinstance(x, dict))
+            if len(batch) < 100:
+                break
+        else:
+            return {
+                "status": "unavailable",
+                "reason": "woocommerce_search_exceeds_verified_bound",
+                "products": [],
+            }
+    except Exception as error:
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_catalog_query_failed",
+            "error_type": type(error).__name__,
+            "error": str(error)[:500],
+            "products": [],
+        }
+
+    return {"status": "ok", "products": products}
+
+
+def _workspace_sales_woocommerce_contract_v69413(product):
+    """Build deterministic fitment/display facts from one published WooCommerce product."""
+    product = dict(product or {})
+    name = re.sub(r"\s+", " ", str(product.get("name") or "")).strip()
+    slug = str(product.get("slug") or "").strip()
+    permalink = str(product.get("permalink") or "").strip()
+    categories = product.get("categories") or []
+    tags = product.get("tags") or []
+    attributes = product.get("attributes") or []
+
+    identity_text = " ".join([
+        name,
+        slug,
+        permalink,
+        " ".join(str(x.get("name") or "") for x in categories if isinstance(x, dict)),
+        " ".join(str(x.get("name") or "") for x in tags if isinstance(x, dict)),
+        " ".join(
+            " ".join([
+                str(x.get("name") or ""),
+                " ".join(str(v or "") for v in (x.get("options") or [])),
+            ])
+            for x in attributes if isinstance(x, dict)
+        ),
+    ])
+    families = sorted({
+        str(x or "").casefold().strip()
+        for x in (_website_identity_vehicle_families_v69022(identity_text) or [])
+        if str(x or "").strip()
+    })
+    years = _workspace_sales_woocommerce_years_v69413(identity_text)
+
+    screen = ""
+    screen_match = re.search(
+        r"\b(\d{1,2}(?:\.\d+)?)\s*(?:inch|inches|in\.?|[\"”″])\b",
+        name,
+        flags=re.I,
+    )
+    if screen_match:
+        screen = f"{screen_match.group(1)}-inch"
+
+    platform = ""
+    platform_match = re.search(r"\bAndroid\s*(\d{1,2})\b", identity_text, flags=re.I)
+    if platform_match:
+        platform = f"Android {platform_match.group(1)}"
+
+    display_bits = []
+    for token, label in (
+        ("qhd", "QHD"),
+        ("2k", "2K"),
+        ("ips", "IPS"),
+        ("hd", "HD"),
+    ):
+        if re.search(rf"\b{re.escape(token)}\b", name, flags=re.I):
+            if label not in display_bits:
+                display_bits.append(label)
+    display_type = " ".join(display_bits)
+
+    facts = []
+    feature_blob = " ".join([
+        name,
+        re.sub(r"<[^>]+>", " ", str(product.get("short_description") or "")),
+    ]).casefold()
+    for needle, label in (
+        ("carplay", "Wireless Apple CarPlay"),
+        ("android auto", "Wireless Android Auto"),
+        ("wifi", "WiFi"),
+        ("4g", "4G LTE"),
+        ("bluetooth", "Bluetooth"),
+        ("gps", "GPS"),
+    ):
+        if needle in feature_blob and label not in facts:
+            facts.append(label)
+
+    primary_images = []
+    for row in product.get("images") or []:
+        if not isinstance(row, dict):
+            continue
+        url = str(row.get("src") or "").strip()
+        if url.startswith("https://") and url not in primary_images:
+            primary_images.append(url)
+
+    year_start = min(years) if years else None
+    year_end = max(years) if years else None
+    branches = []
+    if years and families:
+        branches.append({
+            "branch_id": "woocommerce-v69413",
+            "make": "",
+            "models": list(families),
+            "years": list(years),
+            "trim": "",
+            "excluded_years": [],
+            "source_authority": "woocommerce-published-product",
+            "current_source": True,
+        })
+
+    return {
+        "product_identity_key": f"woocommerce:{product.get('id')}" if product.get("id") else slug,
+        "product_family": "infotainment",
+        "product_type": "infotainment",
+        "brand": "AutoTecPro",
+        "make": "",
+        "models": list(families),
+        "year_start": year_start,
+        "year_end": year_end,
+        "screen_size": screen,
+        "display_type": display_type,
+        "platform": platform,
+        "processor": "",
+        "ram": "",
+        "storage": "",
+        "facts": facts,
+        "features": list(facts),
+        "compatibility_branches": branches,
+        "related_products": [],
+        "primary_images": primary_images[:1],
+    }
+
+
+def _workspace_sales_woocommerce_package_v69413(product):
+    """Convert one exact published WooCommerce product into Sales authority package form."""
+    product = dict(product or {})
+    permalink = str(product.get("permalink") or "").strip()
+    name = re.sub(r"\s+", " ", str(product.get("name") or "")).strip()
+    if not permalink or "/product/" not in str(urllib.parse.urlsplit(permalink).path or "").casefold():
+        return None
+
+    contract = _workspace_sales_woocommerce_contract_v69413(product)
+    families = sorted({
+        str(x or "").casefold().strip()
+        for x in (contract.get("models") or [])
+        if str(x or "").strip()
+    })
+    years = sorted({
+        int(x)
+        for x in _workspace_sales_woocommerce_years_v69413(
+            " ".join([name, str(product.get("slug") or ""), permalink])
+        )
+        if str(x).isdigit()
+    })
+    hero = str((contract.get("primary_images") or [""])[0] or "").strip()
+
+    meta = {
+        "src": hero,
+        "alt": name,
+        "data-atp-image-role": "primary-product-image",
+        "data-atp-authority": "primary",
+        "data-atp-authority-level": "primary",
+        "data-atp-is-primary-product-image": "true",
+        "data-atp-main-product-photo": "true",
+        "data-atp-primary-media": "true",
+        "data-atp-auto-display": "true",
+        "data-atp-sales-auto-display": "true",
+        "data-atp-current-source": "true",
+        "data-atp-source-status": "current-authoritative",
+        "data-atp-product-identity-key": str(contract.get("product_identity_key") or ""),
+        "data-atp-screen-size": str(contract.get("screen_size") or ""),
+        "data-atp-platform": str(contract.get("platform") or ""),
+    }
+
+    return {
+        "file_id": "",
+        "filename": f"woocommerce-v69413-{product.get('id') or hashlib.sha256(permalink.encode('utf-8')).hexdigest()[:12]}",
+        "destination": "Sales Database",
+        "source_url": permalink,
+        "requested_url": permalink,
+        "title": name,
+        "page_title": name,
+        "extracted_at": str(product.get("date_modified_gmt") or product.get("date_modified") or ""),
+        "webpage_text": re.sub(
+            r"\s+",
+            " ",
+            re.sub(
+                r"<[^>]+>",
+                " ",
+                " ".join([
+                    name,
+                    str(product.get("short_description") or ""),
+                    str(product.get("description") or "")[:12000],
+                ]),
+            ),
+        ).strip(),
+        "package_text": "",
+        "page_identity": {
+            "vehicle_families": families,
+            "years": years,
+            "systems": [],
+        },
+        "atp_semantics_v69178": {
+            "schema": "woocommerce-catalog-v69413",
+            "page_url": permalink,
+            "root": {},
+            "elements": [meta],
+            "images": [meta] if hero else [],
+            "headings": [],
+            "scripts": {},
+        },
+        "vehicle_families": families,
+        "years": years,
+        "systems": [],
+        "product_codes": [],
+        "_workspace_atp_product_contract_v69227": contract,
+        "_workspace_sales_manifest_contract_v69411": contract,
+        "workspace_sales_woocommerce_catalog_v69413": True,
+        "workspace_sales_woocommerce_product_id_v69413": product.get("id"),
+        "workspace_sales_woocommerce_primary_v69413": hero,
+    }
+
+
+def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
+    """Authoritative broad Sales catalog from current published WooCommerce products."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not _workspace_sales_broad_discovery_prompt_v69411(prompt):
+        return {"status": "not_applicable", "packages": []}
+
+    families = sorted({
+        str(x or "").casefold().strip()
+        for x in (_website_identity_vehicle_families_v69022(prompt) or [])
+        if str(x or "").strip()
+    })
+    years = sorted({
+        int(x)
+        for x in (_website_identity_years_v69022(prompt) or [])
+        if str(x).isdigit()
+    })
+    if not families or not years:
+        return {"status": "not_applicable", "packages": []}
+
+    products_by_id = {}
+    failures = []
+    for family in families:
+        result = _workspace_sales_woocommerce_search_v69413(family)
+        if str(result.get("status") or "") != "ok":
+            failures.append(dict(result))
+            continue
+        for product in result.get("products") or []:
+            if not isinstance(product, dict):
+                continue
+            product_id = str(product.get("id") or product.get("permalink") or product.get("slug") or "")
+            if product_id:
+                products_by_id[product_id] = dict(product)
+
+    if failures and not products_by_id:
+        reason = str((failures[0] or {}).get("reason") or "woocommerce_catalog_unavailable")
+        diagnostic_log(
+            "workspace_sales_woocommerce_catalog_unavailable_v69413",
+            families=families,
+            years=years,
+            reason=reason,
+        )
+        return {"status": "unavailable", "reason": reason, "packages": []}
+
+    packages = []
+    rejected = {
+        "status": 0,
+        "kind": 0,
+        "family": 0,
+        "year": 0,
+        "package": 0,
+    }
+    requested_families = set(families)
+    requested_years = set(years)
+
+    for product in products_by_id.values():
+        if str(product.get("status") or "publish").casefold().strip() != "publish":
+            rejected["status"] += 1
+            continue
+        if not _workspace_sales_woocommerce_product_kind_v69413(prompt, product):
+            rejected["kind"] += 1
+            continue
+
+        package = _workspace_sales_woocommerce_package_v69413(product)
+        if not package:
+            rejected["package"] += 1
+            continue
+        product_families = set(package.get("vehicle_families") or [])
+        product_years = {
+            int(x) for x in (package.get("years") or []) if str(x).isdigit()
+        }
+        if not product_families or not requested_families.issubset(product_families):
+            rejected["family"] += 1
+            continue
+        if not product_years or not requested_years.issubset(product_years):
+            rejected["year"] += 1
+            continue
+        packages.append(package)
+
+    deduped = {}
+    for package in packages:
+        source = str(package.get("source_url") or "").strip()
+        try:
+            page_id = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            page_id = source.rstrip("/").casefold()
+        if page_id:
+            deduped[page_id] = dict(package)
+
+    output = sorted(
+        deduped.values(),
+        key=_workspace_sales_stable_product_order_v69410,
+    )
+    diagnostic_log(
+        "workspace_sales_woocommerce_catalog_v69413",
+        families=families,
+        years=years,
+        searched_products=len(products_by_id),
+        products=len(output),
+        rejected=rejected,
+        source_ids=[
+            str(_workspace_product_page_identity_v69396(x.get("source_url") or ""))[:180]
+            for x in output[:16]
+        ],
+    )
+    if not output:
+        return {
+            "status": "unavailable",
+            "reason": "no_verified_published_products",
+            "packages": [],
+        }
+    return {"status": "ok", "packages": [dict(x) for x in output]}
+
+
+def _workspace_sales_catalog_unavailable_answer_v69413(prompt_text):
+    """Customer-safe fail-closed answer when the current published catalog cannot be verified."""
+    if not _workspace_sales_broad_discovery_prompt_v69411(prompt_text):
+        return ""
+    return (
+        "I can’t verify the current published product catalog right now, so I don’t want "
+        "to give you a partial or inconsistent product list. Please try this request again "
+        "in a moment."
+    )
+
+
+def _workspace_sales_woocommerce_primary_record_v69413(package, prompt_text):
+    """Create one exact primary-image record from the already-authoritative Woo product."""
+    package = dict(package or {})
+    if not bool(package.get("workspace_sales_woocommerce_catalog_v69413")):
+        return None
+    source = str(package.get("source_url") or "").strip()
+    image_url = str(package.get("workspace_sales_woocommerce_primary_v69413") or "").strip()
+    if not source or not image_url.startswith("https://"):
+        return None
+
+    title = re.sub(
+        r"\s+",
+        " ",
+        str(package.get("page_title") or package.get("title") or ""),
+    ).strip()
+    payload = {
+        "database_choice": "Sales Database",
+        "image_url": image_url,
+        "source_page": source,
+        "page_title": title,
+        "section_heading": "Primary product image",
+        "nearby_instruction_text": "Current WooCommerce primary product image",
+        "visual_analysis": "Exact primary product image from the same current published WooCommerce product",
+        "image_structured_metadata_v69017": {
+            "data-atp-image-role": "primary-product-image",
+            "data-atp-authority": "primary",
+            "data-atp-authority-level": "primary",
+            "data-atp-is-primary-product-image": "true",
+            "data-atp-main-product-photo": "true",
+            "data-atp-primary-media": "true",
+            "data-atp-auto-display": "true",
+            "data-atp-current-source": "true",
+            "data-atp-source-status": "current-authoritative",
+            "data-atp-product-identity-key": str(
+                (package.get("_workspace_atp_product_contract_v69227") or {}).get(
+                    "product_identity_key"
+                )
+                or ""
+            ),
+        },
+    }
+    try:
+        if not _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
+            return None
+    except Exception:
+        return None
+
+    record = _website_image_record_for_chat_v68883(payload)
+    if not record:
+        return None
+    record["website_atp_primary_product_image_v69325"] = True
+    record["website_workspace_destination_v69180"] = "Sales Database"
+    record["website_atp_metadata_exact_v69180"] = True
+    record["website_woocommerce_primary_v69413"] = True
+    record["website_workspace_match_score_v69040"] = 3000.0
+    return record
+
+
 def _workspace_sales_broad_discovery_prompt_v69411(prompt_text):
     """True only for broad vehicle/year Sales catalog discovery."""
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
@@ -67833,24 +68364,37 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
                 hot_count=hot_count_v69357, recovered_count=len(recovered_v69338),
                 merged_count=len(packages),
             )
-    # v69411: broad Sales discovery uses the durable production-schema manifest
-    # as the catalog authority. Vector results may enrich an exact manifest product,
-    # but cannot add/remove catalog membership.
+    # v69413: broad Sales catalog membership comes from the current published
+    # WooCommerce catalog. Vector packages may enrich matching products but cannot
+    # create/remove catalog members.
     manifest_packages_v69411 = []
     manifest_by_source_v69411 = {}
     if broad_fitment_discovery_hint_v69357:
-        try:
-            manifest_packages_v69411 = _workspace_sales_broad_product_manifest_v69411(
-                prompt
+        woo_catalog_v69413 = _workspace_sales_broad_woocommerce_catalog_v69413(
+            prompt
+        )
+        if str(woo_catalog_v69413.get("status") or "") != "ok":
+            reason_v69413 = str(
+                woo_catalog_v69413.get("reason")
+                or "woocommerce_catalog_unavailable"
             )
-        except Exception as manifest_error_v69411:
-            manifest_packages_v69411 = []
             diagnostic_log(
-                "workspace_sales_broad_manifest_failed_v69411",
-                error_type=type(manifest_error_v69411).__name__,
-                error=str(manifest_error_v69411)[:500],
+                "workspace_sales_broad_catalog_unavailable_v69413",
+                vector_packages=len(packages or []),
+                reason=reason_v69413,
             )
+            return {
+                "status": "catalog_unavailable",
+                "destination": destination,
+                "reason": reason_v69413,
+                "context": "",
+            }
 
+        manifest_packages_v69411 = [
+            dict(x)
+            for x in (woo_catalog_v69413.get("packages") or [])
+            if isinstance(x, dict)
+        ]
         for manifest_package_v69411 in manifest_packages_v69411:
             source_v69411 = str(
                 manifest_package_v69411.get("source_url") or ""
@@ -67867,37 +68411,39 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
                     manifest_package_v69411
                 )
 
-        if manifest_by_source_v69411:
-            vector_count_v69411 = len(packages or [])
-            packages = _workspace_sales_authoritative_catalog_merge_v69411(
-                packages,
-                list(manifest_by_source_v69411.values()),
-            )
+        if not manifest_by_source_v69411:
             diagnostic_log(
-                "workspace_sales_broad_catalog_authority_v69411",
-                vector_packages=vector_count_v69411,
-                manifest_products=len(manifest_by_source_v69411),
-                authoritative_products=len(packages or []),
-                source_ids=[
-                    str(
-                        _workspace_product_page_identity_v69396(
-                            str(pkg_v69411.get("source_url") or "")
-                        )
-                    )[:160]
-                    for pkg_v69411 in (packages or [])[:16]
-                    if str(pkg_v69411.get("source_url") or "").strip()
-                ],
-            )
-        else:
-            # Never manufacture a deterministic catalog from an empty manifest.
-            # The existing provider/file_search fallback remains available, but this
-            # metadata authority will not publish a random partial exact catalog.
-            diagnostic_log(
-                "workspace_sales_broad_manifest_unavailable_v69411",
+                "workspace_sales_broad_catalog_unavailable_v69413",
                 vector_packages=len(packages or []),
-                reason="durable_manifest_empty",
+                reason="verified_woocommerce_catalog_empty",
             )
-            return {}
+            return {
+                "status": "catalog_unavailable",
+                "destination": destination,
+                "reason": "verified_woocommerce_catalog_empty",
+                "context": "",
+            }
+
+        vector_count_v69413 = len(packages or [])
+        packages = _workspace_sales_authoritative_catalog_merge_v69411(
+            packages,
+            list(manifest_by_source_v69411.values()),
+        )
+        diagnostic_log(
+            "workspace_sales_broad_catalog_authority_v69413",
+            vector_packages=vector_count_v69413,
+            catalog_products=len(manifest_by_source_v69411),
+            authoritative_products=len(packages or []),
+            source_ids=[
+                str(
+                    _workspace_product_page_identity_v69396(
+                        str(pkg_v69413.get("source_url") or "")
+                    )
+                )[:180]
+                for pkg_v69413 in (packages or [])[:16]
+                if str(pkg_v69413.get("source_url") or "").strip()
+            ],
+        )
 
     prepared = []
     all_models = []
@@ -68101,7 +68647,7 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
         manifest_ids_v69411 = set(manifest_by_source_v69411.keys())
         if ranked_ids_v69411 != manifest_ids_v69411:
             diagnostic_log(
-                "workspace_sales_broad_incomplete_fail_closed_v69411",
+                "workspace_sales_broad_incomplete_fail_closed_v69413",
                 manifest_products=len(manifest_ids_v69411),
                 ranked_products=len(ranked_ids_v69411),
                 missing=sorted(manifest_ids_v69411 - ranked_ids_v69411)[:12],
@@ -68134,7 +68680,7 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
                         )
                     )
                     diagnostic_log(
-                        "workspace_sales_broad_stable_order_v69411",
+                        "workspace_sales_broad_stable_order_v69413",
                         products=len(distinct_v69357),
                         source_ids=[
                             str(
@@ -68587,6 +69133,52 @@ def _workspace_sales_exact_primary_final_lock_v69398(
         seen_products.add(page_id)
         seen_urls.add(image_url)
         selected.append(record)
+
+    # v69413: current published WooCommerce catalog products already carry their
+    # exact primary product image. Use it only to fill a missing primary for that
+    # exact authoritative product identity; never broaden to another product.
+    selected_by_page_v69413 = {}
+    for record_v69413 in selected:
+        page_v69413 = _workspace_product_page_identity_v69396(
+            str(record_v69413.get("website_source_page_v69010") or "")
+        )
+        if page_v69413:
+            selected_by_page_v69413[page_v69413] = dict(record_v69413)
+
+    for pkg_v69413 in packages:
+        source_v69413 = str(pkg_v69413.get("source_url") or "").strip()
+        if not source_v69413:
+            continue
+        page_v69413 = _workspace_product_page_identity_v69396(source_v69413)
+        if not page_v69413 or page_v69413 in selected_by_page_v69413:
+            continue
+        woo_primary_v69413 = _workspace_sales_woocommerce_primary_record_v69413(
+            pkg_v69413,
+            prompt_text,
+        )
+        if not woo_primary_v69413:
+            continue
+        image_v69413 = str(
+            woo_primary_v69413.get("archive_web_url")
+            or woo_primary_v69413.get("data_url")
+            or ""
+        ).strip()
+        if not image_v69413.startswith("https://"):
+            continue
+        woo_primary_v69413["website_sales_exact_primary_final_lock_v69398"] = True
+        woo_primary_v69413["website_sales_exact_product_identity_v69398"] = page_v69413
+        selected_by_page_v69413[page_v69413] = woo_primary_v69413
+
+    ordered_selected_v69413 = []
+    for pkg_v69413 in packages:
+        source_v69413 = str(pkg_v69413.get("source_url") or "").strip()
+        if not source_v69413:
+            continue
+        page_v69413 = _workspace_product_page_identity_v69396(source_v69413)
+        record_v69413 = selected_by_page_v69413.get(page_v69413)
+        if record_v69413:
+            ordered_selected_v69413.append(record_v69413)
+    selected = _dedupe_website_chat_images_v68883(ordered_selected_v69413)
 
     # Multi-product answers must never degrade to a partial hero set.
     if len(selected) != len(allowed_page_ids):
@@ -102946,6 +103538,23 @@ else:
 
                     if (
                         is_sales_workspace(assistant)
+                        and str(
+                            (workspace_atp_authority_v69180 or {}).get("status")
+                            or ""
+                        ) == "catalog_unavailable"
+                    ):
+                        use_file_search = False
+                        diagnostic_log(
+                            "workspace_sales_catalog_unavailable_file_search_blocked_v69413",
+                            reason=str(
+                                (workspace_atp_authority_v69180 or {}).get("reason")
+                                or ""
+                            )[:240],
+                            use_file_search=False,
+                        )
+
+                    if (
+                        is_sales_workspace(assistant)
                         and _workspace_sales_authority_complete_v69400(
                             workspace_atp_authority_v69180
                         )
@@ -102973,6 +103582,27 @@ else:
                         )
 
                     workspace_atp_direct_answer_v69205 = ""
+                    if (
+                        is_sales_workspace(assistant)
+                        and str(
+                            (workspace_atp_authority_v69180 or {}).get("status")
+                            or ""
+                        ) == "catalog_unavailable"
+                    ):
+                        workspace_atp_direct_answer_v69205 = (
+                            _workspace_sales_catalog_unavailable_answer_v69413(
+                                interaction_prompt
+                            )
+                        )
+                        if workspace_atp_direct_answer_v69205:
+                            diagnostic_log(
+                                "workspace_sales_catalog_unavailable_direct_answer_v69413",
+                                reason=str(
+                                    (workspace_atp_authority_v69180 or {}).get("reason")
+                                    or ""
+                                )[:240],
+                            )
+
                     workspace_sales_same_case_nonvisual_direct_v69407 = False
                     workspace_same_case_nonvisual_no_repeat_images_v69407 = bool(
                         (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
