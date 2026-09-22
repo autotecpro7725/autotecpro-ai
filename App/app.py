@@ -1,3 +1,4 @@
+# AutoTecPro AI v69414 - resilient Woo catalog discovery fallback
 # AutoTecPro AI v69413 - WooCommerce catalog authority + exact primary images
 # AutoTecPro AI v69412 - mobile product cards + clickable View Product links
 # AutoTecPro AI v69411 - production-schema catalog authority + consistent images
@@ -76,8 +77,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69413"
-AUTOTECPRO_RELEASE_BUILD = "v69413-woocommerce-catalog-authority-20260922"
+AUTOTECPRO_RELEASE_VERSION = "v69414"
+AUTOTECPRO_RELEASE_BUILD = "v69414-resilient-woocommerce-catalog-20260922"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -315,7 +316,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69413",
+        "app_release_v69414",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -67021,56 +67022,211 @@ def _workspace_sales_woocommerce_product_kind_v69413(prompt_text, product):
     return "infotainment" if infotainment else ""
 
 
+
+def _workspace_sales_woocommerce_search_terms_v69414(search_term):
+    """Generate bounded generic Woo search variants without product hardcoding."""
+    term = re.sub(r"\s+", " ", str(search_term or "")).strip()
+    if not term:
+        return []
+    variants = [term]
+    compact = re.sub(r"[^A-Za-z0-9]+", "", term)
+    if compact and compact.casefold() != term.casefold():
+        variants.append(compact)
+    match = re.fullmatch(r"([A-Za-z]+)(\d+)", compact or term)
+    if match:
+        letters, digits = match.groups()
+        variants.extend([
+            f"{letters}{digits}",
+            f"{letters}-{digits}",
+            f"{letters} {digits}",
+        ])
+    out = []
+    seen = set()
+    for value in variants:
+        clean = re.sub(r"\s+", " ", str(value or "")).strip()
+        key = clean.casefold()
+        if clean and key not in seen:
+            seen.add(key)
+            out.append(clean)
+    return out[:4]
+
+
+def _workspace_sales_woocommerce_store_api_page_v69414(search_term, page=1):
+    """Public Woo Store API fallback for published product discovery."""
+    term = re.sub(r"\s+", " ", str(search_term or "")).strip()
+    if not term or not WOOCOMMERCE_STORE_URL:
+        raise RuntimeError("WooCommerce store URL is not configured.")
+    response = http_session.get(
+        f"{WOOCOMMERCE_STORE_URL}/wp-json/wc/store/v1/products",
+        params={
+            "search": term,
+            "per_page": 100,
+            "page": int(page or 1),
+        },
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "AutoTecPro-AI/1.0",
+        },
+        timeout=LIVE_HTTP_TIMEOUT,
+    )
+    return safe_json_response(response)
+
+
 @st.cache_data(ttl=90, max_entries=128, show_spinner=False)
 def _workspace_sales_woocommerce_search_v69413(search_term):
-    """Read every published WooCommerce product for one bounded family search term."""
+    """Read published Woo products with authenticated REST + public Store API fallback.
+
+    v69414 intentionally does not require working consumer-key authentication for broad
+    catalog discovery. The public Store API is read-only and exposes only storefront-
+    visible published products, making it a safe deterministic fallback.
+    """
     term = re.sub(r"\s+", " ", str(search_term or "")).strip()
-    if not term or not woocommerce_is_configured():
+    if not term or not WOOCOMMERCE_STORE_URL:
         return {
             "status": "unavailable",
-            "reason": "woocommerce_not_configured" if not woocommerce_is_configured() else "missing_search_term",
+            "reason": "woocommerce_store_not_configured" if not WOOCOMMERCE_STORE_URL else "missing_search_term",
             "products": [],
         }
 
-    products = []
-    try:
-        for page in range(1, 11):
-            batch = woocommerce_api_request(
-                "products",
-                params={
-                    "search": term,
-                    "status": "publish",
-                    "per_page": 100,
-                    "page": page,
-                    "orderby": "id",
-                    "order": "asc",
-                },
+    search_terms = _workspace_sales_woocommerce_search_terms_v69414(term)
+    if not search_terms:
+        return {"status": "unavailable", "reason": "missing_search_term", "products": []}
+
+    authenticated_errors = []
+    public_errors = []
+
+    # Preferred path: existing authenticated wc/v3 endpoint. Keep request parameters
+    # minimal because some Woo/WP installations reject optional orderby/order combinations.
+    if woocommerce_is_configured():
+        authenticated_products = {}
+        authenticated_ok = False
+        for variant in search_terms:
+            try:
+                variant_products = []
+                for page in range(1, 11):
+                    batch = woocommerce_api_request(
+                        "products",
+                        params={
+                            "search": variant,
+                            "status": "publish",
+                            "per_page": 100,
+                            "page": page,
+                        },
+                    )
+                    if not isinstance(batch, list):
+                        raise RuntimeError("Unexpected WooCommerce product response.")
+                    variant_products.extend(
+                        dict(x) for x in batch if isinstance(x, dict)
+                    )
+                    if len(batch) < 100:
+                        break
+                else:
+                    raise RuntimeError("WooCommerce search exceeded verified page bound.")
+
+                authenticated_ok = True
+                for item in variant_products:
+                    key = str(
+                        item.get("id")
+                        or item.get("permalink")
+                        or item.get("slug")
+                        or ""
+                    ).strip()
+                    if key:
+                        authenticated_products[key] = item
+            except Exception as error:
+                authenticated_errors.append({
+                    "term": variant,
+                    "error_type": type(error).__name__,
+                    "error": str(error)[:500],
+                })
+
+        if authenticated_ok:
+            products = list(authenticated_products.values())
+            diagnostic_log(
+                "workspace_sales_woocommerce_search_provider_v69414",
+                provider="wc_v3",
+                search_terms=search_terms,
+                products=len(products),
+                failed_variants=len(authenticated_errors),
             )
-            if not isinstance(batch, list):
-                return {
-                    "status": "unavailable",
-                    "reason": "unexpected_product_response",
-                    "products": [],
-                }
-            products.extend(dict(x) for x in batch if isinstance(x, dict))
-            if len(batch) < 100:
-                break
-        else:
             return {
-                "status": "unavailable",
-                "reason": "woocommerce_search_exceeds_verified_bound",
-                "products": [],
+                "status": "ok",
+                "provider": "wc_v3",
+                "products": products,
+                "errors": authenticated_errors,
             }
-    except Exception as error:
+
+    # Fallback path: public, read-only Woo Store API. This avoids credentials,
+    # Basic-Auth/WAF behavior and wc/v3 permission/configuration failures.
+    public_products = {}
+    public_ok = False
+    for variant in search_terms:
+        try:
+            variant_products = []
+            for page in range(1, 11):
+                batch = _workspace_sales_woocommerce_store_api_page_v69414(
+                    variant,
+                    page=page,
+                )
+                if not isinstance(batch, list):
+                    raise RuntimeError("Unexpected Woo Store API product response.")
+                variant_products.extend(
+                    dict(x) for x in batch if isinstance(x, dict)
+                )
+                if len(batch) < 100:
+                    break
+            else:
+                raise RuntimeError("Woo Store API search exceeded verified page bound.")
+
+            public_ok = True
+            for item in variant_products:
+                key = str(
+                    item.get("id")
+                    or item.get("permalink")
+                    or item.get("slug")
+                    or ""
+                ).strip()
+                if key:
+                    public_products[key] = item
+        except Exception as error:
+            public_errors.append({
+                "term": variant,
+                "error_type": type(error).__name__,
+                "error": str(error)[:500],
+            })
+
+    if public_ok:
+        products = list(public_products.values())
+        diagnostic_log(
+            "workspace_sales_woocommerce_search_provider_v69414",
+            provider="wc_store_v1",
+            search_terms=search_terms,
+            products=len(products),
+            authenticated_failures=len(authenticated_errors),
+            failed_variants=len(public_errors),
+        )
         return {
-            "status": "unavailable",
-            "reason": "woocommerce_catalog_query_failed",
-            "error_type": type(error).__name__,
-            "error": str(error)[:500],
-            "products": [],
+            "status": "ok",
+            "provider": "wc_store_v1",
+            "products": products,
+            "authenticated_errors": authenticated_errors,
+            "errors": public_errors,
         }
 
-    return {"status": "ok", "products": products}
+    diagnostic_log(
+        "workspace_sales_woocommerce_search_failed_v69414",
+        search_terms=search_terms,
+        authenticated_configured=woocommerce_is_configured(),
+        authenticated_errors=authenticated_errors[:4],
+        public_errors=public_errors[:4],
+    )
+    return {
+        "status": "unavailable",
+        "reason": "woocommerce_catalog_query_failed",
+        "authenticated_errors": authenticated_errors,
+        "public_errors": public_errors,
+        "products": [],
+    }
 
 
 def _workspace_sales_woocommerce_contract_v69413(product):
@@ -67276,7 +67432,7 @@ def _workspace_sales_woocommerce_package_v69413(product):
         "product_codes": [],
         "_workspace_atp_product_contract_v69227": contract,
         "_workspace_sales_manifest_contract_v69411": contract,
-        "workspace_sales_woocommerce_catalog_v69413": True,
+        "workspace_sales_woocommerce_catalog_v69414": True,
         "workspace_sales_woocommerce_product_id_v69413": product.get("id"),
         "workspace_sales_woocommerce_primary_v69413": hero,
     }
@@ -67308,6 +67464,12 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
         if str(result.get("status") or "") != "ok":
             failures.append(dict(result))
             continue
+        diagnostic_log(
+            "workspace_sales_woocommerce_family_search_v69414",
+            family=family,
+            provider=str(result.get("provider") or "unknown"),
+            products=len(result.get("products") or []),
+        )
         for product in result.get("products") or []:
             if not isinstance(product, dict):
                 continue
@@ -67318,7 +67480,7 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
     if failures and not products_by_id:
         reason = str((failures[0] or {}).get("reason") or "woocommerce_catalog_unavailable")
         diagnostic_log(
-            "workspace_sales_woocommerce_catalog_unavailable_v69413",
+            "workspace_sales_woocommerce_catalog_unavailable_v69414",
             families=families,
             years=years,
             reason=reason,
@@ -67375,7 +67537,7 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
         key=_workspace_sales_stable_product_order_v69410,
     )
     diagnostic_log(
-        "workspace_sales_woocommerce_catalog_v69413",
+        "workspace_sales_woocommerce_catalog_v69414",
         families=families,
         years=years,
         searched_products=len(products_by_id),
@@ -67409,7 +67571,7 @@ def _workspace_sales_catalog_unavailable_answer_v69413(prompt_text):
 def _workspace_sales_woocommerce_primary_record_v69413(package, prompt_text):
     """Create one exact primary-image record from the already-authoritative Woo product."""
     package = dict(package or {})
-    if not bool(package.get("workspace_sales_woocommerce_catalog_v69413")):
+    if not bool(package.get("workspace_sales_woocommerce_catalog_v69414")):
         return None
     source = str(package.get("source_url") or "").strip()
     image_url = str(package.get("workspace_sales_woocommerce_primary_v69413") or "").strip()
