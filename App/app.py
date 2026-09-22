@@ -1,3 +1,4 @@
+# AutoTecPro AI v69418 - automatic compatibility visuals for same-case fitment
 # AutoTecPro AI v69417 - accurate fitment columns + Woo topical identity repair
 # AutoTecPro AI v69416 - typo-tolerant Sales discovery + product-kind classifier hardening
 # AutoTecPro AI v69415 - zero-result Woo failover + deterministic public catalog scan
@@ -80,8 +81,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69417"
-AUTOTECPRO_RELEASE_BUILD = "v69417-fitment-columns-topical-identity-20260922"
+AUTOTECPRO_RELEASE_VERSION = "v69418"
+AUTOTECPRO_RELEASE_BUILD = "v69418-auto-compatibility-visuals-20260922"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -319,7 +320,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69417",
+        "app_release_v69418",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -70037,6 +70038,44 @@ def _workspace_exact_product_atp_semantics_v69402(source_url):
     }
 
 
+
+def _workspace_sales_auto_compatibility_visual_intent_v69418(prompt_text):
+    """Implicit visual intent for HOW-to-check compatibility/factory-setup questions."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return False
+    if _website_image_explicit_visual_request_v68888(value):
+        return False
+
+    compatibility_subject = bool(re.search(
+        r"\b(compatib(?:le|ility)|factory setup|factory radio|factory dashboard|"
+        r"correct version|right version|correct model|right model)\b",
+        value,
+    ))
+    if not compatibility_subject:
+        return False
+
+    identification_action = bool(re.search(
+        r"\b("
+        r"how\s+(?:do|can|could|should)\s+i\s+(?:check|tell|know|identify|confirm|determine)|"
+        r"how\s+to\s+(?:check|tell|know|identify|confirm|determine)|"
+        r"(?:check|identify|confirm|determine)\s+(?:the\s+)?compatib(?:le|ility)|"
+        r"which\s+(?:one|version|model)|"
+        r"what\s+(?:version|model)\s+(?:do|should)\s+i"
+        r")\b",
+        value,
+    ))
+    return bool(identification_action)
+
+
+def _workspace_sales_visual_request_v69418(prompt_text):
+    """Explicit visual request OR narrow implicit compatibility-identification intent."""
+    return bool(
+        _website_image_explicit_visual_request_v68888(prompt_text)
+        or _workspace_sales_auto_compatibility_visual_intent_v69418(prompt_text)
+    )
+
+
 def _workspace_sales_visual_topic_tokens_v69401(prompt_text):
     tokens = set(_website_image_tokens_v68883(str(prompt_text or "")))
     tokens -= {
@@ -70068,7 +70107,7 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
         or is_marketing_workspace(workspace)
     ):
         return None
-    if not _website_image_explicit_visual_request_v68888(prompt_text):
+    if not _workspace_sales_visual_request_v69418(prompt_text):
         return None
 
     destination = (
@@ -70465,7 +70504,7 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
         if is_sales_workspace(workspace)
         else "Marketing Database"
     )
-    if not _website_image_explicit_visual_request_v68888(prompt_text):
+    if not _workspace_sales_visual_request_v69418(prompt_text):
         return []
 
     authority = dict(authority or {})
@@ -104166,7 +104205,12 @@ else:
                                         ] = [exact_row_v69396]
 
                                 explicit_visual_followup_v69396 = bool(
-                                    _website_image_explicit_visual_request_v68888(
+                                    _workspace_sales_visual_request_v69418(
+                                        interaction_prompt
+                                    )
+                                )
+                                implicit_compat_visual_v69418 = bool(
+                                    _workspace_sales_auto_compatibility_visual_intent_v69418(
                                         interaction_prompt
                                     )
                                 )
@@ -104196,6 +104240,7 @@ else:
                                         else 1
                                     ),
                                     explicit_visual=explicit_visual_followup_v69396,
+                                    implicit_compatibility_visual=implicit_compat_visual_v69418,
                                     use_file_search=bool(use_file_search),
                                 )
                             else:
@@ -104368,10 +104413,32 @@ else:
                     workspace_same_case_nonvisual_no_repeat_images_v69407 = bool(
                         (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
                         and bool(locals().get("workspace_atp_followup_reused_v69403"))
-                        and not _website_image_explicit_visual_request_v68888(
+                        and not _workspace_sales_visual_request_v69418(
                             interaction_prompt
                         )
                     )
+                    workspace_sales_auto_compat_visual_v69418 = bool(
+                        (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+                        and bool(locals().get("workspace_atp_followup_reused_v69403"))
+                        and _workspace_sales_auto_compatibility_visual_intent_v69418(
+                            interaction_prompt
+                        )
+                    )
+                    if workspace_sales_auto_compat_visual_v69418:
+                        diagnostic_log(
+                            "workspace_sales_auto_compatibility_visual_activated_v69418",
+                            workspace=str(assistant),
+                            authority_status=str(
+                                (workspace_atp_authority_v69180 or {}).get("status")
+                                or ""
+                            ),
+                            products=(
+                                len((workspace_atp_authority_v69180 or {}).get("packages") or [])
+                                if str((workspace_atp_authority_v69180 or {}).get("status") or "")
+                                == "recovered_multi"
+                                else 1
+                            ),
+                        )
 
                     # v69405: exact first-turn Sales product discovery/fitment can be
                     # answered from the already-selected product pages without another
@@ -106090,7 +106157,7 @@ else:
                 )
                 sales_exact_primaries_v69398 = []
                 explicit_visual_v69403 = bool(
-                    _website_image_explicit_visual_request_v68888(
+                    _workspace_sales_visual_request_v69418(
                         interaction_prompt
                     )
                 )
@@ -106211,7 +106278,7 @@ else:
             try:
                 explicit_sales_photo_request_v69398 = bool(
                     (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
-                    and _website_image_explicit_visual_request_v68888(interaction_prompt)
+                    and _workspace_sales_visual_request_v69418(interaction_prompt)
                 )
                 broad_sales_catalog_turn_v69411 = bool(
                     is_sales_workspace(assistant)
