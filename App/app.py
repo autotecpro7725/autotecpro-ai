@@ -1,3 +1,4 @@
+# AutoTecPro AI v69417 - accurate fitment columns + Woo topical identity repair
 # AutoTecPro AI v69416 - typo-tolerant Sales discovery + product-kind classifier hardening
 # AutoTecPro AI v69415 - zero-result Woo failover + deterministic public catalog scan
 # AutoTecPro AI v69414 - resilient Woo catalog discovery fallback
@@ -79,8 +80,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69416"
-AUTOTECPRO_RELEASE_BUILD = "v69416-typo-tolerant-sales-kind-fix-20260922"
+AUTOTECPRO_RELEASE_VERSION = "v69417"
+AUTOTECPRO_RELEASE_BUILD = "v69417-fitment-columns-topical-identity-20260922"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -318,7 +319,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69416",
+        "app_release_v69417",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -6811,9 +6812,14 @@ def table_to_html(table_lines):
         re.sub(r"\s+", " ", str(h or "")).strip().casefold()
         for h in headers
     )
-    product_results_table_v69412 = (
-        normalized_headers_v69412
-        == ("option", "product", "fitment", "product link")
+    product_results_table_v69412 = bool(
+        "option" in normalized_headers_v69412
+        and "product" in normalized_headers_v69412
+        and "product link" in normalized_headers_v69412
+        and (
+            "fitment" in normalized_headers_v69412
+            or "factory setup" in normalized_headers_v69412
+        )
     )
     extra_table_class_v69412 = (
         " atp-product-results-v69412"
@@ -65227,6 +65233,159 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
     return "\n".join(lines)
 
 
+
+def _workspace_sales_transport_product_identity_v69417(value):
+    """Catalog/recovery identities that may safely yield to the exact current page identity."""
+    identity = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    if not identity:
+        return False
+    if re.fullmatch(r"[0-9a-f]{24}", identity):
+        return True
+    if identity.startswith("woocommerce:"):
+        return True
+    return False
+
+
+def _workspace_sales_followup_contract_v69417(package):
+    """Return the richest exact same-product contract for deterministic follow-ups."""
+    package = dict(package or {})
+    contract = dict(_workspace_atp_product_contract_cached_v69227(package) or {})
+    manifest = dict(
+        package.get("_workspace_sales_manifest_contract_v69411")
+        or package.get("_workspace_atp_product_contract_v69227")
+        or {}
+    )
+    if manifest:
+        contract = _workspace_sales_merge_contract_v69410(
+            contract,
+            manifest,
+        )
+    return contract
+
+
+def _workspace_sales_display_size_v69417(package, contract=None):
+    """Source-driven display-size label for Sales tables.
+
+    Prefer the current product title because it contains the customer-facing screen
+    size/panel wording. Fall back to the exact product contract.
+    """
+    package = dict(package or {})
+    contract = dict(contract or {})
+    title = html.unescape(
+        re.sub(
+            r"\s+",
+            " ",
+            str(package.get("page_title") or package.get("title") or ""),
+        ).strip()
+    )
+
+    # Capture the screen size and the nearby display-quality tokens exactly from
+    # the source-authored product title (e.g. 14.4″ IPS QHD 2K).
+    match = re.search(
+        r"\b(\d{1,2}(?:\.\d+)?)\s*(?:inch|inches|in\.?|[\"”″])"
+        r"(?P<tail>(?:\s+(?:IPS|QHD|HD|2K|4K|OLED|LCD)){0,5})",
+        title,
+        flags=re.I,
+    )
+    if match:
+        number = match.group(1)
+        tokens = []
+        for token in re.findall(
+            r"\b(IPS|QHD|HD|2K|4K|OLED|LCD)\b",
+            str(match.group("tail") or ""),
+            flags=re.I,
+        ):
+            normalized = token.upper()
+            if normalized not in tokens:
+                tokens.append(normalized)
+        return " ".join([f"{number}″"] + tokens).strip()
+
+    # Contract fallback remains exact-source data.
+    raw = _workspace_atp_first_response_display_v69348(contract)
+    if raw:
+        raw = html.unescape(re.sub(r"\s+", " ", str(raw)).strip())
+        raw = re.sub(r"(?i)\b(\d{1,2}(?:\.\d+)?)\s*[- ]?inch\b", r"\1″", raw)
+        return raw
+    return ""
+
+
+def _workspace_sales_factory_setup_v69417(package, contract=None):
+    """Return source-confirmed original factory radio/SYNC setup.
+
+    No vehicle/product mapping is hardcoded. The helper reads authored ATP attributes
+    first, then explicit compatibility statements already attached to the exact
+    product package/page.
+    """
+    package = dict(package or {})
+    contract = dict(contract or {})
+
+    authored = _workspace_sales_package_factory_setup_v69407(package)
+    if authored:
+        return html.unescape(re.sub(r"\s+", " ", authored).strip())
+
+    raw = " ".join([
+        str(package.get("package_text") or ""),
+        str(package.get("webpage_text") or ""),
+        str(package.get("page_title") or package.get("title") or ""),
+    ])
+    raw = html.unescape(re.sub(r"<[^>]+>", " ", raw))
+    raw = re.sub(r"\s+", " ", raw).strip()
+    if not raw:
+        return ""
+
+    versions = set()
+
+    # Strong source statements such as:
+    # "Supports Microsoft SYNC Ver. 1, 2 and 3"
+    # "supports vehicles equipped with Microsoft SYNC 1, SYNC 2 or SYNC 3"
+    strong_windows = []
+    for pattern in (
+        r"(?:supports?|compatible\s+with|equipped\s+with)\s+"
+        r"(?:the\s+)?(?:original\s+)?Microsoft\s+SYNC.{0,120}",
+        r"(?:supports?|compatible\s+with).{0,60}SYNC.{0,120}",
+        r"SYNC\s*1.{0,80}SYNC\s*2.{0,80}SYNC\s*3",
+    ):
+        strong_windows.extend(
+            m.group(0)
+            for m in re.finditer(pattern, raw, flags=re.I)
+        )
+
+    for window in strong_windows:
+        for version in re.findall(
+            r"\bSYNC(?:\s+Ver(?:sion)?\.?)?\s*([123])\b",
+            window,
+            flags=re.I,
+        ):
+            versions.add(int(version))
+        # Handle compact authored lists: "SYNC Ver. 1, 2 and 3"
+        compact = re.search(
+            r"\bSYNC(?:\s+Ver(?:sion)?\.?)?\s*"
+            r"([123](?:\s*(?:,|/|&|and|or)\s*[123]){1,3})",
+            window,
+            flags=re.I,
+        )
+        if compact:
+            for version in re.findall(r"[123]", compact.group(1)):
+                versions.add(int(version))
+
+    if versions:
+        labels = " / ".join(f"SYNC {v}" for v in sorted(versions))
+        return f"Microsoft {labels}"
+
+    # Exact contract facts can carry an authored factory-system field in newer
+    # packages. Respect it if present.
+    for key in (
+        "factory_system",
+        "factory_setup",
+        "retained_factory_system",
+    ):
+        value = re.sub(r"\s+", " ", str(contract.get(key) or "")).strip()
+        if value:
+            return html.unescape(value)
+
+    return ""
+
+
 def _workspace_sales_package_factory_setup_v69407(package):
     """Return a concise source-authored factory-system distinction for one exact product."""
     package = dict(package or {})
@@ -65337,7 +65496,7 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
             continue
         seen.add(page_id)
 
-        contract = _workspace_atp_product_contract_cached_v69227(pkg)
+        contract = _workspace_sales_followup_contract_v69417(pkg)
         title = re.sub(
             r"\s+",
             " ",
@@ -65362,14 +65521,14 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
             title = "AutoTecPro infotainment system"
 
         fitment = _workspace_atp_first_response_fitment_v69348(contract, None)
-        display = _workspace_atp_first_response_display_v69348(contract)
+        display = _workspace_sales_display_size_v69417(pkg, contract)
         platform = re.sub(r"\s+", " ", str(contract.get("platform") or "")).strip()
         rows.append({
-            "title": title,
+            "title": html.unescape(title),
             "fitment": fitment or "Compatible",
             "display": display,
             "platform": platform,
-            "factory_setup": _workspace_sales_package_factory_setup_v69407(pkg),
+            "factory_setup": _workspace_sales_factory_setup_v69417(pkg, contract),
             "source": source,
             "contract": contract,
             "package": pkg,
@@ -65407,17 +65566,18 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
             "so I wouldn’t choose one based on the model year alone."
         ),
         "",
-        "| Option | Product | Factory setup | Display | Fitment |",
-        "|---:|---|---|---|---|",
+        "| Option | Product | Factory setup | Display size | Fitment | Product link |",
+        "|---:|---|---|---|---|---|",
     ]
 
     for index, row in enumerate(rows, 1):
         values = (
             str(index),
             row["title"],
-            row["factory_setup"] or "—",
-            row["display"] or "—",
+            row["factory_setup"] or "Confirm from original dash/radio",
+            row["display"] or "Not specified",
             row["fitment"] or "Compatible",
+            row["source"],
         )
         lines.append(
             "| "
@@ -67607,7 +67767,9 @@ def _workspace_sales_woocommerce_search_v69413(search_term):
 def _workspace_sales_woocommerce_contract_v69413(product):
     """Build deterministic fitment/display facts from one published WooCommerce product."""
     product = dict(product or {})
-    name = re.sub(r"\s+", " ", str(product.get("name") or "")).strip()
+    name = html.unescape(
+        re.sub(r"\s+", " ", str(product.get("name") or "")).strip()
+    )
     slug = str(product.get("slug") or "").strip()
     permalink = str(product.get("permalink") or "").strip()
     categories = product.get("categories") or []
@@ -67727,7 +67889,9 @@ def _workspace_sales_woocommerce_package_v69413(product):
     """Convert one exact published WooCommerce product into Sales authority package form."""
     product = dict(product or {})
     permalink = str(product.get("permalink") or "").strip()
-    name = re.sub(r"\s+", " ", str(product.get("name") or "")).strip()
+    name = html.unescape(
+        re.sub(r"\s+", " ", str(product.get("name") or "")).strip()
+    )
     if not permalink or "/product/" not in str(urllib.parse.urlsplit(permalink).path or "").casefold():
         return None
 
@@ -69936,8 +70100,10 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
         or package.get("product_identity_key")
         or ""
     ).strip()
-    synthetic_expected_identity = bool(
-        re.fullmatch(r"[0-9a-f]{24}", expected_identity.casefold())
+    transport_expected_identity_v69417 = (
+        _workspace_sales_transport_product_identity_v69417(
+            expected_identity
+        )
     )
 
     def _select_from_images(images, required_identity, provenance):
@@ -69985,14 +70151,67 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
             if required_identity and product_identity != required_identity:
                 continue
 
+            alt_text_v69417 = html.unescape(
+                re.sub(
+                    r"\s+",
+                    " ",
+                    str(
+                        meta.get("alt")
+                        or meta.get("title")
+                        or meta.get("data-atp-alt")
+                        or ""
+                    ),
+                ).strip()
+            )
+            source_name_v69417 = ""
+            try:
+                source_name_v69417 = urllib.parse.unquote(
+                    str(
+                        urllib.parse.urlsplit(
+                            str(
+                                meta.get("data-atp-full-resolution-url")
+                                or meta.get("data-atp-canonical-image-url")
+                                or meta.get("data-atp-source-url")
+                                or meta.get("src")
+                                or ""
+                            )
+                        ).path.rsplit("/", 1)[-1]
+                    )
+                )
+            except Exception:
+                source_name_v69417 = ""
+
             semantic_tokens = set(
                 _website_image_tokens_v68883(
-                    " ".join((role, topic, search_terms))
+                    " ".join((
+                        role,
+                        topic,
+                        search_terms,
+                        alt_text_v69417,
+                        source_name_v69417,
+                    ))
                 )
             )
             overlap_tokens = prompt_tokens & semantic_tokens
             if not overlap_tokens:
                 continue
+
+            # If the current exact page has a source-authored compatibility/identification
+            # alt/filename but older markup lacks data-atp-topic, preserve the source
+            # evidence as topical metadata. Do not classify generic hero imagery.
+            if not (role or topic or search_terms) and alt_text_v69417:
+                lowered_alt_v69417 = alt_text_v69417.casefold()
+                if (
+                    overlap_tokens
+                    and (
+                        "compatib" in lowered_alt_v69417
+                        or "identif" in lowered_alt_v69417
+                        or re.search(r"\bsync\s*[123]\b", lowered_alt_v69417)
+                    )
+                ):
+                    role = "compatibility-identification-reference"
+                    topic = "compatibility-identification"
+                    search_terms = alt_text_v69417
 
             image_url = str(
                 meta.get("data-atp-full-resolution-url")
@@ -70038,11 +70257,12 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
         if isinstance(item, dict)
     ]
 
-    # Recovery packages can carry a synthetic 24-hex identity key. Do not use that
-    # synthetic key to reject source-authored image identities on the same exact page.
+    # Recovery/Woo packages can carry a transport identity that is not the authored
+    # ATP page identity. The exact product URL remains authority, so transport keys
+    # must not reject source-authored image identities on that same validated page.
     package_required_identity = (
         ""
-        if synthetic_expected_identity
+        if transport_expected_identity_v69417
         else expected_identity
     )
     best = _select_from_images(
@@ -70063,12 +70283,12 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
                 live_result_v69402.get("product_identity_key") or ""
             ).strip()
 
-            # A non-synthetic package identity is source-authored authority and must
-            # agree with the current exact page. Synthetic recovery identities are
+            # A non-transport package identity is source-authored authority and must
+            # agree with the current exact page. Transport/recovery identities are
             # intentionally replaced by the page's unique authored identity key.
             if (
                 expected_identity
-                and not synthetic_expected_identity
+                and not transport_expected_identity_v69417
                 and live_identity_v69402
                 and expected_identity != live_identity_v69402
             ):
@@ -70094,7 +70314,7 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
                 live_identity_v69402
                 or (
                     expected_identity
-                    if not synthetic_expected_identity
+                    if not transport_expected_identity_v69417
                     else ""
                 )
             )
@@ -70167,7 +70387,7 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
         product_identity
         or (
             expected_identity
-            if not synthetic_expected_identity
+            if not transport_expected_identity_v69417
             else ""
         )
     )
