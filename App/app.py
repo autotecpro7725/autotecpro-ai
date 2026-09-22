@@ -1,3 +1,4 @@
+# AutoTecPro AI v69409 - Technical exact-package fast path + exact topic images
 # AutoTecPro AI v69408 - exact same-case factual fast paths + intent diagnostics
 # AutoTecPro AI v69407 - same-case nonvisual fitment provider/image bypass
 # AutoTecPro AI v69406 - generic sibling-product completeness recovery
@@ -71,8 +72,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69408"
-AUTOTECPRO_RELEASE_BUILD = "v69408-same-case-factual-fastpath-20260921"
+AUTOTECPRO_RELEASE_VERSION = "v69409"
+AUTOTECPRO_RELEASE_BUILD = "v69409-technical-exact-topic-fastpath-20260921"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -310,7 +311,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69408",
+        "app_release_v69409",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -89917,6 +89918,343 @@ def _technical_registry_overlap_options_v69379(store, family, year):
     return options
 
 
+
+def _technical_unique_package_postbind_v69409(prompt_text):
+    """Bind one unique authoritative Technical package after conversation creation.
+
+    v69393 already auto-binds a unique package during overlap detection, but first-turn
+    overlap detection can run before a durable conversation_id exists. In that case the
+    registry correctly proves one package yet cannot persist the conversation-scoped lock.
+    This post-bind runs later, after the user turn/conversation exists, and repeats only the
+    exact authoritative registry decision. It never selects from multiple packages.
+    """
+    if str(assistant or "") != "🔧 Technical Support":
+        return {}
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt or "USER-CONFIRMED TECHNICAL PACKAGE:" in prompt:
+        return _technical_confirmed_package_state_v69382(prompt)
+
+    current_conversation = str(st.session_state.get("conversation_id") or "").strip()
+    if not current_conversation:
+        return {}
+
+    existing = st.session_state.get(TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377)
+    if isinstance(existing, dict):
+        existing_conv = str(existing.get("conversation_id") or "").strip()
+        if existing_conv == current_conversation:
+            state = _technical_confirmed_package_state_v69382(prompt)
+            if state:
+                return state
+
+    years = sorted(set(_website_identity_years_v69022(prompt) or []))
+    families = sorted(set(
+        str(x or "").casefold().strip()
+        for x in (_website_identity_vehicle_families_v69022(prompt) or [])
+        if str(x or "").strip()
+    ))
+    if len(years) != 1 or len(families) != 1:
+        return {}
+
+    family, year = families[0], int(years[0])
+    stores = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
+    if not stores:
+        return {}
+    store = str(stores[0] or "").strip()
+    if not store:
+        return {}
+
+    options = _technical_registry_overlap_options_v69379(store, family, year)
+    if len(options) != 1:
+        diagnostic_log(
+            "technical_unique_package_postbind_skipped_v69409",
+            family=family,
+            year=year,
+            matches=len(options),
+        )
+        return {}
+
+    selected = dict(options[0] or {})
+    label = str(selected.get("label") or "").strip()
+    source_url = str(selected.get("source_url") or "").strip()
+    file_id = str(selected.get("file_id") or "").strip()
+    if not (label and source_url and file_id):
+        return {}
+
+    state = {
+        **selected,
+        "family": family,
+        "year": year,
+        "conversation_id": current_conversation,
+        "active_subject_v69384": prompt,
+        "binding_mode_v69409": "unique_authoritative_package_postbind",
+    }
+    st.session_state[TECHNICAL_CONFIRMED_PACKAGE_KEY_V69377] = state
+    st.session_state[TECHNICAL_ACTIVE_SUBJECT_KEY_V69384] = prompt
+    st.session_state.pop(TECHNICAL_PACKAGE_AMBIGUITY_KEY_V69377, None)
+    diagnostic_log(
+        "technical_unique_package_postbound_v69409",
+        family=family,
+        year=year,
+        label=label[:120],
+        file_id=file_id[:160],
+        source_url=source_url[:700],
+    )
+    return dict(state)
+
+
+def _technical_exact_topic_direct_answer_v69409(direct_evidence):
+    """Render source-authored exact-topic evidence without model generation.
+
+    This does not summarize, infer, reorder or choose troubleshooting steps. It only
+    removes the v69395 internal evidence prefixes and lays the exact source-authored
+    branch/content blocks out for the customer. If the exact-topic evidence is not
+    present, the helper returns "" and the existing provider path remains unchanged.
+    """
+    evidence = dict(direct_evidence or {})
+    if str(evidence.get("status") or "") != "recovered":
+        return ""
+    if str(evidence.get("source_v69392") or "") != "durable_snapshot_topic_index_v69395":
+        return ""
+
+    topic = dict(evidence.get("topic_match_v69395") or {})
+    excerpt = str(topic.get("excerpt") or "").strip()
+    title = re.sub(r"\s+", " ", str(topic.get("title") or "")).strip()
+    if not excerpt:
+        return ""
+
+    blocks = []
+    current_branch = ""
+    for raw_line in excerpt.splitlines():
+        line = str(raw_line or "").strip()
+        if not line:
+            continue
+        if line.startswith("SOURCE_TOPIC_V69395:"):
+            if not title:
+                title = line.split(":", 1)[-1].strip()
+            continue
+        if line.startswith("SOURCE_BRANCH_V69395:"):
+            current_branch = line.split(":", 1)[-1].strip()
+            continue
+        if line.startswith("SOURCE_CONTENT_V69395:"):
+            content = line.split(":", 1)[-1].strip()
+            if not content:
+                continue
+            blocks.append((current_branch, content))
+
+    if not blocks:
+        return ""
+
+    lines = []
+    if title:
+        lines.extend([f"## {title}", ""])
+
+    last_branch = None
+    for branch, content in blocks:
+        clean_branch = re.sub(r"\s+", " ", str(branch or "")).strip()
+        leaf = clean_branch.split(" > ")[-1].strip() if clean_branch else ""
+        if leaf and leaf.casefold() != str(title or "").casefold() and leaf != last_branch:
+            lines.extend([f"### {leaf}", ""])
+            last_branch = leaf
+        lines.extend([_technical_readable_layout_v69379(content), ""])
+
+    answer = "\n".join(lines).strip()
+    if not answer:
+        return ""
+
+    diagnostic_log(
+        "technical_exact_topic_provider_bypass_v69409",
+        topic=str(topic.get("id") or "")[:160],
+        title=title[:220],
+        branches=len(blocks),
+        chars=len(answer),
+    )
+    return answer
+
+
+def _technical_exact_topic_images_v69409(direct_evidence, max_images=3):
+    """Return only images authored inside the exact v69395 source topic.
+
+    Every output URL must appear both in the exact hierarchy topic and in the exact
+    confirmed package's parsed semantic image rows. Current-source/year/auto-display
+    metadata is enforced when present. Missing exact topical imagery returns [] so no
+    generic camera/audio/product image is substituted by this helper.
+    """
+    evidence = dict(direct_evidence or {})
+    if str(evidence.get("status") or "") != "recovered":
+        return []
+    topic = dict(evidence.get("topic_match_v69395") or {})
+    topic_urls = [
+        str(x or "").strip()
+        for x in (topic.get("image_urls") or [])
+        if str(x or "").strip().startswith("https://")
+    ]
+    if not topic_urls:
+        return []
+
+    state = dict(evidence.get("state") or {})
+    if not state:
+        return []
+    snapshot = _technical_confirmed_snapshot_v69387(state)
+    if not snapshot:
+        return []
+
+    semantics = dict(snapshot.get("atp_semantics_v69178") or {})
+    if not semantics:
+        semantics = _technical_package_atp_semantics_v69178(
+            snapshot.get("package_text") or ""
+        )
+    rows = [
+        dict(row)
+        for row in (semantics.get("images") or [])
+        if isinstance(row, dict)
+    ]
+    if not rows:
+        return []
+
+    try:
+        state_year = int(state.get("year"))
+    except Exception:
+        state_year = None
+
+    def normalize_url(value):
+        value = str(value or "").strip()
+        if not value:
+            return ""
+        try:
+            return canonical_website_url_identity(value)
+        except Exception:
+            return value.casefold().rstrip("/")
+
+    topic_identities = {normalize_url(url) for url in topic_urls}
+    ranked = []
+    for order, row in enumerate(rows):
+        urls = [
+            str(row.get("data-atp-full-resolution-url") or "").strip(),
+            str(row.get("data-atp-canonical-image-url") or "").strip(),
+            str(row.get("src") or "").strip(),
+        ]
+        matched = [url for url in urls if normalize_url(url) in topic_identities]
+        if not matched:
+            continue
+
+        current = str(row.get("data-atp-current-source") or "").casefold().strip()
+        status = str(row.get("data-atp-source-status") or "").casefold().strip()
+        auto = str(row.get("data-atp-auto-display") or "").casefold().strip()
+        if current and current not in {"true", "1", "yes"}:
+            continue
+        if status and "current" not in status:
+            continue
+        if auto and auto not in {"true", "1", "yes"}:
+            continue
+
+        try:
+            start = int(str(row.get("data-atp-year-start") or "").strip())
+            end = int(str(row.get("data-atp-year-end") or "").strip())
+        except Exception:
+            start = end = None
+        if (
+            state_year is not None
+            and start is not None
+            and end is not None
+            and not (start <= state_year <= end)
+        ):
+            continue
+
+        url = next((u for u in matched if u.startswith("https://")), "")
+        if not url:
+            continue
+        semantic_meta = {
+            str(k): str(v)
+            for k, v in row.items()
+            if str(k).startswith("data-atp-")
+        }
+        payload = {
+            "image_url": url,
+            "source_page": str(state.get("source_url") or ""),
+            "page_title": str(snapshot.get("title") or ""),
+            "section_heading": str(
+                row.get("data-atp-heading-title")
+                or row.get("data-atp-intent")
+                or topic.get("title")
+                or "Technical Reference"
+            ),
+            "nearby_instruction_text": str(
+                row.get("data-atp-intent")
+                or topic.get("title")
+                or ""
+            ),
+            "caption": str(
+                row.get("alt")
+                or row.get("data-atp-intent")
+                or topic.get("title")
+                or ""
+            ),
+            "visual_analysis": str(
+                row.get("alt")
+                or row.get("data-atp-intent")
+                or "Exact source-authored Technical topic image"
+            ),
+            "atp_semantic_metadata_v69363": semantic_meta,
+        }
+        record = _website_image_record_for_chat_v68883(payload)
+        if not isinstance(record, dict):
+            continue
+        record["_technical_exact_semantic_payload_v69387"] = payload
+        record["technical_confirmed_package_image_v69382"] = True
+        record["technical_exact_topic_image_v69409"] = True
+        record["technical_confirmed_package_label_v69382"] = str(
+            state.get("label") or ""
+        )
+        record["technical_confirmed_package_file_id_v69382"] = str(
+            state.get("file_id") or ""
+        )
+        try:
+            priority = int(row.get("data-atp-first-response-priority") or 0)
+        except Exception:
+            priority = 0
+        answer_role = str(row.get("data-atp-answer-role") or "").casefold().strip()
+        ranked.append((
+            1 if answer_role == "primary-answer-image" else 0,
+            priority,
+            -order,
+            record,
+        ))
+
+    ranked.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    output, seen = [], set()
+    for _, _, _, record in ranked:
+        key = str(
+            record.get("archive_web_url")
+            or record.get("data_url")
+            or ""
+        ).strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        output.append(record)
+        if len(output) >= max(1, int(max_images or 3)):
+            break
+
+    if output:
+        diagnostic_log(
+            "technical_exact_topic_images_bound_v69409",
+            topic=str(topic.get("id") or "")[:160],
+            published=len(output),
+            urls=[
+                str(x.get("archive_web_url") or x.get("data_url") or "")[:500]
+                for x in output
+            ],
+        )
+    else:
+        diagnostic_log(
+            "technical_exact_topic_images_fail_closed_v69409",
+            topic=str(topic.get("id") or "")[:160],
+            requested=len(topic_urls),
+            reason="no_exact_current_semantic_match",
+        )
+    return output
+
+
 def _technical_strip_internal_tool_markup_v69379(text):
     """Remove provider/tool-control markup from Technical customer-visible text."""
     value = str(text or "")
@@ -98326,7 +98664,21 @@ else:
         # file in one bounded vector search and prevent the legacy broad-recovery
         # fan-out / unsupported assistants-file loop from running for this turn.
         technical_confirmed_package_direct_v69382 = {}
+        technical_unique_postbind_v69409 = {}
         if assistant == "🔧 Technical Support":
+            try:
+                technical_unique_postbind_v69409 = (
+                    _technical_unique_package_postbind_v69409(
+                        technical_request_prompt_v68879
+                    )
+                )
+            except Exception as unique_postbind_error_v69409:
+                technical_unique_postbind_v69409 = {}
+                diagnostic_log(
+                    "technical_unique_package_postbind_failed_v69409",
+                    error_type=type(unique_postbind_error_v69409).__name__,
+                    error=str(unique_postbind_error_v69409)[:500],
+                )
             try:
                 technical_confirmed_package_direct_v69382 = (
                     _technical_confirmed_package_direct_evidence_v69382(
@@ -98351,6 +98703,45 @@ else:
                 diagnostic_log(
                     "technical_confirmed_package_broad_recovery_bypassed_v69382",
                     rows=len(direct_rows_v69382),
+                )
+
+        technical_exact_topic_answer_v69409 = ""
+        technical_exact_topic_images_v69409 = []
+        technical_exact_topic_authority_v69409 = False
+        if (
+            assistant == "🔧 Technical Support"
+            and str((technical_confirmed_package_direct_v69382 or {}).get("status") or "") == "recovered"
+        ):
+            try:
+                technical_exact_topic_answer_v69409 = (
+                    _technical_exact_topic_direct_answer_v69409(
+                        technical_confirmed_package_direct_v69382
+                    )
+                )
+                technical_exact_topic_authority_v69409 = bool(
+                    str((technical_confirmed_package_direct_v69382 or {}).get("source_v69392") or "")
+                    == "durable_snapshot_topic_index_v69395"
+                    and (technical_confirmed_package_direct_v69382 or {}).get("topic_match_v69395")
+                )
+                if technical_exact_topic_authority_v69409:
+                    technical_exact_topic_images_v69409 = (
+                        _technical_exact_topic_images_v69409(
+                            technical_confirmed_package_direct_v69382,
+                            max_images=3,
+                        )
+                    )
+                    if technical_exact_topic_images_v69409:
+                        generated_images.extend(technical_exact_topic_images_v69409)
+                        generated_images = _dedupe_website_chat_images_v68883(
+                            generated_images
+                        )
+            except Exception as exact_topic_fast_error_v69409:
+                technical_exact_topic_answer_v69409 = ""
+                technical_exact_topic_images_v69409 = []
+                diagnostic_log(
+                    "technical_exact_topic_fastpath_failed_v69409",
+                    error_type=type(exact_topic_fast_error_v69409).__name__,
+                    error=str(exact_topic_fast_error_v69409)[:500],
                 )
 
         technical_compiled_preflight_v69198 = {}
@@ -98771,6 +99162,28 @@ else:
             diagnostic_log(
                 "technical_shared_screen_product_lookup_bypassed_v69391",
                 shared_sizes=sorted(technical_shared_screen_sizes_v69392),
+            )
+
+        technical_exact_package_lookup_bypass_v69409 = bool(
+            assistant == "🔧 Technical Support"
+            and str(
+                (locals().get("technical_confirmed_package_direct_v69382") or {}).get("status")
+                or ""
+            ) == "recovered"
+            and not _explicit_product_library_request(
+                technical_request_prompt_v68879
+            )
+        )
+        if technical_exact_package_lookup_bypass_v69409:
+            allow_product_library_lookup = False
+            diagnostic_log(
+                "technical_exact_package_product_library_bypassed_v69409",
+                source=str(
+                    (locals().get("technical_confirmed_package_direct_v69382") or {}).get(
+                        "source_v69392"
+                    )
+                    or ""
+                )[:80],
             )
 
         if assistant == "🎨 Graphic Marketing":
@@ -101610,6 +102023,23 @@ else:
                                     )[:300],
                                 )
 
+                        if (
+                            assistant == "🔧 Technical Support"
+                            and not technical_direct_answer_v69158
+                            and str(
+                                locals().get("technical_exact_topic_answer_v69409") or ""
+                            ).strip()
+                        ):
+                            technical_direct_answer_v69158 = str(
+                                locals().get("technical_exact_topic_answer_v69409") or ""
+                            ).strip()
+                            diagnostic_log(
+                                "technical_exact_topic_stream_bypass_v69409",
+                                images=len(
+                                    locals().get("technical_exact_topic_images_v69409") or []
+                                ),
+                            )
+
                         if technical_preflight_safe_answer_v69377:
                             stream_source_v69158 = [technical_preflight_safe_answer_v69377]
                         else:
@@ -102161,6 +102591,7 @@ else:
         technical_confirmed_package_fast_images_v69392 = []
         if (
             assistant == "🔧 Technical Support"
+            and not bool(locals().get("technical_exact_topic_images_v69409"))
             and not bool(technical_preflight_safe_answer_v69377)
             and not bool(locals().get("explicit_learning_requested"))
             and not bool(locals().get("technical_website_learning_requested_v68870"))
@@ -102336,6 +102767,7 @@ else:
         # weakly-related image to bypass the existing fail-closed authority rules.
         if (
             assistant == "🔧 Technical Support"
+            and not bool(locals().get("technical_exact_topic_authority_v69409"))
             and not bool(technical_preflight_safe_answer_v69377)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
         ):
@@ -102381,6 +102813,7 @@ else:
         # the bridge itself. The final v69363 publication gate remains unchanged.
         if (
             assistant == "🔧 Technical Support"
+            and not bool(locals().get("technical_exact_topic_authority_v69409"))
             and str(answer or "").strip()
             and not bool(technical_preflight_safe_answer_v69377)
         ):
