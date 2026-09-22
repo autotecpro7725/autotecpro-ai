@@ -1,3 +1,4 @@
+# AutoTecPro AI v69410 - deterministic Sales catalog completeness + mobile table cards
 # AutoTecPro AI v69409 - Technical exact-package fast path + exact topic images
 # AutoTecPro AI v69408 - exact same-case factual fast paths + intent diagnostics
 # AutoTecPro AI v69407 - same-case nonvisual fitment provider/image bypass
@@ -72,8 +73,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69409"
-AUTOTECPRO_RELEASE_BUILD = "v69409-technical-exact-topic-fastpath-20260921"
+AUTOTECPRO_RELEASE_VERSION = "v69410"
+AUTOTECPRO_RELEASE_BUILD = "v69410-consistent-sales-catalog-mobile-table-20260922"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -311,7 +312,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69409",
+        "app_release_v69410",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -6098,6 +6099,114 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# v69410: mobile-only table presentation. 4+ column tables become stacked cards
+# so product/specification tables stay readable instead of compressing headers
+# into one-character columns. Desktop rendering is intentionally unchanged.
+st.markdown(
+    """
+    <style>
+    @media (max-width: 767.98px) {
+        .atp-mobile-table-wrap-v69368 {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            overflow-y: visible !important;
+            -webkit-overflow-scrolling: touch !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 {
+            display: block !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            table-layout: auto !important;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead {
+            display: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody {
+            display: block !important;
+            width: 100% !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
+            display: block !important;
+            width: 100% !important;
+            margin: 0 0 12px 0 !important;
+            border: 1px solid rgba(128,128,128,.34) !important;
+            border-radius: 10px !important;
+            overflow: hidden !important;
+            background: transparent !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td {
+            display: grid !important;
+            grid-template-columns: minmax(104px, 34%) minmax(0, 1fr) !important;
+            gap: 10px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 9px 11px !important;
+            margin: 0 !important;
+            border: 0 !important;
+            border-bottom: 1px solid rgba(128,128,128,.22) !important;
+            text-align: left !important;
+            vertical-align: top !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: anywhere !important;
+            line-height: 1.42 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td:last-child,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td:last-child,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td:last-child {
+            border-bottom: 0 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
+            content: attr(data-atp-label) !important;
+            display: block !important;
+            min-width: 0 !important;
+            font-weight: 700 !important;
+            line-height: 1.35 !important;
+            white-space: normal !important;
+            overflow-wrap: break-word !important;
+            opacity: .92 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-3minus-v69368 {
+            min-width: 620px !important;
+            width: 620px !important;
+            max-width: none !important;
+            table-layout: fixed !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 # Final isolated history-row presentation.
 # The title and action menu are siblings; no Streamlit columns are used.
@@ -6591,9 +6700,21 @@ def table_to_html(table_lines):
         if len(cells) < len(headers):
             cells += [""] * (len(headers) - len(cells))
         html_rows.append("<tr>")
-        for cell in cells[:len(headers)]:
+        for cell_index_v69410, cell in enumerate(cells[:len(headers)]):
             style_attr = f' style="{td_style}"' if td_style else ""
-            html_rows.append(f"<td{style_attr}>{inline_format(cell)}</td>")
+            header_label_v69410 = (
+                headers[cell_index_v69410]
+                if cell_index_v69410 < len(headers)
+                else ""
+            )
+            label_attr_v69410 = html.escape(
+                re.sub(r"\s+", " ", str(header_label_v69410 or "")).strip(),
+                quote=True,
+            )
+            html_rows.append(
+                f'<td data-atp-label="{label_attr_v69410}"{style_attr}>'
+                f'{inline_format(cell)}</td>'
+            )
         html_rows.append("</tr>")
     html_rows.append("</tbody></table>")
     html_rows.append("</div>")
@@ -66643,6 +66764,337 @@ def _technical_exact_atp_image_ready_v69181(prompt_text):
     except Exception:
         return False
 
+
+def _workspace_sales_manifest_contract_v69410(payload):
+    """Build a minimal exact Sales product contract from durable authored image metadata.
+
+    This contract is used only to prove broad vehicle/year catalog membership when
+    vector recall is incomplete. Missing metadata never becomes a positive fit claim.
+    """
+    payload = dict(payload or {})
+    meta = _website_image_atp_semantic_metadata_v69363(payload)
+    if not meta:
+        raw = payload.get("image_structured_metadata_v69017")
+        if isinstance(raw, dict):
+            meta = {str(k): str(v) for k, v in raw.items() if str(k).startswith("data-atp-")}
+        elif isinstance(raw, str) and raw.strip():
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    meta = {str(k): str(v) for k, v in parsed.items() if str(k).startswith("data-atp-")}
+            except Exception:
+                meta = {}
+    if not meta:
+        return {}
+
+    def split_values(value):
+        return [
+            re.sub(r"\s+", " ", str(x or "")).strip()
+            for x in re.split(r"[;|,]", str(value or ""))
+            if re.sub(r"\s+", " ", str(x or "")).strip()
+        ]
+
+    try:
+        year_start = int(str(meta.get("data-atp-year-start") or "").strip())
+        year_end = int(str(meta.get("data-atp-year-end") or "").strip())
+        if year_start > year_end or (year_end - year_start) > 40:
+            year_start = year_end = None
+    except Exception:
+        year_start = year_end = None
+
+    models = split_values(meta.get("data-atp-model"))
+    make = re.sub(r"\s+", " ", str(meta.get("data-atp-make") or "")).strip()
+    features = split_values(meta.get("data-atp-feature"))
+    facts = split_values(meta.get("data-atp-facts"))
+    image_url = str(payload.get("image_url") or "").strip()
+
+    contract = {
+        "product_identity_key": str(meta.get("data-atp-product-identity-key") or "").strip(),
+        "product_family": str(meta.get("data-atp-product-family") or "").strip(),
+        "product_type": str(meta.get("data-atp-product-type") or "").strip(),
+        "brand": str(meta.get("data-atp-brand") or "").strip(),
+        "make": make,
+        "models": models,
+        "year_start": year_start,
+        "year_end": year_end,
+        "screen_size": str(meta.get("data-atp-screen-size") or "").strip(),
+        "display_type": str(meta.get("data-atp-display-type") or "").strip(),
+        "platform": str(meta.get("data-atp-platform") or "").strip(),
+        "processor": str(meta.get("data-atp-processor") or "").strip(),
+        "ram": str(meta.get("data-atp-ram") or "").strip(),
+        "storage": str(meta.get("data-atp-storage") or "").strip(),
+        "facts": list(dict.fromkeys(facts)),
+        "features": list(dict.fromkeys(features)),
+        "compatibility_branches": [],
+        "related_products": [],
+        "primary_images": [image_url] if image_url.startswith("https://") else [],
+    }
+
+    branch_id = str(meta.get("data-atp-compatibility-branch-id") or "manifest-v69410").strip()
+    if year_start is not None and year_end is not None and models:
+        contract["compatibility_branches"].append({
+            "branch_id": branch_id,
+            "make": make,
+            "models": list(models),
+            "years": list(range(year_start, year_end + 1)),
+            "trim": str(meta.get("data-atp-trim") or "").strip(),
+            "excluded_years": [],
+            "source_authority": str(meta.get("data-atp-source-authority") or "current-image-index").strip(),
+            "current_source": True,
+        })
+    return contract
+
+
+def _workspace_sales_broad_product_manifest_v69410(prompt_text):
+    """Enumerate current broad Sales vehicle/year products deterministically.
+
+    Vector search remains useful for rich page content, but broad product discovery
+    must not depend on vector ranking to decide how many current sellable products
+    exist. The durable Sales image index supplies a page-level inventory because each
+    current product has an authored primary-product image with exact product metadata.
+
+    The helper is intentionally narrow:
+    - Sales product pages only
+    - broad family/year discovery only
+    - exact current-source primary product rows only
+    - exact requested family/year must be proven
+    - no screen/platform/product-code/configuration-specific prompts
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return []
+
+    pf = {
+        str(x or "").casefold().strip()
+        for x in (_website_identity_vehicle_families_v69022(prompt) or [])
+        if str(x or "").strip()
+    }
+    py = {
+        int(x)
+        for x in (_website_identity_years_v69022(prompt) or [])
+        if str(x).isdigit()
+    }
+    if not pf or not py:
+        return []
+
+    p = prompt.casefold()
+    if not re.search(r"\b(which|what|models?|options?|fit|fits|compatible|compatibility|available|carry|have|screen|radio|stereo|infotainment|head unit|unit)\b", p):
+        return []
+    if _website_image_product_codes_v69020(prompt):
+        return []
+    if re.search(r"\b\d{1,2}(?:\.\d)?\s*(?:inch|inches|in|\"|”)\b", p):
+        return []
+    if re.search(r"\bandroid\s*\d+\b", p):
+        return []
+    if _website_identity_systems_v69022(prompt):
+        return []
+
+    best_by_page = {}
+    for raw in _website_image_rows_for_destination_v69360("Sales Database") or []:
+        if not isinstance(raw, dict):
+            continue
+        payload = dict(raw)
+        source = str(payload.get("source_page") or payload.get("source_url") or "").strip()
+        if not source or "/product/" not in str(urllib.parse.urlsplit(source).path or "").casefold():
+            continue
+
+        meta = _website_image_atp_semantic_metadata_v69363(payload)
+        if not meta:
+            raw_meta = payload.get("image_structured_metadata_v69017")
+            if isinstance(raw_meta, dict):
+                meta = {str(k): str(v) for k, v in raw_meta.items() if str(k).startswith("data-atp-")}
+        role = str(meta.get("data-atp-image-role") or "").casefold().strip()
+        authority = str(
+            meta.get("data-atp-authority-level")
+            or meta.get("data-atp-authority")
+            or ""
+        ).casefold().strip()
+        if role != "primary-product-image" and authority != "primary":
+            continue
+
+        current = str(meta.get("data-atp-current-source") or "").casefold().strip()
+        status = str(meta.get("data-atp-source-status") or "").casefold().strip()
+        if current not in {"true", "1", "yes"}:
+            continue
+        if status and "current" not in status:
+            continue
+
+        contract = _workspace_sales_manifest_contract_v69410(payload)
+        if not contract:
+            continue
+        try:
+            ys = int(contract.get("year_start"))
+            ye = int(contract.get("year_end"))
+        except Exception:
+            continue
+        if not all(ys <= year <= ye for year in py):
+            continue
+
+        identity_blob = " ".join([
+            source,
+            str(payload.get("page_title") or ""),
+            str(contract.get("make") or ""),
+            " ".join(contract.get("models") or []),
+            str(contract.get("product_identity_key") or ""),
+        ])
+        row_families = {
+            str(x or "").casefold().strip()
+            for x in (_website_identity_vehicle_families_v69022(identity_blob) or [])
+            if str(x or "").strip()
+        }
+        if not row_families or not pf.issubset(row_families):
+            continue
+
+        try:
+            page_id = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            page_id = source.rstrip("/").casefold()
+        if not page_id:
+            continue
+
+        title = re.sub(
+            r"\s+",
+            " ",
+            str(payload.get("page_title") or payload.get("title") or "").split("|", 1)[0],
+        ).strip()
+        image_url = str(payload.get("image_url") or "").strip()
+        meta_row = dict(meta)
+        if image_url:
+            meta_row["src"] = image_url
+
+        package = {
+            "destination": "Sales Database",
+            "source_url": source,
+            "requested_url": source,
+            "page_title": title,
+            "title": title,
+            "filename": "manifest-v69410-" + hashlib.sha256(page_id.encode("utf-8")).hexdigest()[:16],
+            "file_id": "",
+            "extracted_at": str(payload.get("indexed_at") or payload.get("updated_at") or ""),
+            "vehicle_families": sorted(row_families),
+            "years": list(range(ys, ye + 1)),
+            "systems": [],
+            "product_codes": [],
+            "package_text": "",
+            "webpage_text": title,
+            "atp_semantics_v69178": {
+                "schema": "sales-manifest-v69410",
+                "page_url": source,
+                "root": {},
+                "elements": [meta_row],
+                "images": [meta_row],
+            },
+            "_workspace_atp_product_contract_v69227": contract,
+            "workspace_sales_manifest_exact_fit_v69410": True,
+            "workspace_sales_manifest_primary_v69410": image_url,
+        }
+
+        prior = best_by_page.get(page_id)
+        if prior is None:
+            best_by_page[page_id] = package
+            continue
+        prior_contract = dict(prior.get("_workspace_atp_product_contract_v69227") or {})
+        prior_score = (
+            int(bool(prior_contract.get("product_identity_key"))),
+            int(bool(prior.get("workspace_sales_manifest_primary_v69410"))),
+            str(prior.get("extracted_at") or ""),
+        )
+        new_score = (
+            int(bool(contract.get("product_identity_key"))),
+            int(bool(image_url)),
+            str(package.get("extracted_at") or ""),
+        )
+        if new_score > prior_score:
+            best_by_page[page_id] = package
+
+    output = list(best_by_page.values())
+    diagnostic_log(
+        "workspace_sales_broad_manifest_v69410",
+        families=sorted(pf),
+        years=sorted(py),
+        products=len(output),
+        source_ids=[
+            str(_workspace_product_page_identity_v69396(x.get("source_url") or ""))[:160]
+            for x in output
+            if str(x.get("source_url") or "").strip()
+        ][:16],
+    )
+    return output
+
+
+def _workspace_sales_merge_contract_v69410(existing_contract, manifest_contract):
+    """Fill missing exact fields from the durable manifest without overwriting richer facts."""
+    existing = dict(existing_contract or {})
+    manifest = dict(manifest_contract or {})
+    if not manifest:
+        return existing
+
+    result = dict(existing)
+    for key in (
+        "product_identity_key", "product_family", "product_type", "brand", "make",
+        "year_start", "year_end", "screen_size", "display_type", "platform",
+        "processor", "ram", "storage",
+    ):
+        if result.get(key) in (None, "", []):
+            value = manifest.get(key)
+            if value not in (None, "", []):
+                result[key] = value
+
+    result["models"] = list(dict.fromkeys(
+        [str(x) for x in (result.get("models") or []) if str(x).strip()]
+        + [str(x) for x in (manifest.get("models") or []) if str(x).strip()]
+    ))
+    for key in ("facts", "features", "primary_images"):
+        result[key] = list(dict.fromkeys(
+            [str(x) for x in (result.get(key) or []) if str(x).strip()]
+            + [str(x) for x in (manifest.get(key) or []) if str(x).strip()]
+        ))
+
+    existing_branches = [dict(x) for x in (result.get("compatibility_branches") or []) if isinstance(x, dict)]
+    manifest_branches = [dict(x) for x in (manifest.get("compatibility_branches") or []) if isinstance(x, dict)]
+    branch_keys = set()
+    merged_branches = []
+    for branch in existing_branches + manifest_branches:
+        key = (
+            str(branch.get("branch_id") or ""),
+            tuple(sorted(int(y) for y in (branch.get("years") or []) if str(y).isdigit())),
+            str(branch.get("trim") or "").casefold().strip(),
+        )
+        if key in branch_keys:
+            continue
+        branch_keys.add(key)
+        merged_branches.append(branch)
+    result["compatibility_branches"] = merged_branches
+    result["related_products"] = [
+        dict(x) for x in (result.get("related_products") or [])
+        if isinstance(x, dict)
+    ]
+    return result
+
+
+def _workspace_sales_stable_product_order_v69410(package):
+    """Stable broad-discovery order independent of vector score/order."""
+    package = dict(package or {})
+    contract = dict(
+        package.get("_workspace_atp_product_contract_v69227")
+        or _workspace_atp_product_contract_v69205(package)
+        or {}
+    )
+    screen = str(contract.get("screen_size") or "")
+    match = re.search(r"(\d{1,2}(?:\.\d+)?)", screen)
+    try:
+        screen_num = float(match.group(1)) if match else -1.0
+    except Exception:
+        screen_num = -1.0
+    title = re.sub(
+        r"\s+",
+        " ",
+        str(package.get("page_title") or package.get("title") or ""),
+    ).strip().casefold()
+    source = str(package.get("source_url") or "").strip().casefold()
+    return (-screen_num, title, source)
+
+
 def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
     """Select one exact current Sales/Marketing ATP product package deterministically.
 
@@ -66741,6 +67193,96 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
                 hot_count=hot_count_v69357, recovered_count=len(recovered_v69338),
                 merged_count=len(packages),
             )
+    # v69410: broad Sales discovery is completed against the durable current
+    # primary-product manifest before metadata filtering. This removes vector-ranking
+    # variance from the catalog count while keeping vector-recovered packages as the
+    # richer source whenever available.
+    manifest_packages_v69410 = []
+    manifest_by_source_v69410 = {}
+    if broad_fitment_discovery_hint_v69357:
+        try:
+            manifest_packages_v69410 = _workspace_sales_broad_product_manifest_v69410(prompt)
+        except Exception as manifest_error_v69410:
+            manifest_packages_v69410 = []
+            diagnostic_log(
+                "workspace_sales_broad_manifest_failed_v69410",
+                error_type=type(manifest_error_v69410).__name__,
+                error=str(manifest_error_v69410)[:500],
+            )
+
+        for manifest_package_v69410 in manifest_packages_v69410:
+            source_v69410 = str(manifest_package_v69410.get("source_url") or "").strip()
+            try:
+                source_id_v69410 = (
+                    _workspace_product_page_identity_v69396(source_v69410)
+                    if source_v69410 else ""
+                )
+            except Exception:
+                source_id_v69410 = source_v69410.rstrip("/").casefold()
+            if source_id_v69410:
+                manifest_by_source_v69410[source_id_v69410] = dict(manifest_package_v69410)
+
+        if manifest_by_source_v69410:
+            merged_catalog_v69410 = []
+            seen_catalog_v69410 = set()
+            for package_v69410 in list(packages or []):
+                package_v69410 = dict(package_v69410)
+                source_v69410 = str(package_v69410.get("source_url") or "").strip()
+                try:
+                    source_id_v69410 = (
+                        _workspace_product_page_identity_v69396(source_v69410)
+                        if source_v69410 else ""
+                    )
+                except Exception:
+                    source_id_v69410 = source_v69410.rstrip("/").casefold()
+                manifest_match_v69410 = manifest_by_source_v69410.get(source_id_v69410)
+                if manifest_match_v69410:
+                    existing_contract_v69410 = _workspace_atp_product_contract_cached_v69227(
+                        package_v69410
+                    )
+                    manifest_contract_v69410 = dict(
+                        manifest_match_v69410.get(
+                            "_workspace_atp_product_contract_v69227"
+                        ) or {}
+                    )
+                    package_v69410["_workspace_sales_manifest_contract_v69410"] = (
+                        manifest_contract_v69410
+                    )
+                    package_v69410["_workspace_atp_product_contract_v69227"] = (
+                        _workspace_sales_merge_contract_v69410(
+                            existing_contract_v69410,
+                            manifest_contract_v69410,
+                        )
+                    )
+                    package_v69410["workspace_sales_manifest_exact_fit_v69410"] = True
+                    if not package_v69410.get("page_title"):
+                        package_v69410["page_title"] = manifest_match_v69410.get("page_title")
+                    if not package_v69410.get("atp_semantics_v69178"):
+                        package_v69410["atp_semantics_v69178"] = manifest_match_v69410.get("atp_semantics_v69178")
+                    if not package_v69410.get("years"):
+                        package_v69410["years"] = manifest_match_v69410.get("years")
+                    if not package_v69410.get("vehicle_families"):
+                        package_v69410["vehicle_families"] = manifest_match_v69410.get("vehicle_families")
+                if source_id_v69410 and source_id_v69410 in seen_catalog_v69410:
+                    continue
+                if source_id_v69410:
+                    seen_catalog_v69410.add(source_id_v69410)
+                merged_catalog_v69410.append(package_v69410)
+
+            for source_id_v69410, manifest_package_v69410 in manifest_by_source_v69410.items():
+                if source_id_v69410 in seen_catalog_v69410:
+                    continue
+                seen_catalog_v69410.add(source_id_v69410)
+                merged_catalog_v69410.append(dict(manifest_package_v69410))
+
+            diagnostic_log(
+                "workspace_sales_broad_catalog_completed_v69410",
+                vector_packages=len(packages or []),
+                manifest_products=len(manifest_by_source_v69410),
+                completed_products=len(merged_catalog_v69410),
+            )
+            packages = merged_catalog_v69410
+
     prepared = []
     all_models = []
     all_makes = []
@@ -66750,6 +67292,14 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
             continue
         package = dict(package)
         contract = _workspace_atp_product_contract_cached_v69227(package)
+        manifest_contract_v69410 = dict(
+            package.get("_workspace_sales_manifest_contract_v69410") or {}
+        )
+        if manifest_contract_v69410:
+            contract = _workspace_sales_merge_contract_v69410(
+                contract,
+                manifest_contract_v69410,
+            )
         package["_workspace_atp_product_contract_v69227"] = contract
         prepared.append((package, contract))
         all_models.extend(str(x).strip() for x in (contract.get("models") or []) if str(x).strip())
@@ -66913,6 +67463,25 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
 
         if len(distinct_v69357) > 1:
             if is_sales_workspace(workspace):
+                if broad_multi_discovery_v69357:
+                    distinct_v69357.sort(
+                        key=lambda row_v69410: _workspace_sales_stable_product_order_v69410(
+                            row_v69410[3]
+                        )
+                    )
+                    diagnostic_log(
+                        "workspace_sales_broad_stable_order_v69410",
+                        products=len(distinct_v69357),
+                        source_ids=[
+                            str(
+                                _workspace_product_page_identity_v69396(
+                                    str(row_v69410[3].get("source_url") or "")
+                                )
+                            )[:160]
+                            for row_v69410 in distinct_v69357[:12]
+                            if str(row_v69410[3].get("source_url") or "").strip()
+                        ],
+                    )
                 multi_packages_v69357 = [dict(row[3]) for row in distinct_v69357[:8]]
                 multi_rows_v69357 = []
                 multi_context_parts_v69357 = [
@@ -66965,6 +67534,19 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
                 score=top[0],
             )
             return {}
+
+    if (
+        broad_multi_discovery_v69357
+        and len(manifest_by_source_v69410) > 1
+        and len(candidate_rows_v69357) <= 1
+    ):
+        diagnostic_log(
+            "workspace_sales_broad_incomplete_fail_closed_v69410",
+            manifest_products=len(manifest_by_source_v69410),
+            ranked_products=len(candidate_rows_v69357),
+            reason="post_manifest_filter_dropped_valid_siblings",
+        )
+        return {}
 
     package = dict(top[3])
     semantics = dict(package.get("atp_semantics_v69178") or {})
