@@ -1,3 +1,4 @@
+# AutoTecPro AI v69416 - typo-tolerant Sales discovery + product-kind classifier hardening
 # AutoTecPro AI v69415 - zero-result Woo failover + deterministic public catalog scan
 # AutoTecPro AI v69414 - resilient Woo catalog discovery fallback
 # AutoTecPro AI v69413 - WooCommerce catalog authority + exact primary images
@@ -78,8 +79,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69415"
-AUTOTECPRO_RELEASE_BUILD = "v69415-zero-result-woo-failover-20260922"
+AUTOTECPRO_RELEASE_VERSION = "v69416"
+AUTOTECPRO_RELEASE_BUILD = "v69416-typo-tolerant-sales-kind-fix-20260922"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -317,7 +318,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69415",
+        "app_release_v69416",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -66965,17 +66966,25 @@ def _workspace_sales_woocommerce_years_v69413(value):
 
 
 def _workspace_sales_woocommerce_product_kind_v69413(prompt_text, product):
-    """Classify broad Sales WooCommerce products without vehicle-specific hardcoding."""
+    """Classify Woo products by primary identity, not incidental description words.
+
+    v69416 hardening: real infotainment pages commonly mention included harnesses,
+    adapters, modules, or cables in their short description.  The previous classifier
+    searched one large blob and therefore allowed an incidental accessory word to veto
+    an otherwise exact screen/head-unit product.  Primary product identity fields now
+    take precedence; supporting description text can add positive evidence but cannot
+    turn a screen into an accessory.
+    """
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).casefold()
     product = dict(product or {})
     attributes = product.get("attributes") or []
     categories = product.get("categories") or []
     tags = product.get("tags") or []
-    blob = " ".join([
+
+    identity_blob = " ".join([
         str(product.get("name") or ""),
         str(product.get("slug") or ""),
         str(product.get("permalink") or ""),
-        str(product.get("short_description") or ""),
         " ".join(str(x.get("name") or "") for x in categories if isinstance(x, dict)),
         " ".join(str(x.get("name") or "") for x in tags if isinstance(x, dict)),
         " ".join(
@@ -66985,6 +66994,10 @@ def _workspace_sales_woocommerce_product_kind_v69413(prompt_text, product):
             ])
             for x in attributes if isinstance(x, dict)
         ),
+    ]).casefold()
+    supporting_blob = " ".join([
+        identity_blob,
+        re.sub(r"<[^>]+>", " ", str(product.get("short_description") or "")),
     ]).casefold()
 
     wants_cluster = bool(re.search(
@@ -66996,32 +67009,255 @@ def _workspace_sales_woocommerce_product_kind_v69413(prompt_text, product):
         prompt,
     ))
 
-    cluster = bool(re.search(
+    cluster_identity = bool(re.search(
         r"\b(gauge cluster|digital cluster|instrument cluster|digital cockpit|cluster cockpit)\b",
-        blob,
+        identity_blob,
     ))
-    camera_only = bool(re.search(
+    camera_identity = bool(re.search(
         r"\b(backup camera|reverse camera|dash cam|camera kit)\b",
-        blob,
+        identity_blob,
     ))
-    accessory = bool(re.search(
+    accessory_identity = bool(re.search(
         r"\b(bracket|bezel|cable|harness|adapter|module|replacement part|accessory)\b",
-        blob,
+        identity_blob,
     ))
-    infotainment = bool(re.search(
-        r"\b(navigation|infotainment|touch[-\s]?screen|android|tesla[-\s]?style|"
-        r"head unit|car stereo|radio)\b",
-        blob,
+    infotainment_identity = bool(re.search(
+        r"\b(navigation|infotainment|touch[-\s]?screen|touchscreen|android|tesla[-\s]?style|"
+        r"head[-\s]?unit|car stereo|radio|multimedia|stereo)\b",
+        identity_blob,
+    ))
+    infotainment_evidence = bool(re.search(
+        r"\b(navigation|infotainment|touch[-\s]?screen|touchscreen|android|tesla[-\s]?style|"
+        r"head[-\s]?unit|car stereo|radio|multimedia|stereo)\b",
+        supporting_blob,
     ))
 
     if wants_cluster:
-        return "cluster" if cluster else ""
+        return "cluster" if cluster_identity else ""
     if wants_camera:
-        return "camera" if camera_only else ""
-    if cluster or camera_only or accessory:
-        return ""
-    return "infotainment" if infotainment else ""
+        return "camera" if camera_identity else ""
 
+    # Product-category exclusions remain stronger than infotainment evidence.
+    # Only accessory words are demoted to secondary evidence because real screen
+    # pages routinely describe included harnesses/adapters/modules.
+    if cluster_identity or camera_identity:
+        return ""
+    if infotainment_identity:
+        return "infotainment"
+    if accessory_identity:
+        return ""
+    return "infotainment" if infotainment_evidence else ""
+
+
+def _workspace_sales_fuzzy_vehicle_families_v69416(value):
+    """Resolve one/more Sales vehicle families with conservative typo tolerance.
+
+    Exact production parsing remains authoritative. Fuzzy repair is used only when
+    exact parsing finds nothing, and only inside broad Sales discovery where a model
+    year and product-seeking intent are also required. This lets natural typos such
+    as F15O, Tundar, Sliverado, or Expidition resolve without loosening Technical
+    fitment gates or silently rewriting arbitrary customer text.
+    """
+    exact = {
+        str(x or "").casefold().strip()
+        for x in (_website_identity_vehicle_families_v69022(value) or [])
+        if str(x or "").strip()
+    }
+    if exact:
+        return exact
+
+    text_value = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+    if not text_value:
+        return set()
+
+    canonical = (
+        "f150", "f250", "f350", "f450", "f550", "f650",
+        "e150", "e250", "e350", "e450", "e550", "e650",
+        "ram", "ram1500", "ram2500", "ram3500",
+        "explorer", "fusion", "mustang", "expedition", "edge", "escape",
+        "tundra", "tacoma", "4runner", "silverado", "sierra", "suburban",
+        "tahoe", "yukon", "escalade", "q50", "q60", "wrangler",
+        "grand_cherokee", "cherokee", "charger", "challenger", "durango",
+    )
+    aliases = {name.replace("_", ""): name for name in canonical}
+
+    raw_tokens = re.findall(r"[a-z0-9]+", text_value)
+    candidates = []
+    for idx in range(len(raw_tokens)):
+        for width in (1, 2):
+            group = raw_tokens[idx:idx + width]
+            if len(group) != width:
+                continue
+            compact = "".join(group)
+            if compact:
+                candidates.append(compact)
+
+    # Human typing often substitutes letter O for zero in truck model numbers.
+    normalized_candidates = []
+    for candidate in candidates:
+        normalized_candidates.append(candidate)
+        if re.fullmatch(r"[a-z]+[0-9o]+", candidate):
+            normalized_candidates.append(re.sub(r"o", "0", candidate))
+
+    best_score = 0.0
+    best_family = ""
+    best_candidate = ""
+    for candidate in normalized_candidates:
+        if len(candidate) < 3:
+            continue
+        for alias, family in aliases.items():
+            if candidate[:1] != alias[:1]:
+                continue
+            if abs(len(candidate) - len(alias)) > 2:
+                continue
+            score = SequenceMatcher(None, candidate, alias).ratio()
+            numeric_model = bool(re.search(r"\d", alias))
+            threshold = 0.74 if numeric_model else (0.80 if len(alias) <= 6 else 0.82)
+            if score >= threshold and score > best_score:
+                best_score = score
+                best_family = family
+                best_candidate = candidate
+
+    if best_family:
+        diagnostic_log(
+            "workspace_sales_vehicle_typo_repaired_v69416",
+            candidate=best_candidate,
+            family=best_family,
+            score=round(best_score, 3),
+        )
+        return {best_family}
+
+    # Generic brand-adjacent fallback for catalog families that are not present in
+    # the legacy hard-coded parser (for example Lexus NX, Audi Q5, BMW 3 Series).
+    # This remains conservative: a recognized vehicle brand must be present and
+    # only the closest model-like token(s) after that brand are considered.
+    brand_tokens = {
+        "chevy", "chevrolet", "gmc", "ford", "dodge", "ram", "jeep",
+        "toyota", "honda", "nissan", "infiniti", "lexus", "acura",
+        "bmw", "audi", "mercedes", "porsche", "cadillac", "buick",
+        "chrysler", "hyundai", "kia", "lincoln", "mazda", "subaru",
+        "tesla", "volkswagen", "volvo",
+    }
+    skip_tokens = {
+        "autotecpro", "new", "newest", "the", "a", "an", "for", "with",
+        "screen", "screens", "radio", "stereo", "navigation", "infotainment",
+        "android", "touch", "touchscreen", "system", "unit", "head", "product",
+        "products", "model", "models", "option", "options", "available", "fit",
+        "fits", "compatible", "upgrade", "hd", "ips", "qhd", "carplay", "wifi",
+        "gps", "lte", "style", "tesla", "inch", "inches", "benz",
+    }
+
+    def meaningful_after(start_index):
+        out = []
+        for pos in range(start_index + 1, min(len(raw_tokens), start_index + 8)):
+            token = raw_tokens[pos]
+            if re.fullmatch(r"(?:19|20)\d{2}", token):
+                continue
+            if token in skip_tokens or token in brand_tokens:
+                continue
+            out.append((token, pos))
+            if len(out) >= 3:
+                break
+        return out
+
+    for idx, token in enumerate(raw_tokens):
+        if token not in brand_tokens:
+            continue
+        nearby = meaningful_after(idx)
+        if not nearby:
+            continue
+        first, first_pos = nearby[0]
+        family = first
+        if len(nearby) >= 2:
+            second, second_pos = nearby[1]
+            adjacent = (second_pos == first_pos + 1)
+            if adjacent and first.isdigit() and second == "series":
+                family = f"{first} series"
+            elif adjacent and len(first) == 1 and second == "class":
+                family = f"{first} class"
+            elif adjacent and first in {"land", "range"} and second in {"cruiser", "rover"}:
+                family = f"{first} {second}"
+            elif adjacent and re.fullmatch(r"[a-z]{1,3}", first) and re.fullmatch(r"\d{1,3}", second):
+                family = first + second
+        if re.fullmatch(r"[a-z]+[0-9o]+", family.replace(" ", "")):
+            family = re.sub(r"o", "0", family)
+        if len(re.sub(r"[^a-z0-9]", "", family)) >= 2:
+            diagnostic_log(
+                "workspace_sales_generic_vehicle_family_v69416",
+                brand=token,
+                family=family,
+            )
+            return {family}
+
+    return set()
+
+
+def _workspace_sales_family_sets_match_v69416(requested_families, product_families):
+    """Match verified product families with bounded typo tolerance for Sales only."""
+    requested = {str(x or "").casefold().strip() for x in (requested_families or []) if str(x or "").strip()}
+    products = {str(x or "").casefold().strip() for x in (product_families or []) if str(x or "").strip()}
+    if not requested or not products:
+        return False
+    if requested.issubset(products):
+        return True
+
+    def norm(value):
+        compact = re.sub(r"[^a-z0-9]+", "", str(value or "").casefold())
+        if re.fullmatch(r"[a-z]+[0-9o]+", compact):
+            compact = compact.replace("o", "0")
+        return compact
+
+    for wanted in requested:
+        w = norm(wanted)
+        if not w:
+            return False
+        matched = False
+        for actual in products:
+            a = norm(actual)
+            if not a or w[:1] != a[:1]:
+                continue
+            if w == a:
+                matched = True
+                break
+            both_numeric = bool(re.search(r"\d", w) and re.search(r"\d", a))
+            threshold = 0.86 if both_numeric else (0.78 if max(len(w), len(a)) <= 4 else 0.82)
+            if abs(len(w) - len(a)) <= 2 and SequenceMatcher(None, w, a).ratio() >= threshold:
+                matched = True
+                break
+        if not matched:
+            return False
+    return True
+
+
+def _workspace_sales_broad_intent_v69416(prompt_text):
+    """Recognize broad Sales catalog intent even when one intent word is mistyped."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if re.search(
+        r"\b(which|what|models?|options?|products?|fit|fits|compatible|compatibility|"
+        r"available|carry|have|screen|screens|radio|stereo|infotainment|head unit|unit)\b",
+        prompt,
+    ):
+        return True
+
+    intent_words = (
+        "which", "what", "model", "models", "option", "options", "product",
+        "products", "compatible", "compatibility", "available", "screen",
+        "screens", "radio", "stereo", "infotainment", "unit",
+    )
+    for token in re.findall(r"[a-z]+", prompt):
+        if len(token) < 4:
+            continue
+        for expected in intent_words:
+            if token[:1] != expected[:1] or abs(len(token) - len(expected)) > 2:
+                continue
+            if SequenceMatcher(None, token, expected).ratio() >= 0.78:
+                diagnostic_log(
+                    "workspace_sales_intent_typo_repaired_v69416",
+                    token=token,
+                    intended=expected,
+                )
+                return True
+    return False
 
 
 def _workspace_sales_woocommerce_search_terms_v69414(search_term):
@@ -67394,7 +67630,7 @@ def _workspace_sales_woocommerce_contract_v69413(product):
     ])
     families = sorted({
         str(x or "").casefold().strip()
-        for x in (_website_identity_vehicle_families_v69022(identity_text) or [])
+        for x in (_workspace_sales_fuzzy_vehicle_families_v69416(identity_text) or [])
         if str(x or "").strip()
     })
     years = _workspace_sales_woocommerce_years_v69413(identity_text)
@@ -67585,7 +67821,7 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
 
     families = sorted({
         str(x or "").casefold().strip()
-        for x in (_website_identity_vehicle_families_v69022(prompt) or [])
+        for x in (_workspace_sales_fuzzy_vehicle_families_v69416(prompt) or [])
         if str(x or "").strip()
     })
     years = sorted({
@@ -67636,6 +67872,7 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
     }
     requested_families = set(families)
     requested_years = set(years)
+    kind_rejected_titles_v69416 = []
 
     for product in products_by_id.values():
         if str(product.get("status") or "publish").casefold().strip() != "publish":
@@ -67643,6 +67880,10 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
             continue
         if not _workspace_sales_woocommerce_product_kind_v69413(prompt, product):
             rejected["kind"] += 1
+            if len(kind_rejected_titles_v69416) < 8:
+                kind_rejected_titles_v69416.append(
+                    re.sub(r"\s+", " ", str(product.get("name") or "")).strip()[:180]
+                )
             continue
 
         package = _workspace_sales_woocommerce_package_v69413(product)
@@ -67653,7 +67894,9 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
         product_years = {
             int(x) for x in (package.get("years") or []) if str(x).isdigit()
         }
-        if not product_families or not requested_families.issubset(product_families):
+        if not _workspace_sales_family_sets_match_v69416(
+            requested_families, product_families
+        ):
             rejected["family"] += 1
             continue
         if not product_years or not requested_years.issubset(product_years):
@@ -67676,12 +67919,13 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
         key=_workspace_sales_stable_product_order_v69410,
     )
     diagnostic_log(
-        "workspace_sales_woocommerce_catalog_v69415",
+        "workspace_sales_woocommerce_catalog_v69416",
         families=families,
         years=years,
         searched_products=len(products_by_id),
         products=len(output),
         rejected=rejected,
+        kind_rejected_titles=kind_rejected_titles_v69416,
         source_ids=[
             str(_workspace_product_page_identity_v69396(x.get("source_url") or ""))[:180]
             for x in output[:16]
@@ -67772,7 +68016,7 @@ def _workspace_sales_broad_discovery_prompt_v69411(prompt_text):
         return False
     families = {
         str(x or "").casefold().strip()
-        for x in (_website_identity_vehicle_families_v69022(prompt) or [])
+        for x in (_workspace_sales_fuzzy_vehicle_families_v69416(prompt) or [])
         if str(x or "").strip()
     }
     years = {
@@ -67783,11 +68027,7 @@ def _workspace_sales_broad_discovery_prompt_v69411(prompt_text):
     if not families or not years:
         return False
     p = prompt.casefold()
-    if not re.search(
-        r"\b(which|what|models?|options?|products?|fit|fits|compatible|compatibility|"
-        r"available|carry|have|screen|radio|stereo|infotainment|head unit|unit)\b",
-        p,
-    ):
+    if not _workspace_sales_broad_intent_v69416(p):
         return False
     if _website_image_product_codes_v69020(prompt):
         return False
