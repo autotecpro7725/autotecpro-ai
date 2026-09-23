@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69432"
-AUTOTECPRO_RELEASE_BUILD = "v69432-cockpit-cluster-current-feature-authority-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69433"
+AUTOTECPRO_RELEASE_BUILD = "v69433-central-sales-intent-typo-context-resolver-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69432",
+        "app_release_v69433",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -65319,17 +65319,155 @@ def _workspace_sales_same_case_kind_scope_prompt_v69421(prompt_text, messages):
 
 
 
-def _workspace_sales_other_sibling_followup_v69431(prompt_text):
-    """True when the customer refers to the other/rest/remaining products in the same case."""
-    p = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    if not p:
-        return False
-    return bool(re.search(
+
+def _workspace_sales_normalize_language_v69433(prompt_text):
+    """Normalize common Sales-language typos without changing factual meaning."""
+    raw = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not raw:
+        return ""
+
+    phrase_aliases = (
+        (r"\bkey\s+fetures?\b", "key features"),
+        (r"\bkey\s+feautures?\b", "key features"),
+        (r"\bwhat\s+come\s+with\b", "what comes with"),
+        (r"\bwhat\s+kind\s+of\s+features?\s+come\s+with\b", "what features come with"),
+        (r"\bprod(?:uct)?\s+url\b", "product link"),
+        (r"\bshow\s+(?:me\s+)?(?:a\s+)?pic(?:ture)?\b", "show me photo"),
+        (r"\bother\s+modles?\b", "other models"),
+        (r"\bother\s+optons?\b", "other options"),
+    )
+    for pattern, replacement in phrase_aliases:
+        raw = re.sub(pattern, replacement, raw, flags=re.I)
+
+    vocabulary = {
+        "feature", "features", "function", "functions", "spec", "specs",
+        "specification", "specifications", "cluster", "cockpit",
+        "infotainment", "screen", "screens", "model", "models", "option",
+        "options", "product", "products", "photo", "image", "picture",
+        "price", "pricing", "link", "links", "compare", "comparison",
+        "remaining", "other", "android", "carplay", "bluetooth", "wifi",
+        "camera", "navigation",
+    }
+    explicit_aliases = {
+        "feture": "feature", "fetures": "features",
+        "feauture": "feature", "feautures": "features", "featurs": "features",
+        "funciton": "function", "funcitons": "functions",
+        "specfication": "specification", "specfications": "specifications",
+        "cluser": "cluster", "clutser": "cluster", "clster": "cluster",
+        "cockpt": "cockpit", "infotament": "infotainment",
+        "infotainmet": "infotainment", "infotainemnt": "infotainment",
+        "scren": "screen", "screeen": "screen", "modle": "model",
+        "modles": "models", "opiton": "option", "opitons": "options",
+        "prodcut": "product", "prodcuts": "products", "phto": "photo",
+        "imgae": "image", "picutre": "picture", "prcie": "price",
+        "pirce": "price", "lnik": "link", "camrea": "camera",
+        "naviagtion": "navigation", "bluetooh": "bluetooth",
+        "andriod": "android",
+    }
+
+    def correct_token(match):
+        token = match.group(0)
+        if token in explicit_aliases:
+            return explicit_aliases[token]
+        if token in vocabulary or len(token) < 5 or not token.isalpha():
+            return token
+        try:
+            from difflib import get_close_matches
+            hit = get_close_matches(token, tuple(vocabulary), n=1, cutoff=0.88)
+            return hit[0] if hit else token
+        except Exception:
+            return token
+
+    return re.sub(r"[a-z]+", correct_token, raw)
+
+
+def _workspace_sales_intent_v69433(prompt_text):
+    """Central deterministic Sales intent view; never creates factual claims."""
+    p = _workspace_sales_normalize_language_v69433(prompt_text)
+
+    cluster = bool(re.search(
+        r"\b(gauge\s*cluster|digital\s*cluster|instrument\s*cluster|cluster|"
+        r"digital\s*cockpit|cluster\s*cockpit|virtual\s*cockpit|cockpit|"
+        r"digital\s*dashboard|digital\s*dash|speedometer\s*cluster)\b", p
+    ))
+    camera = bool(re.search(
+        r"\b(backup\s*camera|reverse\s*camera|dash\s*cam|camera\s*kit|camera)\b", p
+    ))
+    infotainment = bool(re.search(
+        r"\b(infotainment|navigation|screen|screens|touch[-\s]?screen|touchscreen|"
+        r"tesla[-\s]?style|head[-\s]?unit|car\s*stereo|radio|multimedia|stereo|"
+        r"android\s*(?:screen|radio|head\s*unit))\b", p
+    ))
+    product_kind = "cluster" if cluster else ("camera" if camera else ("infotainment" if infotainment else ""))
+
+    feature_request = bool(re.search(
+        r"\b(feature|features|function|functions|spec|specs|specification|"
+        r"specifications|details|what does (?:it|this|that) (?:have|do)|"
+        r"what do (?:they|these|those) have|what can (?:it|this|that) do|"
+        r"what comes with|what features come with|capability|capabilities|"
+        r"key feature|key features|main feature|main features)\b", p
+    ))
+    sibling_request = bool(re.search(
         r"\b(other|others|the rest|rest of|remaining|remainder|"
         r"other models?|other options?|other products?|other screens?|"
-        r"remaining models?|remaining options?|remaining products?|remaining screens?)\b",
-        p,
+        r"remaining models?|remaining options?|remaining products?|remaining screens?)\b", p
     ))
+    visual_request = bool(re.search(
+        r"\b(show|send|display|see|view)\b.{0,24}\b(photo|image|picture|pic)\b|"
+        r"\b(photo|image|picture|pic)\b", p
+    ))
+    price_request = bool(re.search(
+        r"\b(price|pricing|cost|costs|quote|how much|dealer price|wholesale)\b", p
+    ))
+    link_request = bool(re.search(
+        r"\b(product link|product links|link|links|url|urls|product page|page)\b", p
+    ))
+    compare_request = bool(re.search(
+        r"\b(difference|differences|different|compare|comparison|versus|vs\.?)\b", p
+    ))
+    years_request = bool(re.search(
+        r"\b(what years?|which years?|year range|supported years?|fitment years?|"
+        r"years? (?:does|do) (?:it|they|this|these|that|those) (?:fit|support))\b", p
+    ))
+
+    specific_feature = ""
+    feature_topics = (
+        ("carplay", r"\b(carplay|apple carplay)\b"),
+        ("android_auto", r"\b(android auto)\b"),
+        ("bluetooth", r"\b(bluetooth|bt audio|a2dp)\b"),
+        ("wifi", r"\b(wi[\s-]?fi)\b"),
+        ("lte", r"\b(4g|lte|4g lte)\b"),
+        ("steering", r"\b(steering wheel|steering-wheel|swc)\b"),
+        ("climate", r"\b(climate control|climate-control|a/?c control)\b"),
+        ("reverse_camera", r"\b(reverse camera|backup camera|factory camera)\b"),
+        ("cargo_camera", r"\b(cargo camera)\b"),
+        ("premium_audio", r"\b(premium sound|premium audio|bose|alpine|harman)\b"),
+        ("installation_video", r"\b(installation video|install video)\b"),
+    )
+    for topic, pattern in feature_topics:
+        if re.search(pattern, p):
+            specific_feature = topic
+            break
+
+    return {
+        "normalized": p,
+        "product_kind": product_kind,
+        "feature_request": feature_request,
+        "sibling_request": sibling_request,
+        "visual_request": visual_request,
+        "price_request": price_request,
+        "link_request": link_request,
+        "compare_request": compare_request,
+        "years_request": years_request,
+        "specific_feature": specific_feature,
+    }
+
+
+def _workspace_sales_other_sibling_followup_v69431(prompt_text):
+    """True when the customer refers to the other/rest/remaining products in the same case."""
+    return bool(
+        _workspace_sales_intent_v69433(prompt_text).get("sibling_request")
+    )
 
 
 def _workspace_sales_sibling_authority_v69431(
@@ -65751,12 +65889,10 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
         r"option|options)\b",
         p,
     ))
-    feature_request_v69427 = bool(re.search(
-        r"\b(feature|features|function|functions|spec|specs|specification|"
-        r"specifications|what does it do|what can it do|capability|capabilities|"
-        r"key feature|key features|main feature|main features)\b",
-        p,
-    ))
+    sales_intent_v69433 = _workspace_sales_intent_v69433(prompt_text)
+    feature_request_v69427 = bool(
+        sales_intent_v69433.get("feature_request")
+    )
     if not fitment_or_discovery or not (prompt_years or prompt_families):
         return ""
 
@@ -66275,13 +66411,27 @@ def _workspace_sales_same_case_fact_intent_v69408(prompt_text):
     No raw customer text is returned or logged. Subjective, diagnostic, installation,
     pricing, visual and creative requests remain on their existing paths.
     """
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    sales_intent_v69433 = _workspace_sales_intent_v69433(prompt_text)
+    prompt = str(sales_intent_v69433.get("normalized") or "").strip()
     p = prompt.casefold()
     if not p:
         return {"category": "provider_fallback", "topic": ""}
 
     if _website_image_explicit_visual_request_v68888(prompt):
         return {"category": "visual_existing_path", "topic": ""}
+    if sales_intent_v69433.get("price_request"):
+        return {"category": "provider_required", "topic": "specialized"}
+    if sales_intent_v69433.get("years_request"):
+        return {"category": "years_support", "topic": "fitment_years"}
+    if sales_intent_v69433.get("compare_request"):
+        return {"category": "known_differences", "topic": "exact_fields_only"}
+    if sales_intent_v69433.get("link_request"):
+        return {"category": "product_links", "topic": "source_url"}
+    if sales_intent_v69433.get("specific_feature"):
+        return {
+            "category": "specific_feature",
+            "topic": str(sales_intent_v69433.get("specific_feature") or ""),
+        }
 
     # Hardware quantities such as "how much RAM/storage" are factual, not pricing.
     if re.search(r"\b(ram|storage|processor|cpu|hardware|memory)\b", p):
@@ -67803,29 +67953,9 @@ def _workspace_sales_requested_product_kind_v69421(prompt_text):
     Empty means broad catalog intent: do not silently default the customer to
     infotainment when the vehicle/year also has another published primary product.
     """
-    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    if not value:
-        return ""
-    if re.search(
-        r"\b(gauge\s*cluster|digital\s*cluster|instrument\s*cluster|"
-        r"digital\s*cockpit|cluster\s*cockpit|virtual\s*cockpit|cockpit|"
-        r"digital\s*dashboard|digital\s*dash|speedometer\s*cluster)\b",
-        value,
-    ):
-        return "cluster"
-    if re.search(
-        r"\b(backup\s*camera|reverse\s*camera|dash\s*cam|camera\s*kit|camera)\b",
-        value,
-    ):
-        return "camera"
-    if re.search(
-        r"\b(infotainment|navigation|screen|touch[-\s]?screen|touchscreen|"
-        r"tesla[-\s]?style|head[-\s]?unit|car\s*stereo|radio|multimedia|stereo|"
-        r"android\s*(?:screen|radio|head\s*unit))\b",
-        value,
-    ):
-        return "infotainment"
-    return ""
+    return str(
+        _workspace_sales_intent_v69433(prompt_text).get("product_kind") or ""
+    )
 
 
 def _workspace_sales_woocommerce_product_kind_v69413(prompt_text, product):
@@ -105522,6 +105652,23 @@ else:
 
                     workspace_atp_authority_v69180 = {}
                     workspace_atp_followup_reused_v69403 = False
+                    if is_sales_workspace(assistant):
+                        try:
+                            intent_debug_v69433 = _workspace_sales_intent_v69433(
+                                interaction_prompt
+                            )
+                            diagnostic_log(
+                                "workspace_sales_intent_resolved_v69433",
+                                normalized=str(intent_debug_v69433.get("normalized") or "")[:300],
+                                product_kind=str(intent_debug_v69433.get("product_kind") or ""),
+                                feature_request=bool(intent_debug_v69433.get("feature_request")),
+                                sibling_request=bool(intent_debug_v69433.get("sibling_request")),
+                                visual_request=bool(intent_debug_v69433.get("visual_request")),
+                                price_request=bool(intent_debug_v69433.get("price_request")),
+                                specific_feature=str(intent_debug_v69433.get("specific_feature") or ""),
+                            )
+                        except Exception:
+                            pass
                     workspace_atp_kind_scope_prompt_v69421 = ""
                     workspace_sales_sibling_authority_v69431 = {}
                     if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
@@ -105992,14 +106139,11 @@ else:
                                 # such as "what's the feature come with the digital cluster"
                                 # becomes "what products do you have for 2019 RAM digital
                                 # gauge cluster" and the explicit-feature gate is lost.
-                                feature_intent_v69430 = bool(re.search(
-                                    r"\b(feature|features|function|functions|spec|specs|"
-                                    r"specification|specifications|what does it do|"
-                                    r"what can it do|capability|capabilities|"
-                                    r"key feature|key features|main feature|main features)\b",
-                                    str(interaction_prompt or ""),
-                                    flags=re.I,
-                                ))
+                                feature_intent_v69430 = bool(
+                                    _workspace_sales_intent_v69433(
+                                        interaction_prompt
+                                    ).get("feature_request")
+                                )
                                 if feature_intent_v69430:
                                     first_turn_answer_prompt_v69421 = (
                                         f"{workspace_atp_kind_scope_prompt_v69421} "
