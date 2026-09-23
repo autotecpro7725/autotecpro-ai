@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69433"
-AUTOTECPRO_RELEASE_BUILD = "v69433-central-sales-intent-typo-context-resolver-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69434"
+AUTOTECPRO_RELEASE_BUILD = "v69434-hidden-path-runtime-hardening-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69433",
+        "app_release_v69434",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -8566,6 +8566,20 @@ def restore_login_session():
         st.session_state.messages = []
         st.session_state.conversation_id = None
         st.session_state.pop("_restored_conversation_id_v69026", None)
+        try:
+            _workspace_sales_clear_transient_authority_v69434(
+                "remember_me_session_restore"
+            )
+        except Exception:
+            # Helper is defined later during normal module execution on a cold boot;
+            # explicit pops below guarantee the same fail-closed reset here.
+            for _key_v69434 in (
+                "_workspace_last_atp_authority_v69205",
+                "_workspace_parent_atp_authority_v69431",
+                "_workspace_sales_exact_image_manifest_cache_v69420",
+                "_workspace_file_search_results_v69040",
+            ):
+                st.session_state.pop(_key_v69434, None)
 
         diagnostic_log(
             "login_session_restored_v69194_new_case",
@@ -9986,6 +10000,13 @@ def switch_workspace(assistant_name):
     st.session_state.messages = []
     st.session_state.conversation_id = None
     st.session_state.rename_conversation_id = None
+    for _key_v69434 in (
+        "_workspace_last_atp_authority_v69205",
+        "_workspace_parent_atp_authority_v69431",
+        "_workspace_sales_exact_image_manifest_cache_v69420",
+        "_workspace_file_search_results_v69040",
+    ):
+        st.session_state.pop(_key_v69434, None)
     st.session_state.current_assistant = assistant_name
 
     # v69360: begin the EXISTING non-blocking Technical catalog prewarm at the
@@ -11532,6 +11553,13 @@ def _start_new_case_callback():
     """
     st.session_state.messages = []
     st.session_state.conversation_id = None
+    for _key_v69434 in (
+        "_workspace_last_atp_authority_v69205",
+        "_workspace_parent_atp_authority_v69431",
+        "_workspace_sales_exact_image_manifest_cache_v69420",
+        "_workspace_file_search_results_v69040",
+    ):
+        st.session_state.pop(_key_v69434, None)
     st.session_state.chat_file_uploader_generation += 1
     clear_managed_uploads(
         "chat_managed_uploads",
@@ -65320,6 +65348,219 @@ def _workspace_sales_same_case_kind_scope_prompt_v69421(prompt_text, messages):
 
 
 
+
+def _workspace_sales_clear_transient_authority_v69434(reason=""):
+    """Clear conversation-scoped Sales/Marketing authority and exact-image caches.
+
+    This is intentionally transient state only. Durable history and learned knowledge
+    are untouched.
+    """
+    keys = (
+        "_workspace_last_atp_authority_v69205",
+        "_workspace_parent_atp_authority_v69431",
+        "_workspace_sales_exact_image_manifest_cache_v69420",
+        "_workspace_file_search_results_v69040",
+    )
+    cleared = []
+    for key in keys:
+        if key in st.session_state:
+            st.session_state.pop(key, None)
+            cleared.append(key)
+    if cleared:
+        diagnostic_log(
+            "workspace_sales_transient_authority_cleared_v69434",
+            reason=str(reason or "")[:120],
+            keys=cleared,
+        )
+    return cleared
+
+
+def _workspace_sales_explicit_identity_change_v69434(prompt_text):
+    """Return True when this turn explicitly names a fresh vehicle/year/product identity."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if not prompt:
+        return False
+    try:
+        return bool(
+            _website_identity_vehicle_families_v69022(prompt)
+            or _website_identity_years_v69022(prompt)
+            or _website_image_product_codes_v69020(prompt)
+        )
+    except Exception:
+        # Fail closed for reuse: if identity parsing itself breaks, do not carry a
+        # parent authority forward into the turn.
+        return True
+
+
+def _workspace_sales_reference_index_v69434(prompt_text, product_count):
+    """Resolve explicit ordinal/option references to a zero-based product index."""
+    try:
+        count = int(product_count or 0)
+    except Exception:
+        count = 0
+    if count <= 0:
+        return None
+
+    p = _workspace_sales_normalize_language_v69433(prompt_text)
+    m = re.search(r"\b(?:option|model|product)\s*#?\s*(\d{1,2})\b", p)
+    if m:
+        value = int(m.group(1))
+        return value - 1 if 1 <= value <= count else None
+
+    ordinal_map = {
+        "first": 0, "1st": 0,
+        "second": 1, "2nd": 1,
+        "third": 2, "3rd": 2,
+        "fourth": 3, "4th": 3,
+        "fifth": 4, "5th": 4,
+        "sixth": 5, "6th": 5,
+        "seventh": 6, "7th": 6,
+        "eighth": 7, "8th": 7,
+        "ninth": 8, "9th": 8,
+        "tenth": 9, "10th": 9,
+    }
+    for token, idx in ordinal_map.items():
+        if re.search(rf"\b{re.escape(token)}(?:\s+(?:one|option|model|product))?\b", p):
+            return idx if idx < count else None
+    if re.search(r"\blast(?:\s+(?:one|option|model|product))?\b", p):
+        return count - 1
+    return None
+
+
+def _workspace_sales_select_reference_authority_v69434(
+    workspace_label,
+    prompt_text,
+    cached_record,
+    conversation_id=None,
+):
+    """Narrow an exact multi-product authority by Option N / ordinal reference."""
+    if not is_sales_workspace(workspace_label):
+        return {}
+    record = dict(cached_record or {})
+    if not record:
+        return {}
+    if str(record.get("conversation_id") or "") != str(conversation_id or ""):
+        return {}
+    authority = dict(record.get("authority") or {})
+    if str(authority.get("status") or "") != "recovered_multi":
+        return {}
+
+    packages = [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
+    rows = [dict(x) for x in (authority.get("rows") or []) if isinstance(x, dict)]
+    idx = _workspace_sales_reference_index_v69434(prompt_text, len(packages))
+    if idx is None or not (0 <= idx < len(packages)):
+        return {}
+
+    pkg = packages[idx]
+    row = rows[idx] if idx < len(rows) else {}
+    source = str(pkg.get("source_url") or "").strip()
+    if not source:
+        return {}
+
+    semantic_json, excerpt = _workspace_atp_compact_context_v69181(pkg, prompt_text)
+    result = {
+        "status": "recovered",
+        "destination": "Sales Database",
+        "context": (
+            "\n\nAUTOTECPRO EXACT OPTION REFERENCE AUTHORITY (v69434)\n"
+            f"The customer explicitly referred to option {idx + 1}. "
+            "Use only this exact current product for the follow-up.\n"
+            f"Source URL: {source}\n"
+            f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json}\n"
+            f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n{excerpt[:12000]}\n"
+        ),
+        "package": pkg,
+        "row": row,
+        "source_url": source,
+        "source_urls": [source],
+        "product_contracts_v69325": [_workspace_atp_product_contract_v69205(pkg)],
+        "workspace_sales_exact_reference_v69434": True,
+        "workspace_sales_reference_option_v69434": idx + 1,
+    }
+    diagnostic_log(
+        "workspace_sales_exact_reference_selected_v69434",
+        option=idx + 1,
+        source_url=source[:500],
+    )
+    return result
+
+
+def _workspace_sales_safe_exact_authority_answer_v69434(authority):
+    """Minimal exact-authority answer used only if richer deterministic formatting fails."""
+    authority = dict(authority or {})
+    status = str(authority.get("status") or "")
+    if status not in {"recovered", "recovered_multi"}:
+        return ""
+    packages = (
+        [dict(x) for x in (authority.get("packages") or []) if isinstance(x, dict)]
+        if status == "recovered_multi"
+        else [dict(authority.get("package") or authority.get("row") or {})]
+    )
+    out = []
+    seen = set()
+    for pkg in packages:
+        source = str(pkg.get("source_url") or "").strip()
+        if not source:
+            continue
+        try:
+            identity = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            identity = source.rstrip("/").casefold()
+        if not identity or identity in seen:
+            continue
+        seen.add(identity)
+        title = re.sub(
+            r"\s+", " ",
+            str(pkg.get("page_title") or pkg.get("title") or "AutoTecPro product").split("|", 1)[0],
+        ).strip()
+        contract = _workspace_atp_product_contract_v69205(pkg)
+        fitment = _workspace_atp_first_response_fitment_v69348(contract, None) or "See exact product page"
+        out.append((title, fitment, source))
+    if not out:
+        return ""
+    lines = [
+        f"I found **{len(out)} exact AutoTecPro product"
+        + ("" if len(out) == 1 else "s")
+        + "** from the current catalog:",
+        "",
+        "| Option | Product | Fitment | Product link |",
+        "|---:|---|---|---|",
+    ]
+    for i, (title, fitment, source) in enumerate(out, 1):
+        lines.append(
+            "| "
+            + " | ".join(
+                _workspace_markdown_table_cell_v69347(x)
+                for x in (str(i), title, fitment, source)
+            )
+            + " |"
+        )
+    lines.extend([
+        "",
+        "I’m showing only the exact catalog information I could verify for this turn.",
+    ])
+    diagnostic_log(
+        "workspace_sales_safe_exact_authority_answer_v69434",
+        products=len(out),
+    )
+    return "\n".join(lines)
+
+
+def _workspace_sales_requested_intents_v69434(prompt_text):
+    """Return all simultaneously requested Sales dimensions."""
+    intent = _workspace_sales_intent_v69433(prompt_text)
+    requested = []
+    for key in (
+        "feature_request", "visual_request", "price_request", "link_request",
+        "compare_request", "years_request",
+    ):
+        if bool(intent.get(key)):
+            requested.append(key)
+    if intent.get("specific_feature") and "feature_request" not in requested:
+        requested.append("feature_request")
+    return requested
+
+
 def _workspace_sales_normalize_language_v69433(prompt_text):
     """Normalize common Sales-language typos without changing factual meaning."""
     raw = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
@@ -65402,8 +65643,10 @@ def _workspace_sales_intent_v69433(prompt_text):
 
     feature_request = bool(re.search(
         r"\b(feature|features|function|functions|spec|specs|specification|"
-        r"specifications|details|what does (?:it|this|that) (?:have|do)|"
-        r"what do (?:they|these|those) have|what can (?:it|this|that) do|"
+        r"specifications|details|"
+        r"what does [a-z0-9][a-z0-9 ./'-]{0,60} (?:have|do)|"
+        r"what do [a-z0-9][a-z0-9 ./'-]{0,60} have|"
+        r"what can [a-z0-9][a-z0-9 ./'-]{0,60} do|"
         r"what comes with|what features come with|capability|capabilities|"
         r"key feature|key features|main feature|main features)\b", p
     ))
@@ -66416,6 +66659,16 @@ def _workspace_sales_same_case_fact_intent_v69408(prompt_text):
     p = prompt.casefold()
     if not p:
         return {"category": "provider_fallback", "topic": ""}
+
+    requested_intents_v69434 = _workspace_sales_requested_intents_v69434(
+        prompt_text
+    )
+    if len(requested_intents_v69434) > 1:
+        return {
+            "category": "provider_required",
+            "topic": "mixed_exact_authority",
+            "intents": requested_intents_v69434,
+        }
 
     if _website_image_explicit_visual_request_v68888(prompt):
         return {"category": "visual_existing_path", "topic": ""}
@@ -105657,6 +105910,11 @@ else:
                             intent_debug_v69433 = _workspace_sales_intent_v69433(
                                 interaction_prompt
                             )
+                            requested_intents_v69434 = (
+                                _workspace_sales_requested_intents_v69434(
+                                    interaction_prompt
+                                )
+                            )
                             diagnostic_log(
                                 "workspace_sales_intent_resolved_v69433",
                                 normalized=str(intent_debug_v69433.get("normalized") or "")[:300],
@@ -105667,8 +105925,25 @@ else:
                                 price_request=bool(intent_debug_v69433.get("price_request")),
                                 specific_feature=str(intent_debug_v69433.get("specific_feature") or ""),
                             )
-                        except Exception:
-                            pass
+                            if len(requested_intents_v69434) > 1:
+                                ai_request_prompt += (
+                                    "\n\nAUTOTECPRO MIXED CUSTOMER INTENT (v69434)\n"
+                                    "The customer requested multiple things in one message: "
+                                    + ", ".join(requested_intents_v69434)
+                                    + ". Address every requested dimension. Product facts must "
+                                    "stay inside the exact bound AutoTecPro authority; do not "
+                                    "drop one request merely because another route is present."
+                                )
+                                diagnostic_log(
+                                    "workspace_sales_mixed_intent_preserved_v69434",
+                                    intents=requested_intents_v69434,
+                                )
+                        except Exception as intent_resolution_error_v69434:
+                            diagnostic_log(
+                                "workspace_sales_intent_resolution_failed_v69434",
+                                error_type=type(intent_resolution_error_v69434).__name__,
+                                error=str(intent_resolution_error_v69434)[:300],
+                            )
                     workspace_atp_kind_scope_prompt_v69421 = ""
                     workspace_sales_sibling_authority_v69431 = {}
                     if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
@@ -105715,6 +105990,50 @@ else:
                             current_record_v69431 = dict(
                                 st.session_state.get("_workspace_last_atp_authority_v69205") or {}
                             )
+
+                            # v69434: an explicit new vehicle/year/product identity is a
+                            # hard context boundary. Never let an older broad parent set
+                            # leak into that fresh identity.
+                            if (
+                                _workspace_sales_explicit_identity_change_v69434(
+                                    interaction_prompt
+                                )
+                                and not workspace_atp_kind_scope_prompt_v69421
+                            ):
+                                if st.session_state.pop(
+                                    "_workspace_parent_atp_authority_v69431", None
+                                ) is not None:
+                                    diagnostic_log(
+                                        "workspace_sales_parent_authority_invalidated_v69434",
+                                        reason="explicit_identity_change",
+                                    )
+
+                            ordinal_authority_v69434 = {}
+                            if not workspace_atp_kind_scope_prompt_v69421:
+                                ordinal_authority_v69434 = (
+                                    _workspace_sales_select_reference_authority_v69434(
+                                        assistant,
+                                        interaction_prompt,
+                                        current_record_v69431,
+                                        conversation_id=st.session_state.get(
+                                            "conversation_id"
+                                        ),
+                                    )
+                                )
+                                if ordinal_authority_v69434:
+                                    current_authority_v69434 = dict(
+                                        current_record_v69431.get("authority") or {}
+                                    )
+                                    if (
+                                        str(current_authority_v69434.get("status") or "")
+                                        == "recovered_multi"
+                                        and len(
+                                            current_authority_v69434.get("packages") or []
+                                        ) > 1
+                                    ):
+                                        st.session_state[
+                                            "_workspace_parent_atp_authority_v69431"
+                                        ] = copy.deepcopy(current_record_v69431)
                             if (
                                 not workspace_atp_kind_scope_prompt_v69421
                                 and _workspace_sales_other_sibling_followup_v69431(interaction_prompt)
@@ -105733,7 +106052,8 @@ else:
                                 {}
                                 if workspace_atp_kind_scope_prompt_v69421
                                 else (
-                                    workspace_sales_sibling_authority_v69431
+                                    ordinal_authority_v69434
+                                    or workspace_sales_sibling_authority_v69431
                                     or _workspace_atp_followup_authority_v69205(
                                         assistant,
                                         interaction_prompt,
@@ -105906,7 +106226,24 @@ else:
                                         ),
                                     )
                         except Exception as error_v69180:
-                            workspace_atp_authority_v69180 = {}
+                            if is_sales_workspace(assistant):
+                                workspace_atp_authority_v69180 = {
+                                    "status": "catalog_unavailable",
+                                    "destination": "Sales Database",
+                                    "reason": (
+                                        "Exact product authority could not be safely "
+                                        "resolved for this turn."
+                                    ),
+                                    "error_type_v69434": type(error_v69180).__name__,
+                                }
+                                use_file_search = False
+                                diagnostic_log(
+                                    "workspace_sales_metadata_exception_fail_closed_v69434",
+                                    error_type=type(error_v69180).__name__,
+                                    error=str(error_v69180)[:500],
+                                )
+                            else:
+                                workspace_atp_authority_v69180 = {}
                             diagnostic_log(
                                 "workspace_atp_metadata_first_failed_v69180",
                                 workspace=str(assistant),
@@ -106162,11 +106499,18 @@ else:
                                 )
                             )
                         except Exception as first_turn_fast_error_v69405:
-                            workspace_atp_direct_answer_v69205 = ""
+                            workspace_atp_direct_answer_v69205 = (
+                                _workspace_sales_safe_exact_authority_answer_v69434(
+                                    workspace_atp_authority_v69180
+                                )
+                            )
                             diagnostic_log(
                                 "workspace_sales_first_turn_fitment_provider_bypass_failed_v69405",
                                 error_type=type(first_turn_fast_error_v69405).__name__,
                                 error=str(first_turn_fast_error_v69405)[:500],
+                                safe_exact_fallback=bool(
+                                    workspace_atp_direct_answer_v69205
+                                ),
                             )
 
                     # v69421: a product-kind change intentionally resolves fresh authority,
@@ -106251,11 +106595,18 @@ else:
                                 )
                             )
                         except Exception as same_case_fact_error_v69408:
-                            workspace_atp_direct_answer_v69205 = ""
+                            workspace_atp_direct_answer_v69205 = (
+                                _workspace_sales_safe_exact_authority_answer_v69434(
+                                    workspace_atp_authority_v69180
+                                )
+                            )
                             diagnostic_log(
                                 "workspace_sales_same_case_factual_provider_bypass_failed_v69408",
                                 error_type=type(same_case_fact_error_v69408).__name__,
                                 error=str(same_case_fact_error_v69408)[:500],
+                                safe_exact_fallback=bool(
+                                    workspace_atp_direct_answer_v69205
+                                ),
                             )
 
                     if (
@@ -108197,6 +108548,19 @@ else:
                             published=len(sales_exact_primaries_v69398),
                         )
             except Exception as sales_final_lock_error_v69398:
+                if is_sales_workspace(assistant):
+                    generated_images = [
+                        image
+                        for image in (generated_images or [])
+                        if not (
+                            isinstance(image, dict)
+                            and str(image.get("source") or "") == "website_knowledge"
+                        )
+                    ]
+                    diagnostic_log(
+                        "workspace_sales_final_image_lock_exception_fail_closed_v69434",
+                        remaining_nonweb=len(generated_images or []),
+                    )
                 diagnostic_log(
                     "workspace_sales_exact_primary_final_lock_failed_v69398",
                     error_type=type(sales_final_lock_error_v69398).__name__,
