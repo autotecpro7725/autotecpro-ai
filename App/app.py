@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69425"
-AUTOTECPRO_RELEASE_BUILD = "v69425-broad-woo-make-gate-deterministic-result-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69426"
+AUTOTECPRO_RELEASE_BUILD = "v69426-exact-feature-introductions-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69425",
+        "app_release_v69426",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -65124,6 +65124,7 @@ def _workspace_atp_product_contract_v69205(package):
         "storage": "",
         "facts": [],
         "features": [],
+        "feature_summary": "",
         "compatibility_branches": [],
         "related_products": [],
         "primary_images": [],
@@ -65491,6 +65492,69 @@ def _workspace_atp_first_response_product_row_v69349(index, title, fit_label, so
 
 
 
+
+def _workspace_sales_feature_intro_v69426(package, contract=None):
+    """Return a concise exact-source feature introduction for one Sales product.
+
+    Authority order:
+    1) exact current Woo/ATP authored feature_summary;
+    2) an exact visible "Key features:" sentence in the package's current page text;
+    3) deterministic compact wording from exact contract facts/features.
+
+    No provider generation and no cross-product inference.
+    """
+    package = dict(package or {})
+    contract = dict(contract or _workspace_atp_product_contract_v69205(package) or {})
+
+    summary = re.sub(
+        r"\s+", " ", str(contract.get("feature_summary") or "")
+    ).strip()
+    if summary:
+        return summary[:700].strip()
+
+    for source_text in (
+        str(package.get("webpage_text") or ""),
+        str(package.get("package_text") or ""),
+    ):
+        if not source_text:
+            continue
+        match = re.search(
+            r"\bkey\s+features?\s*:\s*(.{30,900}?)(?=(?:\n\s*\n)|"
+            r"(?:\b(?:warranty|compatibility|installation|this system is directly fit)\b)|$)",
+            source_text,
+            flags=re.I | re.S,
+        )
+        if match:
+            clean = re.sub(r"\s+", " ", str(match.group(1) or "")).strip(" -•")
+            if len(clean) >= 30:
+                return clean[:700].strip()
+
+    screen = re.sub(r"\s+", " ", str(contract.get("screen_size") or "")).strip()
+    display_type = re.sub(r"\s+", " ", str(contract.get("display_type") or "")).strip()
+    platform = re.sub(r"\s+", " ", str(contract.get("platform") or "")).strip()
+
+    feature_values = []
+    for value in list(contract.get("features") or []) + list(contract.get("facts") or []):
+        clean = re.sub(r"[-_]+", " ", str(value or ""))
+        clean = re.sub(r"\s+", " ", clean).strip()
+        if clean and clean.casefold() not in {x.casefold() for x in feature_values}:
+            feature_values.append(clean)
+
+    parts = []
+    display = " ".join(x for x in (screen, display_type) if x).strip()
+    if display:
+        parts.append(display)
+    if platform:
+        parts.append(platform)
+    parts.extend(feature_values[:6])
+
+    parts = list(dict.fromkeys(x for x in parts if x))
+    if not parts:
+        return ""
+
+    return "Key confirmed features include " + ", ".join(parts) + "."
+
+
 def _workspace_sales_first_turn_fitment_direct_answer_v69405(
     workspace_label,
     prompt_text,
@@ -65611,6 +65675,7 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
     ])
 
     notes = []
+    feature_intros_v69426 = []
     for index, (title, fitment, source, contract, pkg) in enumerate(rows, 1):
         lines.append(
             "| "
@@ -65621,6 +65686,16 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
             + " |"
         )
         notes.extend(_workspace_atp_first_response_notes_v69348(contract, pkg))
+        intro_v69426 = _workspace_sales_feature_intro_v69426(pkg, contract)
+        if intro_v69426:
+            feature_intros_v69426.append((index, title, intro_v69426))
+
+    if feature_intros_v69426:
+        lines.extend(["", "### Key features", ""])
+        for index_v69426, title_v69426, intro_v69426 in feature_intros_v69426:
+            lines.append(
+                f"**Option {index_v69426} — {title_v69426}:** {intro_v69426}"
+            )
 
     unique_notes = list(dict.fromkeys(notes))[:3]
     if unique_notes:
@@ -66219,6 +66294,7 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             "platform": re.sub(r"\s+", " ", str(contract.get("platform") or "")).strip(),
             "factory_setup": _workspace_sales_package_factory_setup_v69407(pkg),
             "features": _workspace_atp_first_response_feature_labels_v69348(contract),
+            "feature_intro": _workspace_sales_feature_intro_v69426(pkg, contract),
         })
 
     if not rows:
@@ -66334,28 +66410,41 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
                 )
 
     elif category == "spec_summary":
-        data = []
-        for i, row in enumerate(rows, 1):
-            if not any((row["display"], row["platform"], row["hardware"], row["fitment"])):
-                continue
-            feature_text = " · ".join(row["features"][:6]) if row["features"] else "—"
-            data.append((
-                str(i),
-                row["title"],
-                row["display"] or "—",
-                row["platform"] or "—",
-                row["hardware"] or "—",
-                row["fitment"] or "—",
-                feature_text,
-            ))
-        if data:
-            answer = (
-                "Here are the main confirmed details for the matching options:\n\n"
-                + table(
-                    ("Option", "Product", "Display", "Platform", "Hardware", "Years", "Listed features"),
-                    data,
+        intro_rows_v69426 = [
+            row for row in rows
+            if str(row.get("feature_intro") or "").strip()
+        ]
+        if intro_rows_v69426:
+            parts_v69426 = ["### Key features", ""]
+            for i_v69426, row_v69426 in enumerate(intro_rows_v69426, 1):
+                parts_v69426.append(
+                    f"**{row_v69426['title']}:** "
+                    f"{str(row_v69426.get('feature_intro') or '').strip()}"
                 )
-            )
+            answer = "\n\n".join(parts_v69426)
+        else:
+            data = []
+            for i, row in enumerate(rows, 1):
+                if not any((row["display"], row["platform"], row["hardware"], row["fitment"])):
+                    continue
+                feature_text = " · ".join(row["features"][:6]) if row["features"] else "—"
+                data.append((
+                    str(i),
+                    row["title"],
+                    row["display"] or "—",
+                    row["platform"] or "—",
+                    row["hardware"] or "—",
+                    row["fitment"] or "—",
+                    feature_text,
+                ))
+            if data:
+                answer = (
+                    "Here are the main confirmed details for the matching options:\n\n"
+                    + table(
+                        ("Option", "Product", "Display", "Platform", "Hardware", "Years", "Listed features"),
+                        data,
+                    )
+                )
 
     elif category == "known_differences":
         candidate_fields = [
@@ -68310,7 +68399,59 @@ def _workspace_sales_woocommerce_contract_v69413(product):
     # trim/year branches over a title-only generic year range so a 2019 Classic
     # product is never presented as universal 2019 fitment.
     exact_description_branches_v69421 = []
+    exact_feature_summary_v69426 = ""
     if description_html_v69421:
+        # v69426: preserve the exact customer-facing ATP feature introduction from
+        # the current Woo product description. Prefer a semantically-authored
+        # feature-summary element; never synthesize unsupported prose here.
+        feature_blocks_v69426 = re.findall(
+            r"<(?P<tag>p|h[1-6])\\b(?P<attrs>[^>]*)>(?P<body>[\\s\\S]*?)</(?P=tag)\\s*>",
+            description_html_v69421,
+            flags=re.I,
+        )
+        for _tag_v69426, attrs_v69426, body_v69426 in feature_blocks_v69426:
+            attrs_low_v69426 = str(attrs_v69426 or "").casefold()
+            if not (
+                "data-atp-topic" in attrs_low_v69426
+                and "feature" in attrs_low_v69426
+            ):
+                continue
+            clean_v69426 = html.unescape(
+                re.sub(r"<[^>]+>", " ", str(body_v69426 or ""))
+            )
+            clean_v69426 = re.sub(r"\\s+", " ", clean_v69426).strip()
+            clean_v69426 = re.sub(
+                r"^key\\s+features?\\s*:\\s*",
+                "",
+                clean_v69426,
+                flags=re.I,
+            ).strip()
+            if len(clean_v69426) >= 30:
+                exact_feature_summary_v69426 = clean_v69426[:900].strip()
+                break
+
+        # Safe fallback: an authored visible paragraph explicitly beginning
+        # "Key features:" on the same exact current Woo description.
+        if not exact_feature_summary_v69426:
+            key_match_v69426 = re.search(
+                r"<(?:p|h[1-6])\\b[^>]*>[\\s\\S]*?"
+                r"key\\s+features?\\s*:\\s*[\\s\\S]*?</(?:p|h[1-6])\\s*>",
+                description_html_v69421,
+                flags=re.I,
+            )
+            if key_match_v69426:
+                clean_v69426 = html.unescape(
+                    re.sub(r"<[^>]+>", " ", key_match_v69426.group(0))
+                )
+                clean_v69426 = re.sub(r"\\s+", " ", clean_v69426).strip()
+                clean_v69426 = re.sub(
+                    r"^key\\s+features?\\s*:\\s*",
+                    "",
+                    clean_v69426,
+                    flags=re.I,
+                ).strip()
+                if len(clean_v69426) >= 30:
+                    exact_feature_summary_v69426 = clean_v69426[:900].strip()
         for tag_v69421 in re.findall(
             r"<[^>]*data-atp-compatibility-branch-id\s*=\s*[\"'][^\"']+[\"'][^>]*>",
             description_html_v69421,
@@ -68425,6 +68566,7 @@ def _workspace_sales_woocommerce_contract_v69413(product):
         "storage": "",
         "facts": facts,
         "features": list(facts),
+        "feature_summary": exact_feature_summary_v69426,
         "compatibility_branches": branches,
         "related_products": [],
         "primary_images": primary_images[:1],
@@ -69476,7 +69618,7 @@ def _workspace_sales_merge_contract_v69410(existing_contract, manifest_contract)
     for key in (
         "product_identity_key", "product_family", "product_type", "brand", "make",
         "year_start", "year_end", "screen_size", "display_type", "platform",
-        "processor", "ram", "storage",
+        "processor", "ram", "storage", "feature_summary",
     ):
         if result.get(key) in (None, "", []):
             value = manifest.get(key)
