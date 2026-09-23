@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69424"
-AUTOTECPRO_RELEASE_BUILD = "v69424-broad-woo-membership-deterministic-output-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69425"
+AUTOTECPRO_RELEASE_BUILD = "v69425-broad-woo-make-gate-deterministic-result-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69424",
+        "app_release_v69425",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -69821,7 +69821,16 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
             and not broad_family_year_proven_v69411
         ):
             continue
-        if explicit_makes and contract_make_norm not in {_norm(x) for x in explicit_makes}:
+        # v69425: broad Woo manifest membership has already verified the exact
+        # current product belongs to the requested vehicle family/year. A missing
+        # make field in Woo/vector enrichment must not delete that authoritative
+        # product (hosted RAM Digital Cluster regression). A conflicting NONEMPTY
+        # make may still be rejected outside the manifest path.
+        if (
+            explicit_makes
+            and contract_make_norm not in {_norm(x) for x in explicit_makes}
+            and not broad_manifest_member_v69424
+        ):
             continue
 
         branch_rows = list(contract.get("compatibility_branches") or [])
@@ -69888,6 +69897,14 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
                 source_id=str(source_id_v69424)[:220],
                 score=int(score),
                 family_metadata=sorted(str(x) for x in fam)[:12],
+                contract_models=contract_models[:12],
+            )
+        if broad_manifest_member_v69424:
+            diagnostic_log(
+                "workspace_sales_broad_manifest_member_ranked_v69425",
+                source_id=str(source_id_v69424)[:220],
+                score=int(score),
+                contract_make=str(contract_make or ""),
                 contract_models=contract_models[:12],
             )
         ranked.append((
