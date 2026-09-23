@@ -1,3 +1,4 @@
+# AutoTecPro AI v69421 - complete product-kind discovery + same-case kind refresh + fast primary carry-through
 # AutoTecPro AI v69420 - Sales exact-image prefetch + immediate publication
 # AutoTecPro AI v69419 - product-aware topical images + adaptive mobile product tables
 # AutoTecPro AI v69418 - automatic compatibility visuals for same-case fitment
@@ -83,8 +84,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69420"
-AUTOTECPRO_RELEASE_BUILD = "v69420-sales-exact-image-prefetch-immediate-publication-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69421"
+AUTOTECPRO_RELEASE_BUILD = "v69421-product-kind-discovery-refresh-fast-primary-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -322,7 +323,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69420",
+        "app_release_v69421",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -65056,6 +65057,69 @@ def _workspace_atp_workspace_image_policy_v69205(meta, workspace_label):
 
 
 
+def _workspace_sales_same_case_kind_scope_prompt_v69421(prompt_text, messages):
+    """Rebind an identity-free product-kind follow-up to the last user vehicle/year.
+
+    Example: "what do you have for 2019 Dodge RAM" -> "do you have digital cluster?"
+    becomes a fresh, scoped catalog lookup instead of reusing the old product set.
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    requested_kind = _workspace_sales_requested_product_kind_v69421(prompt)
+    if not prompt or not requested_kind:
+        return ""
+    if (
+        _website_identity_vehicle_families_v69022(prompt)
+        or _website_identity_years_v69022(prompt)
+        or _website_image_product_codes_v69020(prompt)
+    ):
+        return ""
+
+    current_norm = prompt.casefold()
+    for raw in reversed(list(messages or [])[-16:]):
+        if not isinstance(raw, dict):
+            continue
+        if str(raw.get("role") or "").casefold() not in {"user", "human"}:
+            continue
+        content = raw.get("content")
+        if isinstance(content, str):
+            prior = content
+        elif isinstance(content, list):
+            bits = []
+            for item in content:
+                if isinstance(item, dict):
+                    bits.append(str(item.get("text") or item.get("content") or ""))
+                elif isinstance(item, str):
+                    bits.append(item)
+            prior = " ".join(bits)
+        else:
+            prior = str(content or "")
+        prior = re.sub(r"\s+", " ", prior).strip()
+        if not prior or prior.casefold() == current_norm:
+            continue
+
+        families = sorted({
+            str(x or "").casefold().strip()
+            for x in (_workspace_sales_fuzzy_vehicle_families_v69416(prior) or [])
+            if str(x or "").strip()
+        })
+        years = sorted({
+            int(x) for x in (_website_identity_years_v69022(prior) or [])
+            if str(x).isdigit()
+        })
+        if not families or not years:
+            continue
+
+        kind_phrase = {
+            "cluster": "digital gauge cluster",
+            "camera": "camera",
+            "infotainment": "infotainment screen",
+        }.get(requested_kind, requested_kind)
+        return "what products do you have for " + " ".join(
+            [str(years[-1]), families[0], kind_phrase]
+        )
+    return ""
+
+
 def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cached_record, conversation_id=None):
     """Reuse only the same conversation/workspace/current-revision product authority for identity-free follow-ups."""
     workspace = str(workspace_label or "")
@@ -67278,17 +67342,45 @@ def _workspace_sales_woocommerce_years_v69413(value):
     return sorted(years)
 
 
-def _workspace_sales_woocommerce_product_kind_v69413(prompt_text, product):
-    """Classify Woo products by primary identity, not incidental description words.
+def _workspace_sales_requested_product_kind_v69421(prompt_text):
+    """Return only an explicitly requested sellable product kind.
 
-    v69416 hardening: real infotainment pages commonly mention included harnesses,
-    adapters, modules, or cables in their short description.  The previous classifier
-    searched one large blob and therefore allowed an incidental accessory word to veto
-    an otherwise exact screen/head-unit product.  Primary product identity fields now
-    take precedence; supporting description text can add positive evidence but cannot
-    turn a screen into an accessory.
+    Empty means broad catalog intent: do not silently default the customer to
+    infotainment when the vehicle/year also has another published primary product.
     """
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).casefold()
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return ""
+    if re.search(
+        r"\b(gauge\s*cluster|digital\s*cluster|instrument\s*cluster|"
+        r"digital\s*cockpit|cluster\s*cockpit|virtual\s*cockpit|"
+        r"digital\s*dashboard|digital\s*dash|speedometer\s*cluster)\b",
+        value,
+    ):
+        return "cluster"
+    if re.search(
+        r"\b(backup\s*camera|reverse\s*camera|dash\s*cam|camera\s*kit|camera)\b",
+        value,
+    ):
+        return "camera"
+    if re.search(
+        r"\b(infotainment|navigation|screen|touch[-\s]?screen|touchscreen|"
+        r"tesla[-\s]?style|head[-\s]?unit|car\s*stereo|radio|multimedia|stereo|"
+        r"android\s*(?:screen|radio|head\s*unit))\b",
+        value,
+    ):
+        return "infotainment"
+    return ""
+
+
+def _workspace_sales_woocommerce_product_kind_v69413(prompt_text, product):
+    """Classify Woo products by primary identity, with broad catalog support.
+
+    v69421: a generic vehicle/year discovery request no longer means
+    "infotainment only". Published primary cluster/camera products stay in the
+    catalog unless the customer explicitly asked for a different product kind.
+    Accessory identity remains fail-closed.
+    """
     product = dict(product or {})
     attributes = product.get("attributes") or []
     categories = product.get("categories") or []
@@ -67313,17 +67405,9 @@ def _workspace_sales_woocommerce_product_kind_v69413(prompt_text, product):
         re.sub(r"<[^>]+>", " ", str(product.get("short_description") or "")),
     ]).casefold()
 
-    wants_cluster = bool(re.search(
-        r"\b(gauge|gauge cluster|digital cluster|instrument cluster|digital cockpit|cockpit)\b",
-        prompt,
-    ))
-    wants_camera = bool(re.search(
-        r"\b(camera|backup camera|reverse camera|dash cam)\b",
-        prompt,
-    ))
-
     cluster_identity = bool(re.search(
-        r"\b(gauge cluster|digital cluster|instrument cluster|digital cockpit|cluster cockpit)\b",
+        r"\b(gauge cluster|digital cluster|instrument cluster|digital cockpit|"
+        r"cluster cockpit|virtual cockpit|digital dashboard|speedometer cluster)\b",
         identity_blob,
     ))
     camera_identity = bool(re.search(
@@ -67345,22 +67429,29 @@ def _workspace_sales_woocommerce_product_kind_v69413(prompt_text, product):
         supporting_blob,
     ))
 
-    if wants_cluster:
-        return "cluster" if cluster_identity else ""
-    if wants_camera:
-        return "camera" if camera_identity else ""
+    strong_infotainment_identity = bool(re.search(
+        r"\b(navigation|infotainment|touch[-\s]?screen|touchscreen|screen|"
+        r"tesla[-\s]?style|head[-\s]?unit|car stereo|multimedia system|"
+        r"android(?:\s+\d{1,2})?\s+(?:radio|screen|head[-\s]?unit))\b",
+        identity_blob,
+    ))
 
-    # Product-category exclusions remain stronger than infotainment evidence.
-    # Only accessory words are demoted to secondary evidence because real screen
-    # pages routinely describe included harnesses/adapters/modules.
-    if cluster_identity or camera_identity:
-        return ""
-    if infotainment_identity:
-        return "infotainment"
-    if accessory_identity:
-        return ""
-    return "infotainment" if infotainment_evidence else ""
+    actual_kind = ""
+    if cluster_identity:
+        actual_kind = "cluster"
+    elif camera_identity:
+        actual_kind = "camera"
+    elif accessory_identity and not strong_infotainment_identity:
+        actual_kind = ""
+    elif infotainment_identity:
+        actual_kind = "infotainment"
+    elif infotainment_evidence:
+        actual_kind = "infotainment"
 
+    requested_kind = _workspace_sales_requested_product_kind_v69421(prompt_text)
+    if requested_kind:
+        return actual_kind if actual_kind == requested_kind else ""
+    return actual_kind
 
 def _workspace_sales_fuzzy_vehicle_families_v69416(value):
     """Resolve one/more Sales vehicle families with conservative typo tolerance.
@@ -67928,6 +68019,7 @@ def _workspace_sales_woocommerce_contract_v69413(product):
     categories = product.get("categories") or []
     tags = product.get("tags") or []
     attributes = product.get("attributes") or []
+    description_html_v69421 = str(product.get("description") or "")
 
     identity_text = " ".join([
         name,
@@ -67952,7 +68044,7 @@ def _workspace_sales_woocommerce_contract_v69413(product):
 
     screen = ""
     screen_match = re.search(
-        r"\b(\d{1,2}(?:\.\d+)?)\s*(?:inch|inches|in\.?|[\"”″])\b",
+        r"\b(\d{1,2}(?:\.\d+)?)\s*(?:inches?|in\.?\b|[\"”″])",
         name,
         flags=re.I,
     )
@@ -67963,6 +68055,19 @@ def _workspace_sales_woocommerce_contract_v69413(product):
     platform_match = re.search(r"\bAndroid\s*(\d{1,2})\b", identity_text, flags=re.I)
     if platform_match:
         platform = f"Android {platform_match.group(1)}"
+    elif re.search(r"\bLinux\b", identity_text, flags=re.I):
+        platform = "Linux"
+
+    product_kind_v69421 = _workspace_sales_woocommerce_product_kind_v69413("", product)
+    if product_kind_v69421 == "cluster":
+        product_family_v69421 = "digital-gauge-cluster-cockpit"
+        product_type_v69421 = "automotive-digital-instrument-cluster"
+    elif product_kind_v69421 == "camera":
+        product_family_v69421 = "automotive-camera"
+        product_type_v69421 = "automotive-camera"
+    else:
+        product_family_v69421 = "infotainment"
+        product_type_v69421 = "infotainment"
 
     display_bits = []
     for token, label in (
@@ -68002,8 +68107,99 @@ def _workspace_sales_woocommerce_contract_v69413(product):
 
     year_start = min(years) if years else None
     year_end = max(years) if years else None
-    branches = []
-    if years and families:
+
+    # v69421: Woo product descriptions can carry the same current ATP semantic
+    # compatibility branches used by the learned page. Prefer those authored
+    # trim/year branches over a title-only generic year range so a 2019 Classic
+    # product is never presented as universal 2019 fitment.
+    exact_description_branches_v69421 = []
+    if description_html_v69421:
+        for tag_v69421 in re.findall(
+            r"<[^>]*data-atp-compatibility-branch-id\s*=\s*[\"'][^\"']+[\"'][^>]*>",
+            description_html_v69421,
+            flags=re.I | re.S,
+        ):
+            attrs_v69421 = {
+                str(k or "").casefold(): html.unescape(str(v or "")).strip()
+                for k, v in re.findall(
+                    r"(data-atp-[a-z0-9_-]+)\s*=\s*[\"']([^\"']*)[\"']",
+                    tag_v69421,
+                    flags=re.I,
+                )
+            }
+            if str(attrs_v69421.get("data-atp-current-source") or "true").casefold() not in {"true", "1", "yes"}:
+                continue
+            branch_years_v69421 = sorted({
+                int(x)
+                for x in re.findall(
+                    r"\b(?:19|20)\d{2}\b",
+                    str(attrs_v69421.get("data-atp-years") or ""),
+                )
+            })
+            if not branch_years_v69421:
+                try:
+                    start_v69421 = int(attrs_v69421.get("data-atp-year-start") or 0)
+                    end_v69421 = int(attrs_v69421.get("data-atp-year-end") or 0)
+                    if (
+                        1980 <= start_v69421 <= end_v69421 <= 2100
+                        and (end_v69421 - start_v69421) <= 40
+                    ):
+                        branch_years_v69421 = list(
+                            range(start_v69421, end_v69421 + 1)
+                        )
+                except Exception:
+                    branch_years_v69421 = []
+            if not branch_years_v69421:
+                continue
+            exact_description_branches_v69421.append({
+                "branch_id": str(
+                    attrs_v69421.get("data-atp-compatibility-branch-id")
+                    or "woocommerce-atp-v69421"
+                ),
+                "make": str(attrs_v69421.get("data-atp-make") or ""),
+                "models": list(families),
+                "years": branch_years_v69421,
+                "trim": str(attrs_v69421.get("data-atp-trim") or ""),
+                "excluded_years": sorted({
+                    int(x)
+                    for x in re.findall(
+                        r"\b(?:19|20)\d{2}\b",
+                        str(attrs_v69421.get("data-atp-excluded-years") or ""),
+                    )
+                }),
+                "source_authority": str(
+                    attrs_v69421.get("data-atp-source-authority")
+                    or "woocommerce-atp-current-source"
+                ),
+                "current_source": True,
+            })
+
+        def exact_attr_v69421(name_v69421):
+            match_v69421 = re.search(
+                rf"{re.escape(name_v69421)}\s*=\s*[\"']([^\"']+)[\"']",
+                description_html_v69421,
+                flags=re.I,
+            )
+            return html.unescape(match_v69421.group(1)).strip() if match_v69421 else ""
+
+        exact_family_v69421 = exact_attr_v69421("data-atp-product-family")
+        exact_type_v69421 = exact_attr_v69421("data-atp-product-type")
+        exact_platform_v69421 = exact_attr_v69421("data-atp-platform")
+        exact_screen_v69421 = exact_attr_v69421("data-atp-screen-size")
+        exact_display_v69421 = exact_attr_v69421("data-atp-display-type")
+        if exact_family_v69421:
+            product_family_v69421 = exact_family_v69421
+        if exact_type_v69421:
+            product_type_v69421 = exact_type_v69421
+        if exact_platform_v69421:
+            platform = exact_platform_v69421
+        if exact_screen_v69421:
+            screen = exact_screen_v69421
+        if exact_display_v69421:
+            display_type = exact_display_v69421
+
+    branches = list(exact_description_branches_v69421)
+    if not branches and years and families:
         branches.append({
             "branch_id": "woocommerce-v69413",
             "make": "",
@@ -68017,8 +68213,8 @@ def _workspace_sales_woocommerce_contract_v69413(product):
 
     return {
         "product_identity_key": f"woocommerce:{product.get('id')}" if product.get("id") else slug,
-        "product_family": "infotainment",
-        "product_type": "infotainment",
+        "product_family": product_family_v69421,
+        "product_type": product_type_v69421,
         "brand": "AutoTecPro",
         "make": "",
         "models": list(families),
@@ -68788,6 +68984,16 @@ def _workspace_sales_authoritative_catalog_merge_v69411(vector_packages, manifes
                 )
             )
             rich["workspace_sales_manifest_exact_fit_v69411"] = True
+            # v69421: vector enrichment must not erase Woo catalog/hero provenance.
+            # v69420 fast-primary publication intentionally trusts these exact Woo
+            # fields, so carry them across only from the already-matched exact URL.
+            for key in (
+                "workspace_sales_woocommerce_catalog_v69415",
+                "workspace_sales_woocommerce_product_id_v69413",
+                "workspace_sales_woocommerce_primary_v69413",
+            ):
+                if raw_manifest.get(key) not in (None, ""):
+                    rich[key] = copy.deepcopy(raw_manifest.get(key))
             for key in ("page_title", "title", "atp_semantics_v69178", "years", "vehicle_families"):
                 if not rich.get(key) and raw_manifest.get(key):
                     rich[key] = copy.deepcopy(raw_manifest.get(key))
@@ -70228,7 +70434,29 @@ def _workspace_sales_visual_request_v69418(prompt_text):
     )
 
 
+def _workspace_sales_product_overview_visual_v69421(prompt_text):
+    """True only for a pure request to see the product itself/main product photo."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value or not _website_image_explicit_visual_request_v68888(value):
+        return False
+    if not _workspace_sales_requested_product_kind_v69421(value):
+        return False
+
+    feature_topic = bool(re.search(
+        r"\b(compatib(?:le|ility)|factory setup|factory radio|climate|a/?c|wiring|"
+        r"connector|harness|installation|install|interface|resolution|vehicle data|"
+        r"real[-\s]*time|feature|ports?|dimensions?|carplay|android auto|"
+        r"steering wheel|reverse camera|backup camera)\b",
+        value,
+    ))
+    if feature_topic:
+        return False
+    return True
+
+
 def _workspace_sales_visual_topic_tokens_v69401(prompt_text):
+    if _workspace_sales_product_overview_visual_v69421(prompt_text):
+        return set()
     tokens = set(_website_image_tokens_v68883(str(prompt_text or "")))
     tokens -= {
         "a", "an", "the", "my", "your", "our", "this", "that",
@@ -104671,18 +104899,37 @@ else:
 
                     workspace_atp_authority_v69180 = {}
                     workspace_atp_followup_reused_v69403 = False
+                    workspace_atp_kind_scope_prompt_v69421 = ""
                     if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
                         try:
+                            if is_sales_workspace(assistant):
+                                workspace_atp_kind_scope_prompt_v69421 = (
+                                    _workspace_sales_same_case_kind_scope_prompt_v69421(
+                                        interaction_prompt,
+                                        st.session_state.get("messages") or [],
+                                    )
+                                )
+                                if workspace_atp_kind_scope_prompt_v69421:
+                                    diagnostic_log(
+                                        "workspace_sales_product_kind_scope_refresh_v69421",
+                                        prompt=str(interaction_prompt)[:300],
+                                        scoped_prompt=str(workspace_atp_kind_scope_prompt_v69421)[:300],
+                                        requested_kind=_workspace_sales_requested_product_kind_v69421(interaction_prompt),
+                                    )
                             # v69396: identity-free follow-ups should reuse the exact
                             # conversation-scoped product authority BEFORE issuing another
                             # 3-query metadata/vector recovery. Any explicit new vehicle,
                             # year, or product identity still fails this reuse gate and
                             # resolves fresh through the unchanged metadata path.
-                            followup_authority_pre_v69396 = _workspace_atp_followup_authority_v69205(
-                                assistant,
-                                interaction_prompt,
-                                st.session_state.get("_workspace_last_atp_authority_v69205") or {},
-                                conversation_id=st.session_state.get("conversation_id"),
+                            followup_authority_pre_v69396 = (
+                                {}
+                                if workspace_atp_kind_scope_prompt_v69421
+                                else _workspace_atp_followup_authority_v69205(
+                                    assistant,
+                                    interaction_prompt,
+                                    st.session_state.get("_workspace_last_atp_authority_v69205") or {},
+                                    conversation_id=st.session_state.get("conversation_id"),
+                                )
                             )
                             if str(followup_authority_pre_v69396.get("status") or "") in {
                                 "recovered", "recovered_multi"
@@ -104758,7 +105005,9 @@ else:
                             else:
                                 workspace_atp_authority_v69180 = (
                                     _workspace_atp_metadata_fast_authority_v69180(
-                                        assistant, interaction_prompt
+                                        assistant,
+                                        workspace_atp_kind_scope_prompt_v69421
+                                        or interaction_prompt,
                                     )
                                 )
                                 if str(
@@ -105065,10 +105314,18 @@ else:
                         and str((workspace_atp_authority_v69180 or {}).get("status") or "") in {"recovered", "recovered_multi"}
                     ):
                         try:
+                            first_turn_answer_prompt_v69421 = interaction_prompt
+                            if (
+                                workspace_atp_kind_scope_prompt_v69421
+                                and not _workspace_sales_visual_request_v69418(interaction_prompt)
+                            ):
+                                first_turn_answer_prompt_v69421 = (
+                                    workspace_atp_kind_scope_prompt_v69421
+                                )
                             workspace_atp_direct_answer_v69205 = (
                                 _workspace_sales_first_turn_fitment_direct_answer_v69405(
                                     assistant,
-                                    interaction_prompt,
+                                    first_turn_answer_prompt_v69421,
                                     workspace_atp_authority_v69180,
                                 )
                             )
@@ -105079,6 +105336,39 @@ else:
                                 error_type=type(first_turn_fast_error_v69405).__name__,
                                 error=str(first_turn_fast_error_v69405)[:500],
                             )
+
+                    # v69421: a product-kind change intentionally resolves fresh authority,
+                    # so it is no longer tagged as a reused follow-up. For a pure product
+                    # photo request, provide a deterministic bridge while the exact primary
+                    # manifest renders; never ask the provider to rediscover the product.
+                    if (
+                        is_sales_workspace(assistant)
+                        and not workspace_atp_direct_answer_v69205
+                        and bool(workspace_atp_kind_scope_prompt_v69421)
+                        and _workspace_sales_product_overview_visual_v69421(interaction_prompt)
+                        and str((workspace_atp_authority_v69180 or {}).get("status") or "")
+                        in {"recovered", "recovered_multi"}
+                    ):
+                        requested_kind_v69421 = _workspace_sales_requested_product_kind_v69421(
+                            interaction_prompt
+                        )
+                        kind_label_v69421 = {
+                            "cluster": "digital gauge cluster",
+                            "camera": "camera",
+                            "infotainment": "infotainment system",
+                        }.get(requested_kind_v69421, "product")
+                        workspace_atp_direct_answer_v69205 = (
+                            "Yes — I found the matching AutoTecPro "
+                            + kind_label_v69421
+                            + ". The main product photo is shown below."
+                        )
+                        diagnostic_log(
+                            "workspace_sales_product_kind_visual_direct_v69421",
+                            requested_kind=requested_kind_v69421,
+                            authority_status=str(
+                                (workspace_atp_authority_v69180 or {}).get("status") or ""
+                            ),
+                        )
 
                     # v69407: simple same-case nonvisual fitment clarification already
                     # has exact conversation-scoped product authority. Answer it locally
