@@ -11,6 +11,46 @@
 # AutoTecPro AI v69413 - WooCommerce catalog authority + exact primary images
 # AutoTecPro AI v69412 - mobile product cards + clickable View Product links
 # AutoTecPro AI v69411 - production-schema catalog authority + consistent images
+# AutoTecPro AI v69410 - deterministic Sales catalog completeness + mobile table cards
+# AutoTecPro AI v69409 - Technical exact-package fast path + exact topic images
+# AutoTecPro AI v69408 - exact same-case factual fast paths + intent diagnostics
+# AutoTecPro AI v69407 - same-case nonvisual fitment provider/image bypass
+# AutoTecPro AI v69406 - generic sibling-product completeness recovery
+# AutoTecPro AI v69405 - partial topical publication + fast first-turn fitment + Marketing parity
+# AutoTecPro AI v69404 - human customer voice + Sales/Marketing visual wording
+# AutoTecPro AI v69403 - Sales follow-up routing + topical fail-closed + visual provider bypass + restored prewarm hardening
+# AutoTecPro AI v69402 - exact current-page topical semantics recovery for Sales compatibility visuals
+# AutoTecPro AI v69401 - exact Sales topical-image semantic fallback + backward-compatible product-page image-index lookup
+# AutoTecPro AI v69400 - Sales product-identity consistency + exact-authority provider lock + bounded chat resilience + cold-path stability
+# AutoTecPro AI v69399 - metadata-driven Sales compatibility-photo routing + preserve normal multi-product hero behavior
+# AutoTecPro AI v69398 - exact Sales primary-photo final lock + multi-product hero preservation + explicit-photo repeat allowance
+# AutoTecPro AI v69397 - preserve exact Sales WooCommerce hero provenance through final publication gate
+# AutoTecPro AI v69396 - Sales follow-up authority reuse + canonical product dedupe + explicit-photo publication authority
+# AutoTecPro AI v69395 - universal source-driven Technical topic index + compact exact-context formatting
+# AutoTecPro AI v69394 - isolate raw user image intent + hard-lock confirmed snapshot fastpath + shrink exact context
+# AutoTecPro AI v69393 - unique-package auto-lock + exact visual terminal + current-source Car Model fastpath
+# AutoTecPro AI v69392 - confirmed-package snapshot fastpath + semantic image fastpath
+# AutoTecPro AI v69391 - shared-screen Technical source must never ask 15.6 vs 17
+# AutoTecPro AI v69390 - scalar case-detail binding + confirmed snapshot file-content bypass
+# AutoTecPro AI v69389 - fix literal newline rendering in source-limited Technical answer
+# AutoTecPro AI v69388 - separate verified direct-answer terminal from overlap terminal + exact Car Model image commit
+# AutoTecPro AI v69387 - source-limited Car Model answer + exact semantic image + learning isolation
+# AutoTecPro AI v69386 - complete first-turn overlap gate + professional clarification UI
+# AutoTecPro AI v69385 - GM 2019 joint-platform authoritative overlap completion
+# AutoTecPro AI v69383 - confirmed-package legacy image-index recovery for exact two-image audio publication
+# AutoTecPro AI v69379 - authoritative Technical overlap + deterministic readable output hardening
+# AutoTecPro AI v69378 - generic Technical overlap verification + readable step layout
+# AutoTecPro AI v69376 - targeted Technical latency + generation follow-up fastpath hardening
+# AutoTecPro AI v69370 - durable direct WooCommerce order lookup preservation
+# AutoTecPro AI v69369 - exact Technical video-resource branch binding + provider bypass
+# AutoTecPro AI v69368 - mobile table CSS isolation + response rendering hardening
+# AutoTecPro AI v69367 - mobile-only responsive table readability hardening
+# AutoTecPro AI v69366 - production retrieval fan-out + live price concurrency hardening
+# AutoTecPro AI v69362 - Technical vehicle-identity lock + clarification isolation + final config parser hardening
+# AutoTecPro AI v69363 - Technical semantic image metadata + final publication authority hardening
+# AutoTecPro AI v69360 - safe performance + image provenance hardening
+# AutoTecPro AI v69359 - email-safe assistant clipboard normalization
+# AutoTecPro AI v69380 - terminal Technical overlap gate + confirmed-source troubleshooting authority
 # Scope: Technical Support only. Generic overlap clarification terminates before provider/model/image work;
 # pending branch is rebound to the durable conversation; confirmed branch preserves exact source-authored troubleshooting.
 # AutoTecPro AI v69358 - exact Sales product/photo provenance hardening
@@ -46,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69430"
-AUTOTECPRO_RELEASE_BUILD = "v69430-preserve-feature-intent-through-kind-scope-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69431"
+AUTOTECPRO_RELEASE_BUILD = "v69431-parent-sibling-authority-followups-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -286,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69430",
+        "app_release_v69431",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -65278,6 +65318,164 @@ def _workspace_sales_same_case_kind_scope_prompt_v69421(prompt_text, messages):
     return ""
 
 
+
+def _workspace_sales_other_sibling_followup_v69431(prompt_text):
+    """True when the customer refers to the other/rest/remaining products in the same case."""
+    p = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not p:
+        return False
+    return bool(re.search(
+        r"\b(other|others|the rest|rest of|remaining|remainder|"
+        r"other models?|other options?|other products?|other screens?|"
+        r"remaining models?|remaining options?|remaining products?|remaining screens?)\b",
+        p,
+    ))
+
+
+def _workspace_sales_sibling_authority_v69431(
+    workspace_label,
+    prompt_text,
+    parent_record,
+    current_record,
+    conversation_id=None,
+):
+    """Restore sibling products from a saved broad parent authority.
+
+    The current narrowed authority is excluded by exact product-page identity.
+    This is conversation/workspace/revision scoped and fail-closed.
+    """
+    workspace = str(workspace_label or "")
+    if not is_sales_workspace(workspace):
+        return {}
+    if not _workspace_sales_other_sibling_followup_v69431(prompt_text):
+        return {}
+
+    parent_record = dict(parent_record or {})
+    current_record = dict(current_record or {})
+    if not parent_record or not current_record:
+        return {}
+    if _normalized_workspace_name(parent_record.get("workspace")) != _normalized_workspace_name(workspace):
+        return {}
+    if str(parent_record.get("conversation_id") or "") != str(conversation_id or ""):
+        return {}
+    if str(current_record.get("conversation_id") or "") != str(conversation_id or ""):
+        return {}
+
+    destination = "Sales Database"
+    if str(parent_record.get("destination") or "") != destination:
+        return {}
+    try:
+        current_revision = int(_website_destination_revision_v69109(destination) or 0)
+        if int(parent_record.get("revision") or 0) != current_revision:
+            return {}
+    except Exception:
+        return {}
+
+    parent_authority = dict(parent_record.get("authority") or {})
+    current_authority = dict(current_record.get("authority") or {})
+    if str(parent_authority.get("status") or "") != "recovered_multi":
+        return {}
+    if str(current_authority.get("status") or "") not in {"recovered", "recovered_multi"}:
+        return {}
+
+    parent_packages = [
+        dict(x) for x in (parent_authority.get("packages") or [])
+        if isinstance(x, dict)
+    ]
+    if len(parent_packages) <= 1:
+        return {}
+
+    current_packages = [
+        dict(x) for x in (current_authority.get("packages") or [])
+        if isinstance(x, dict)
+    ]
+    if not current_packages and str(current_authority.get("status") or "") == "recovered":
+        pkg = dict(current_authority.get("package") or {})
+        if pkg:
+            current_packages = [pkg]
+
+    current_ids = set()
+    for pkg in current_packages:
+        src = str(pkg.get("source_url") or "").strip()
+        if not src:
+            continue
+        try:
+            ident = _workspace_product_page_identity_v69396(src)
+        except Exception:
+            ident = src.rstrip("/").casefold()
+        if ident:
+            current_ids.add(ident)
+
+    kept_packages = []
+    kept_indexes = []
+    for idx, pkg in enumerate(parent_packages):
+        src = str(pkg.get("source_url") or "").strip()
+        try:
+            ident = _workspace_product_page_identity_v69396(src) if src else ""
+        except Exception:
+            ident = src.rstrip("/").casefold()
+        if ident and ident in current_ids:
+            continue
+        kept_packages.append(pkg)
+        kept_indexes.append(idx)
+
+    if not kept_packages:
+        return {}
+
+    parent_rows = [
+        dict(x) for x in (parent_authority.get("rows") or [])
+        if isinstance(x, dict)
+    ]
+    kept_rows = [
+        parent_rows[i] for i in kept_indexes
+        if 0 <= i < len(parent_rows)
+    ]
+
+    context_parts = [
+        "\n\nAUTOTECPRO SAME-CASE SIBLING PRODUCT AUTHORITY (v69431)\n",
+        "The customer asked for the other/rest/remaining products from the earlier broader product set. "
+        "The currently narrowed product(s) have been excluded. Treat every product below as a separate exact current product.\n",
+    ]
+    for index_v69431, pkg in enumerate(kept_packages, 1):
+        semantic_json_v69431, excerpt_v69431 = _workspace_atp_compact_context_v69181(
+            pkg, prompt_text
+        )
+        context_parts.append(
+            f"\n[SIBLING PRODUCT {index_v69431}]\n"
+            f"Source URL: {str(pkg.get('source_url') or '')}\n"
+            f"ATP_SEMANTIC_METADATA_JSON:\n{semantic_json_v69431}\n"
+            f"REVIEWED INQUIRY-RELATED WEBPAGE TEXT:\n{excerpt_v69431[:9000]}\n"
+        )
+
+    result = {
+        "status": "recovered_multi" if len(kept_packages) > 1 else "recovered",
+        "destination": destination,
+        "context": "".join(context_parts),
+        "score": parent_authority.get("score", 0),
+        "source_urls": [str(pkg.get("source_url") or "") for pkg in kept_packages],
+        "product_contracts_v69325": [
+            _workspace_atp_product_contract_v69205(pkg) for pkg in kept_packages
+        ],
+        "workspace_sales_sibling_scope_v69431": True,
+    }
+    if len(kept_packages) > 1:
+        result["packages"] = kept_packages
+        result["rows"] = kept_rows
+    else:
+        result["package"] = kept_packages[0]
+        result["row"] = kept_rows[0] if kept_rows else {}
+        result["source_url"] = str(kept_packages[0].get("source_url") or "")
+
+    diagnostic_log(
+        "workspace_sales_sibling_authority_restored_v69431",
+        parent_products=len(parent_packages),
+        current_products=len(current_packages),
+        sibling_products=len(kept_packages),
+        excluded_ids=sorted(current_ids)[:12],
+    )
+    return result
+
+
 def _workspace_atp_followup_authority_v69205(workspace_label, prompt_text, cached_record, conversation_id=None):
     """Reuse only the same conversation/workspace/current-revision product authority for identity-free follow-ups."""
     workspace = str(workspace_label or "")
@@ -105301,6 +105499,7 @@ else:
                     workspace_atp_authority_v69180 = {}
                     workspace_atp_followup_reused_v69403 = False
                     workspace_atp_kind_scope_prompt_v69421 = ""
+                    workspace_sales_sibling_authority_v69431 = {}
                     if is_sales_workspace(assistant) or is_marketing_workspace(assistant):
                         try:
                             if is_sales_workspace(assistant):
@@ -105311,6 +105510,26 @@ else:
                                     )
                                 )
                                 if workspace_atp_kind_scope_prompt_v69421:
+                                    previous_record_v69431 = dict(
+                                        st.session_state.get("_workspace_last_atp_authority_v69205") or {}
+                                    )
+                                    previous_authority_v69431 = dict(
+                                        previous_record_v69431.get("authority") or {}
+                                    )
+                                    if (
+                                        str(previous_authority_v69431.get("status") or "") == "recovered_multi"
+                                        and len(previous_authority_v69431.get("packages") or []) > 1
+                                    ):
+                                        st.session_state["_workspace_parent_atp_authority_v69431"] = copy.deepcopy(
+                                            previous_record_v69431
+                                        )
+                                        diagnostic_log(
+                                            "workspace_sales_parent_authority_saved_v69431",
+                                            products=len(previous_authority_v69431.get("packages") or []),
+                                            requested_kind=_workspace_sales_requested_product_kind_v69421(
+                                                interaction_prompt
+                                            ),
+                                        )
                                     diagnostic_log(
                                         "workspace_sales_product_kind_scope_refresh_v69421",
                                         prompt=str(interaction_prompt)[:300],
@@ -105322,14 +105541,34 @@ else:
                             # 3-query metadata/vector recovery. Any explicit new vehicle,
                             # year, or product identity still fails this reuse gate and
                             # resolves fresh through the unchanged metadata path.
+                            current_record_v69431 = dict(
+                                st.session_state.get("_workspace_last_atp_authority_v69205") or {}
+                            )
+                            if (
+                                not workspace_atp_kind_scope_prompt_v69421
+                                and _workspace_sales_other_sibling_followup_v69431(interaction_prompt)
+                            ):
+                                workspace_sales_sibling_authority_v69431 = (
+                                    _workspace_sales_sibling_authority_v69431(
+                                        assistant,
+                                        interaction_prompt,
+                                        st.session_state.get("_workspace_parent_atp_authority_v69431") or {},
+                                        current_record_v69431,
+                                        conversation_id=st.session_state.get("conversation_id"),
+                                    )
+                                )
+
                             followup_authority_pre_v69396 = (
                                 {}
                                 if workspace_atp_kind_scope_prompt_v69421
-                                else _workspace_atp_followup_authority_v69205(
-                                    assistant,
-                                    interaction_prompt,
-                                    st.session_state.get("_workspace_last_atp_authority_v69205") or {},
-                                    conversation_id=st.session_state.get("conversation_id"),
+                                else (
+                                    workspace_sales_sibling_authority_v69431
+                                    or _workspace_atp_followup_authority_v69205(
+                                        assistant,
+                                        interaction_prompt,
+                                        current_record_v69431,
+                                        conversation_id=st.session_state.get("conversation_id"),
+                                    )
                                 )
                             )
                             if str(followup_authority_pre_v69396.get("status") or "") in {
