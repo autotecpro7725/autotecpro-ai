@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69435"
-AUTOTECPRO_RELEASE_BUILD = "v69435-hosted-intent-contract-cache-fix-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69436"
+AUTOTECPRO_RELEASE_BUILD = "v69436-same-case-live-price-feature-evidence-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69435",
+        "app_release_v69436",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -66714,7 +66714,7 @@ def _workspace_sales_same_case_fact_intent_v69408(prompt_text):
     if _website_image_explicit_visual_request_v68888(prompt):
         return {"category": "visual_existing_path", "topic": ""}
     if sales_intent_v69433.get("price_request"):
-        return {"category": "provider_required", "topic": "specialized"}
+        return {"category": "live_price", "topic": "exact_live_price"}
     if sales_intent_v69433.get("years_request"):
         return {"category": "years_support", "topic": "fitment_years"}
     if sales_intent_v69433.get("compare_request"):
@@ -66904,6 +66904,7 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             "factory_setup": _workspace_sales_package_factory_setup_v69407(pkg),
             "features": _workspace_atp_first_response_feature_labels_v69348(contract),
             "feature_intro": _workspace_sales_feature_intro_v69426(pkg, contract),
+            "package": pkg,
         })
 
     if not rows:
@@ -66926,7 +66927,105 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
 
     answer = ""
 
-    if category == "years_support":
+    if category == "live_price":
+        price_rows_v69436 = []
+        verified_v69436 = 0
+        for row_v69436 in rows:
+            source_v69436 = str(row_v69436.get("source") or "").strip()
+            woo_lookup_v69436 = _woocommerce_product_by_source_url_v69326(
+                source_v69436
+            )
+            price_label_v69436 = _woocommerce_price_label_v69326(
+                woo_lookup_v69436
+            )
+            price_source_v69436 = "WooCommerce"
+            page_lookup_v69436 = {}
+            if not price_label_v69436:
+                page_lookup_v69436 = _current_product_page_price_by_exact_url_v69340(
+                    source_v69436
+                )
+                price_label_v69436 = _current_product_page_price_label_v69340(
+                    page_lookup_v69436
+                )
+                price_source_v69436 = "Current product page"
+
+            if price_label_v69436:
+                verified_v69436 += 1
+                price_rows_v69436.append((
+                    row_v69436["title"],
+                    row_v69436.get("fitment") or "—",
+                    price_label_v69436,
+                    price_source_v69436,
+                    source_v69436,
+                ))
+            else:
+                price_rows_v69436.append((
+                    row_v69436["title"],
+                    row_v69436.get("fitment") or "—",
+                    "Unavailable",
+                    "Could not verify a current price",
+                    source_v69436,
+                ))
+                diagnostic_log(
+                    "workspace_sales_same_case_live_price_failed_v69436",
+                    source_url=source_v69436[:700],
+                    woo_reason=str(
+                        dict(woo_lookup_v69436 or {}).get("reason") or ""
+                    )[:160],
+                    page_reason=str(
+                        dict(page_lookup_v69436 or {}).get("reason") or ""
+                    )[:160],
+                )
+
+        diagnostic_log(
+            "workspace_sales_same_case_live_price_v69436",
+            requested=len(price_rows_v69436),
+            verified=verified_v69436,
+            failed=max(0, len(price_rows_v69436) - verified_v69436),
+        )
+
+        if len(price_rows_v69436) == 1:
+            title_v69436, fit_v69436, price_v69436, source_label_v69436, url_v69436 = (
+                price_rows_v69436[0]
+            )
+            if price_v69436 != "Unavailable":
+                answer = (
+                    "### Current price\n\n"
+                    f"**{price_v69436}**\n\n"
+                    f"- **Product:** {title_v69436}\n"
+                    f"- **Fitment:** {fit_v69436}\n"
+                    f"- **Price source:** {source_label_v69436}\n"
+                    f"- **Product link:** {url_v69436}"
+                )
+            else:
+                answer = (
+                    "### Current price\n\n"
+                    "I can’t verify the current live price for this exact product right now, "
+                    "so I won’t guess.\n\n"
+                    f"- **Product:** {title_v69436}\n"
+                    f"- **Product link:** {url_v69436}"
+                )
+        elif price_rows_v69436:
+            answer = (
+                "### Current prices\n\n"
+                + table(
+                    ("Option", "Product", "Fitment", "Current price", "Source"),
+                    [
+                        (
+                            str(i_v69436),
+                            r_v69436[0],
+                            r_v69436[1],
+                            r_v69436[2],
+                            r_v69436[3],
+                        )
+                        for i_v69436, r_v69436 in enumerate(
+                            price_rows_v69436, 1
+                        )
+                    ],
+                )
+            )
+
+    elif category == "years_support":
         data = []
         for index, row in enumerate(rows, 1):
             if not row["fitment"]:
@@ -67000,22 +67099,118 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             "premium_audio": "Premium-sound-system support",
             "installation_video": "Installation video available",
         }
+        evidence_terms_v69436 = {
+            "carplay": r"(?:apple\s+)?carplay",
+            "android_auto": r"android\s+auto",
+            "bluetooth": r"bluetooth|a2dp",
+            "wifi": r"wi[\s-]?fi",
+            "lte": r"4g|lte",
+            "steering": r"steering[-\s]+wheel|swc",
+            "climate": r"climate[-\s]+control|a/?c\s+control",
+            "reverse_camera": r"(?:reverse|backup|factory)\s+camera",
+            "cargo_camera": r"cargo\s+camera",
+            "premium_audio": r"premium\s+(?:sound|audio)|bose|alpine|harman",
+            "installation_video": r"installation\s+video|install\s+video",
+        }
         label = label_map.get(topic, "")
+        evidence_term_v69436 = evidence_terms_v69436.get(topic, "")
         if label:
-            positive_count = sum(label in set(row["features"] or []) for row in rows)
-            if positive_count:
-                data = []
-                for i, row in enumerate(rows, 1):
-                    status_label = (
-                        "Listed"
-                        if label in set(row["features"] or [])
-                        else "Not stated on the current product page"
+            data_v69436 = []
+            positive_v69436 = 0
+            negative_v69436 = 0
+            for i_v69436, row_v69436 in enumerate(rows, 1):
+                feature_set_v69436 = set(row_v69436.get("features") or [])
+                status_v69436 = ""
+                if label in feature_set_v69436:
+                    status_v69436 = "Listed / supported"
+                    positive_v69436 += 1
+                else:
+                    pkg_v69436 = dict(row_v69436.get("package") or {})
+                    contract_v69436 = dict(row_v69436.get("contract") or {})
+                    exact_text_v69436 = " ".join(
+                        str(x or "")
+                        for x in (
+                            pkg_v69436.get("package_text"),
+                            pkg_v69436.get("page_text"),
+                            pkg_v69436.get("content"),
+                            contract_v69436.get("feature_summary"),
+                        )
                     )
-                    data.append((str(i), row["title"], status_label))
+                    exact_text_v69436 = re.sub(
+                        r"\s+", " ", exact_text_v69436
+                    ).strip().casefold()
+
+                    explicit_negative_v69436 = False
+                    if evidence_term_v69436 and exact_text_v69436:
+                        neg_patterns_v69436 = (
+                            rf"\b(?:does\s+not|doesn't|not|without|no)\b.{{0,55}}\b(?:{evidence_term_v69436})\b",
+                            rf"\b(?:{evidence_term_v69436})\b.{{0,55}}\b(?:not\s+supported|unsupported|not\s+available|not\s+included)\b",
+                        )
+                        explicit_negative_v69436 = any(
+                            re.search(
+                                pattern_v69436,
+                                exact_text_v69436,
+                                flags=re.I,
+                            )
+                            for pattern_v69436 in neg_patterns_v69436
+                        )
+
+                    if explicit_negative_v69436:
+                        status_v69436 = "Explicitly not supported"
+                        negative_v69436 += 1
+                    else:
+                        status_v69436 = "Not stated on the current product page"
+
+                data_v69436.append((
+                    str(i_v69436),
+                    row_v69436["title"],
+                    status_v69436,
+                    row_v69436["source"],
+                ))
+
+            diagnostic_log(
+                "workspace_sales_specific_feature_evidence_v69436",
+                topic=topic,
+                products=len(data_v69436),
+                positive=positive_v69436,
+                explicit_negative=negative_v69436,
+                not_stated=max(
+                    0,
+                    len(data_v69436)
+                    - positive_v69436
+                    - negative_v69436,
+                ),
+            )
+
+            if len(data_v69436) == 1:
+                _, title_v69436, status_v69436, source_v69436 = data_v69436[0]
+                if status_v69436 == "Listed / supported":
+                    answer = (
+                        f"Yes — **{label}** is listed for **{title_v69436}**.\n\n"
+                        f"Product link: {source_v69436}"
+                    )
+                elif status_v69436 == "Explicitly not supported":
+                    answer = (
+                        f"No — the current exact product information explicitly indicates "
+                        f"that **{label}** is not supported for **{title_v69436}**.\n\n"
+                        f"Product link: {source_v69436}"
+                    )
+                else:
+                    answer = (
+                        f"**{label} is not stated on the current product page** for "
+                        f"**{title_v69436}**. I don’t have enough exact page evidence "
+                        f"to call it supported or unsupported.\n\n"
+                        f"Product link: {source_v69436}"
+                    )
+            elif data_v69436:
                 answer = (
-                    f"For **{label}**, this is what the current product information shows:\n\n"
-                    + table(("Option", "Product", label), data)
-                    + "\n\n“Not stated” means I don’t have enough exact page evidence to call it unsupported."
+                    f"For **{label}**, this is what the current exact product information shows:\n\n"
+                    + table(
+                        ("Option", "Product", label, "Product link"),
+                        data_v69436,
+                    )
+                    + "\n\n“Not stated” means I don’t have enough exact page evidence "
+                    "to call the feature supported or unsupported."
                 )
 
     elif category == "spec_summary":
