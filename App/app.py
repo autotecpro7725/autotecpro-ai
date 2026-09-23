@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69426"
-AUTOTECPRO_RELEASE_BUILD = "v69426-exact-feature-introductions-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69429"
+AUTOTECPRO_RELEASE_BUILD = "v69429-key-feature-option-spacing-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69426",
+        "app_release_v69429",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -28181,7 +28181,7 @@ def _graphic_reference_feature_labels_v68876(campaign_spec, prompt_text, design_
     The measured row/column count is never changed.
     """
     raw = [
-        re.sub(r"\\s+", " ", str(x or "")).strip()
+        re.sub(r"\s+", " ", str(x or "")).strip()
         for x in ((campaign_spec or {}).get("feature_labels") or [])
         if str(x or "").strip()
     ]
@@ -65593,6 +65593,12 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
         r"option|options)\b",
         p,
     ))
+    feature_request_v69427 = bool(re.search(
+        r"\b(feature|features|function|functions|spec|specs|specification|"
+        r"specifications|what does it do|what can it do|capability|capabilities|"
+        r"key feature|key features|main feature|main features)\b",
+        p,
+    ))
     if not fitment_or_discovery or not (prompt_years or prompt_families):
         return ""
 
@@ -65690,12 +65696,13 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
         if intro_v69426:
             feature_intros_v69426.append((index, title, intro_v69426))
 
-    if feature_intros_v69426:
+    if feature_request_v69427 and feature_intros_v69426:
         lines.extend(["", "### Key features", ""])
         for index_v69426, title_v69426, intro_v69426 in feature_intros_v69426:
-            lines.append(
-                f"**Option {index_v69426} — {title_v69426}:** {intro_v69426}"
-            )
+            lines.extend([
+                f"**Option {index_v69426} — {title_v69426}:** {intro_v69426}",
+                "",
+            ])
 
     unique_notes = list(dict.fromkeys(notes))[:3]
     if unique_notes:
@@ -66415,10 +66422,10 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             if str(row.get("feature_intro") or "").strip()
         ]
         if intro_rows_v69426:
-            parts_v69426 = ["### Key features", ""]
+            parts_v69426 = ["### Key features"]
             for i_v69426, row_v69426 in enumerate(intro_rows_v69426, 1):
                 parts_v69426.append(
-                    f"**{row_v69426['title']}:** "
+                    f"**Option {i_v69426} — {row_v69426['title']}:** "
                     f"{str(row_v69426.get('feature_intro') or '').strip()}"
                 )
             answer = "\n\n".join(parts_v69426)
@@ -68405,7 +68412,7 @@ def _workspace_sales_woocommerce_contract_v69413(product):
         # the current Woo product description. Prefer a semantically-authored
         # feature-summary element; never synthesize unsupported prose here.
         feature_blocks_v69426 = re.findall(
-            r"<(?P<tag>p|h[1-6])\\b(?P<attrs>[^>]*)>(?P<body>[\\s\\S]*?)</(?P=tag)\\s*>",
+            r"<(?P<tag>p|h[1-6])\b(?P<attrs>[^>]*)>(?P<body>[\s\S]*?)</(?P=tag)\s*>",
             description_html_v69421,
             flags=re.I,
         )
@@ -68421,21 +68428,26 @@ def _workspace_sales_woocommerce_contract_v69413(product):
             )
             clean_v69426 = re.sub(r"\\s+", " ", clean_v69426).strip()
             clean_v69426 = re.sub(
-                r"^key\\s+features?\\s*:\\s*",
+                r"^key\s+features?\s*:\s*",
                 "",
                 clean_v69426,
                 flags=re.I,
             ).strip()
             if len(clean_v69426) >= 30:
                 exact_feature_summary_v69426 = clean_v69426[:900].strip()
+                diagnostic_log(
+                    "workspace_sales_exact_feature_summary_captured_v69428",
+                    source="atp_semantic_topic",
+                    length=len(exact_feature_summary_v69426),
+                )
                 break
 
         # Safe fallback: an authored visible paragraph explicitly beginning
         # "Key features:" on the same exact current Woo description.
         if not exact_feature_summary_v69426:
             key_match_v69426 = re.search(
-                r"<(?:p|h[1-6])\\b[^>]*>[\\s\\S]*?"
-                r"key\\s+features?\\s*:\\s*[\\s\\S]*?</(?:p|h[1-6])\\s*>",
+                r"<(?:p|h[1-6])\b[^>]*>[\s\S]*?"
+                r"key\s+features?\s*:\s*[\s\S]*?</(?:p|h[1-6])\s*>",
                 description_html_v69421,
                 flags=re.I,
             )
@@ -68452,6 +68464,11 @@ def _workspace_sales_woocommerce_contract_v69413(product):
                 ).strip()
                 if len(clean_v69426) >= 30:
                     exact_feature_summary_v69426 = clean_v69426[:900].strip()
+                    diagnostic_log(
+                        "workspace_sales_exact_feature_summary_captured_v69428",
+                        source="visible_key_features",
+                        length=len(exact_feature_summary_v69426),
+                    )
         for tag_v69421 in re.findall(
             r"<[^>]*data-atp-compatibility-branch-id\s*=\s*[\"'][^\"']+[\"'][^>]*>",
             description_html_v69421,
