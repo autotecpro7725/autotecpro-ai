@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69436"
-AUTOTECPRO_RELEASE_BUILD = "v69436-same-case-live-price-feature-evidence-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69438"
+AUTOTECPRO_RELEASE_BUILD = "v69438-woo-usd-with-fixed-081-fallback-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69436",
+        "app_release_v69438",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -2341,6 +2341,155 @@ def _current_product_page_price_by_exact_url_v69340(source_url):
         "currency": currency,
         "price_source": "woocommerce_summary_price" if summary_price_text_v69341 else "product_structured_data",
     }
+
+
+
+def _workspace_product_currency_url_v69437(source_url, currency_code):
+    """Return the same exact product URL in a WooCommerce currency presentation.
+
+    Removes only the volatile Woo `v` presentation token and any prior `currency`
+    token, then adds the requested three-letter currency. Product host/path and every
+    other query parameter remain unchanged.
+    """
+    source = str(source_url or "").strip()
+    currency = str(currency_code or "").strip().upper()
+    if not source or not re.fullmatch(r"[A-Z]{3}", currency):
+        return ""
+    try:
+        parsed = urllib.parse.urlsplit(source)
+        if "/product/" not in str(parsed.path or "").casefold():
+            return ""
+        pairs = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+        kept = [
+            (str(k), str(v))
+            for k, v in pairs
+            if str(k).casefold() not in {"v", "currency"}
+        ]
+        kept.append(("currency", currency))
+        query = urllib.parse.urlencode(kept, doseq=True)
+        return urllib.parse.urlunsplit(
+            (parsed.scheme, parsed.netloc, parsed.path, query, parsed.fragment)
+        )
+    except Exception:
+        return ""
+
+
+@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
+def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
+    """Read WooCommerce's own displayed price for one exact product/currency.
+
+    This intentionally does NOT use a market FX provider. It asks the same exact
+    AutoTecPro product page for WooCommerce's currency presentation and accepts the
+    result only when the exact page parser verifies the requested currency.
+    """
+    currency = str(currency_code or "").strip().upper()
+    target_url = _workspace_product_currency_url_v69437(source_url, currency)
+    if not target_url:
+        return {
+            "status": "unavailable",
+            "reason": "invalid_currency_product_url",
+            "currency": currency,
+        }
+
+    result = dict(_current_product_page_price_by_exact_url_v69340(target_url) or {})
+    if str(result.get("status") or "") != "verified":
+        result["requested_currency"] = currency
+        result["currency_url"] = target_url
+        return result
+
+    actual_currency = str(result.get("currency") or "").strip().upper()
+    if actual_currency != currency:
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_currency_view_not_confirmed",
+            "requested_currency": currency,
+            "actual_currency": actual_currency,
+            "currency_url": target_url,
+            "final_url": str(result.get("final_url") or ""),
+        }
+
+    result["requested_currency"] = currency
+    result["currency_url"] = target_url
+    result["source"] = "exact_woocommerce_currency_view"
+    return result
+
+
+def _workspace_woo_currency_price_label_v69437(result):
+    """Format only a verified WooCommerce-native currency-view price."""
+    result = dict(result or {})
+    if str(result.get("status") or "") != "verified":
+        return ""
+    currency = str(result.get("currency") or "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", currency):
+        return ""
+    try:
+        low = float(result.get("min_price"))
+        high = float(result.get("max_price"))
+    except Exception:
+        return ""
+    if abs(high - low) < 0.005:
+        return f"{currency} {low:,.2f}"
+    return f"{currency} {low:,.2f}–{high:,.2f}"
+
+
+
+AUTOTECPRO_USD_FALLBACK_RATE_V69438 = 0.81
+
+
+def _workspace_fixed_usd_fallback_label_v69438(
+    cad_price_label,
+    rate=AUTOTECPRO_USD_FALLBACK_RATE_V69438,
+):
+    """Convert a verified CAD product-price label to USD using ATP's fixed fallback.
+
+    Used ONLY when the exact WooCommerce USD product-page price cannot be verified.
+    Supports both single prices and min–max ranges.
+    """
+    parts = _workspace_price_label_parts_v69347(cad_price_label)
+    if not parts:
+        return ""
+    if str(parts.get("currency") or "").upper() != "CAD":
+        return ""
+    try:
+        low = float(parts.get("low"))
+        high = float(parts.get("high"))
+        rate_value = float(rate)
+    except Exception:
+        return ""
+    if low <= 0 or high <= 0 or rate_value <= 0:
+        return ""
+
+    usd_low = low * rate_value
+    usd_high = high * rate_value
+    if abs(usd_high - usd_low) < 0.005:
+        return f"USD {usd_low:,.2f}"
+    return f"USD {usd_low:,.2f}–{usd_high:,.2f}"
+
+
+def _workspace_woo_implied_fx_label_v69437(base_price_label, usd_price_label):
+    """Return the effective WooCommerce CAD→USD rate implied by exact page prices."""
+    base = _workspace_price_label_parts_v69347(base_price_label)
+    usd = _workspace_price_label_parts_v69347(usd_price_label)
+    if not base or not usd:
+        return ""
+    if str(base.get("currency") or "").upper() != "CAD":
+        return ""
+    if str(usd.get("currency") or "").upper() != "USD":
+        return ""
+    try:
+        base_low = float(base.get("low"))
+        base_high = float(base.get("high"))
+        usd_low = float(usd.get("low"))
+        usd_high = float(usd.get("high"))
+    except Exception:
+        return ""
+    if base_low <= 0 or base_high <= 0:
+        return ""
+    rate_low = usd_low / base_low
+    rate_high = usd_high / base_high
+    if abs(rate_low - rate_high) < 0.00005:
+        return f"1 CAD = {rate_low:.4f} USD"
+    return f"1 CAD ≈ {rate_low:.4f}–{rate_high:.4f} USD"
 
 
 def _current_product_page_price_label_v69340(result):
@@ -66951,12 +67100,60 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
 
             if price_label_v69436:
                 verified_v69436 += 1
+
+                # v69437: obtain USD from WooCommerce's own exact product currency
+                # presentation. Do not use an outside FX rate for customer-facing
+                # product pricing, so the app matches the website's USD amount and
+                # rounding exactly.
+                usd_lookup_v69437 = _workspace_exact_product_currency_price_v69437(
+                    source_v69436,
+                    "USD",
+                )
+                usd_label_v69437 = _workspace_woo_currency_price_label_v69437(
+                    usd_lookup_v69437
+                )
+                usd_source_v69438 = ""
+                implied_fx_v69437 = ""
+
+                if usd_label_v69437:
+                    usd_source_v69438 = "WooCommerce USD product-page price"
+                    implied_fx_v69437 = _workspace_woo_implied_fx_label_v69437(
+                        price_label_v69436,
+                        usd_label_v69437,
+                    )
+                else:
+                    usd_label_v69437 = _workspace_fixed_usd_fallback_label_v69438(
+                        price_label_v69436
+                    )
+                    if usd_label_v69437:
+                        usd_source_v69438 = (
+                            "Fallback conversion at 1 CAD = 0.81 USD"
+                        )
+                        implied_fx_v69437 = "1 CAD = 0.8100 USD"
+
+                diagnostic_log(
+                    "workspace_sales_same_case_woo_usd_price_v69437",
+                    source_url=source_v69436[:700],
+                    cad_price=str(price_label_v69436)[:120],
+                    usd_price=str(usd_label_v69437)[:120],
+                    fx=str(implied_fx_v69437)[:120],
+                    usd_source=str(usd_source_v69438)[:160],
+                    fallback_used=bool(
+                        usd_source_v69438.startswith("Fallback conversion")
+                    ),
+                    status=str(usd_lookup_v69437.get("status") or ""),
+                    reason=str(usd_lookup_v69437.get("reason") or "")[:160],
+                )
+
                 price_rows_v69436.append((
                     row_v69436["title"],
                     row_v69436.get("fitment") or "—",
                     price_label_v69436,
                     price_source_v69436,
                     source_v69436,
+                    usd_label_v69437,
+                    implied_fx_v69437,
+                    usd_source_v69438,
                 ))
             else:
                 price_rows_v69436.append((
@@ -66965,6 +67162,9 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
                     "Unavailable",
                     "Could not verify a current price",
                     source_v69436,
+                    "",
+                    "",
+                    "",
                 ))
                 diagnostic_log(
                     "workspace_sales_same_case_live_price_failed_v69436",
@@ -66985,18 +67185,55 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
         )
 
         if len(price_rows_v69436) == 1:
-            title_v69436, fit_v69436, price_v69436, source_label_v69436, url_v69436 = (
-                price_rows_v69436[0]
-            )
+            (
+                title_v69436,
+                fit_v69436,
+                price_v69436,
+                source_label_v69436,
+                url_v69436,
+                usd_price_v69437,
+                woo_fx_v69437,
+                usd_source_v69438,
+            ) = price_rows_v69436[0]
             if price_v69436 != "Unavailable":
-                answer = (
-                    "### Current price\n\n"
-                    f"**{price_v69436}**\n\n"
-                    f"- **Product:** {title_v69436}\n"
-                    f"- **Fitment:** {fit_v69436}\n"
-                    f"- **Price source:** {source_label_v69436}\n"
+                price_lines_v69437 = [
+                    "### Current price",
+                    "",
+                    f"**{price_v69436}**",
+                ]
+                if usd_price_v69437:
+                    price_lines_v69437.extend([
+                        "",
+                        f"**{usd_price_v69437}**",
+                    ])
+                price_lines_v69437.extend([
+                    "",
+                    f"- **Product:** {title_v69436}",
+                    f"- **Fitment:** {fit_v69436}",
+                    f"- **CAD price source:** {source_label_v69436}",
+                ])
+                if usd_price_v69437 and usd_source_v69438:
+                    price_lines_v69437.append(
+                        f"- **USD price source:** {usd_source_v69438}"
+                    )
+                if woo_fx_v69437:
+                    rate_label_v69438 = (
+                        "WooCommerce effective exchange rate"
+                        if usd_source_v69438
+                        == "WooCommerce USD product-page price"
+                        else "Fallback exchange rate"
+                    )
+                    price_lines_v69437.append(
+                        f"- **{rate_label_v69438}:** {woo_fx_v69437}"
+                    )
+                elif not usd_price_v69437:
+                    price_lines_v69437.append(
+                        "- **USD price:** Unavailable because the CAD product price could not be converted safely."
+                    )
+                price_lines_v69437.append(
                     f"- **Product link:** {url_v69436}"
                 )
+                answer = "\n".join(price_lines_v69437)
             else:
                 answer = (
                     "### Current price\n\n"
@@ -67009,13 +67246,14 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             answer = (
                 "### Current prices\n\n"
                 + table(
-                    ("Option", "Product", "Fitment", "Current price", "Source"),
+                    ("Option", "Product", "Fitment", "CAD price", "USD price", "Source"),
                     [
                         (
                             str(i_v69436),
                             r_v69436[0],
                             r_v69436[1],
                             r_v69436[2],
+                            r_v69436[5] or "Unavailable",
                             r_v69436[3],
                         )
                         for i_v69436, r_v69436 in enumerate(
@@ -67827,86 +68065,181 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 variants=[str(row[1])[:80] for row in live_rows_v69326],
             )
 
-            # v69347: preserve v69343's output structure and add only a live USD
-            # equivalent. The store-currency amount remains the verified authority.
-            currencies_v69347 = set()
-            for _title_v69347, _variant_v69347, price_v69347, _note_v69347 in live_rows_v69326:
-                parsed_price_v69347 = _workspace_price_label_parts_v69347(price_v69347)
-                currency_v69347 = str(parsed_price_v69347.get("currency") or "").upper()
-                if currency_v69347 and currency_v69347 != "USD":
-                    currencies_v69347.add(currency_v69347)
+            # v69437: customer-facing USD product pricing comes from the same exact
+            # WooCommerce product page in USD, not an external market FX provider.
+            display_rows_v69437 = []
+            for (
+                title_v69437,
+                variant_v69437,
+                price_v69437,
+                note_v69437,
+            ), source_row_v69437 in zip(
+                live_rows_v69326,
+                selected_rows_v69326,
+            ):
+                source_url_v69437 = str(source_row_v69437[2] or "").strip()
+                usd_lookup_v69437 = {}
+                usd_label_v69437 = ""
+                fx_label_v69437 = ""
+                parsed_v69437 = _workspace_price_label_parts_v69347(price_v69437)
+                if (
+                    str(parsed_v69437.get("currency") or "").upper() == "USD"
+                ):
+                    usd_label_v69437 = str(price_v69437)
+                elif source_url_v69437 and str(price_v69437) != "Unavailable":
+                    usd_lookup_v69437 = _workspace_exact_product_currency_price_v69437(
+                        source_url_v69437,
+                        "USD",
+                    )
+                    usd_label_v69437 = _workspace_woo_currency_price_label_v69437(
+                        usd_lookup_v69437
+                    )
+                    if usd_label_v69437:
+                        fx_label_v69437 = _workspace_woo_implied_fx_label_v69437(
+                            price_v69437,
+                            usd_label_v69437,
+                        )
+                    else:
+                        usd_label_v69437 = _workspace_fixed_usd_fallback_label_v69438(
+                            price_v69437
+                        )
+                        if usd_label_v69437:
+                            fx_label_v69437 = "1 CAD = 0.8100 USD"
 
-            fx_by_currency_v69347 = {}
-            for currency_v69347 in sorted(currencies_v69347):
-                fx_v69347 = _workspace_sales_usd_rate_v69347(currency_v69347)
-                if fx_v69347:
-                    fx_by_currency_v69347[currency_v69347] = fx_v69347
+                display_price_v69437 = str(price_v69437)
+                if usd_label_v69437 and not display_price_v69437.startswith("USD "):
+                    display_price_v69437 += f" ({usd_label_v69437})"
 
-            display_rows_v69347 = []
-            for title_v69347, variant_v69347, price_v69347, note_v69347 in live_rows_v69326:
-                usd_v69347 = _workspace_usd_equivalent_label_v69347(price_v69347, fx_by_currency_v69347)
-                display_price_v69347 = str(price_v69347)
-                if usd_v69347 and not display_price_v69347.startswith("USD "):
-                    display_price_v69347 += f" (≈ {usd_v69347})"
-                display_rows_v69347.append(
-                    (title_v69347, variant_v69347, display_price_v69347, note_v69347, usd_v69347)
+                display_rows_v69437.append(
+                    (
+                        title_v69437,
+                        variant_v69437,
+                        display_price_v69437,
+                        note_v69437,
+                        usd_label_v69437,
+                        fx_label_v69437,
+                    )
+                )
+
+                diagnostic_log(
+                    "workspace_sales_woo_usd_price_v69437",
+                    source_url=source_url_v69437[:700],
+                    store_price=str(price_v69437)[:120],
+                    usd_price=str(usd_label_v69437)[:120],
+                    fx=str(fx_label_v69437)[:120],
+                    fallback_used=bool(
+                        fx_label_v69437 == "1 CAD = 0.8100 USD"
+                        and str(usd_lookup_v69437.get("status") or "") != "verified"
+                    ),
+                    status=str(usd_lookup_v69437.get("status") or ""),
+                    reason=str(usd_lookup_v69437.get("reason") or "")[:160],
                 )
 
             diagnostic_log(
-                "workspace_sales_usd_price_output_v69347",
-                rows=len(display_rows_v69347),
-                converted=sum(1 for row_v69347 in display_rows_v69347 if str(row_v69347[4] or "")),
-                currencies=sorted(currencies_v69347),
-                fx_dates=sorted({
-                    str(v.get("date") or "")
-                    for v in fx_by_currency_v69347.values()
-                    if str(v.get("date") or "")
-                }),
+                "workspace_sales_woo_usd_price_output_v69437",
+                rows=len(display_rows_v69437),
+                usd_verified=sum(
+                    1
+                    for row_v69437 in display_rows_v69437
+                    if str(row_v69437[4] or "")
+                ),
             )
 
             lines_v69326 = [
                 "## Current price check",
                 "",
             ]
-            for _title_v69343, variant_v69343, display_price_v69347, _note_v69343, _usd_v69347 in display_rows_v69347:
-                variant_label_v69343 = str(variant_v69343 or "Current product").strip()
-                lines_v69326.append(f"**{variant_label_v69343} — {display_price_v69347}**")
+            for (
+                _title_v69437,
+                variant_v69437,
+                display_price_v69437,
+                _note_v69437,
+                _usd_v69437,
+                _fx_v69437,
+            ) in display_rows_v69437:
+                variant_label_v69437 = str(
+                    variant_v69437 or "Current product"
+                ).strip()
+                lines_v69326.append(
+                    f"**{variant_label_v69437} — {display_price_v69437}**"
+                )
+
             lines_v69326.extend([
                 "",
-                "| Product | Variant | Current price | Note |",
-                "|---|---|---:|---|",
+                "| Product | Variant | CAD / store price | WooCommerce USD price | Note |",
+                "|---|---|---:|---:|---|",
             ])
-            for title_v69347, variant_v69347, display_price_v69347, note_v69347, _usd_v69347 in display_rows_v69347:
-                # v69351: some WordPress page titles append pipe-delimited feature
-                # tokens (GPS | BT | WiFi | CarPlay | Android Auto). Those tokens
-                # are not part of the product name and can break Markdown table
-                # alignment. Keep only the actual product-title segment here.
-                table_title_v69351 = re.sub(
-                    r"\s+", " ", str(title_v69347 or "").split("|", 1)[0]
+            for (
+                title_v69437,
+                variant_v69437,
+                _display_price_v69437,
+                note_v69437,
+                usd_v69437,
+                _fx_v69437,
+            ), original_row_v69437 in zip(
+                display_rows_v69437,
+                live_rows_v69326,
+            ):
+                raw_store_price_v69437 = original_row_v69437[2]
+                table_title_v69437 = re.sub(
+                    r"\s+",
+                    " ",
+                    str(title_v69437 or "").split("|", 1)[0],
                 ).strip()
                 lines_v69326.append(
                     "| "
                     + " | ".join([
-                        _workspace_markdown_table_cell_v69347(table_title_v69351),
-                        _workspace_markdown_table_cell_v69347(variant_v69347),
-                        _workspace_markdown_table_cell_v69347(display_price_v69347),
-                        _workspace_markdown_table_cell_v69347(note_v69347),
+                        _workspace_markdown_table_cell_v69347(
+                            table_title_v69437
+                        ),
+                        _workspace_markdown_table_cell_v69347(
+                            variant_v69437
+                        ),
+                        _workspace_markdown_table_cell_v69347(
+                            raw_store_price_v69437
+                        ),
+                        _workspace_markdown_table_cell_v69347(
+                            usd_v69437 or "Unavailable"
+                        ),
+                        _workspace_markdown_table_cell_v69347(
+                            note_v69437
+                        ),
                     ])
                     + " |"
                 )
-            if fx_by_currency_v69347:
-                fx_dates_v69347 = sorted({
-                    str(v.get("date") or "")
-                    for v in fx_by_currency_v69347.values()
-                    if str(v.get("date") or "")
-                })
-                fx_date_note_v69347 = f" ({', '.join(fx_dates_v69347)})" if fx_dates_v69347 else ""
+
+            verified_fx_rows_v69437 = [
+                row_v69437
+                for row_v69437 in display_rows_v69437
+                if str(row_v69437[5] or "")
+            ]
+            if verified_fx_rows_v69437:
+                unique_fx_v69437 = list(dict.fromkeys(
+                    str(row_v69437[5])
+                    for row_v69437 in verified_fx_rows_v69437
+                    if str(row_v69437[5] or "")
+                ))
+                if len(unique_fx_v69437) == 1:
+                    lines_v69326.append(
+                        "\nWooCommerce effective exchange rate: "
+                        f"**{unique_fx_v69437[0]}**."
+                    )
+                else:
+                    lines_v69326.append(
+                        "\nUSD prices are taken directly from each exact "
+                        "AutoTecPro WooCommerce USD product page, so product-level "
+                        "rounding is preserved."
+                    )
+
+            if any(
+                str(row_v69437[2]) != "Unavailable"
+                and not str(row_v69437[4] or "")
+                for row_v69437 in display_rows_v69437
+            ):
                 lines_v69326.append(
-                    f"\nUSD equivalents are approximate and use the latest available exchange rate{fx_date_note_v69347}; the store-currency price shown above is the current product price."
-                )
-            elif currencies_v69347:
-                lines_v69326.append(
-                    "\nUSD conversion is temporarily unavailable; I will not guess an exchange rate."
+                    "\nFor any product where the WooCommerce USD page cannot be "
+                    "verified, AutoTecPro's fixed fallback rate of "
+                    "**1 CAD = 0.81 USD** is used."
                 )
             if verified_count_v69326 != len(selected_rows_v69326):
                 lines_v69326.append("\nIf I can’t confirm a current price, I’ll leave it unavailable rather than risk giving you the wrong amount.")
