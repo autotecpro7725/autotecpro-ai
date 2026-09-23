@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69434"
-AUTOTECPRO_RELEASE_BUILD = "v69434-hidden-path-runtime-hardening-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69435"
+AUTOTECPRO_RELEASE_BUILD = "v69435-hosted-intent-contract-cache-fix-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69434",
+        "app_release_v69435",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -65099,8 +65099,22 @@ def _workspace_atp_contract_cache_key_v69227(package):
 
 
 def _workspace_atp_product_contract_cached_v69227(package):
-    """Return the exact v69205 contract without re-parsing unchanged ATP metadata."""
+    """Return the exact v69205 contract without re-parsing unchanged ATP metadata.
+
+    v69435: a package-local prebuilt contract is newer/more authoritative than the
+    process cache. Woo/current-source enrichment may update the same package identity
+    after an older contract was cached, so always honor the package-local contract first.
+    """
     package = dict(package or {})
+    prebuilt_v69435 = package.get("_workspace_atp_product_contract_v69227")
+    if isinstance(prebuilt_v69435, dict):
+        diagnostic_log(
+            "workspace_sales_fresh_prebuilt_contract_used_v69435",
+            feature_summary=bool(
+                str(prebuilt_v69435.get("feature_summary") or "").strip()
+            ),
+        )
+        return prebuilt_v69435
     key = _workspace_atp_contract_cache_key_v69227(package)
     if not key:
         return _workspace_atp_product_contract_v69205(package)
@@ -65595,7 +65609,8 @@ def _workspace_sales_normalize_language_v69433(prompt_text):
         "funciton": "function", "funcitons": "functions",
         "specfication": "specification", "specfications": "specifications",
         "cluser": "cluster", "clutser": "cluster", "clster": "cluster",
-        "cockpt": "cockpit", "infotament": "infotainment",
+        "cockpt": "cockpit", "cockput": "cockpit", "cokpit": "cockpit",
+        "cockpitt": "cockpit", "infotament": "infotainment",
         "infotainmet": "infotainment", "infotainemnt": "infotainment",
         "scren": "screen", "screeen": "screen", "modle": "model",
         "modles": "models", "opiton": "option", "opitons": "options",
@@ -65645,7 +65660,7 @@ def _workspace_sales_intent_v69433(prompt_text):
         r"\b(feature|features|function|functions|spec|specs|specification|"
         r"specifications|details|"
         r"what does [a-z0-9][a-z0-9 ./'-]{0,60} (?:have|do)|"
-        r"what do [a-z0-9][a-z0-9 ./'-]{0,60} have|"
+        r"what do (?:they|these|those)(?:\s+[a-z0-9][a-z0-9 ./'-]{0,50})? have|"
         r"what can [a-z0-9][a-z0-9 ./'-]{0,60} do|"
         r"what comes with|what features come with|capability|capabilities|"
         r"key feature|key features|main feature|main features)\b", p
@@ -66050,6 +66065,32 @@ def _workspace_sales_feature_intro_v69426(package, contract=None):
     ).strip()
     if summary:
         return summary[:700].strip()
+
+    # v69435: protect exact current-source feature text from a stale/partial caller
+    # contract. Prefer package-local merged authority, then the exact Woo manifest.
+    for exact_contract_v69435 in (
+        package.get("_workspace_atp_product_contract_v69227"),
+        package.get("_workspace_sales_manifest_contract_v69411"),
+    ):
+        if not isinstance(exact_contract_v69435, dict):
+            continue
+        summary_v69435 = re.sub(
+            r"\s+",
+            " ",
+            str(exact_contract_v69435.get("feature_summary") or ""),
+        ).strip()
+        if summary_v69435:
+            diagnostic_log(
+                "workspace_sales_feature_intro_exact_contract_fallback_v69435",
+                source=(
+                    "prebuilt"
+                    if exact_contract_v69435
+                    is package.get("_workspace_atp_product_contract_v69227")
+                    else "woo_manifest"
+                ),
+                length=len(summary_v69435),
+            )
+            return summary_v69435[:700].strip()
 
     for source_text in (
         str(package.get("webpage_text") or ""),
