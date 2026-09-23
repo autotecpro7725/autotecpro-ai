@@ -1,3 +1,5 @@
+# AutoTecPro AI v69423 - strict current-Woo image authority + iPhone mobile cards
+# AutoTecPro AI v69422 - v69421 runtime regression fix: restore copy.deepcopy dependency
 # AutoTecPro AI v69421 - complete product-kind discovery + same-case kind refresh + fast primary carry-through
 # AutoTecPro AI v69420 - Sales exact-image prefetch + immediate publication
 # AutoTecPro AI v69419 - product-aware topical images + adaptive mobile product tables
@@ -84,12 +86,13 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69421"
-AUTOTECPRO_RELEASE_BUILD = "v69421-product-kind-discovery-refresh-fast-primary-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69423"
+AUTOTECPRO_RELEASE_BUILD = "v69423-current-woo-image-lock-ios-mobile-cards-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
 # ============================================================
+import copy
 import streamlit as st
 AUTOTECPRO_V69262_RELEASE = "v69298-v69272-reference-direct-recovery-fastpath-20260831"
 try:
@@ -323,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69421",
+        "app_release_v69423",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -6491,6 +6494,200 @@ st.markdown(
     @container atp-table-v69412 (max-width: 350px) {
         .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 colgroup {
             display: none !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# v69423: iPhone / touch-device hard stop against the v69419 adaptive 4-column
+# table override. Mobile Safari may expose a desktop-ish layout viewport even
+# while the actual chat region is phone-width, so viewport/container queries
+# alone are not sufficient. On coarse-pointer/touch devices, every 4+ column
+# assistant table is rendered as readable stacked cards. Desktop remains unchanged.
+st.markdown(
+    """
+    <style>
+    @media (hover: none) and (pointer: coarse) {
+        .atp-mobile-table-wrap-v69368 {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            overflow: visible !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 {
+            display: block !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            table-layout: auto !important;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead {
+            display: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody {
+            display: block !important;
+            width: 100% !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
+            display: block !important;
+            width: 100% !important;
+            margin: 0 0 12px 0 !important;
+            border: 1px solid rgba(148,163,184,.28) !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
+            background: rgba(15,23,42,.18) !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,.08) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 td {
+            display: grid !important;
+            grid-template-columns: minmax(96px, 31%) minmax(0, 1fr) !important;
+            gap: 10px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 10px 12px !important;
+            margin: 0 !important;
+            border: 0 !important;
+            border-bottom: 1px solid rgba(148,163,184,.18) !important;
+            text-align: left !important;
+            vertical-align: top !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: anywhere !important;
+            line-height: 1.42 !important;
+            font-size: .94rem !important;
+            background: transparent !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td:last-child,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td:last-child,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td:last-child {
+            border-bottom: 0 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
+            content: attr(data-atp-label) !important;
+            display: block !important;
+            min-width: 0 !important;
+            font-weight: 700 !important;
+            line-height: 1.3 !important;
+            white-space: normal !important;
+            overflow-wrap: break-word !important;
+            word-break: normal !important;
+            opacity: .92 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:first-child {
+            display: block !important;
+            width: 100% !important;
+            font-weight: 800 !important;
+            font-size: 1rem !important;
+            padding: 11px 12px !important;
+            background: rgba(59,130,246,.10) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:first-child::before {
+            content: "Option " !important;
+            display: inline !important;
+            margin-right: 3px !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:nth-child(2) {
+            display: grid !important;
+            grid-template-columns: minmax(96px, 31%) minmax(0, 1fr) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:nth-child(2)::before {
+            content: attr(data-atp-label) !important;
+            display: block !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 .atp-view-product-link-v69412 {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: auto !important;
+            min-height: 40px !important;
+            padding: 8px 12px !important;
+            border: 1px solid currentColor !important;
+            border-radius: 9px !important;
+            white-space: nowrap !important;
+            text-decoration: none !important;
+            font-weight: 700 !important;
+        }
+    }
+
+    /* iOS Safari-specific reinforcement for cases where pointer media features
+       are reported inconsistently inside an embedded/installed web app. */
+    @supports (-webkit-touch-callout: none) {
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 {
+            display: block !important;
+            width: 100% !important;
+            table-layout: auto !important;
+        }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup {
+            display: none !important;
+        }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
+            display: block !important;
+            width: 100% !important;
+        }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td {
+            display: grid !important;
+            grid-template-columns: minmax(96px, 31%) minmax(0, 1fr) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+        }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
+            content: attr(data-atp-label) !important;
+            display: block !important;
+            font-weight: 700 !important;
         }
     }
     </style>
@@ -68518,6 +68715,13 @@ def _workspace_sales_woocommerce_primary_record_v69413(package, prompt_text):
     record["website_workspace_destination_v69180"] = "Sales Database"
     record["website_atp_metadata_exact_v69180"] = True
     record["website_woocommerce_primary_v69413"] = True
+    try:
+        record["website_sales_current_woo_product_identity_v69423"] = (
+            _workspace_product_page_identity_v69396(source)
+        )
+    except Exception:
+        record["website_sales_current_woo_product_identity_v69423"] = ""
+    record["website_sales_current_woo_primary_url_v69423"] = image_url
     record["website_workspace_match_score_v69040"] = 3000.0
     return record
 
@@ -70198,9 +70402,11 @@ def _workspace_sales_exact_primary_final_lock_v69398(
         seen_urls.add(image_url)
         selected.append(record)
 
-    # v69413: current published WooCommerce catalog products already carry their
-    # exact primary product image. Use it only to fill a missing primary for that
-    # exact authoritative product identity; never broaden to another product.
+    # v69423: current published WooCommerce catalog primary image is the final
+    # primary-photo authority for an exact Woo product. Always replace any older
+    # indexed/vector primary for that SAME exact /product/ identity with the current
+    # Woo primary. This prevents stale/wrong hero leakage without broadening product
+    # authority. Products without an exact Woo primary retain the proven v69398 path.
     selected_by_page_v69413 = {}
     for record_v69413 in selected:
         page_v69413 = _workspace_product_page_identity_v69396(
@@ -70214,7 +70420,7 @@ def _workspace_sales_exact_primary_final_lock_v69398(
         if not source_v69413:
             continue
         page_v69413 = _workspace_product_page_identity_v69396(source_v69413)
-        if not page_v69413 or page_v69413 in selected_by_page_v69413:
+        if not page_v69413:
             continue
         woo_primary_v69413 = _workspace_sales_woocommerce_primary_record_v69413(
             pkg_v69413,
@@ -70229,9 +70435,29 @@ def _workspace_sales_exact_primary_final_lock_v69398(
         ).strip()
         if not image_v69413.startswith("https://"):
             continue
+        prior_primary_v69423 = selected_by_page_v69413.get(page_v69413)
         woo_primary_v69413["website_sales_exact_primary_final_lock_v69398"] = True
         woo_primary_v69413["website_sales_exact_product_identity_v69398"] = page_v69413
+        woo_primary_v69413["website_sales_current_woo_primary_lock_v69423"] = True
         selected_by_page_v69413[page_v69413] = woo_primary_v69413
+        if prior_primary_v69423:
+            prior_url_v69423 = str(
+                prior_primary_v69423.get("archive_web_url")
+                or prior_primary_v69423.get("data_url")
+                or ""
+            ).strip()
+            current_url_v69423 = str(
+                woo_primary_v69413.get("archive_web_url")
+                or woo_primary_v69413.get("data_url")
+                or ""
+            ).strip()
+            if prior_url_v69423 != current_url_v69423:
+                diagnostic_log(
+                    "workspace_sales_stale_primary_replaced_by_current_woo_v69423",
+                    product_identity=page_v69413[:220],
+                    prior_url=prior_url_v69423[:500],
+                    current_url=current_url_v69423[:500],
+                )
 
     ordered_selected_v69413 = []
     for pkg_v69413 in packages:
