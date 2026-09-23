@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69438"
-AUTOTECPRO_RELEASE_BUILD = "v69438-woo-usd-with-fixed-081-fallback-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69439"
+AUTOTECPRO_RELEASE_BUILD = "v69439-current-price-view-link-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69438",
+        "app_release_v69439",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -7376,10 +7376,10 @@ def table_to_html(table_lines):
                 quote=True,
             )
             cell_html_v69412 = inline_format(cell)
-            if (
-                product_results_table_v69412
-                and normalized_headers_v69412[cell_index_v69410] == "product link"
-            ):
+            if normalized_headers_v69412[cell_index_v69410] in {
+                "product link",
+                "view link",
+            }:
                 raw_url_v69412 = str(cell or "").strip()
                 if re.match(r"^https?://[^\s]+$", raw_url_v69412, flags=re.I):
                     safe_url_v69412 = html.escape(raw_url_v69412, quote=True)
@@ -67246,7 +67246,7 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             answer = (
                 "### Current prices\n\n"
                 + table(
-                    ("Option", "Product", "Fitment", "CAD price", "USD price", "Source"),
+                    ("Option", "Product", "Fitment", "CAD price", "USD price", "View link"),
                     [
                         (
                             str(i_v69436),
@@ -67254,7 +67254,7 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
                             r_v69436[1],
                             r_v69436[2],
                             r_v69436[5] or "Unavailable",
-                            r_v69436[3],
+                            r_v69436[4],
                         )
                         for i_v69436, r_v69436 in enumerate(
                             price_rows_v69436, 1
