@@ -1,3 +1,5 @@
+# AutoTecPro AI v69420 - Sales exact-image prefetch + immediate publication
+# AutoTecPro AI v69419 - product-aware topical images + adaptive mobile product tables
 # AutoTecPro AI v69418 - automatic compatibility visuals for same-case fitment
 # AutoTecPro AI v69417 - accurate fitment columns + Woo topical identity repair
 # AutoTecPro AI v69416 - typo-tolerant Sales discovery + product-kind classifier hardening
@@ -81,8 +83,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69418"
-AUTOTECPRO_RELEASE_BUILD = "v69418-auto-compatibility-visuals-20260922"
+AUTOTECPRO_RELEASE_VERSION = "v69420"
+AUTOTECPRO_RELEASE_BUILD = "v69420-sales-exact-image-prefetch-immediate-publication-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -320,7 +322,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69418",
+        "app_release_v69420",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -6354,6 +6356,148 @@ st.markdown(
 )
 
 
+
+# v69419: make the wrapper a real CSS container, then keep the common 4-column
+# product result as an adaptive table whenever there is enough chat-bubble width.
+# Very narrow containers and 5+/6+ column specification tables keep the proven
+# stacked-card presentation.
+st.markdown(
+    """
+    <style>
+    .atp-mobile-table-wrap-v69368 {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+        container-type: inline-size !important;
+        container-name: atp-table-v69412 !important;
+    }
+
+    @container atp-table-v69412 (min-width: 351px) and (max-width: 720px) {
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 {
+            display: table !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+            border-spacing: 0 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 colgroup {
+            display: table-column-group !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-option-v69419 {
+            width: clamp(42px, 10cqw, 54px) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-fitment-v69419 {
+            width: clamp(62px, 17cqw, 82px) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-link-v69419 {
+            width: clamp(84px, 22cqw, 108px) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-product-v69419 {
+            width: auto !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 thead {
+            display: table-header-group !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tbody {
+            display: table-row-group !important;
+            width: auto !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr {
+            display: table-row !important;
+            width: auto !important;
+            margin: 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 th,
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 td {
+            display: table-cell !important;
+            width: auto !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+            padding: clamp(7px, 1.8cqw, 10px) clamp(5px, 1.6cqw, 9px) !important;
+            margin: 0 !important;
+            border: 1px solid rgba(148,163,184,.26) !important;
+            text-align: left !important;
+            vertical-align: top !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+            line-height: 1.38 !important;
+            background: transparent !important;
+            font-size: clamp(.84rem, 3.45cqw, .98rem) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 th {
+            font-weight: 700 !important;
+            line-height: 1.25 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 td::before {
+            content: none !important;
+            display: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:first-child {
+            display: table-cell !important;
+            width: auto !important;
+            font-weight: 600 !important;
+            font-size: inherit !important;
+            padding: clamp(7px, 1.8cqw, 10px) clamp(5px, 1.6cqw, 9px) !important;
+            background: transparent !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:first-child::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:nth-child(2)::before {
+            content: none !important;
+            display: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:nth-child(2) {
+            display: table-cell !important;
+            width: auto !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 .atp-view-product-link-v69412 {
+            display: inline !important;
+            min-height: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            white-space: normal !important;
+            line-height: 1.35 !important;
+            text-decoration: underline !important;
+        }
+    }
+
+    /* Extra-narrow phone/chat bubbles retain the card layout automatically. */
+    @container atp-table-v69412 (max-width: 350px) {
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 colgroup {
+            display: none !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 # Final isolated history-row presentation.
 # The title and action menu are siblings; no Streamlit columns are used.
 st.markdown(
@@ -6835,7 +6979,8 @@ def table_to_html(table_lines):
         )
     else:
         html_rows.append(
-            '<div class="atp-mobile-table-wrap-v69368" style="display:contents;">'
+            '<div class="atp-mobile-table-wrap-v69368" '
+            'style="display:block;width:100%;max-width:100%;min-width:0;">'
         )
 
     if widths:
@@ -6851,6 +6996,13 @@ def table_to_html(table_lines):
         html_rows.append("<colgroup>")
         for width in widths:
             html_rows.append(f'<col style="width:{int(width)}%;">')
+        html_rows.append("</colgroup>")
+    elif product_results_table_v69412 and column_count_v69368 == 4:
+        html_rows.append('<colgroup class="atp-product-colgroup-v69419">')
+        html_rows.append('<col class="atp-product-col-option-v69419">')
+        html_rows.append('<col class="atp-product-col-product-v69419">')
+        html_rows.append('<col class="atp-product-col-fitment-v69419">')
+        html_rows.append('<col class="atp-product-col-link-v69419">')
         html_rows.append("</colgroup>")
 
     html_rows.append("<thead><tr>")
@@ -70482,6 +70634,351 @@ def _workspace_sales_exact_topic_semantic_record_v69401(
 
 
 
+
+
+def _workspace_sales_authority_packages_v69420(authority):
+    authority = dict(authority or {})
+    status = str(authority.get("status") or "")
+    if status == "recovered_multi":
+        return [
+            dict(pkg)
+            for pkg in (authority.get("packages") or [])
+            if isinstance(pkg, dict)
+        ]
+    if status == "recovered":
+        one = dict(authority.get("package") or authority.get("row") or {})
+        if not one:
+            one = dict(authority)
+        return [one] if one else []
+    return []
+
+
+def _workspace_sales_image_manifest_key_v69420(
+    workspace_label,
+    prompt_text,
+    authority,
+    conversation_id="",
+):
+    """Conversation/workspace/product/topic scoped key for exact image manifests."""
+    workspace = str(workspace_label or "")
+    destination = (
+        "Sales Database"
+        if is_sales_workspace(workspace)
+        else "Marketing Database"
+        if is_marketing_workspace(workspace)
+        else ""
+    )
+    if not destination:
+        return ""
+
+    page_ids = []
+    for pkg in _workspace_sales_authority_packages_v69420(authority):
+        source = str(pkg.get("source_url") or "").strip()
+        if not source:
+            continue
+        try:
+            page_id = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            page_id = ""
+        if page_id:
+            page_ids.append(page_id)
+    if not page_ids:
+        return ""
+
+    visual = bool(_workspace_sales_visual_request_v69418(prompt_text))
+    topic_tokens = (
+        sorted(_workspace_sales_visual_topic_tokens_v69401(prompt_text))
+        if visual
+        else []
+    )
+    mode = "topical:" + ",".join(topic_tokens) if topic_tokens else "primary"
+    raw = "|".join([
+        str(conversation_id or ""),
+        destination,
+        mode,
+        *page_ids,
+    ])
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+
+def _workspace_sales_fast_primary_manifest_v69420(
+    workspace_label,
+    prompt_text,
+    authority,
+    max_images=12,
+):
+    """Fast current-Woo primary manifest. Multi-product output is all-or-nothing."""
+    if not is_sales_workspace(workspace_label):
+        return []
+
+    packages = _workspace_sales_authority_packages_v69420(authority)
+    if not packages:
+        return []
+
+    expected_pages = []
+    output = []
+    seen_pages = set()
+
+    for pkg in packages:
+        source = str(pkg.get("source_url") or "").strip()
+        if not source:
+            return []
+        try:
+            page_id = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            return []
+        if not page_id:
+            return []
+        if page_id not in expected_pages:
+            expected_pages.append(page_id)
+        if page_id in seen_pages:
+            continue
+
+        record = _workspace_sales_woocommerce_primary_record_v69413(
+            pkg,
+            prompt_text,
+        )
+        if not isinstance(record, dict):
+            return []
+        image_url = str(
+            record.get("archive_web_url")
+            or record.get("data_url")
+            or ""
+        ).strip()
+        if not image_url.startswith("https://"):
+            return []
+
+        record = dict(record)
+        record["website_sales_exact_primary_final_lock_v69398"] = True
+        record["website_sales_exact_product_identity_v69398"] = page_id
+        record["website_sales_fast_manifest_v69420"] = True
+        record["website_sales_fast_manifest_mode_v69420"] = "primary"
+        output.append(record)
+        seen_pages.add(page_id)
+
+    if len(output) != len(expected_pages):
+        return []
+
+    output = output[: max(1, int(max_images or 1))]
+    diagnostic_log(
+        "workspace_sales_fast_primary_manifest_v69420",
+        products=len(expected_pages),
+        published=len(output),
+    )
+    return output
+
+
+def _workspace_sales_fast_topical_manifest_v69420(
+    workspace_label,
+    prompt_text,
+    authority,
+    max_images=12,
+):
+    """Parallel exact-current-page topical manifest for already-authoritative products."""
+    workspace = str(workspace_label or "")
+    if not (
+        is_sales_workspace(workspace)
+        or is_marketing_workspace(workspace)
+    ):
+        return []
+    if not _workspace_sales_visual_request_v69418(prompt_text):
+        return []
+
+    prompt_tokens = set(
+        _workspace_sales_visual_topic_tokens_v69401(prompt_text)
+    )
+    if not prompt_tokens:
+        return []
+
+    packages = _workspace_sales_authority_packages_v69420(authority)
+    if not packages:
+        return []
+
+    def resolve_one(pkg):
+        try:
+            record = _workspace_sales_exact_topic_semantic_record_v69401(
+                workspace_label,
+                prompt_text,
+                pkg,
+            )
+        except Exception:
+            return None
+        if not isinstance(record, dict):
+            return None
+
+        source = str(pkg.get("source_url") or "").strip()
+        try:
+            page_id = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            page_id = ""
+        if not page_id:
+            return None
+
+        record = dict(record)
+        record["website_sales_exact_topic_visual_lock_v69399"] = True
+        record["website_sales_exact_product_identity_v69399"] = page_id
+        record["website_sales_fast_manifest_v69420"] = True
+        record["website_sales_fast_manifest_mode_v69420"] = "topical"
+        return record
+
+    resolved = [None] * len(packages)
+    if len(packages) == 1:
+        resolved[0] = resolve_one(packages[0])
+    else:
+        try:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+
+            workers = max(1, min(4, len(packages)))
+            with ThreadPoolExecutor(
+                max_workers=workers,
+                thread_name_prefix="atp-sales-exact-image",
+            ) as pool:
+                future_map = {
+                    pool.submit(resolve_one, pkg): index
+                    for index, pkg in enumerate(packages)
+                }
+                for future in as_completed(future_map):
+                    index = future_map[future]
+                    try:
+                        resolved[index] = future.result()
+                    except Exception:
+                        resolved[index] = None
+        except Exception:
+            resolved = [resolve_one(pkg) for pkg in packages]
+
+    output = [
+        row for row in resolved
+        if isinstance(row, dict)
+    ]
+    output = _workspace_sales_product_aware_image_dedupe_v69419(output)
+    output = output[: max(1, int(max_images or 1))]
+
+    diagnostic_log(
+        "workspace_sales_fast_topical_manifest_v69420",
+        workspace=workspace,
+        products=len(packages),
+        published=len(output),
+        missing=max(0, len(packages) - len(output)),
+        prompt_tokens=sorted(prompt_tokens)[:20],
+    )
+    return output
+
+
+def _workspace_sales_exact_image_manifest_v69420(
+    workspace_label,
+    prompt_text,
+    authority,
+    max_images=12,
+):
+    """Technical-style exact authority -> exact image manifest fast path."""
+    if str((authority or {}).get("status") or "") not in {
+        "recovered",
+        "recovered_multi",
+    }:
+        return {"mode": "", "images": []}
+
+    visual = bool(_workspace_sales_visual_request_v69418(prompt_text))
+    topic_tokens = (
+        set(_workspace_sales_visual_topic_tokens_v69401(prompt_text))
+        if visual
+        else set()
+    )
+
+    if visual and topic_tokens:
+        return {
+            "mode": "topical",
+            "images": _workspace_sales_fast_topical_manifest_v69420(
+                workspace_label,
+                prompt_text,
+                authority,
+                max_images=max_images,
+            ),
+        }
+
+    if is_sales_workspace(workspace_label):
+        return {
+            "mode": "primary",
+            "images": _workspace_sales_fast_primary_manifest_v69420(
+                workspace_label,
+                prompt_text,
+                authority,
+                max_images=max_images,
+            ),
+        }
+
+    return {"mode": "", "images": []}
+
+
+def _workspace_sales_image_records_signature_v69420(images):
+    """Stable signature used only to prevent duplicate early/final gallery rendering."""
+    rows = []
+    for item in images or []:
+        if not isinstance(item, dict):
+            continue
+        url = str(
+            item.get("archive_web_url")
+            or item.get("data_url")
+            or ""
+        ).strip()
+        product_id = str(
+            item.get("website_sales_exact_product_identity_v69399")
+            or item.get("website_sales_exact_product_identity_v69398")
+            or item.get("website_sales_exact_product_identity_v69401")
+            or ""
+        ).strip()
+        if url:
+            rows.append((product_id.casefold(), url))
+    return tuple(rows)
+
+
+def _workspace_sales_product_aware_image_dedupe_v69419(images):
+    """Dedupe Sales/Marketing images without losing exact product associations.
+
+    Exact topical/reference images are unique by (exact product identity, image URL/hash).
+    Therefore two exact products may legitimately publish the same authored compatibility
+    graphic. Ordinary images retain the historical URL/hash dedupe behavior.
+    """
+    output = []
+    seen = set()
+    for record in images or []:
+        if not isinstance(record, dict):
+            continue
+        item = dict(record)
+        image_identity = str(
+            item.get("website_image_sha256")
+            or item.get("archive_web_url")
+            or item.get("data_url")
+            or ""
+        ).strip()
+        if not image_identity:
+            continue
+
+        exact_product_identity = str(
+            item.get("website_sales_exact_product_identity_v69399")
+            or item.get("website_sales_exact_product_identity_v69401")
+            or ""
+        ).strip()
+        exact_topical = bool(
+            item.get("website_sales_exact_topic_visual_lock_v69399")
+            or item.get("website_sales_exact_topic_semantic_fallback_v69401")
+        )
+
+        if exact_topical and exact_product_identity:
+            dedupe_key = (
+                "exact-topic",
+                exact_product_identity.casefold(),
+                image_identity,
+            )
+        else:
+            dedupe_key = ("ordinary", image_identity)
+
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        output.append(item)
+    return output
+
+
 def _workspace_sales_exact_topic_visual_final_lock_v69399(
     workspace_label,
     prompt_text,
@@ -70630,16 +71127,31 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
                 "website_atp_search_terms_v69399"
             ) or ""
         ).strip()
-        semantic_tokens_v69401 = set(
-            _website_image_tokens_v68883(
-                " ".join((
-                    role_v69401,
-                    topic_v69401,
-                    terms_v69401,
-                ))
+        stored_overlap_v69419 = {
+            str(token).strip().casefold()
+            for token in (
+                fallback_record_v69401.get(
+                    "website_sales_exact_topic_overlap_v69401"
+                )
+                or fallback_record_v69401.get(
+                    "website_sales_exact_topic_overlap_v69399"
+                )
+                or []
             )
-        )
-        overlap_v69401 = prompt_tokens & semantic_tokens_v69401
+            if str(token).strip()
+        }
+        overlap_v69401 = prompt_tokens & stored_overlap_v69419
+        if not overlap_v69401:
+            semantic_tokens_v69401 = set(
+                _website_image_tokens_v68883(
+                    " ".join((
+                        role_v69401,
+                        topic_v69401,
+                        terms_v69401,
+                    ))
+                )
+            )
+            overlap_v69401 = prompt_tokens & semantic_tokens_v69401
         if not overlap_v69401:
             continue
 
@@ -104387,6 +104899,110 @@ else:
                             use_file_search=False,
                         )
 
+                    # v69420: Technical-style image prefetch. Exact product authority
+                    # is already proven here, so image work can overlap deterministic
+                    # text rendering without changing product/topic/image gates.
+                    workspace_sales_image_prefetch_executor_v69420 = None
+                    workspace_sales_image_prefetch_future_v69420 = None
+                    workspace_sales_prefetched_manifest_v69420 = {}
+                    workspace_sales_manifest_key_v69420 = ""
+                    if (
+                        (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+                        and str(
+                            (workspace_atp_authority_v69180 or {}).get("status") or ""
+                        ) in {"recovered", "recovered_multi"}
+                        and not bool(
+                            locals().get(
+                                "workspace_same_case_nonvisual_no_repeat_images_v69407"
+                            )
+                        )
+                    ):
+                        try:
+                            workspace_sales_manifest_key_v69420 = (
+                                _workspace_sales_image_manifest_key_v69420(
+                                    assistant,
+                                    interaction_prompt,
+                                    workspace_atp_authority_v69180,
+                                    conversation_id=st.session_state.get(
+                                        "conversation_id"
+                                    ),
+                                )
+                            )
+                            manifest_cache_v69420 = st.session_state.setdefault(
+                                "_workspace_sales_exact_image_manifest_cache_v69420",
+                                {},
+                            )
+                            cached_manifest_v69420 = dict(
+                                manifest_cache_v69420.get(
+                                    workspace_sales_manifest_key_v69420
+                                )
+                                or {}
+                            )
+                            if cached_manifest_v69420.get("images"):
+                                workspace_sales_prefetched_manifest_v69420 = (
+                                    cached_manifest_v69420
+                                )
+                                diagnostic_log(
+                                    "workspace_sales_exact_image_manifest_cache_hit_v69420",
+                                    mode=str(
+                                        cached_manifest_v69420.get("mode") or ""
+                                    ),
+                                    published=len(
+                                        cached_manifest_v69420.get("images") or []
+                                    ),
+                                )
+                            elif workspace_sales_manifest_key_v69420:
+                                from concurrent.futures import ThreadPoolExecutor
+                                workspace_sales_image_prefetch_executor_v69420 = (
+                                    ThreadPoolExecutor(
+                                        max_workers=1,
+                                        thread_name_prefix="atp-sales-image-prefetch",
+                                    )
+                                )
+                                workspace_sales_image_prefetch_future_v69420 = (
+                                    workspace_sales_image_prefetch_executor_v69420.submit(
+                                        _workspace_sales_exact_image_manifest_v69420,
+                                        assistant,
+                                        interaction_prompt,
+                                        workspace_atp_authority_v69180,
+                                        12,
+                                    )
+                                )
+                                diagnostic_log(
+                                    "workspace_sales_exact_image_prefetch_started_v69420",
+                                    workspace=str(assistant),
+                                    authority_status=str(
+                                        workspace_atp_authority_v69180.get("status")
+                                        or ""
+                                    ),
+                                    products=(
+                                        len(
+                                            workspace_atp_authority_v69180.get(
+                                                "packages"
+                                            )
+                                            or []
+                                        )
+                                        if str(
+                                            workspace_atp_authority_v69180.get(
+                                                "status"
+                                            )
+                                            or ""
+                                        )
+                                        == "recovered_multi"
+                                        else 1
+                                    ),
+                                )
+                        except Exception as prefetch_error_v69420:
+                            workspace_sales_image_prefetch_executor_v69420 = None
+                            workspace_sales_image_prefetch_future_v69420 = None
+                            diagnostic_log(
+                                "workspace_sales_exact_image_prefetch_start_failed_v69420",
+                                error_type=type(
+                                    prefetch_error_v69420
+                                ).__name__,
+                                error=str(prefetch_error_v69420)[:500],
+                            )
+
                     workspace_atp_direct_answer_v69205 = ""
                     if (
                         is_sales_workspace(assistant)
@@ -105176,6 +105792,137 @@ else:
                     )
                     tokens_used = None
 
+        # v69420: render already-authorized exact Sales/Marketing images immediately
+        # after text completes, before the legacy late image-recovery/save pipeline.
+        workspace_sales_early_images_rendered_v69420 = False
+        workspace_sales_early_image_signature_v69420 = ()
+        if (
+            not is_graphic_generation
+            and (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+            and str(
+                (locals().get("workspace_atp_authority_v69180") or {}).get(
+                    "status"
+                )
+                or ""
+            ) in {"recovered", "recovered_multi"}
+            and not bool(
+                locals().get(
+                    "workspace_same_case_nonvisual_no_repeat_images_v69407"
+                )
+            )
+        ):
+            try:
+                fast_manifest_v69420 = dict(
+                    locals().get(
+                        "workspace_sales_prefetched_manifest_v69420"
+                    )
+                    or {}
+                )
+                future_v69420 = locals().get(
+                    "workspace_sales_image_prefetch_future_v69420"
+                )
+                if (
+                    not fast_manifest_v69420.get("images")
+                    and future_v69420 is not None
+                ):
+                    try:
+                        fast_manifest_v69420 = dict(
+                            future_v69420.result(timeout=1.25) or {}
+                        )
+                    except Exception as prefetch_wait_error_v69420:
+                        diagnostic_log(
+                            "workspace_sales_exact_image_prefetch_not_ready_v69420",
+                            error_type=type(
+                                prefetch_wait_error_v69420
+                            ).__name__,
+                        )
+                        fast_manifest_v69420 = {}
+
+                if fast_manifest_v69420.get("images"):
+                    workspace_sales_prefetched_manifest_v69420 = (
+                        fast_manifest_v69420
+                    )
+                    manifest_key_v69420 = str(
+                        locals().get(
+                            "workspace_sales_manifest_key_v69420"
+                        )
+                        or ""
+                    )
+                    if manifest_key_v69420:
+                        manifest_cache_v69420 = st.session_state.setdefault(
+                            "_workspace_sales_exact_image_manifest_cache_v69420",
+                            {},
+                        )
+                        manifest_cache_v69420[
+                            manifest_key_v69420
+                        ] = {
+                            "mode": str(
+                                fast_manifest_v69420.get("mode") or ""
+                            ),
+                            "images": [
+                                dict(x)
+                                for x in (
+                                    fast_manifest_v69420.get("images") or []
+                                )
+                                if isinstance(x, dict)
+                            ],
+                        }
+                        while len(manifest_cache_v69420) > 24:
+                            manifest_cache_v69420.pop(
+                                next(iter(manifest_cache_v69420))
+                            )
+
+                    fast_images_v69420 = [
+                        dict(x)
+                        for x in (
+                            fast_manifest_v69420.get("images") or []
+                        )
+                        if isinstance(x, dict)
+                    ]
+                    if fast_images_v69420:
+                        generated_images.extend(
+                            fast_images_v69420
+                        )
+                        generated_images = (
+                            _workspace_sales_product_aware_image_dedupe_v69419(
+                                generated_images
+                            )
+                        )
+                        preview_html_v69420 = render_image_previews(
+                            fast_images_v69420
+                        )
+                        if preview_html_v69420:
+                            st.markdown(
+                                preview_html_v69420,
+                                unsafe_allow_html=True,
+                            )
+                            workspace_sales_early_images_rendered_v69420 = True
+                            workspace_sales_early_image_signature_v69420 = (
+                                _workspace_sales_image_records_signature_v69420(
+                                    fast_images_v69420
+                                )
+                            )
+                            diagnostic_log(
+                                "workspace_sales_exact_images_early_rendered_v69420",
+                                workspace=str(assistant),
+                                mode=str(
+                                    fast_manifest_v69420.get("mode") or ""
+                                ),
+                                published=len(
+                                    fast_images_v69420
+                                ),
+                            )
+            except Exception as early_image_error_v69420:
+                diagnostic_log(
+                    "workspace_sales_exact_images_early_render_failed_v69420",
+                    error_type=type(
+                        early_image_error_v69420
+                    ).__name__,
+                    error=str(
+                        early_image_error_v69420
+                    )[:500],
+                )
+
         if document_generation_requested and not is_graphic_generation:
             try:
                 document_source_text = answer
@@ -105805,17 +106552,83 @@ else:
             ) in {"recovered", "recovered_multi"}
         ):
             try:
-                workspace_atp_images_v69180 = _workspace_atp_exact_images_v69180(
-                    assistant, interaction_prompt, workspace_atp_authority_v69180, max_images=3
-                )
-                if workspace_atp_images_v69180:
-                    generated_images.extend(workspace_atp_images_v69180)
-                    generated_images = _dedupe_website_chat_images_v68883(generated_images)
-                    diagnostic_log(
-                        "workspace_atp_exact_images_bound_v69180",
-                        workspace=str(assistant),
-                        recovered=len(workspace_atp_images_v69180),
+                fast_manifest_late_v69420 = dict(
+                    locals().get(
+                        "workspace_sales_prefetched_manifest_v69420"
                     )
+                    or {}
+                )
+                if not fast_manifest_late_v69420.get("images"):
+                    future_late_v69420 = locals().get(
+                        "workspace_sales_image_prefetch_future_v69420"
+                    )
+                    if future_late_v69420 is not None:
+                        try:
+                            fast_manifest_late_v69420 = dict(
+                                future_late_v69420.result(
+                                    timeout=4.0
+                                )
+                                or {}
+                            )
+                            workspace_sales_prefetched_manifest_v69420 = (
+                                fast_manifest_late_v69420
+                            )
+                        except Exception as late_prefetch_error_v69420:
+                            diagnostic_log(
+                                "workspace_sales_exact_image_prefetch_late_timeout_v69420",
+                                error_type=type(
+                                    late_prefetch_error_v69420
+                                ).__name__,
+                            )
+
+                if fast_manifest_late_v69420.get("images"):
+                    workspace_atp_images_v69180 = [
+                        dict(x)
+                        for x in (
+                            fast_manifest_late_v69420.get("images")
+                            or []
+                        )
+                        if isinstance(x, dict)
+                    ]
+                    generated_images.extend(
+                        workspace_atp_images_v69180
+                    )
+                    generated_images = (
+                        _workspace_sales_product_aware_image_dedupe_v69419(
+                            generated_images
+                        )
+                    )
+                    diagnostic_log(
+                        "workspace_sales_exact_image_manifest_reused_v69420",
+                        workspace=str(assistant),
+                        mode=str(
+                            fast_manifest_late_v69420.get("mode") or ""
+                        ),
+                        recovered=len(
+                            workspace_atp_images_v69180
+                        ),
+                    )
+                else:
+                    workspace_atp_images_v69180 = _workspace_atp_exact_images_v69180(
+                        assistant,
+                        interaction_prompt,
+                        workspace_atp_authority_v69180,
+                        max_images=3,
+                    )
+                    if workspace_atp_images_v69180:
+                        generated_images.extend(
+                            workspace_atp_images_v69180
+                        )
+                        generated_images = _dedupe_website_chat_images_v68883(
+                            generated_images
+                        )
+                        diagnostic_log(
+                            "workspace_atp_exact_images_bound_v69180",
+                            workspace=str(assistant),
+                            recovered=len(
+                                workspace_atp_images_v69180
+                            ),
+                        )
             except Exception as error_v69180:
                 diagnostic_log(
                     "workspace_atp_exact_images_failed_v69180",
@@ -105885,6 +106698,14 @@ else:
                 or is_marketing_workspace(assistant)
             )
             and _website_image_explicit_visual_request_v68888(interaction_prompt)
+            and not (
+                (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
+                and bool(
+                    (locals().get(
+                        "workspace_sales_prefetched_manifest_v69420"
+                    ) or {}).get("images")
+                )
+            )
         ):
             try:
                 explicit_rows_v69120 = list(
@@ -106232,8 +107053,10 @@ else:
                             and str(image.get("source") or "") == "website_knowledge"
                         )
                     ]
-                    generated_images = _dedupe_website_chat_images_v68883(
-                        non_web_v69398 + sales_final_exact_images_v69399
+                    generated_images = (
+                        _workspace_sales_product_aware_image_dedupe_v69419(
+                            non_web_v69398 + sales_final_exact_images_v69399
+                        )
                     )
                     if sales_exact_topic_visuals_v69399:
                         diagnostic_log(
@@ -106641,14 +107464,46 @@ else:
                 if str(image.get("source") or "") == "website_knowledge"
             ]
             if website_knowledge_images_v68870:
-                website_preview_html_v68870 = render_image_previews(
-                    website_knowledge_images_v68870
-                )
-                if website_preview_html_v68870:
-                    st.markdown(
-                        website_preview_html_v68870,
-                        unsafe_allow_html=True,
+                final_website_signature_v69420 = (
+                    _workspace_sales_image_records_signature_v69420(
+                        website_knowledge_images_v68870
                     )
+                    if (
+                        is_sales_workspace(assistant)
+                        or is_marketing_workspace(assistant)
+                    )
+                    else ()
+                )
+                early_signature_v69420 = tuple(
+                    locals().get(
+                        "workspace_sales_early_image_signature_v69420"
+                    )
+                    or ()
+                )
+                exact_early_duplicate_v69420 = bool(
+                    locals().get(
+                        "workspace_sales_early_images_rendered_v69420"
+                    )
+                    and early_signature_v69420
+                    and final_website_signature_v69420
+                    == early_signature_v69420
+                )
+                if exact_early_duplicate_v69420:
+                    diagnostic_log(
+                        "workspace_sales_final_image_duplicate_render_skipped_v69420",
+                        published=len(
+                            website_knowledge_images_v68870
+                        ),
+                    )
+                else:
+                    website_preview_html_v68870 = render_image_previews(
+                        website_knowledge_images_v68870
+                    )
+                    if website_preview_html_v68870:
+                        st.markdown(
+                            website_preview_html_v68870,
+                            unsafe_allow_html=True,
+                        )
 
             non_library_generated_images = [
                 image for image in generated_images
@@ -106792,6 +107647,18 @@ else:
             "chat_managed_uploads",
             "chat_managed_upload_generation",
         )
+
+        executor_cleanup_v69420 = locals().get(
+            "workspace_sales_image_prefetch_executor_v69420"
+        )
+        if executor_cleanup_v69420 is not None:
+            try:
+                executor_cleanup_v69420.shutdown(
+                    wait=False,
+                    cancel_futures=False,
+                )
+            except Exception:
+                pass
 
         st.session_state.scroll_to_bottom = True
         diagnostic_log(
