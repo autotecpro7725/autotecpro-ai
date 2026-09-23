@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69423"
-AUTOTECPRO_RELEASE_BUILD = "v69423-current-woo-image-lock-ios-mobile-cards-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69424"
+AUTOTECPRO_RELEASE_BUILD = "v69424-broad-woo-membership-deterministic-output-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69423",
+        "app_release_v69424",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -69765,9 +69765,36 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
         contract_make = str(contract.get("make") or "").strip()
         contract_make_norm = _norm(contract_make)
 
-        if pf and fam and not pf.issubset(fam):
+        # v69424: the current Woo broad manifest has ALREADY verified published
+        # catalog membership, product kind, vehicle family and requested year.
+        # Vector/learned metadata is enrichment only and must never remove one of
+        # those exact Woo products because its older family/model representation
+        # is narrower/different (e.g. RAM vs RAM 1500/2500/3500).
+        source_v69424 = str(package.get("source_url") or "").strip()
+        try:
+            source_id_v69424 = (
+                _workspace_product_page_identity_v69396(source_v69424)
+                if source_v69424 else ""
+            )
+        except Exception:
+            source_id_v69424 = source_v69424.rstrip("/").casefold()
+        broad_manifest_member_v69424 = bool(
+            broad_fitment_discovery_hint_v69357
+            and source_id_v69424
+            and source_id_v69424 in manifest_by_source_v69411
+        )
+
+        if (
+            pf and fam
+            and not _workspace_sales_family_sets_match_v69416(pf, fam)
+            and not broad_manifest_member_v69424
+        ):
             continue
-        if py and yrs and not py.issubset(yrs):
+        if (
+            py and yrs
+            and not py.issubset(yrs)
+            and not broad_manifest_member_v69424
+        ):
             continue
         if ps and sys and not ps.issubset(sys):
             continue
@@ -69776,13 +69803,16 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
 
         matched_models = [m for m in explicit_models if _norm(m) in contract_model_norm]
         broad_family_year_proven_v69411 = bool(
-            broad_fitment_discovery_hint_v69357
-            and pf
-            and fam
-            and pf.issubset(fam)
-            and (
-                not py
-                or (yrs and py.issubset(yrs))
+            broad_manifest_member_v69424
+            or (
+                broad_fitment_discovery_hint_v69357
+                and pf
+                and fam
+                and _workspace_sales_family_sets_match_v69416(pf, fam)
+                and (
+                    not py
+                    or (yrs and py.issubset(yrs))
+                )
             )
         )
         if (
@@ -69848,9 +69878,18 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
             + system_overlap * 2500
             + identity_overlap * 1200
             + year_overlap * 800
+            + (500 if broad_manifest_member_v69424 else 0)
         )
         if score <= 0:
             continue
+        if broad_manifest_member_v69424:
+            diagnostic_log(
+                "workspace_sales_broad_manifest_member_preserved_v69424",
+                source_id=str(source_id_v69424)[:220],
+                score=int(score),
+                family_metadata=sorted(str(x) for x in fam)[:12],
+                contract_models=contract_models[:12],
+            )
         ranked.append((
             score,
             str(package.get("extracted_at") or ""),
