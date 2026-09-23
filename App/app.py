@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69439"
-AUTOTECPRO_RELEASE_BUILD = "v69439-current-price-view-link-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69440"
+AUTOTECPRO_RELEASE_BUILD = "v69440-parallel-usd-shared-topical-dedupe-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69439",
+        "app_release_v69440",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -2412,6 +2412,71 @@ def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
     result["currency_url"] = target_url
     result["source"] = "exact_woocommerce_currency_view"
     return result
+
+
+
+def _workspace_parallel_woo_usd_prices_v69440(source_urls):
+    """Resolve exact Woo USD currency views concurrently for multi-product pricing."""
+    unique_sources = []
+    seen = set()
+    for source in source_urls or []:
+        value = str(source or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        unique_sources.append(value)
+    if not unique_sources:
+        return {}
+
+    results = {}
+    try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        worker_count = min(6, max(1, len(unique_sources)))
+        with ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="atp-woo-usd-v69440",
+        ) as executor:
+            futures = {
+                executor.submit(
+                    _workspace_exact_product_currency_price_v69437,
+                    source,
+                    "USD",
+                ): source
+                for source in unique_sources
+            }
+            for future in as_completed(futures):
+                source = futures[future]
+                try:
+                    results[source] = dict(future.result() or {})
+                except Exception as error:
+                    results[source] = {
+                        "status": "unavailable",
+                        "reason": "parallel_woo_usd_lookup_failed",
+                        "error_type": type(error).__name__,
+                    }
+        diagnostic_log(
+            "workspace_sales_parallel_woo_usd_v69440",
+            products=len(unique_sources),
+            verified=sum(
+                1
+                for value in results.values()
+                if str(value.get("status") or "") == "verified"
+            ),
+            unavailable=sum(
+                1
+                for value in results.values()
+                if str(value.get("status") or "") != "verified"
+            ),
+        )
+    except Exception as error:
+        diagnostic_log(
+            "workspace_sales_parallel_woo_usd_failed_v69440",
+            products=len(unique_sources),
+            error_type=type(error).__name__,
+            error=str(error)[:300],
+        )
+        return {}
+    return results
 
 
 def _workspace_woo_currency_price_label_v69437(result):
@@ -65820,7 +65885,8 @@ def _workspace_sales_intent_v69433(prompt_text):
         r"remaining models?|remaining options?|remaining products?|remaining screens?)\b", p
     ))
     visual_request = bool(re.search(
-        r"\b(show|send|display|see|view)\b.{0,24}\b(photo|image|picture|pic)\b|"
+        r"\b(show|send|display|see|view)\b.{0,32}\b(photo|image|picture|pic|"
+        r"compatibility|identification|factory setup)\b|"
         r"\b(photo|image|picture|pic)\b", p
     ))
     price_request = bool(re.search(
@@ -67079,6 +67145,13 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
     if category == "live_price":
         price_rows_v69436 = []
         verified_v69436 = 0
+        usd_prefetch_v69440 = _workspace_parallel_woo_usd_prices_v69440(
+            [
+                str(row_v69440.get("source") or "").strip()
+                for row_v69440 in rows
+                if str(row_v69440.get("source") or "").strip()
+            ]
+        )
         for row_v69436 in rows:
             source_v69436 = str(row_v69436.get("source") or "").strip()
             woo_lookup_v69436 = _woocommerce_product_by_source_url_v69326(
@@ -67105,10 +67178,14 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
                 # presentation. Do not use an outside FX rate for customer-facing
                 # product pricing, so the app matches the website's USD amount and
                 # rounding exactly.
-                usd_lookup_v69437 = _workspace_exact_product_currency_price_v69437(
-                    source_v69436,
-                    "USD",
+                usd_lookup_v69437 = dict(
+                    usd_prefetch_v69440.get(source_v69436) or {}
                 )
+                if not usd_lookup_v69437:
+                    usd_lookup_v69437 = _workspace_exact_product_currency_price_v69437(
+                        source_v69436,
+                        "USD",
+                    )
                 usd_label_v69437 = _workspace_woo_currency_price_label_v69437(
                     usd_lookup_v69437
                 )
@@ -72779,6 +72856,65 @@ def _workspace_sales_product_aware_image_dedupe_v69419(images):
             continue
         seen.add(dedupe_key)
         output.append(item)
+    return output
+
+
+
+def _workspace_sales_shared_topical_image_dedupe_v69440(images):
+    """Collapse identical exact topical images shared across multiple products.
+
+    The same authored compatibility/identification graphic may legitimately belong
+    to several exact products. Display it once, while preserving every associated
+    exact product identity in metadata for audit/provenance.
+    """
+    output = []
+    by_image = {}
+    for record in images or []:
+        if not isinstance(record, dict):
+            continue
+        item = dict(record)
+        image_identity = str(
+            item.get("website_image_sha256")
+            or item.get("archive_web_url")
+            or item.get("data_url")
+            or ""
+        ).strip()
+        if not image_identity:
+            continue
+
+        exact_topical = bool(
+            item.get("website_sales_exact_topic_visual_lock_v69399")
+            or item.get("website_sales_exact_topic_semantic_fallback_v69401")
+        )
+        if not exact_topical:
+            output.append(item)
+            continue
+
+        product_id = str(
+            item.get("website_sales_exact_product_identity_v69399")
+            or item.get("website_sales_exact_product_identity_v69401")
+            or ""
+        ).strip()
+
+        key = image_identity
+        existing = by_image.get(key)
+        if existing is None:
+            identities = []
+            if product_id:
+                identities.append(product_id)
+            item["website_sales_shared_exact_product_identities_v69440"] = identities
+            by_image[key] = item
+            output.append(item)
+            continue
+
+        identities = list(
+            existing.get("website_sales_shared_exact_product_identities_v69440")
+            or []
+        )
+        if product_id and product_id not in identities:
+            identities.append(product_id)
+        existing["website_sales_shared_exact_product_identities_v69440"] = identities
+
     return output
 
 
@@ -109101,6 +109237,22 @@ else:
                         )
                     )
                     if sales_exact_topic_visuals_v69399:
+                        before_shared_dedupe_v69440 = len(generated_images or [])
+                        generated_images = (
+                            _workspace_sales_shared_topical_image_dedupe_v69440(
+                                generated_images
+                            )
+                        )
+                        diagnostic_log(
+                            "workspace_sales_shared_topical_images_deduped_v69440",
+                            before=before_shared_dedupe_v69440,
+                            after=len(generated_images or []),
+                            suppressed=max(
+                                0,
+                                before_shared_dedupe_v69440
+                                - len(generated_images or []),
+                            ),
+                        )
                         diagnostic_log(
                             "workspace_exact_topic_visuals_restored_v69405",
                             workspace=str(assistant),
