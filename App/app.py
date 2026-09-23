@@ -11,46 +11,6 @@
 # AutoTecPro AI v69413 - WooCommerce catalog authority + exact primary images
 # AutoTecPro AI v69412 - mobile product cards + clickable View Product links
 # AutoTecPro AI v69411 - production-schema catalog authority + consistent images
-# AutoTecPro AI v69410 - deterministic Sales catalog completeness + mobile table cards
-# AutoTecPro AI v69409 - Technical exact-package fast path + exact topic images
-# AutoTecPro AI v69408 - exact same-case factual fast paths + intent diagnostics
-# AutoTecPro AI v69407 - same-case nonvisual fitment provider/image bypass
-# AutoTecPro AI v69406 - generic sibling-product completeness recovery
-# AutoTecPro AI v69405 - partial topical publication + fast first-turn fitment + Marketing parity
-# AutoTecPro AI v69404 - human customer voice + Sales/Marketing visual wording
-# AutoTecPro AI v69403 - Sales follow-up routing + topical fail-closed + visual provider bypass + restored prewarm hardening
-# AutoTecPro AI v69402 - exact current-page topical semantics recovery for Sales compatibility visuals
-# AutoTecPro AI v69401 - exact Sales topical-image semantic fallback + backward-compatible product-page image-index lookup
-# AutoTecPro AI v69400 - Sales product-identity consistency + exact-authority provider lock + bounded chat resilience + cold-path stability
-# AutoTecPro AI v69399 - metadata-driven Sales compatibility-photo routing + preserve normal multi-product hero behavior
-# AutoTecPro AI v69398 - exact Sales primary-photo final lock + multi-product hero preservation + explicit-photo repeat allowance
-# AutoTecPro AI v69397 - preserve exact Sales WooCommerce hero provenance through final publication gate
-# AutoTecPro AI v69396 - Sales follow-up authority reuse + canonical product dedupe + explicit-photo publication authority
-# AutoTecPro AI v69395 - universal source-driven Technical topic index + compact exact-context formatting
-# AutoTecPro AI v69394 - isolate raw user image intent + hard-lock confirmed snapshot fastpath + shrink exact context
-# AutoTecPro AI v69393 - unique-package auto-lock + exact visual terminal + current-source Car Model fastpath
-# AutoTecPro AI v69392 - confirmed-package snapshot fastpath + semantic image fastpath
-# AutoTecPro AI v69391 - shared-screen Technical source must never ask 15.6 vs 17
-# AutoTecPro AI v69390 - scalar case-detail binding + confirmed snapshot file-content bypass
-# AutoTecPro AI v69389 - fix literal newline rendering in source-limited Technical answer
-# AutoTecPro AI v69388 - separate verified direct-answer terminal from overlap terminal + exact Car Model image commit
-# AutoTecPro AI v69387 - source-limited Car Model answer + exact semantic image + learning isolation
-# AutoTecPro AI v69386 - complete first-turn overlap gate + professional clarification UI
-# AutoTecPro AI v69385 - GM 2019 joint-platform authoritative overlap completion
-# AutoTecPro AI v69383 - confirmed-package legacy image-index recovery for exact two-image audio publication
-# AutoTecPro AI v69379 - authoritative Technical overlap + deterministic readable output hardening
-# AutoTecPro AI v69378 - generic Technical overlap verification + readable step layout
-# AutoTecPro AI v69376 - targeted Technical latency + generation follow-up fastpath hardening
-# AutoTecPro AI v69370 - durable direct WooCommerce order lookup preservation
-# AutoTecPro AI v69369 - exact Technical video-resource branch binding + provider bypass
-# AutoTecPro AI v69368 - mobile table CSS isolation + response rendering hardening
-# AutoTecPro AI v69367 - mobile-only responsive table readability hardening
-# AutoTecPro AI v69366 - production retrieval fan-out + live price concurrency hardening
-# AutoTecPro AI v69362 - Technical vehicle-identity lock + clarification isolation + final config parser hardening
-# AutoTecPro AI v69363 - Technical semantic image metadata + final publication authority hardening
-# AutoTecPro AI v69360 - safe performance + image provenance hardening
-# AutoTecPro AI v69359 - email-safe assistant clipboard normalization
-# AutoTecPro AI v69380 - terminal Technical overlap gate + confirmed-source troubleshooting authority
 # Scope: Technical Support only. Generic overlap clarification terminates before provider/model/image work;
 # pending branch is rebound to the durable conversation; confirmed branch preserves exact source-authored troubleshooting.
 # AutoTecPro AI v69358 - exact Sales product/photo provenance hardening
@@ -86,8 +46,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69429"
-AUTOTECPRO_RELEASE_BUILD = "v69429-key-feature-option-spacing-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69430"
+AUTOTECPRO_RELEASE_BUILD = "v69430-preserve-feature-intent-through-kind-scope-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +286,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69429",
+        "app_release_v69430",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -105763,6 +105723,30 @@ else:
                                 first_turn_answer_prompt_v69421 = (
                                     workspace_atp_kind_scope_prompt_v69421
                                 )
+                                # v69430: a same-case kind refresh intentionally rebuilds
+                                # the identity scope (vehicle/year/kind), but must not erase
+                                # the customer's original intent. Without this, a question
+                                # such as "what's the feature come with the digital cluster"
+                                # becomes "what products do you have for 2019 RAM digital
+                                # gauge cluster" and the explicit-feature gate is lost.
+                                feature_intent_v69430 = bool(re.search(
+                                    r"\b(feature|features|function|functions|spec|specs|"
+                                    r"specification|specifications|what does it do|"
+                                    r"what can it do|capability|capabilities|"
+                                    r"key feature|key features|main feature|main features)\b",
+                                    str(interaction_prompt or ""),
+                                    flags=re.I,
+                                ))
+                                if feature_intent_v69430:
+                                    first_turn_answer_prompt_v69421 = (
+                                        f"{workspace_atp_kind_scope_prompt_v69421} "
+                                        f"customer asks for features: {interaction_prompt}"
+                                    ).strip()
+                                    diagnostic_log(
+                                        "workspace_sales_feature_intent_preserved_v69430",
+                                        original_prompt=str(interaction_prompt)[:300],
+                                        scoped_prompt=str(workspace_atp_kind_scope_prompt_v69421)[:300],
+                                    )
                             workspace_atp_direct_answer_v69205 = (
                                 _workspace_sales_first_turn_fitment_direct_answer_v69405(
                                     assistant,
