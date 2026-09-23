@@ -86,8 +86,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69431"
-AUTOTECPRO_RELEASE_BUILD = "v69431-parent-sibling-authority-followups-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69432"
+AUTOTECPRO_RELEASE_BUILD = "v69432-cockpit-cluster-current-feature-authority-20260923"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +326,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69431",
+        "app_release_v69432",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -66580,6 +66580,10 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             if str(row.get("feature_intro") or "").strip()
         ]
         if intro_rows_v69426:
+            diagnostic_log(
+                "workspace_sales_exact_feature_intro_used_v69432",
+                products=len(intro_rows_v69426),
+            )
             parts_v69426 = ["### Key features"]
             for i_v69426, row_v69426 in enumerate(intro_rows_v69426, 1):
                 parts_v69426.append(
@@ -67804,7 +67808,7 @@ def _workspace_sales_requested_product_kind_v69421(prompt_text):
         return ""
     if re.search(
         r"\b(gauge\s*cluster|digital\s*cluster|instrument\s*cluster|"
-        r"digital\s*cockpit|cluster\s*cockpit|virtual\s*cockpit|"
+        r"digital\s*cockpit|cluster\s*cockpit|virtual\s*cockpit|cockpit|"
         r"digital\s*dashboard|digital\s*dash|speedometer\s*cluster)\b",
         value,
     ):
@@ -69498,12 +69502,32 @@ def _workspace_sales_authoritative_catalog_merge_v69411(vector_packages, manifes
         if rich:
             existing_contract = _workspace_atp_product_contract_cached_v69227(rich)
             rich["_workspace_sales_manifest_contract_v69411"] = manifest_contract
-            rich["_workspace_atp_product_contract_v69227"] = (
-                _workspace_sales_merge_contract_v69410(
-                    existing_contract,
-                    manifest_contract,
-                )
+            merged_contract_v69432 = _workspace_sales_merge_contract_v69410(
+                existing_contract,
+                manifest_contract,
             )
+            current_feature_summary_v69432 = re.sub(
+                r"\s+",
+                " ",
+                str(manifest_contract.get("feature_summary") or ""),
+            ).strip()
+            prior_feature_summary_v69432 = re.sub(
+                r"\s+",
+                " ",
+                str(merged_contract_v69432.get("feature_summary") or ""),
+            ).strip()
+            if current_feature_summary_v69432:
+                merged_contract_v69432["feature_summary"] = (
+                    current_feature_summary_v69432
+                )
+                if prior_feature_summary_v69432 != current_feature_summary_v69432:
+                    diagnostic_log(
+                        "workspace_sales_stale_feature_summary_replaced_by_current_woo_v69432",
+                        source_id=str(page_id)[:220],
+                        prior_length=len(prior_feature_summary_v69432),
+                        current_length=len(current_feature_summary_v69432),
+                    )
+            rich["_workspace_atp_product_contract_v69227"] = merged_contract_v69432
             rich["workspace_sales_manifest_exact_fit_v69411"] = True
             # v69421: vector enrichment must not erase Woo catalog/hero provenance.
             # v69420 fast-primary publication intentionally trusts these exact Woo
