@@ -1,3 +1,6 @@
+# AutoTecPro AI v69445 - parallel Sales discovery + live-page image reuse + mobile-safe performance
+# AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
+# AutoTecPro AI v69443 - live catalog reconciliation + clean intro + newline rendering fix
 # AutoTecPro AI v69442 - durable first-answer commit + native mobile result cards
 # AutoTecPro AI v69423 - strict current-Woo image authority + iPhone mobile cards
 # AutoTecPro AI v69422 - v69421 runtime regression fix: restore copy.deepcopy dependency
@@ -87,8 +90,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69442"
-AUTOTECPRO_RELEASE_BUILD = "v69442-durable-chat-commit-native-mobile-cards-20260924"
+AUTOTECPRO_RELEASE_VERSION = "v69445"
+AUTOTECPRO_RELEASE_BUILD = "v69445-parallel-sales-discovery-image-reuse-20260924"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -327,7 +330,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69442",
+        "app_release_v69445",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -2182,6 +2185,46 @@ def _current_product_page_price_by_exact_url_v69340(source_url, timeout_seconds=
     if not html_text:
         return {"status": "unavailable", "reason": "empty_product_page"}
 
+    # v69445: reuse this already-verified exact product-page response for the
+    # primary product image. This cannot broaden product authority because the
+    # final URL identity was verified immediately above. The extracted URL is
+    # returned as optional metadata and is never accepted from related products.
+    primary_image_url_v69445 = ""
+    image_scopes_v69445 = []
+    gallery_match_v69445 = re.search(
+        r'<div[^>]+class=["\'][^"\']*woocommerce-product-gallery__image[^"\']*["\'][^>]*>(.*?)</div>',
+        html_text, flags=re.I | re.S,
+    )
+    if gallery_match_v69445:
+        image_scopes_v69445.append(gallery_match_v69445.group(1))
+    wp_image_match_v69445 = re.search(
+        r'<img[^>]+class=["\'][^"\']*wp-post-image[^"\']*["\'][^>]*>',
+        html_text, flags=re.I | re.S,
+    )
+    if wp_image_match_v69445:
+        image_scopes_v69445.append(wp_image_match_v69445.group(0))
+    for image_scope_v69445 in image_scopes_v69445:
+        for image_pattern_v69445 in (
+            r'data-large_image=["\']([^"\']+)',
+            r'<a[^>]+href=["\']([^"\']+)',
+            r'\bsrc=["\']([^"\']+)',
+            r'data-src=["\']([^"\']+)',
+        ):
+            image_match_v69445 = re.search(
+                image_pattern_v69445, image_scope_v69445, flags=re.I | re.S
+            )
+            if not image_match_v69445:
+                continue
+            candidate_v69445 = html.unescape(
+                str(image_match_v69445.group(1) or "").strip()
+            )
+            candidate_v69445 = urllib.parse.urljoin(final_url, candidate_v69445)
+            if candidate_v69445.startswith("https://"):
+                primary_image_url_v69445 = candidate_v69445
+                break
+        if primary_image_url_v69445:
+            break
+
     def _num(value):
         try:
             cleaned = re.sub(r"[^0-9.\-]", "", str(value or "").replace(",", ""))
@@ -2345,6 +2388,7 @@ def _current_product_page_price_by_exact_url_v69340(source_url, timeout_seconds=
         "max_price": max(unique_prices),
         "currency": currency,
         "price_source": "woocommerce_summary_price" if summary_price_text_v69341 else "product_structured_data",
+        "primary_image_url_v69445": primary_image_url_v69445,
     }
 
 
@@ -6915,39 +6959,40 @@ st.markdown(
 )
 
 
-# v69442: native phone cards. Unlike the older CSS table transformation, this
-# renders a dedicated card DOM and hides the dense 4+ column table on narrow
-# screens. Desktop continues to use the normal table.
+# v69444: native phone cards using only tags preserved by the final chat
+# safety sweep. v69442 used div/span/article, which the renderer strips.
 st.markdown(
     """
     <style>
-    .atp-mobile-card-list-v69442 {
+    .atp-mobile-card-list-v69444 {
         display: none;
         width: 100%;
         max-width: 100%;
+        padding: 0 !important;
+        margin: 10px 0 16px 0 !important;
+        list-style: none !important;
         box-sizing: border-box;
     }
 
     @media (max-width: 900px) {
-        .atp-mobile-table-wrap-v69368:has(
-            > table.atp-mobile-cols-4-v69368,
-            > table.atp-mobile-cols-5-v69368,
-            > table.atp-mobile-cols-6plus-v69368
-        ) {
+        table.atp-mobile-cols-4-v69368,
+        table.atp-mobile-cols-5-v69368,
+        table.atp-mobile-cols-6plus-v69368 {
             display: none !important;
         }
 
-        .atp-mobile-card-list-v69442 {
+        .atp-mobile-card-list-v69444 {
             display: block !important;
         }
 
-        .atp-result-card-v69442 {
+        .atp-result-card-v69444 {
             display: block !important;
             width: 100% !important;
             max-width: 100% !important;
             min-width: 0 !important;
             margin: 0 0 14px 0 !important;
             padding: 0 !important;
+            list-style: none !important;
             box-sizing: border-box !important;
             overflow: hidden !important;
             border: 1px solid rgba(148,163,184,.28) !important;
@@ -6956,64 +7001,64 @@ st.markdown(
             box-shadow: 0 2px 8px rgba(0,0,0,.08) !important;
         }
 
-        .atp-result-card-head-v69442 {
+        .atp-result-card-title-v69444 {
+            display: block !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
             padding: 13px 14px 12px 14px !important;
             border-bottom: 1px solid rgba(148,163,184,.20) !important;
             background: rgba(59,130,246,.09) !important;
-        }
-
-        .atp-result-option-v69442 {
-            display: inline-flex !important;
-            align-items: center !important;
-            min-height: 26px !important;
-            margin: 0 0 8px 0 !important;
-            padding: 3px 9px !important;
-            border-radius: 999px !important;
-            background: rgba(59,130,246,.18) !important;
-            font-size: .78rem !important;
-            font-weight: 800 !important;
-            line-height: 1.2 !important;
-        }
-
-        .atp-result-title-v69442 {
-            display: block !important;
-            width: 100% !important;
             font-size: 1rem !important;
             font-weight: 760 !important;
             line-height: 1.42 !important;
             overflow-wrap: anywhere !important;
         }
 
-        .atp-result-card-fields-v69442 {
+        .atp-result-option-v69444 {
             display: block !important;
-            width: 100% !important;
+            margin: 0 0 6px 0 !important;
+            font-size: .78rem !important;
+            font-weight: 800 !important;
+            line-height: 1.2 !important;
+            opacity: .84 !important;
         }
 
-        .atp-result-field-v69442 {
+        .atp-result-fields-v69444 {
+            display: block !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            list-style: none !important;
+        }
+
+        .atp-result-field-v69444 {
             display: grid !important;
-            grid-template-columns: minmax(90px, 32%) minmax(0, 1fr) !important;
+            grid-template-columns: minmax(90px, 31%) minmax(0, 1fr) !important;
             gap: 12px !important;
             width: 100% !important;
             box-sizing: border-box !important;
             padding: 11px 14px !important;
+            margin: 0 !important;
+            list-style: none !important;
             border-bottom: 1px solid rgba(148,163,184,.16) !important;
             align-items: start !important;
         }
 
-        .atp-result-field-v69442:last-child {
+        .atp-result-field-v69444:last-child {
             border-bottom: 0 !important;
         }
 
-        .atp-result-label-v69442 {
+        .atp-result-label-v69444 {
+            display: block !important;
             min-width: 0 !important;
             font-size: .82rem !important;
             font-weight: 760 !important;
             line-height: 1.35 !important;
             opacity: .86 !important;
-            overflow-wrap: normal !important;
         }
 
-        .atp-result-value-v69442 {
+        .atp-result-value-v69444 {
+            display: block !important;
             min-width: 0 !important;
             font-size: .95rem !important;
             line-height: 1.48 !important;
@@ -7021,7 +7066,7 @@ st.markdown(
             word-break: normal !important;
         }
 
-        .atp-result-value-v69442 .atp-view-product-link-v69412 {
+        .atp-result-value-v69444 .atp-view-product-link-v69412 {
             display: inline-flex !important;
             width: 100% !important;
             min-height: 42px !important;
@@ -7037,16 +7082,13 @@ st.markdown(
         }
     }
 
-    /* iPhone/iPad reinforcement even when Safari reports an unusual layout viewport. */
     @supports (-webkit-touch-callout: none) {
-        .atp-mobile-table-wrap-v69368:has(
-            > table.atp-mobile-cols-4-v69368,
-            > table.atp-mobile-cols-5-v69368,
-            > table.atp-mobile-cols-6plus-v69368
-        ) {
+        table.atp-mobile-cols-4-v69368,
+        table.atp-mobile-cols-5-v69368,
+        table.atp-mobile-cols-6plus-v69368 {
             display: none !important;
         }
-        .atp-mobile-card-list-v69442 {
+        .atp-mobile-card-list-v69444 {
             display: block !important;
         }
     }
@@ -7054,7 +7096,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
 
 
 # Final isolated history-row presentation.
@@ -7607,100 +7648,90 @@ def table_to_html(table_lines):
             )
         html_rows.append("</tr>")
 
-        # v69442: generate a second, semantic card representation for mobile.
-        # Safari no longer has to transform the table DOM with display:block rules.
+        # v69444: semantic mobile cards using tags preserved by the final
+        # safety sweep (ul/li/strong/small/a only).
         if len(headers) >= 4:
-            normalized_map_v69442 = {
+            normalized_map_v69444 = {
                 re.sub(r"\s+", " ", str(headers[i] or "")).strip().casefold(): i
                 for i in range(len(headers))
             }
+            option_idx_v69444 = normalized_map_v69444.get("option")
+            product_idx_v69444 = normalized_map_v69444.get("product")
 
-            option_idx_v69442 = normalized_map_v69442.get("option")
-            product_idx_v69442 = normalized_map_v69442.get("product")
-
-            card_title_v69442 = ""
-            if product_idx_v69442 is not None and product_idx_v69442 < len(cells):
-                card_title_v69442 = str(cells[product_idx_v69442] or "").strip()
-            if not card_title_v69442:
-                for candidate_v69442 in cells:
-                    if str(candidate_v69442 or "").strip():
-                        card_title_v69442 = str(candidate_v69442 or "").strip()
+            card_title_v69444 = ""
+            if product_idx_v69444 is not None and product_idx_v69444 < len(cells):
+                card_title_v69444 = str(cells[product_idx_v69444] or "").strip()
+            if not card_title_v69444:
+                for candidate_v69444 in cells:
+                    if str(candidate_v69444 or "").strip():
+                        card_title_v69444 = str(candidate_v69444 or "").strip()
                         break
 
-            option_text_v69442 = ""
-            if option_idx_v69442 is not None and option_idx_v69442 < len(cells):
-                option_text_v69442 = str(cells[option_idx_v69442] or "").strip()
+            option_text_v69444 = ""
+            if option_idx_v69444 is not None and option_idx_v69444 < len(cells):
+                option_text_v69444 = str(cells[option_idx_v69444] or "").strip()
 
-            card_bits_v69442 = [
-                '<article class="atp-result-card-v69442">'
+            card_bits_v69444 = [
+                '<li class="atp-result-card-v69444">',
+                '<strong class="atp-result-card-title-v69444">',
             ]
-            if option_text_v69442 or card_title_v69442:
-                card_bits_v69442.append(
-                    '<div class="atp-result-card-head-v69442">'
+            if option_text_v69444:
+                card_bits_v69444.append(
+                    '<small class="atp-result-option-v69444">'
+                    f'Option {html.escape(option_text_v69444)}'
+                    '</small>'
                 )
-                if option_text_v69442:
-                    card_bits_v69442.append(
-                        '<span class="atp-result-option-v69442">'
-                        f'Option {html.escape(option_text_v69442)}'
-                        '</span>'
-                    )
-                if card_title_v69442:
-                    card_bits_v69442.append(
-                        '<div class="atp-result-title-v69442">'
-                        f'{inline_format(card_title_v69442)}'
-                        '</div>'
-                    )
-                card_bits_v69442.append('</div>')
+            if card_title_v69444:
+                card_bits_v69444.append(inline_format(card_title_v69444))
+            card_bits_v69444.extend([
+                '</strong>',
+                '<ul class="atp-result-fields-v69444">',
+            ])
 
-            card_bits_v69442.append(
-                '<div class="atp-result-card-fields-v69442">'
-            )
-            for cell_index_v69442, cell_v69442 in enumerate(cells[:len(headers)]):
-                header_v69442 = re.sub(
-                    r"\s+", " ", str(headers[cell_index_v69442] or "")
+            for cell_index_v69444, cell_v69444 in enumerate(cells[:len(headers)]):
+                header_v69444 = re.sub(
+                    r"\s+", " ", str(headers[cell_index_v69444] or "")
                 ).strip()
-                normalized_header_v69442 = header_v69442.casefold()
-
-                # Option and Product are already promoted into the card header.
-                if normalized_header_v69442 in {"option", "product"}:
+                normalized_header_v69444 = header_v69444.casefold()
+                if normalized_header_v69444 in {"option", "product"}:
                     continue
 
-                value_html_v69442 = inline_format(cell_v69442)
-                if normalized_header_v69442 in {"product link", "view link"}:
-                    raw_url_v69442 = str(cell_v69442 or "").strip()
-                    if re.match(r"^https?://[^\s]+$", raw_url_v69442, flags=re.I):
-                        safe_url_v69442 = html.escape(raw_url_v69442, quote=True)
-                        value_html_v69442 = (
+                value_html_v69444 = inline_format(cell_v69444)
+                if normalized_header_v69444 in {"product link", "view link"}:
+                    raw_url_v69444 = str(cell_v69444 or "").strip()
+                    if re.match(r"^https?://[^\s]+$", raw_url_v69444, flags=re.I):
+                        safe_url_v69444 = html.escape(raw_url_v69444, quote=True)
+                        value_html_v69444 = (
                             f'<a class="atp-view-product-link-v69412" '
-                            f'href="{safe_url_v69442}" target="_blank" '
+                            f'href="{safe_url_v69444}" target="_blank" '
                             f'rel="noopener noreferrer">View Product →</a>'
                         )
 
-                card_bits_v69442.extend([
-                    '<div class="atp-result-field-v69442">',
-                    '<div class="atp-result-label-v69442">'
-                    f'{html.escape(header_v69442)}'
-                    '</div>',
-                    '<div class="atp-result-value-v69442">'
-                    f'{value_html_v69442}'
-                    '</div>',
-                    '</div>',
+                card_bits_v69444.extend([
+                    '<li class="atp-result-field-v69444">',
+                    '<strong class="atp-result-label-v69444">'
+                    f'{html.escape(header_v69444)}'
+                    '</strong>',
+                    '<small class="atp-result-value-v69444">'
+                    f'{value_html_v69444}'
+                    '</small>',
+                    '</li>',
                 ])
 
-            card_bits_v69442.append('</div></article>')
-            mobile_card_rows_v69442.append("".join(card_bits_v69442))
+            card_bits_v69444.extend(['</ul>', '</li>'])
+            mobile_card_rows_v69442.append("".join(card_bits_v69444))
 
     html_rows.append("</tbody></table>")
     html_rows.append("</div>")
 
     if mobile_card_rows_v69442:
         html_rows.append(
-            '<div class="atp-mobile-card-list-v69442">'
+            '<ul class="atp-mobile-card-list-v69444">'
             + "".join(mobile_card_rows_v69442)
-            + "</div>"
+            + "</ul>"
         )
 
-    return "\\n".join(html_rows)
+    return "\n".join(html_rows)
 
 
 def _professionalize_customer_reply_draft_v69102(text):
@@ -8196,6 +8227,8 @@ def html_from_text(text, assistant_mode=False):
     close_customer_reply_box()
     rendered = "\n".join(html_lines)
 
+    # v69444 mobile cards intentionally use ul/li/strong/small/a, which this
+    # safety sweep preserves. Do not add those tags to the stripping set.
     # Final safety sweep after rendering.
     rendered = re.sub(r"&lt;/?\s*(div|p|span|section|article|main|body|html)\b[^&]*&gt;", "", rendered, flags=re.IGNORECASE)
     rendered = re.sub(r"</?\s*(div|p|span|section|article|main|body|html)\b[^>]*>", "", rendered, flags=re.IGNORECASE)
@@ -12349,6 +12382,22 @@ def clean_visible_chat_text(text):
     Remove raw/escaped HTML artifacts from model output and old saved messages.
     """
     value = str(text or "")
+
+    # v69443: v69442's mobile-table renderer accidentally serialized generated HTML
+    # with literal backslash-n separators. Repair only repeated escaped-newline runs
+    # so old saved replies/PDF exports become readable without changing normal prose.
+    if "\\n\\n" in value:
+        # Match repeated literal backslash+n sequences from v69442 saved output.
+        value = re.sub(r"(?:\\n){2,}", "\n\n", value)
+
+    # v69444: remove the old broad-discovery sentence from saved history.
+    value = re.sub(
+        r"\s*The correct version depends on the factory dashboard/radio setup,\s*"
+        r"so keep the options separate until the original setup is confirmed\.\s*",
+        " ",
+        value,
+        flags=re.I,
+    )
 
     try:
         marker_pattern = re.escape(IMAGE_MARKER_PREFIX) + r".*?" + re.escape(IMAGE_MARKER_SUFFIX)
@@ -66697,15 +66746,10 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
     if not rows:
         return ""
 
-    plural = "option" if len(rows) == 1 else "options"
+    plural = "product" if len(rows) == 1 else "products"
     lines = [
-        f"Yes — I found **{len(rows)} AutoTecPro {plural}** that match the vehicle/year you asked about."
+        f"I found **{len(rows)} matching AutoTecPro {plural}** for the vehicle/year you asked about."
     ]
-    if len(rows) > 1:
-        lines.append(
-            "The correct version depends on the factory dashboard/radio setup, "
-            "so keep the options separate until the original setup is confirmed."
-        )
 
     lines.extend([
         "",
@@ -66742,16 +66786,24 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
         lines.extend(["", "### What to check", ""])
         lines.extend(f"- {note}" for note in unique_notes)
 
-    if len(rows) > 1:
+    factory_dependency_v69443 = any(
+        re.search(
+            r"\b(factory|sync|radio|dashboard|climate|ac|a/c|trim|version)\b",
+            str(note_v69443 or ""),
+            flags=re.I,
+        )
+        for note_v69443 in unique_notes
+    )
+    if len(rows) > 1 and factory_dependency_v69443:
         lines.extend([
             "",
             (
-                "If you’re not sure which factory version you have, send me a clear "
+                "If you’re not sure which factory setup you have, send me a clear "
                 "photo of the current dashboard/radio and I can help narrow it down."
             ),
         ])
 
-    lines.extend(["", "The main product photo for each matching option is shown below."])
+    lines.extend(["", "The main product photo for each matching product is shown below."])
 
     diagnostic_log(
         "workspace_sales_first_turn_fitment_provider_bypass_v69405",
@@ -70113,6 +70165,7 @@ def _workspace_sales_woocommerce_package_v69413(product):
     }
 
 
+@st.cache_data(ttl=90, max_entries=128, show_spinner=False)
 def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
     """Authoritative broad Sales catalog from current published WooCommerce products."""
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
@@ -70238,6 +70291,286 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
             "packages": [],
         }
     return {"status": "ok", "packages": [dict(x) for x in output]}
+
+
+
+def _workspace_sales_live_catalog_reconcile_v69443(
+    prompt_text,
+    vector_packages,
+    woo_packages,
+):
+    """Recover exact current product pages omitted by Woo search-token results.
+
+    Woo search is authoritative when it returns a product, but a non-empty search
+    response is not guaranteed to be exhaustive. For exact family/year vector
+    candidates absent from that response, verify the exact /product/ page live.
+    Only an identity-stable page with a current product price may supplement the
+    broad catalog. This prevents stale learned/vector records from becoming members.
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    requested_families = {
+        str(x or "").casefold().strip()
+        for x in (_workspace_sales_fuzzy_vehicle_families_v69416(prompt) or [])
+        if str(x or "").strip()
+    }
+    requested_years = {
+        int(x)
+        for x in (_website_identity_years_v69022(prompt) or [])
+        if str(x).isdigit()
+    }
+    if not requested_families or not requested_years:
+        return [dict(x) for x in (woo_packages or []) if isinstance(x, dict)]
+
+    output = [dict(x) for x in (woo_packages or []) if isinstance(x, dict)]
+    existing = set()
+    for package in output:
+        source = str(package.get("source_url") or "").strip()
+        try:
+            page_id = _workspace_product_page_identity_v69396(source) if source else ""
+        except Exception:
+            page_id = source.rstrip("/").casefold()
+        if page_id:
+            existing.add(page_id)
+
+    candidates = {}
+    for raw in vector_packages or []:
+        if not isinstance(raw, dict):
+            continue
+        package = dict(raw)
+        if str(package.get("destination") or "").strip() != "Sales Database":
+            continue
+        source = str(package.get("source_url") or "").strip()
+        if not source or "/product/" not in str(urllib.parse.urlsplit(source).path or "").casefold():
+            continue
+        try:
+            page_id = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            page_id = source.rstrip("/").casefold()
+        if not page_id or page_id in existing:
+            continue
+
+        contract = dict(_workspace_atp_product_contract_cached_v69227(package) or {})
+        product_families = {
+            str(x or "").casefold().strip()
+            for x in (
+                list(package.get("vehicle_families") or [])
+                + list(contract.get("models") or [])
+            )
+            if str(x or "").strip()
+        }
+        product_years = {
+            int(x)
+            for x in (package.get("years") or [])
+            if str(x).isdigit()
+        }
+        if not product_years:
+            try:
+                start = int(contract.get("year_start"))
+                end = int(contract.get("year_end"))
+                if 1980 <= start <= end <= 2100 and (end - start) <= 40:
+                    product_years = set(range(start, end + 1))
+            except Exception:
+                product_years = set()
+
+        if not _workspace_sales_family_sets_match_v69416(
+            requested_families, product_families
+        ):
+            continue
+        if not product_years or not requested_years.issubset(product_years):
+            continue
+        if not _workspace_sales_woocommerce_product_kind_v69413(
+            prompt,
+            {
+                "name": str(package.get("page_title") or package.get("title") or ""),
+                "slug": str(urllib.parse.urlsplit(source).path or ""),
+                "permalink": source,
+                "categories": [],
+                "tags": [],
+                "attributes": [],
+                "short_description": str(package.get("webpage_text") or "")[:3000],
+                "description": str(package.get("webpage_text") or "")[:6000],
+            },
+        ):
+            continue
+        candidates[page_id] = package
+
+    if not candidates:
+        return output
+
+    verified = {}
+    try:
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        worker_count = min(4, max(1, len(candidates)))
+        with ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="atp-catalog-reconcile-v69443",
+        ) as executor:
+            futures = {
+                executor.submit(
+                    _current_product_page_price_by_exact_url_v69340,
+                    str(package.get("source_url") or ""),
+                    3.0,
+                ): page_id
+                for page_id, package in candidates.items()
+            }
+            for future in as_completed(futures):
+                page_id = futures[future]
+                try:
+                    result = dict(future.result() or {})
+                except Exception as error:
+                    result = {
+                        "status": "unavailable",
+                        "reason": "live_reconcile_exception",
+                        "error_type": type(error).__name__,
+                    }
+                verified[page_id] = result
+    except Exception as error:
+        diagnostic_log(
+            "workspace_sales_live_catalog_reconcile_failed_v69443",
+            candidates=len(candidates),
+            error_type=type(error).__name__,
+            error=str(error)[:300],
+        )
+        return output
+
+    added = []
+    for page_id, package in candidates.items():
+        result = verified.get(page_id) or {}
+        if str(result.get("status") or "") != "verified":
+            continue
+        reconciled = dict(package)
+        contract = dict(_workspace_atp_product_contract_cached_v69227(reconciled) or {})
+        reconciled["_workspace_sales_manifest_contract_v69411"] = contract
+        reconciled["workspace_sales_manifest_exact_fit_v69411"] = True
+        reconciled["workspace_sales_live_page_reconciled_v69443"] = True
+        reconciled["workspace_sales_live_page_price_v69443"] = str(
+            result.get("price_label") or result.get("price") or ""
+        )
+        live_primary_v69445 = str(
+            result.get("primary_image_url_v69445") or ""
+        ).strip()
+        if live_primary_v69445.startswith("https://"):
+            # Treat this as exact-current-page primary imagery. The package flag is
+            # set only after exact product identity + live price verification passed.
+            reconciled["workspace_sales_woocommerce_catalog_v69415"] = True
+            reconciled["workspace_sales_woocommerce_primary_v69413"] = live_primary_v69445
+            reconciled["workspace_sales_live_primary_reused_v69445"] = True
+        output.append(reconciled)
+        existing.add(page_id)
+        added.append(page_id)
+
+    diagnostic_log(
+        "workspace_sales_live_catalog_reconciled_v69443",
+        vector_candidates=len(candidates),
+        verified=sum(
+            1
+            for result in verified.values()
+            if str(result.get("status") or "") == "verified"
+        ),
+        added=len(added),
+        added_source_ids=[str(x)[:220] for x in added[:12]],
+    )
+
+    deduped = {}
+    for package in output:
+        source = str(package.get("source_url") or "").strip()
+        try:
+            page_id = _workspace_product_page_identity_v69396(source) if source else ""
+        except Exception:
+            page_id = source.rstrip("/").casefold()
+        if page_id:
+            deduped[page_id] = dict(package)
+    return sorted(deduped.values(), key=_workspace_sales_stable_product_order_v69410)
+
+
+
+def _workspace_sales_parallel_discovery_inputs_v69445(destination, prompt_text):
+    """Run current Woo catalog lookup and exact vector recovery concurrently.
+
+    Accuracy contract:
+    - Does not change vector query text/count/result limits.
+    - Does not change Woo catalog filters.
+    - Does not change family/year/product-kind gates.
+    - Returns both complete inputs; authoritative merge/reconciliation remains downstream.
+    """
+    target = str(destination or "").strip()
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if target != "Sales Database" or not prompt:
+        return [], {"status": "not_applicable", "packages": []}
+
+    started_v69445 = time.time()
+    recovered_v69445 = []
+    woo_catalog_v69445 = {"status": "unavailable", "reason": "parallel_not_started", "packages": []}
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(
+            max_workers=2,
+            thread_name_prefix="atp-sales-discovery-v69445",
+        ) as pool_v69445:
+            vector_future_v69445 = pool_v69445.submit(
+                _workspace_atp_turn_local_recovery_v69338,
+                target,
+                prompt,
+            )
+            woo_future_v69445 = pool_v69445.submit(
+                _workspace_sales_broad_woocommerce_catalog_v69413,
+                prompt,
+            )
+            try:
+                recovered_v69445 = list(vector_future_v69445.result() or [])
+            except Exception as vector_error_v69445:
+                recovered_v69445 = []
+                diagnostic_log(
+                    "workspace_sales_parallel_vector_failed_v69445",
+                    error_type=type(vector_error_v69445).__name__,
+                    error=str(vector_error_v69445)[:300],
+                )
+            try:
+                woo_catalog_v69445 = dict(woo_future_v69445.result() or {})
+            except Exception as woo_error_v69445:
+                woo_catalog_v69445 = {
+                    "status": "unavailable",
+                    "reason": "parallel_woocommerce_exception",
+                    "packages": [],
+                }
+                diagnostic_log(
+                    "workspace_sales_parallel_woo_failed_v69445",
+                    error_type=type(woo_error_v69445).__name__,
+                    error=str(woo_error_v69445)[:300],
+                )
+    except Exception as parallel_error_v69445:
+        # Fail-safe fallback preserves the exact old sequence and therefore cannot
+        # reduce correctness if thread creation/execution is unavailable.
+        diagnostic_log(
+            "workspace_sales_parallel_discovery_fallback_v69445",
+            error_type=type(parallel_error_v69445).__name__,
+            error=str(parallel_error_v69445)[:300],
+        )
+        try:
+            recovered_v69445 = list(
+                _workspace_atp_turn_local_recovery_v69338(target, prompt) or []
+            )
+        except Exception:
+            recovered_v69445 = []
+        try:
+            woo_catalog_v69445 = dict(
+                _workspace_sales_broad_woocommerce_catalog_v69413(prompt) or {}
+            )
+        except Exception:
+            woo_catalog_v69445 = {
+                "status": "unavailable",
+                "reason": "sequential_woocommerce_exception",
+                "packages": [],
+            }
+
+    diagnostic_log(
+        "workspace_sales_parallel_discovery_complete_v69445",
+        vector_packages=len(recovered_v69445),
+        woo_products=len(woo_catalog_v69445.get("packages") or []),
+        woo_status=str(woo_catalog_v69445.get("status") or ""),
+        elapsed_seconds=round(time.time() - started_v69445, 3),
+    )
+    return recovered_v69445, woo_catalog_v69445
 
 
 def _workspace_sales_catalog_unavailable_answer_v69413(prompt_text):
@@ -71238,25 +71571,23 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
     )
 
     # Bounded cold-start wait; warm lookups remain in-memory.
-    packages, status = _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.45)
+    snapshot_wait_v69445 = 0.08 if broad_fitment_discovery_hint_v69357 else 0.45
+    packages, status = _workspace_atp_package_snapshot_v69180(
+        destination,
+        wait_seconds=snapshot_wait_v69445,
+    )
     recovered_v69338 = []
-    # v69338: when the inherited v69325 background cache is unavailable after a
-    # Streamlit restart, recover only current product-page authority from the same
-    # destination vector store. This does not alter the normal v69325 hot path.
-    if not packages and status in {"running", "stale_ready", "refreshing", "failed", "idle"}:
-        recovered_v69338 = _workspace_atp_turn_local_recovery_v69338(destination, prompt)
-        if recovered_v69338:
-            packages = [dict(x) for x in recovered_v69338]
-            status = "turn_local_recovered_v69338"
+    woo_catalog_prefetched_v69445 = None
 
-    # v69357: for a broad Sales fitment/discovery request, perform a bounded current
-    # vector-store completeness pass even when the hot snapshot is non-empty, then
-    # merge by canonical product URL. This specifically closes the production case
-    # where a freshly learned high-score product became the only warm package and
-    # suppressed previously learned compatible sibling models.
+    # v69445: broad Sales discovery performs the SAME complete vector recovery and
+    # current Woo catalog lookup concurrently. No query or validation gate is removed.
     if broad_fitment_discovery_hint_v69357:
-        if not recovered_v69338:
-            recovered_v69338 = _workspace_atp_turn_local_recovery_v69338(destination, prompt)
+        recovered_v69338, woo_catalog_prefetched_v69445 = (
+            _workspace_sales_parallel_discovery_inputs_v69445(
+                destination,
+                prompt,
+            )
+        )
         if recovered_v69338:
             hot_count_v69357 = len(packages or [])
             merged_packages_v69357 = []
@@ -71272,21 +71603,36 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
                 seen_sources_v69357.add(source_id_v69357)
                 merged_packages_v69357.append(dict(package_v69357))
             packages = merged_packages_v69357
+            status = "parallel_turn_local_recovered_v69445"
             diagnostic_log(
-                "workspace_atp_multi_completeness_merge_v69357",
+                "workspace_atp_multi_completeness_merge_v69445",
                 workspace=workspace, destination=destination,
                 hot_count=hot_count_v69357, recovered_count=len(recovered_v69338),
                 merged_count=len(packages),
             )
+    # Preserve the pre-v69445 recovery behavior for every non-broad path.
+    elif not packages and status in {"running", "stale_ready", "refreshing", "failed", "idle"}:
+        recovered_v69338 = _workspace_atp_turn_local_recovery_v69338(destination, prompt)
+        if recovered_v69338:
+            packages = [dict(x) for x in recovered_v69338]
+            status = "turn_local_recovered_v69338"
     # v69413: broad Sales catalog membership comes from the current published
     # WooCommerce catalog. Vector packages may enrich matching products but cannot
     # create/remove catalog members.
     manifest_packages_v69411 = []
     manifest_by_source_v69411 = {}
     if broad_fitment_discovery_hint_v69357:
-        woo_catalog_v69413 = _workspace_sales_broad_woocommerce_catalog_v69413(
-            prompt
+        woo_catalog_v69413 = dict(
+            woo_catalog_prefetched_v69445
+            or _workspace_sales_broad_woocommerce_catalog_v69413(prompt)
+            or {}
         )
+        if woo_catalog_prefetched_v69445 is not None:
+            diagnostic_log(
+                "workspace_sales_parallel_woo_reused_v69445",
+                status=str(woo_catalog_v69413.get("status") or ""),
+                products=len(woo_catalog_v69413.get("packages") or []),
+            )
         if str(woo_catalog_v69413.get("status") or "") != "ok":
             reason_v69413 = str(
                 woo_catalog_v69413.get("reason")
@@ -71309,6 +71655,11 @@ def _workspace_atp_metadata_fast_authority_v69180(workspace_label, prompt_text):
             for x in (woo_catalog_v69413.get("packages") or [])
             if isinstance(x, dict)
         ]
+        manifest_packages_v69411 = _workspace_sales_live_catalog_reconcile_v69443(
+            prompt,
+            packages,
+            manifest_packages_v69411,
+        )
         for manifest_package_v69411 in manifest_packages_v69411:
             source_v69411 = str(
                 manifest_package_v69411.get("source_url") or ""
@@ -72848,8 +73199,10 @@ def _workspace_sales_image_manifest_key_v69420(
         else []
     )
     mode = "topical:" + ",".join(topic_tokens) if topic_tokens else "primary"
+    # v69445: exact primary product imagery is public/current website data. Key it
+    # by destination + mode + exact product identities so a new conversation does
+    # not force identical image resolution again. No user content is cached here.
     raw = "|".join([
-        str(conversation_id or ""),
         destination,
         mode,
         *page_ids,
@@ -73020,6 +73373,7 @@ def _workspace_sales_fast_topical_manifest_v69420(
     return output
 
 
+@st.cache_data(ttl=300, max_entries=128, show_spinner=False)
 def _workspace_sales_exact_image_manifest_v69420(
     workspace_label,
     prompt_text,
