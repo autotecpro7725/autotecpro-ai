@@ -1,3 +1,4 @@
+# AutoTecPro AI v69442 - durable first-answer commit + native mobile result cards
 # AutoTecPro AI v69423 - strict current-Woo image authority + iPhone mobile cards
 # AutoTecPro AI v69422 - v69421 runtime regression fix: restore copy.deepcopy dependency
 # AutoTecPro AI v69421 - complete product-kind discovery + same-case kind refresh + fast primary carry-through
@@ -86,8 +87,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69440"
-AUTOTECPRO_RELEASE_BUILD = "v69440-parallel-usd-shared-topical-dedupe-20260923"
+AUTOTECPRO_RELEASE_VERSION = "v69442"
+AUTOTECPRO_RELEASE_BUILD = "v69442-durable-chat-commit-native-mobile-cards-20260924"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -326,7 +327,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69440",
+        "app_release_v69442",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -2123,7 +2124,7 @@ def _workspace_exact_product_primary_page_fallback_v69354(source_url, destinatio
 
 
 @st.cache_data(ttl=45, max_entries=128, show_spinner=False)
-def _current_product_page_price_by_exact_url_v69340(source_url):
+def _current_product_page_price_by_exact_url_v69340(source_url, timeout_seconds=None):
     """Read the current price only from the exact matched product page.
 
     Safe fallback for Sales follow-up pricing when WooCommerce REST cannot verify a
@@ -2141,13 +2142,17 @@ def _current_product_page_price_by_exact_url_v69340(source_url):
         source_identity = source_url.rstrip("/").casefold()
 
     try:
+        try:
+            timeout_value_v69441 = max(1.0, float(timeout_seconds or LIVE_HTTP_TIMEOUT))
+        except Exception:
+            timeout_value_v69441 = float(LIVE_HTTP_TIMEOUT)
         response = http_session.get(
             source_url,
             headers={
                 "Accept": "text/html,application/xhtml+xml",
                 "User-Agent": "AutoTecPro-AI/1.0",
             },
-            timeout=LIVE_HTTP_TIMEOUT,
+            timeout=(min(2.5, timeout_value_v69441), timeout_value_v69441),
             allow_redirects=True,
         )
         response.raise_for_status()
@@ -2391,7 +2396,7 @@ def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
             "currency": currency,
         }
 
-    result = dict(_current_product_page_price_by_exact_url_v69340(target_url) or {})
+    result = dict(_current_product_page_price_by_exact_url_v69340(target_url, timeout_seconds=3.0) or {})
     if str(result.get("status") or "") != "verified":
         result["requested_currency"] = currency
         result["currency_url"] = target_url
@@ -6910,6 +6915,148 @@ st.markdown(
 )
 
 
+# v69442: native phone cards. Unlike the older CSS table transformation, this
+# renders a dedicated card DOM and hides the dense 4+ column table on narrow
+# screens. Desktop continues to use the normal table.
+st.markdown(
+    """
+    <style>
+    .atp-mobile-card-list-v69442 {
+        display: none;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    @media (max-width: 900px) {
+        .atp-mobile-table-wrap-v69368:has(
+            > table.atp-mobile-cols-4-v69368,
+            > table.atp-mobile-cols-5-v69368,
+            > table.atp-mobile-cols-6plus-v69368
+        ) {
+            display: none !important;
+        }
+
+        .atp-mobile-card-list-v69442 {
+            display: block !important;
+        }
+
+        .atp-result-card-v69442 {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            margin: 0 0 14px 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+            border: 1px solid rgba(148,163,184,.28) !important;
+            border-radius: 14px !important;
+            background: rgba(15,23,42,.20) !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08) !important;
+        }
+
+        .atp-result-card-head-v69442 {
+            padding: 13px 14px 12px 14px !important;
+            border-bottom: 1px solid rgba(148,163,184,.20) !important;
+            background: rgba(59,130,246,.09) !important;
+        }
+
+        .atp-result-option-v69442 {
+            display: inline-flex !important;
+            align-items: center !important;
+            min-height: 26px !important;
+            margin: 0 0 8px 0 !important;
+            padding: 3px 9px !important;
+            border-radius: 999px !important;
+            background: rgba(59,130,246,.18) !important;
+            font-size: .78rem !important;
+            font-weight: 800 !important;
+            line-height: 1.2 !important;
+        }
+
+        .atp-result-title-v69442 {
+            display: block !important;
+            width: 100% !important;
+            font-size: 1rem !important;
+            font-weight: 760 !important;
+            line-height: 1.42 !important;
+            overflow-wrap: anywhere !important;
+        }
+
+        .atp-result-card-fields-v69442 {
+            display: block !important;
+            width: 100% !important;
+        }
+
+        .atp-result-field-v69442 {
+            display: grid !important;
+            grid-template-columns: minmax(90px, 32%) minmax(0, 1fr) !important;
+            gap: 12px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 11px 14px !important;
+            border-bottom: 1px solid rgba(148,163,184,.16) !important;
+            align-items: start !important;
+        }
+
+        .atp-result-field-v69442:last-child {
+            border-bottom: 0 !important;
+        }
+
+        .atp-result-label-v69442 {
+            min-width: 0 !important;
+            font-size: .82rem !important;
+            font-weight: 760 !important;
+            line-height: 1.35 !important;
+            opacity: .86 !important;
+            overflow-wrap: normal !important;
+        }
+
+        .atp-result-value-v69442 {
+            min-width: 0 !important;
+            font-size: .95rem !important;
+            line-height: 1.48 !important;
+            overflow-wrap: anywhere !important;
+            word-break: normal !important;
+        }
+
+        .atp-result-value-v69442 .atp-view-product-link-v69412 {
+            display: inline-flex !important;
+            width: 100% !important;
+            min-height: 42px !important;
+            box-sizing: border-box !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 9px 12px !important;
+            border-radius: 10px !important;
+            border: 1px solid currentColor !important;
+            text-decoration: none !important;
+            font-weight: 750 !important;
+            white-space: nowrap !important;
+        }
+    }
+
+    /* iPhone/iPad reinforcement even when Safari reports an unusual layout viewport. */
+    @supports (-webkit-touch-callout: none) {
+        .atp-mobile-table-wrap-v69368:has(
+            > table.atp-mobile-cols-4-v69368,
+            > table.atp-mobile-cols-5-v69368,
+            > table.atp-mobile-cols-6plus-v69368
+        ) {
+            display: none !important;
+        }
+        .atp-mobile-card-list-v69442 {
+            display: block !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+
 # Final isolated history-row presentation.
 # The title and action menu are siblings; no Streamlit columns are used.
 st.markdown(
@@ -7424,6 +7571,7 @@ def table_to_html(table_lines):
     html_rows.append("</tr></thead>")
 
     html_rows.append("<tbody>")
+    mobile_card_rows_v69442 = []
     for row_line in body_lines:
         cells = split_markdown_table_row(row_line)
         if len(cells) < len(headers):
@@ -7458,9 +7606,101 @@ def table_to_html(table_lines):
                 f'{cell_html_v69412}</td>'
             )
         html_rows.append("</tr>")
+
+        # v69442: generate a second, semantic card representation for mobile.
+        # Safari no longer has to transform the table DOM with display:block rules.
+        if len(headers) >= 4:
+            normalized_map_v69442 = {
+                re.sub(r"\s+", " ", str(headers[i] or "")).strip().casefold(): i
+                for i in range(len(headers))
+            }
+
+            option_idx_v69442 = normalized_map_v69442.get("option")
+            product_idx_v69442 = normalized_map_v69442.get("product")
+
+            card_title_v69442 = ""
+            if product_idx_v69442 is not None and product_idx_v69442 < len(cells):
+                card_title_v69442 = str(cells[product_idx_v69442] or "").strip()
+            if not card_title_v69442:
+                for candidate_v69442 in cells:
+                    if str(candidate_v69442 or "").strip():
+                        card_title_v69442 = str(candidate_v69442 or "").strip()
+                        break
+
+            option_text_v69442 = ""
+            if option_idx_v69442 is not None and option_idx_v69442 < len(cells):
+                option_text_v69442 = str(cells[option_idx_v69442] or "").strip()
+
+            card_bits_v69442 = [
+                '<article class="atp-result-card-v69442">'
+            ]
+            if option_text_v69442 or card_title_v69442:
+                card_bits_v69442.append(
+                    '<div class="atp-result-card-head-v69442">'
+                )
+                if option_text_v69442:
+                    card_bits_v69442.append(
+                        '<span class="atp-result-option-v69442">'
+                        f'Option {html.escape(option_text_v69442)}'
+                        '</span>'
+                    )
+                if card_title_v69442:
+                    card_bits_v69442.append(
+                        '<div class="atp-result-title-v69442">'
+                        f'{inline_format(card_title_v69442)}'
+                        '</div>'
+                    )
+                card_bits_v69442.append('</div>')
+
+            card_bits_v69442.append(
+                '<div class="atp-result-card-fields-v69442">'
+            )
+            for cell_index_v69442, cell_v69442 in enumerate(cells[:len(headers)]):
+                header_v69442 = re.sub(
+                    r"\s+", " ", str(headers[cell_index_v69442] or "")
+                ).strip()
+                normalized_header_v69442 = header_v69442.casefold()
+
+                # Option and Product are already promoted into the card header.
+                if normalized_header_v69442 in {"option", "product"}:
+                    continue
+
+                value_html_v69442 = inline_format(cell_v69442)
+                if normalized_header_v69442 in {"product link", "view link"}:
+                    raw_url_v69442 = str(cell_v69442 or "").strip()
+                    if re.match(r"^https?://[^\s]+$", raw_url_v69442, flags=re.I):
+                        safe_url_v69442 = html.escape(raw_url_v69442, quote=True)
+                        value_html_v69442 = (
+                            f'<a class="atp-view-product-link-v69412" '
+                            f'href="{safe_url_v69442}" target="_blank" '
+                            f'rel="noopener noreferrer">View Product →</a>'
+                        )
+
+                card_bits_v69442.extend([
+                    '<div class="atp-result-field-v69442">',
+                    '<div class="atp-result-label-v69442">'
+                    f'{html.escape(header_v69442)}'
+                    '</div>',
+                    '<div class="atp-result-value-v69442">'
+                    f'{value_html_v69442}'
+                    '</div>',
+                    '</div>',
+                ])
+
+            card_bits_v69442.append('</div></article>')
+            mobile_card_rows_v69442.append("".join(card_bits_v69442))
+
     html_rows.append("</tbody></table>")
     html_rows.append("</div>")
-    return "\n".join(html_rows)
+
+    if mobile_card_rows_v69442:
+        html_rows.append(
+            '<div class="atp-mobile-card-list-v69442">'
+            + "".join(mobile_card_rows_v69442)
+            + "</div>"
+        )
+
+    return "\\n".join(html_rows)
 
 
 def _professionalize_customer_reply_draft_v69102(text):
@@ -70556,6 +70796,42 @@ def _workspace_sales_authoritative_catalog_merge_v69411(vector_packages, manifes
                         prior_length=len(prior_feature_summary_v69432),
                         current_length=len(current_feature_summary_v69432),
                     )
+
+            # v69441: for an exact URL-matched current Woo product, identity fields
+            # must come from the current catalog contract, never from stale vector
+            # metadata. Enrichment may add facts/features, but it cannot turn a Ford
+            # F-250 page into make=RAM or retain old model/year identity.
+            prior_make_v69441 = str(merged_contract_v69432.get("make") or "").strip()
+            current_make_v69441 = str(manifest_contract.get("make") or "").strip()
+            for identity_key_v69441 in (
+                "product_identity_key", "product_family", "product_type",
+                "brand", "make", "year_start", "year_end",
+            ):
+                current_value_v69441 = manifest_contract.get(identity_key_v69441)
+                if current_value_v69441 not in (None, "", []):
+                    merged_contract_v69432[identity_key_v69441] = copy.deepcopy(
+                        current_value_v69441
+                    )
+            current_models_v69441 = [
+                str(x).strip()
+                for x in (manifest_contract.get("models") or [])
+                if str(x).strip()
+            ]
+            if current_models_v69441:
+                merged_contract_v69432["models"] = list(dict.fromkeys(current_models_v69441))
+            if (
+                current_make_v69441
+                and prior_make_v69441
+                and prior_make_v69441.casefold() != current_make_v69441.casefold()
+            ):
+                diagnostic_log(
+                    "workspace_sales_stale_vehicle_identity_replaced_by_woo_v69441",
+                    source_id=str(page_id)[:220],
+                    prior_make=prior_make_v69441[:80],
+                    current_make=current_make_v69441[:80],
+                    current_models=current_models_v69441[:12],
+                )
+
             rich["_workspace_atp_product_contract_v69227"] = merged_contract_v69432
             rich["workspace_sales_manifest_exact_fit_v69411"] = True
             # v69421: vector enrichment must not erase Woo catalog/hero provenance.
@@ -103672,6 +103948,36 @@ else:
                 "use_file_search": False,
             }
 
+        # v69441: a plain 5-12 digit value in Sales/Technical is an internal
+        # WooCommerce order lookup. Route it before any Sales product/vector
+        # recovery can interpret the digits as a catalog search. Four-digit vehicle
+        # years remain untouched.
+        plain_order_match_v69441 = re.fullmatch(
+            r"\s*#?(\d{5,12})\s*",
+            str(prompt or ""),
+        )
+        if (
+            plain_order_match_v69441
+            and _normalized_workspace_name(assistant)
+            in {"technical support", "sales"}
+            and not explicit_learning_requested
+        ):
+            execution_plan["live"] = {
+                "type": "woocommerce_order",
+                "order_number": plain_order_match_v69441.group(1),
+                "access_level": (
+                    "technical"
+                    if _normalized_workspace_name(assistant) == "technical support"
+                    else "sales"
+                ),
+            }
+            execution_plan["use_file_search"] = False
+            diagnostic_log(
+                "woocommerce_plain_order_pre_routed_v69441",
+                workspace=str(assistant),
+                order_number=plain_order_match_v69441.group(1),
+            )
+
         if str(
             (execution_plan.get("live") or {}).get("type") or "none"
         ).strip().lower() == "none":
@@ -109136,10 +109442,52 @@ else:
                     error_type=type(error).__name__,
                     error=str(error)[:500],
                 )
+        # v69441: broad non-visual Sales discovery already rendered a current exact
+        # Woo primary manifest earlier in this same turn. Reuse that proven manifest
+        # for persistence/final publication instead of running a second late exact
+        # page/image revalidation pass. This closes the F250 path where the text and
+        # four exact images were ready but the turn never reached assistant commit.
+        workspace_sales_early_manifest_final_v69441 = False
+        if (
+            is_sales_workspace(assistant)
+            and bool(locals().get("workspace_sales_early_images_rendered_v69420"))
+            and not bool(_workspace_sales_visual_request_v69418(interaction_prompt))
+            and bool(_workspace_sales_broad_discovery_prompt_v69411(interaction_prompt))
+            and str((locals().get("workspace_atp_authority_v69180") or {}).get("status") or "")
+            in {"recovered", "recovered_multi"}
+        ):
+            exact_manifest_v69441 = dict(
+                locals().get("workspace_sales_prefetched_manifest_v69420") or {}
+            )
+            exact_images_v69441 = [
+                dict(x)
+                for x in (exact_manifest_v69441.get("images") or [])
+                if isinstance(x, dict)
+            ]
+            if exact_images_v69441:
+                non_web_v69441 = [
+                    image
+                    for image in (generated_images or [])
+                    if not (
+                        isinstance(image, dict)
+                        and str(image.get("source") or "") == "website_knowledge"
+                    )
+                ]
+                generated_images = _workspace_sales_product_aware_image_dedupe_v69419(
+                    non_web_v69441 + exact_images_v69441
+                )
+                workspace_sales_early_manifest_final_v69441 = True
+                diagnostic_log(
+                    "workspace_sales_early_exact_manifest_finalized_v69441",
+                    products=len(exact_images_v69441),
+                    mode=str(exact_manifest_v69441.get("mode") or ""),
+                )
+
         # v69398: restore only the exact primary photo for every exact Sales
         # product after the unchanged generic website publication gate.
         if (
-            not bool(locals().get("workspace_same_case_nonvisual_no_repeat_images_v69407"))
+            not workspace_sales_early_manifest_final_v69441
+            and not bool(locals().get("workspace_same_case_nonvisual_no_repeat_images_v69407"))
             and (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
             and str(
                 (locals().get("workspace_atp_authority_v69180") or {}).get("status") or ""
@@ -109725,6 +110073,15 @@ else:
                     message_index=len(st.session_state.messages),
                 )
 
+        diagnostic_log(
+            "assistant_commit_reached_v69441",
+            workspace=str(assistant),
+            content_chars=len(str(assistant_content_to_save or "")),
+            image_count=len(generated_images or []),
+            early_exact_manifest=bool(
+                locals().get("workspace_sales_early_manifest_final_v69441")
+            ),
+        )
         st.session_state.messages.append({
             "role": "assistant",
             "content": assistant_content_to_save
