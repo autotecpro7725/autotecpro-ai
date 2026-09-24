@@ -1,4 +1,4 @@
-# AutoTecPro AI v69446 - image-intent typo repair + Tesla-style fitment disambiguation + stable exact-image authority
+# AutoTecPro AI v69447 - exact live product-title authority + image accuracy/stability fixes
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
 # AutoTecPro AI v69443 - live catalog reconciliation + clean intro + newline rendering fix
 # AutoTecPro AI v69442 - durable first-answer commit + native mobile result cards
@@ -90,8 +90,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69446"
-AUTOTECPRO_RELEASE_BUILD = "v69446-image-accuracy-stability-no-speed-regression-20260924"
+AUTOTECPRO_RELEASE_VERSION = "v69447"
+AUTOTECPRO_RELEASE_BUILD = "v69447-exact-live-product-title-authority-20260924"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -330,7 +330,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69446",
+        "app_release_v69447",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -2185,6 +2185,30 @@ def _current_product_page_price_by_exact_url_v69340(source_url, timeout_seconds=
     if not html_text:
         return {"status": "unavailable", "reason": "empty_product_page"}
 
+    # v69447: capture the exact current WooCommerce product H1 from the SAME
+    # already-fetched, identity-verified product page. This repairs a hidden path
+    # where live catalog reconciliation could preserve a stale/truncated vector
+    # title (for example "AutoTecPro Ford F250") even though the current page
+    # has the full authoritative product name. No extra HTTP request is added.
+    product_title_v69447 = ""
+    for title_pattern_v69447 in (
+        r'<h1[^>]+class=["\'][^"\']*\bproduct_title\b[^"\']*["\'][^>]*>(.*?)</h1>',
+        r'<h1[^>]+class=["\'][^"\']*\bentry-title\b[^"\']*["\'][^>]*>(.*?)</h1>',
+        r'<h1[^>]*>(.*?)</h1>',
+    ):
+        title_match_v69447 = re.search(
+            title_pattern_v69447, html_text, flags=re.I | re.S
+        )
+        if not title_match_v69447:
+            continue
+        candidate_title_v69447 = html.unescape(
+            re.sub(r'<[^>]+>', ' ', str(title_match_v69447.group(1) or ''))
+        )
+        candidate_title_v69447 = re.sub(r'\s+', ' ', candidate_title_v69447).strip()
+        if candidate_title_v69447:
+            product_title_v69447 = candidate_title_v69447
+            break
+
     # v69445: reuse this already-verified exact product-page response for the
     # primary product image. This cannot broaden product authority because the
     # final URL identity was verified immediately above. The extracted URL is
@@ -2389,6 +2413,7 @@ def _current_product_page_price_by_exact_url_v69340(source_url, timeout_seconds=
         "currency": currency,
         "price_source": "woocommerce_summary_price" if summary_price_text_v69341 else "product_structured_data",
         "primary_image_url_v69445": primary_image_url_v69445,
+        "product_title_v69447": product_title_v69447,
     }
 
 
@@ -70482,6 +70507,29 @@ def _workspace_sales_live_catalog_reconcile_v69443(
         reconciled["workspace_sales_live_page_price_v69443"] = str(
             result.get("price_label") or result.get("price") or ""
         )
+        # v69447: current exact-page H1 outranks stale/vector package titles.
+        # The HTTP response was already product-identity verified above, so this
+        # changes display naming only and cannot broaden catalog membership.
+        live_title_v69447 = re.sub(
+            r"\s+",
+            " ",
+            html.unescape(str(result.get("product_title_v69447") or "")),
+        ).strip()
+        if live_title_v69447:
+            prior_title_v69447 = re.sub(
+                r"\s+",
+                " ",
+                str(reconciled.get("page_title") or reconciled.get("title") or ""),
+            ).strip()
+            reconciled["title"] = live_title_v69447
+            reconciled["page_title"] = live_title_v69447
+            reconciled["workspace_sales_live_product_title_v69447"] = live_title_v69447
+            diagnostic_log(
+                "workspace_sales_live_product_title_refreshed_v69447",
+                source_url=str(reconciled.get("source_url") or "")[:260],
+                old_title=prior_title_v69447[:220],
+                new_title=live_title_v69447[:220],
+            )
         live_primary_v69445 = str(
             result.get("primary_image_url_v69445") or ""
         ).strip()
