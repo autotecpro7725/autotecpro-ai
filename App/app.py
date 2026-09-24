@@ -1,3 +1,4 @@
+# AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
 # AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
 # AutoTecPro AI v69443 - live catalog reconciliation + clean intro + newline rendering fix
@@ -90,8 +91,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69448"
-AUTOTECPRO_RELEASE_BUILD = "v69448-exact-current-fitment-family-recovery-20260924"
+AUTOTECPRO_RELEASE_VERSION = "v69449"
+AUTOTECPRO_RELEASE_BUILD = "v69449-product-bound-compatibility-image-stability-20260924"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -330,7 +331,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69448",
+        "app_release_v69449",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -65131,7 +65132,12 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
 
     packages=[]
     for c in selected:
-        identity_text=" ".join((c["title"],c["source_url"],c["text"][:24000]))
+        # v69449: make authority is the declared product title/canonical URL only.
+        # The recovered body can contain related-product links (for example RAM on
+        # a Ford page); scanning it here previously produced contract_make=RAM for
+        # an exact Ford F150/F250/F350/F450 product.  Leave make empty rather than
+        # importing a conflicting related-product make.
+        identity_text=" ".join((c["title"],c["source_url"]))
         make=""
         for maker in ("Dodge","RAM","Ford","Chevrolet","GMC","Toyota","Honda","Jeep","BMW","Mercedes","Porsche","Infiniti","Nissan","Cadillac"):
             if re.search(r"\b"+re.escape(maker)+r"\b", identity_text, flags=re.I): make=maker; break
@@ -69979,6 +69985,25 @@ def _workspace_sales_woocommerce_contract_v69413(product):
         if str(x or "").strip()
     })
 
+    # v69449: derive make only from the exact Woo product identity fields already
+    # in memory.  Do not use description/related-product prose for make authority.
+    woo_make_v69449 = ""
+    woo_make_identity_v69449 = " ".join((name, slug, permalink))
+    for maker_v69449 in (
+        "Dodge", "RAM", "Ford", "Chevrolet", "GMC", "Toyota", "Honda",
+        "Jeep", "BMW", "Mercedes", "Porsche", "Infiniti", "Nissan",
+        "Cadillac", "Lexus", "Lincoln", "Acura", "Audi", "Hyundai",
+        "Kia", "Mazda", "Subaru", "Volkswagen", "Volvo", "Buick",
+        "Chrysler",
+    ):
+        if re.search(
+            r"\b" + re.escape(maker_v69449) + r"\b",
+            woo_make_identity_v69449,
+            flags=re.I,
+        ):
+            woo_make_v69449 = maker_v69449
+            break
+
     # v69448: current ATP semantic fitment outranks stale/incomplete Woo title,
     # slug, category and tag metadata. This fixes products whose live authored
     # compatibility branches include a model (for example F450) that the legacy
@@ -70240,7 +70265,7 @@ def _workspace_sales_woocommerce_contract_v69413(product):
     if not branches and years and families:
         branches.append({
             "branch_id": "woocommerce-v69413",
-            "make": "",
+            "make": woo_make_v69449,
             "models": list(families),
             "years": list(years),
             "trim": "",
@@ -70254,7 +70279,7 @@ def _workspace_sales_woocommerce_contract_v69413(product):
         "product_family": product_family_v69421,
         "product_type": product_type_v69421,
         "brand": "AutoTecPro",
-        "make": "",
+        "make": woo_make_v69449,
         "models": list(families),
         "year_start": year_start,
         "year_end": year_end,
@@ -73472,6 +73497,7 @@ def _workspace_sales_image_manifest_key_v69420(
         return ""
 
     page_ids = []
+    authority_versions_v69449 = []
     for pkg in _workspace_sales_authority_packages_v69420(authority):
         source = str(pkg.get("source_url") or "").strip()
         if not source:
@@ -73482,6 +73508,18 @@ def _workspace_sales_image_manifest_key_v69420(
             page_id = ""
         if page_id:
             page_ids.append(page_id)
+            # v69449: session image manifests must rotate when the exact current
+            # Woo/vector product revision changes.  v69420 keyed only by canonical
+            # page id + topic, so a same-session website image update could keep an
+            # old compatibility/primary image indefinitely even though the package
+            # already carried a newer modified/extracted timestamp.  This adds only
+            # in-memory hash material; no network, DB, file, or vector I/O.
+            authority_versions_v69449.append("|".join((
+                page_id,
+                str(pkg.get("extracted_at") or "").strip(),
+                str(pkg.get("workspace_sales_woocommerce_product_id_v69413") or "").strip(),
+                str(pkg.get("workspace_sales_woocommerce_primary_v69413") or "").strip(),
+            )))
     if not page_ids:
         return ""
 
@@ -73499,6 +73537,7 @@ def _workspace_sales_image_manifest_key_v69420(
         destination,
         mode,
         *page_ids,
+        *authority_versions_v69449,
     ])
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
@@ -73621,6 +73660,10 @@ def _workspace_sales_fast_topical_manifest_v69420(
         record["website_sales_exact_product_identity_v69399"] = page_id
         record["website_sales_fast_manifest_v69420"] = True
         record["website_sales_fast_manifest_mode_v69420"] = "topical"
+        record = _workspace_sales_bind_topical_product_caption_v69449(
+            record,
+            pkg,
+        )
         return record
 
     resolved = [None] * len(packages)
@@ -73784,61 +73827,64 @@ def _workspace_sales_product_aware_image_dedupe_v69419(images):
 
 
 def _workspace_sales_shared_topical_image_dedupe_v69440(images):
-    """Collapse identical exact topical images shared across multiple products.
+    """Preserve exact topical image bindings per product identity.
 
-    The same authored compatibility/identification graphic may legitimately belong
-    to several exact products. Display it once, while preserving every associated
-    exact product identity in metadata for audit/provenance.
+    v69440 collapsed the same authored compatibility image when several exact
+    products legitimately referenced it.  That reduced a four-product topical
+    manifest to three visible cards and, more importantly, removed the visible
+    product-to-image association for one exact product.  v69449 keeps one record
+    per (exact product identity, image) while ordinary non-product images retain
+    URL/hash dedupe.  This is publication-only and performs no I/O.
     """
-    output = []
-    by_image = {}
-    for record in images or []:
-        if not isinstance(record, dict):
-            continue
-        item = dict(record)
-        image_identity = str(
-            item.get("website_image_sha256")
-            or item.get("archive_web_url")
-            or item.get("data_url")
-            or ""
-        ).strip()
-        if not image_identity:
-            continue
-
-        exact_topical = bool(
-            item.get("website_sales_exact_topic_visual_lock_v69399")
-            or item.get("website_sales_exact_topic_semantic_fallback_v69401")
-        )
-        if not exact_topical:
-            output.append(item)
-            continue
-
-        product_id = str(
-            item.get("website_sales_exact_product_identity_v69399")
-            or item.get("website_sales_exact_product_identity_v69401")
-            or ""
-        ).strip()
-
-        key = image_identity
-        existing = by_image.get(key)
-        if existing is None:
-            identities = []
-            if product_id:
-                identities.append(product_id)
-            item["website_sales_shared_exact_product_identities_v69440"] = identities
-            by_image[key] = item
-            output.append(item)
-            continue
-
-        identities = list(
-            existing.get("website_sales_shared_exact_product_identities_v69440")
-            or []
-        )
-        if product_id and product_id not in identities:
-            identities.append(product_id)
-        existing["website_sales_shared_exact_product_identities_v69440"] = identities
-
+    output = _workspace_sales_product_aware_image_dedupe_v69419(images)
+    diagnostic_log(
+        "workspace_sales_product_bound_topical_images_v69449",
+        input_count=len([x for x in (images or []) if isinstance(x, dict)]),
+        published=len(output or []),
+        exact_product_bindings=len({
+            str(
+                x.get("website_sales_exact_product_identity_v69399")
+                or x.get("website_sales_exact_product_identity_v69401")
+                or ""
+            ).strip().casefold()
+            for x in (output or [])
+            if isinstance(x, dict)
+            and str(
+                x.get("website_sales_exact_product_identity_v69399")
+                or x.get("website_sales_exact_product_identity_v69401")
+                or ""
+            ).strip()
+        }),
+    )
     return output
+
+
+def _workspace_sales_bind_topical_product_caption_v69449(record, package):
+    """Attach exact product identity to a topical image caption without changing selection."""
+    if not isinstance(record, dict):
+        return record
+    item = dict(record)
+    package = dict(package or {})
+    product_name = html.unescape(re.sub(
+        r"\s+",
+        " ",
+        str(package.get("page_title") or package.get("title") or ""),
+    )).strip()
+    if not product_name:
+        return item
+    # Keep the exact product identity visible. Some ATP product names use | between
+    # vehicle siblings (for example F250 | F350 | F450), so splitting on the first
+    # pipe would corrupt the product name. The renderer already caps the final label.
+    concise_name = product_name
+    base_name = re.sub(r"\s+", " ", str(item.get("name") or "Compatibility")).strip()
+    if "compat" in (
+        str(item.get("website_atp_topic_v69399") or "") + " "
+        + str(item.get("website_atp_image_role_v69399") or "")
+    ).casefold():
+        base_name = "Compatibility"
+    item["name"] = f"{base_name} — {concise_name}"[:180]
+    item["website_sales_exact_product_display_name_v69449"] = product_name[:500]
+    return item
 
 
 def _workspace_sales_exact_topic_visual_final_lock_v69399(
@@ -74043,7 +74089,10 @@ def _workspace_sales_exact_topic_visual_final_lock_v69399(
         semantic_fallback_count_v69401 += 1
 
     ordered = [
-        best_by_page[page_id][1]
+        _workspace_sales_bind_topical_product_caption_v69449(
+            best_by_page[page_id][1],
+            package_by_page_v69401.get(page_id) or {},
+        )
         for page_id, _ in sorted(
             allowed_page_ids.items(),
             key=lambda item: item[1],
