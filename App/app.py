@@ -1,4 +1,4 @@
-# AutoTecPro AI v69447 - exact live product-title authority + image accuracy/stability fixes
+# AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
 # AutoTecPro AI v69443 - live catalog reconciliation + clean intro + newline rendering fix
 # AutoTecPro AI v69442 - durable first-answer commit + native mobile result cards
@@ -90,8 +90,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69447"
-AUTOTECPRO_RELEASE_BUILD = "v69447-exact-live-product-title-authority-20260924"
+AUTOTECPRO_RELEASE_VERSION = "v69448"
+AUTOTECPRO_RELEASE_BUILD = "v69448-exact-current-fitment-family-recovery-20260924"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -330,7 +330,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69447",
+        "app_release_v69448",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -65014,6 +65014,29 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         source_identity_text_v69358 = " ".join((str(c.get("title") or ""), str(c.get("source_url") or "")))
         source_families_v69358 = set(_website_identity_vehicle_families_v69022(source_identity_text_v69358))
         source_years_v69358 = set(_website_identity_years_v69022(source_identity_text_v69358))
+
+        # v69448: exact-current semantic product identity can safely expand a
+        # stale/incomplete source title/permalink family list. This happens before
+        # the v69358 rejection gate so a valid sibling model is not discarded too
+        # early. Ordinary package prose is never used for this expansion.
+        semantic_source_families_v69448 = (
+            _workspace_exact_current_semantic_families_v69448(
+                str(c.get("text") or "")
+            )
+        )
+        if semantic_source_families_v69448:
+            original_source_families_v69448 = set(source_families_v69358)
+            source_families_v69358 |= set(semantic_source_families_v69448)
+            if source_families_v69358 != original_source_families_v69448:
+                diagnostic_log(
+                    "workspace_atp_source_semantic_family_expanded_v69448",
+                    destination=target,
+                    source_url=str(c.get("source_url") or "")[:500],
+                    prior_families=sorted(original_source_families_v69448),
+                    semantic_families=sorted(semantic_source_families_v69448),
+                    final_families=sorted(source_families_v69358),
+                )
+
         source_identity_norm_v69358 = re.sub(r"[^a-z0-9]+", " ", source_identity_text_v69358.casefold()).strip()
         source_family_token_match_v69358 = any(
             re.sub(r"[^a-z0-9]+", " ", str(family_v69358).casefold()).strip()
@@ -65037,7 +65060,13 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
                 prompt_years=sorted(py), source_years=sorted(source_years_v69358),
             )
             continue
-        if pf and c["families"] and not (pf & set(c["families"])):
+        candidate_families_v69448 = set(c.get("families") or [])
+        candidate_families_v69448 |= set(
+            _workspace_exact_current_semantic_families_v69448(
+                str(c.get("text") or "")
+            )
+        )
+        if pf and candidate_families_v69448 and not (pf & candidate_families_v69448):
             continue
         if py and c["years"] and not (py & set(c["years"])):
             continue
@@ -69433,6 +69462,78 @@ def _workspace_sales_fuzzy_vehicle_families_v69416(value):
     return set()
 
 
+
+def _workspace_exact_current_semantic_families_v69448(raw_text):
+    """Extract vehicle families only from exact-current ATP semantic identity.
+
+    This deliberately ignores ordinary body prose and related-product links.
+    Accepted evidence is limited to:
+    - current-source compatibility branch tags carrying ATP model attributes
+    - ATP product-identity keys on the exact current product description/package
+
+    It performs no network I/O and therefore does not affect discovery latency.
+    """
+    text_v69448 = str(raw_text or "")
+    if not text_v69448:
+        return set()
+
+    evidence_v69448 = []
+
+    # Exact-current compatibility branches are authored fitment facts.
+    for tag_v69448 in re.findall(
+        r"<[^>]*data-atp-compatibility-branch-id\s*=\s*[\"'][^\"']+[\"'][^>]*>",
+        text_v69448,
+        flags=re.I | re.S,
+    ):
+        attrs_v69448 = {
+            str(k or "").casefold(): html.unescape(str(v or "")).strip()
+            for k, v in re.findall(
+                r"(data-atp-[a-z0-9_-]+)\s*=\s*[\"']([^\"']*)[\"']",
+                tag_v69448,
+                flags=re.I,
+            )
+        }
+        if str(attrs_v69448.get("data-atp-current-source") or "true").casefold() not in {
+            "true", "1", "yes"
+        }:
+            continue
+        evidence_v69448.extend([
+            str(attrs_v69448.get("data-atp-model") or ""),
+            str(attrs_v69448.get("data-atp-models") or ""),
+            str(attrs_v69448.get("data-atp-vehicle-family") or ""),
+            str(attrs_v69448.get("data-atp-canonical-model-family") or ""),
+        ])
+
+    # The product identity key belongs to the exact current product itself.
+    evidence_v69448.extend(
+        html.unescape(str(value_v69448 or ""))
+        for value_v69448 in re.findall(
+            r"data-atp-product-identity-key\s*=\s*[\"']([^\"']+)[\"']",
+            text_v69448,
+            flags=re.I,
+        )
+    )
+
+    families_v69448 = set()
+    for evidence_item_v69448 in evidence_v69448:
+        if not str(evidence_item_v69448 or "").strip():
+            continue
+        try:
+            families_v69448.update(
+                str(x or "").casefold().strip()
+                for x in (
+                    _website_identity_vehicle_families_v69022(
+                        evidence_item_v69448
+                    )
+                    or set()
+                )
+                if str(x or "").strip()
+            )
+        except Exception:
+            continue
+    return families_v69448
+
+
 def _workspace_sales_family_sets_match_v69416(requested_families, product_families):
     """Match verified product families with bounded typo tolerance for Sales only."""
     requested = {str(x or "").casefold().strip() for x in (requested_families or []) if str(x or "").strip()}
@@ -69877,6 +69978,28 @@ def _workspace_sales_woocommerce_contract_v69413(product):
         for x in (_workspace_sales_fuzzy_vehicle_families_v69416(identity_text) or [])
         if str(x or "").strip()
     })
+
+    # v69448: current ATP semantic fitment outranks stale/incomplete Woo title,
+    # slug, category and tag metadata. This fixes products whose live authored
+    # compatibility branches include a model (for example F450) that the legacy
+    # permalink/title omits. Only exact-current ATP semantic attributes are used;
+    # ordinary description prose and related-product links cannot broaden fitment.
+    semantic_families_v69448 = _workspace_exact_current_semantic_families_v69448(
+        description_html_v69421
+    )
+    if semantic_families_v69448:
+        prior_families_v69448 = set(families)
+        families = sorted(prior_families_v69448 | semantic_families_v69448)
+        if set(families) != prior_families_v69448:
+            diagnostic_log(
+                "workspace_sales_woo_semantic_family_expanded_v69448",
+                product_id=str(product.get("id") or "")[:80],
+                product_name=name[:220],
+                prior_families=sorted(prior_families_v69448),
+                semantic_families=sorted(semantic_families_v69448),
+                final_families=list(families),
+            )
+
     years = _workspace_sales_woocommerce_years_v69413(identity_text)
 
     screen = ""
@@ -70050,13 +70173,29 @@ def _workspace_sales_woocommerce_contract_v69413(product):
                     branch_years_v69421 = []
             if not branch_years_v69421:
                 continue
+            branch_model_text_v69448 = " ".join([
+                str(attrs_v69421.get("data-atp-model") or ""),
+                str(attrs_v69421.get("data-atp-models") or ""),
+                str(attrs_v69421.get("data-atp-vehicle-family") or ""),
+                str(attrs_v69421.get("data-atp-canonical-model-family") or ""),
+            ]).strip()
+            branch_models_v69448 = sorted({
+                str(x or "").casefold().strip()
+                for x in (
+                    _website_identity_vehicle_families_v69022(
+                        branch_model_text_v69448
+                    )
+                    or set()
+                )
+                if str(x or "").strip()
+            }) if branch_model_text_v69448 else []
             exact_description_branches_v69421.append({
                 "branch_id": str(
                     attrs_v69421.get("data-atp-compatibility-branch-id")
                     or "woocommerce-atp-v69421"
                 ),
                 "make": str(attrs_v69421.get("data-atp-make") or ""),
-                "models": list(families),
+                "models": branch_models_v69448 or list(families),
                 "years": branch_years_v69421,
                 "trim": str(attrs_v69421.get("data-atp-trim") or ""),
                 "excluded_years": sorted({
