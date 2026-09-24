@@ -1,4 +1,4 @@
-# AutoTecPro AI v69445 - parallel Sales discovery + live-page image reuse + mobile-safe performance
+# AutoTecPro AI v69446 - image-intent typo repair + Tesla-style fitment disambiguation + stable exact-image authority
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
 # AutoTecPro AI v69443 - live catalog reconciliation + clean intro + newline rendering fix
 # AutoTecPro AI v69442 - durable first-answer commit + native mobile result cards
@@ -90,8 +90,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69445"
-AUTOTECPRO_RELEASE_BUILD = "v69445-parallel-sales-discovery-image-reuse-20260924"
+AUTOTECPRO_RELEASE_VERSION = "v69446"
+AUTOTECPRO_RELEASE_BUILD = "v69446-image-accuracy-stability-no-speed-regression-20260924"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -330,7 +330,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69445",
+        "app_release_v69446",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -62683,6 +62683,39 @@ def _website_image_vehicle_fitment_gate_v68997(prompt_text, payload):
     candidate_tokens = set(re.findall(r"[a-z0-9]+", section_text + " " + page_text))
     requested_brands = prompt_tokens & known_brands
     candidate_brands = candidate_tokens & known_brands
+
+    # v69446: "Tesla" is frequently a product-style descriptor in AutoTecPro
+    # requests (for example "F150 Tesla screen"), not the requested vehicle
+    # brand.  Treat it as a vehicle brand only when the prompt itself carries
+    # Tesla-vehicle evidence.  This fixes the hidden path where an exact Ford
+    # compatibility/primary image was rejected solely because its page title did
+    # not also contain the marketing phrase "Tesla-style".
+    if "tesla" in requested_brands:
+        tesla_vehicle_evidence_v69446 = bool(re.search(
+            r"\btesla\s+(?:model\s*)?(?:3|s|x|y|cybertruck|roadster|semi)\b",
+            prompt,
+        ))
+        tesla_style_evidence_v69446 = bool(re.search(
+            r"\btesla(?:[-\s]+style)?\s+(?:screen|radio|stereo|navigation|"
+            r"infotainment|head[-\s]?unit|display|system)\b",
+            prompt,
+        ))
+        other_vehicle_family_v69446 = bool(
+            re.search(
+                r"\b(?:f[-\s]?(?:150|250|350|450|550|650)|ram(?:\s*(?:1500|2500|3500))?|"
+                r"tundra|tacoma|silverado|sierra|wrangler|durango|explorer|"
+                r"mustang|expedition|q50|q60|4runner)\b",
+                prompt,
+            )
+            or ((prompt_tokens & known_brands) - {"tesla"})
+        )
+        if (tesla_style_evidence_v69446 or other_vehicle_family_v69446) and not tesla_vehicle_evidence_v69446:
+            requested_brands.discard("tesla")
+            diagnostic_log(
+                "website_image_tesla_style_brand_disambiguated_v69446",
+                prompt=prompt[:300],
+            )
+
     if requested_brands and candidate_brands and not (requested_brands & candidate_brands):
         return False
 
@@ -69325,6 +69358,9 @@ def _workspace_sales_fuzzy_vehicle_families_v69416(value):
         "products", "model", "models", "option", "options", "available", "fit",
         "fits", "compatible", "upgrade", "hd", "ips", "qhd", "carplay", "wifi",
         "gps", "lte", "style", "tesla", "inch", "inches", "benz",
+        "what", "which", "who", "where", "when", "why", "how", "do",
+        "does", "did", "have", "has", "can", "could", "would", "show",
+        "tell", "please", "me", "you", "carry",
     }
 
     def meaningful_after(start_index):
@@ -72676,9 +72712,52 @@ def _workspace_exact_product_atp_semantics_v69402(source_url):
 
 
 
+def _workspace_sales_normalize_visual_query_v69446(prompt_text):
+    """Normalize only high-confidence visual-topic typos without rewriting product identity.
+
+    This deliberately leaves vehicle/model/year/product tokens untouched.  It only
+    canonicalizes a small visual-intent vocabulary so a typo such as
+    ``compatiiblity`` cannot turn an exact compatibility-image request into a
+    zero-image fail-closed result.
+    """
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return ""
+
+    canonical_terms = (
+        "compatibility", "compatible", "identification", "installation",
+        "connector", "wiring", "harness", "camera", "resolution",
+        "carplay", "climate",
+    )
+
+    def repair(match):
+        token = str(match.group(0) or "")
+        if len(token) < 5:
+            return token
+        # Common compatibility misspellings are frequent enough to deserve an
+        # explicit prefix guard.  The guard is intentionally narrow.
+        if token.startswith("compat"):
+            if SequenceMatcher(None, token, "compatibility").ratio() >= 0.78:
+                return "compatibility"
+            if SequenceMatcher(None, token, "compatible").ratio() >= 0.82:
+                return "compatible"
+        best = token
+        best_score = 0.0
+        for expected in canonical_terms:
+            if token[:1] != expected[:1] or abs(len(token) - len(expected)) > 2:
+                continue
+            score = SequenceMatcher(None, token, expected).ratio()
+            if score >= 0.88 and score > best_score:
+                best = expected
+                best_score = score
+        return best
+
+    return re.sub(r"[a-z]+", repair, value)
+
+
 def _workspace_sales_auto_compatibility_visual_intent_v69418(prompt_text):
     """Implicit visual intent for HOW-to-check compatibility/factory-setup questions."""
-    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    value = _workspace_sales_normalize_visual_query_v69446(prompt_text)
     if not value:
         return False
     if _website_image_explicit_visual_request_v68888(value):
@@ -72734,9 +72813,12 @@ def _workspace_sales_product_overview_visual_v69421(prompt_text):
 
 
 def _workspace_sales_visual_topic_tokens_v69401(prompt_text):
-    if _workspace_sales_product_overview_visual_v69421(prompt_text):
+    normalized_prompt_v69446 = _workspace_sales_normalize_visual_query_v69446(
+        prompt_text
+    )
+    if _workspace_sales_product_overview_visual_v69421(normalized_prompt_v69446):
         return set()
-    tokens = set(_website_image_tokens_v68883(str(prompt_text or "")))
+    tokens = set(_website_image_tokens_v68883(normalized_prompt_v69446))
     tokens -= {
         "a", "an", "the", "my", "your", "our", "this", "that",
         "do", "does", "did", "can", "could", "would", "have", "has",
@@ -72745,6 +72827,30 @@ def _workspace_sales_visual_topic_tokens_v69401(prompt_text):
         "screen", "product", "products", "vehicle", "vehicles",
         "for", "of", "to", "and", "or", "with", "me",
         "you", "i", "we", "us", "it", "there", "any", "some",
+    }
+
+    # v69446: exact product authority already binds the vehicle/product.  Vehicle
+    # identity words must not compete with the requested visual topic.  Previously
+    # a request such as "F150 Tesla screen compatibility photo" could rank a QHD
+    # display or product-overview image merely because it overlapped on "f150" or
+    # "tesla".  Strip those subject tokens here; keep only the visual subject.
+    identity_stop_v69446 = {
+        "acura", "audi", "bmw", "buick", "cadillac", "chevrolet",
+        "chevy", "chrysler", "dodge", "ford", "gmc", "honda",
+        "hyundai", "infiniti", "jeep", "kia", "lexus", "lincoln",
+        "mazda", "mercedes", "nissan", "porsche", "ram", "subaru",
+        "tesla", "toyota", "volkswagen", "volvo",
+        "f150", "f250", "f350", "f450", "f550", "f650",
+        "e150", "e250", "e350", "e450", "e550", "e650",
+        "ram1500", "ram2500", "ram3500", "tundra", "tacoma",
+        "silverado", "sierra", "wrangler", "durango", "explorer",
+        "fusion", "mustang", "expedition", "edge", "escape",
+        "q50", "q60", "4runner",
+    }
+    tokens -= identity_stop_v69446
+    tokens -= {
+        str(year)
+        for year in re.findall(r"\b(?:19|20)\d{2}\b", normalized_prompt_v69446)
     }
     return tokens
 
