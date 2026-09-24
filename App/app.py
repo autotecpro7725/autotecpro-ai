@@ -1,3 +1,4 @@
+# AutoTecPro AI v69450 - precise product labels + trim-fitment display + concise compatibility captions + Streamlit iframe migration
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
 # AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
@@ -91,8 +92,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69449"
-AUTOTECPRO_RELEASE_BUILD = "v69449-product-bound-compatibility-image-stability-20260924"
+AUTOTECPRO_RELEASE_VERSION = "v69450"
+AUTOTECPRO_RELEASE_BUILD = "v69450-product-label-fitment-caption-iframe-hardening-20260924"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -111,7 +112,6 @@ except Exception:
         except Exception:
             STREAMLIT_STOP_EXCEPTION = None
             STREAMLIT_RERUN_EXCEPTION = None
-import streamlit.components.v1 as components
 
 
 class _GraphicProtectedFollowupStop(RuntimeError):
@@ -331,7 +331,7 @@ def _log_runtime_release_v69400():
     except Exception:
         pass
     diagnostic_log(
-        "app_release_v69449",
+        "app_release_v69450",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -6116,7 +6116,7 @@ def _sync_native_chat_send_arrow_for_attachments(has_attachments):
     """
     enabled = "true" if bool(has_attachments) else "false"
     sentinel_json = json.dumps(ATTACHMENT_ONLY_CHAT_SENTINEL)
-    components.html(
+    st.iframe(
         f"""
         <script>
         (() => {{
@@ -6164,8 +6164,9 @@ def _sync_native_chat_send_arrow_for_attachments(has_attachments):
         }})();
         </script>
         """,
-        height=0,
-        width=0,
+        height=1,
+        width=1,
+        tab_index=-1,
     )
 
 
@@ -8610,7 +8611,7 @@ def remove_saved_login_credentials():
 
 def clear_legacy_browser_login_data():
     """Remove storage values left by earlier experimental Remember Me versions."""
-    components.html(
+    st.iframe(
         """
         <script>
         (() => {
@@ -8625,8 +8626,9 @@ def clear_legacy_browser_login_data():
         })();
         </script>
         """,
-        height=0,
-        width=0,
+        height=1,
+        width=1,
+        tab_index=-1,
     )
 
 
@@ -9166,7 +9168,7 @@ def logout_user():
 
 def _install_login_interaction_fastpath_v69044():
     """Event-driven login form polish with no auth, cookie, or submit authority."""
-    components.html(
+    st.iframe(
         """
         <script>
         (() => {
@@ -9226,8 +9228,9 @@ def _install_login_interaction_fastpath_v69044():
         })();
         </script>
         """,
-        height=0,
-        width=0,
+        height=1,
+        width=1,
+        tab_index=-1,
     )
 
 
@@ -10621,7 +10624,7 @@ _current_workspace_slug = next(
 # This is intentionally not a temporary transition flag: recent Streamlit builds
 # can retain keyed nodes from a previous conditional branch after reconciliation.
 # A permanent marker lets workspace-scoped CSS keep those stale nodes hidden.
-components.html(
+st.iframe(
     f"""
     <script>
     (() => {{
@@ -10630,8 +10633,9 @@ components.html(
     }})();
     </script>
     """,
-    height=0,
-    width=0,
+    height=1,
+    width=1,
+    tab_index=-1,
 )
 
 
@@ -10644,7 +10648,7 @@ _workspace_mobile_collapse_nonce_v68882 = st.session_state.pop(
     None,
 )
 if _workspace_mobile_collapse_nonce_v68882:
-    components.html(
+    st.iframe(
         f"""
         <script>
         (() => {{
@@ -10774,8 +10778,9 @@ if _workspace_mobile_collapse_nonce_v68882:
         }})();
         </script>
         """,
-        height=0,
-        width=0,
+        height=1,
+        width=1,
+        tab_index=-1,
     )
 
 _workspace_nav_started_v68880 = st.session_state.pop(
@@ -66095,6 +66100,159 @@ def _workspace_sales_select_reference_authority_v69434(
     return result
 
 
+def _workspace_sales_customer_product_title_v69450(raw_title, contract=None, fallback=""):
+    """Return a concise exact product label without losing variant identity.
+
+    ATP SEO titles legitimately use ``|`` both between vehicle siblings (for
+    example F250 | F350 | F450) and before feature suffixes. Historical display
+    code split at the first pipe, which could erase Android 13/14 and could also
+    corrupt sibling-model names. This helper keeps identity segments intact,
+    stops only when a known feature/platform suffix begins, and carries the exact
+    platform from the already-authoritative product contract when available.
+    It is display-only and performs no I/O.
+    """
+    contract = dict(contract or {})
+    raw = html.unescape(re.sub(r"\s+", " ", str(raw_title or ""))).strip()
+    if not raw:
+        return re.sub(r"\s+", " ", str(fallback or "")).strip()
+
+    segments = [
+        re.sub(r"\s+", " ", segment).strip()
+        for segment in raw.split("|")
+        if re.sub(r"\s+", " ", segment).strip()
+    ]
+    if not segments:
+        return raw
+
+    suffix_pattern = re.compile(
+        r"^(?:"
+        r"android\s*\d{1,2}(?:\s*(?:/|or|&|and)\s*\d{1,2})?"
+        r"|gps(?:\s+navigation)?"
+        r"|bt|bluetooth"
+        r"|wi[\s-]?fi"
+        r"|wireless\s+(?:apple\s+)?carplay|(?:apple\s+)?carplay"
+        r"|wireless\s+android\s+auto|android\s+auto"
+        r"|4g(?:\s+lte)?|lte"
+        r"|sync(?:\s*\d+)?"
+        r"|camera|backup\s+camera|reverse\s+camera"
+        r")\b",
+        flags=re.I,
+    )
+
+    identity_segments = []
+    platform_from_title = ""
+    for segment in segments:
+        if suffix_pattern.search(segment):
+            if not platform_from_title:
+                platform_match = re.search(
+                    r"\bAndroid\s*\d{1,2}(?:\s*(?:/|or|&|and)\s*\d{1,2})?\b",
+                    segment,
+                    flags=re.I,
+                )
+                if platform_match:
+                    platform_from_title = re.sub(
+                        r"\s+", " ", platform_match.group(0)
+                    ).strip()
+            break
+        identity_segments.append(segment)
+
+    base = " | ".join(identity_segments).strip() or segments[0]
+    platform = re.sub(
+        r"\s+",
+        " ",
+        str(contract.get("platform") or platform_from_title or ""),
+    ).strip()
+    if platform and platform.casefold() not in base.casefold():
+        base = f"{base} — {platform}"
+    return base
+
+
+def _workspace_sales_fitment_branch_rows_v69450(contract, requested_years=None):
+    """Normalize display-only fitment branches while preserving source authority.
+
+    A broad fallback/index branch can overlap a more specific trim-authored branch
+    after exact catalog reconciliation. Showing both produced labels such as
+    ``2019; 2019 — Classic Trim only``. For display, overlapping years are removed
+    from an untrimmed branch only when a trim-specific branch has the same model
+    scope. Exact trim branches are never removed or broadened.
+    """
+    contract = dict(contract or {})
+    requested = {int(y) for y in (requested_years or []) if str(y).isdigit()}
+    raw_rows = []
+    for branch in (contract.get("compatibility_branches") or []):
+        if not isinstance(branch, dict):
+            continue
+        years = {
+            int(y) for y in (branch.get("years") or [])
+            if str(y).isdigit()
+        }
+        excluded = {
+            int(y) for y in (branch.get("excluded_years") or [])
+            if str(y).isdigit()
+        }
+        years -= excluded
+        if requested:
+            years &= requested
+        if not years:
+            continue
+        models = {
+            re.sub(r"[\s_-]+", "", str(x or "")).casefold()
+            for x in (branch.get("models") or [])
+            if str(x or "").strip()
+        }
+        raw_rows.append({
+            "branch": dict(branch),
+            "years": set(years),
+            "trim": re.sub(r"\s+", " ", str(branch.get("trim") or "")).strip(),
+            "models": models,
+        })
+
+    for row in raw_rows:
+        if row["trim"]:
+            continue
+        covered = set()
+        for specific in raw_rows:
+            if not specific["trim"]:
+                continue
+            if row["models"] and specific["models"] and row["models"].isdisjoint(specific["models"]):
+                continue
+            covered |= (row["years"] & specific["years"])
+        row["years"] -= covered
+
+    output = []
+    seen = set()
+    for row in raw_rows:
+        years = sorted(row["years"])
+        if not years:
+            continue
+        key = (tuple(years), row["trim"].casefold(), tuple(sorted(row["models"])))
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append({
+            "years": years,
+            "trim": row["trim"],
+            "models": sorted(row["models"]),
+            "branch": row["branch"],
+        })
+    return output
+
+
+def _workspace_sales_bounded_label_v69450(value, max_chars=180):
+    """Word-bound a display label so captions never end in a chopped token."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    try:
+        limit = max(24, int(max_chars))
+    except Exception:
+        limit = 180
+    if len(text) <= limit:
+        return text
+    candidate = text[: limit + 1].rsplit(" ", 1)[0].rstrip(" ,;:|-–—")
+    if len(candidate) < max(16, limit // 2):
+        candidate = text[:limit].rstrip(" ,;:|-–—")
+    return candidate + "…"
+
+
 def _workspace_sales_safe_exact_authority_answer_v69434(authority):
     """Minimal exact-authority answer used only if richer deterministic formatting fails."""
     authority = dict(authority or {})
@@ -66119,11 +66277,12 @@ def _workspace_sales_safe_exact_authority_answer_v69434(authority):
         if not identity or identity in seen:
             continue
         seen.add(identity)
-        title = re.sub(
-            r"\s+", " ",
-            str(pkg.get("page_title") or pkg.get("title") or "AutoTecPro product").split("|", 1)[0],
-        ).strip()
         contract = _workspace_atp_product_contract_v69205(pkg)
+        title = _workspace_sales_customer_product_title_v69450(
+            pkg.get("page_title") or pkg.get("title") or "",
+            contract,
+            fallback="AutoTecPro product",
+        )
         fitment = _workspace_atp_first_response_fitment_v69348(contract, None) or "See exact product page"
         out.append((title, fitment, source))
     if not out:
@@ -66574,17 +66733,20 @@ def _workspace_atp_first_response_fitment_v69348(contract, requested_years=None)
     contract = dict(contract or {})
     requested = {int(y) for y in (requested_years or []) if str(y).isdigit()}
     parts = []
-    for branch in (contract.get("compatibility_branches") or []):
-        if not isinstance(branch, dict):
-            continue
-        years = sorted({int(y) for y in (branch.get("years") or []) if str(y).isdigit()})
-        if requested:
-            years = sorted(requested & set(years))
+    for row_v69450 in _workspace_sales_fitment_branch_rows_v69450(
+        contract,
+        requested_years,
+    ):
+        years = list(row_v69450.get("years") or [])
         if not years:
             continue
         span = str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}"
-        trim = re.sub(r"\s+", " ", str(branch.get("trim") or "")).strip()
-        label = span + (f" — {trim} only" if trim else "")
+        trim = re.sub(r"\s+", " ", str(row_v69450.get("trim") or "")).strip()
+        if trim:
+            suffix = trim if re.search(r"\bonly\s*$", trim, flags=re.I) else f"{trim} only"
+            label = f"{span} — {suffix}"
+        else:
+            label = span
         if label not in parts:
             parts.append(label)
     if parts:
@@ -66810,24 +66972,19 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
         if prompt_years and not fitment:
             continue
 
-        title = re.sub(
-            r"\s+",
-            " ",
-            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
-        ).strip()
+        title = _workspace_sales_customer_product_title_v69450(
+            pkg.get("page_title") or pkg.get("title") or "",
+            contract,
+        )
         if not title:
             try:
-                title = re.sub(
-                    r"\s+",
-                    " ",
-                    str(
-                        _technical_package_header_value_v69113(
-                            str(pkg.get("package_text") or ""),
-                            "Page title",
-                        )
-                        or ""
-                    ).split("|", 1)[0],
-                ).strip()
+                title = _workspace_sales_customer_product_title_v69450(
+                    _technical_package_header_value_v69113(
+                        str(pkg.get("package_text") or ""),
+                        "Page title",
+                    ),
+                    contract,
+                )
             except Exception:
                 title = ""
         if not title:
@@ -67171,24 +67328,19 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
         seen.add(page_id)
 
         contract = _workspace_sales_followup_contract_v69417(pkg)
-        title = re.sub(
-            r"\s+",
-            " ",
-            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
-        ).strip()
+        title = _workspace_sales_customer_product_title_v69450(
+            pkg.get("page_title") or pkg.get("title") or "",
+            contract,
+        )
         if not title:
             try:
-                title = re.sub(
-                    r"\s+",
-                    " ",
-                    str(
-                        _technical_package_header_value_v69113(
-                            str(pkg.get("package_text") or ""),
-                            "Page title",
-                        )
-                        or ""
-                    ).split("|", 1)[0],
-                ).strip()
+                title = _workspace_sales_customer_product_title_v69450(
+                    _technical_package_header_value_v69113(
+                        str(pkg.get("package_text") or ""),
+                        "Page title",
+                    ),
+                    contract,
+                )
             except Exception:
                 title = ""
         if not title:
@@ -67470,24 +67622,19 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
         seen.add(page_id)
 
         contract = _workspace_atp_product_contract_cached_v69227(pkg)
-        title = re.sub(
-            r"\s+",
-            " ",
-            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
-        ).strip()
+        title = _workspace_sales_customer_product_title_v69450(
+            pkg.get("page_title") or pkg.get("title") or "",
+            contract,
+        )
         if not title:
             try:
-                title = re.sub(
-                    r"\s+",
-                    " ",
-                    str(
-                        _technical_package_header_value_v69113(
-                            str(pkg.get("package_text") or ""),
-                            "Page title",
-                        )
-                        or ""
-                    ).split("|", 1)[0],
-                ).strip()
+                title = _workspace_sales_customer_product_title_v69450(
+                    _technical_package_header_value_v69113(
+                        str(pkg.get("package_text") or ""),
+                        "Page title",
+                    ),
+                    contract,
+                )
             except Exception:
                 title = ""
         if not title:
@@ -68322,7 +68469,11 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 except Exception:
                     title = ""
             if title:
-                return re.sub(r"\s+", " ", title).strip()
+                return _workspace_sales_customer_product_title_v69450(
+                    title,
+                    contract,
+                    fallback="Current product",
+                )
             source = str(pkg.get("source_url") or "").strip()
             try:
                 slug = urllib.parse.urlsplit(source).path.rstrip("/").split("/")[-1]
@@ -68348,31 +68499,12 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 continue
             seen_sources_v69325.add(source_identity)
             contract = _workspace_atp_product_contract_v69205(pkg)
-            branches = list(contract.get("compatibility_branches") or [])
-            if requested_years_v69325:
-                requested_set = set(requested_years_v69325)
-                matching = [b for b in branches if requested_set & set(b.get("years") or [])]
-                if not matching:
-                    continue
-                fit_parts = []
-                for branch in matching:
-                    years = sorted(requested_set & set(branch.get("years") or []))
-                    if not years:
-                        continue
-                    year_label = ", ".join(str(y) for y in years)
-                    trim = str(branch.get("trim") or "").strip()
-                    fit_parts.append(year_label + (f" — {trim} only" if trim else ""))
-                fit_label = "; ".join(dict.fromkeys(fit_parts)) or ", ".join(map(str, requested_years_v69325))
-            else:
-                fit_parts = []
-                for branch in branches:
-                    years = sorted(set(branch.get("years") or []))
-                    if not years:
-                        continue
-                    span = str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}"
-                    trim = str(branch.get("trim") or "").strip()
-                    fit_parts.append(span + (f" — {trim} only" if trim else ""))
-                fit_label = "; ".join(dict.fromkeys(fit_parts))
+            fit_label = _workspace_atp_first_response_fitment_v69348(
+                contract,
+                requested_years_v69325 or None,
+            )
+            if requested_years_v69325 and not fit_label:
+                continue
             if bool(pkg.get("workspace_atp_turn_local_recovery_v69338")) and str(contract.get("platform") or "").strip():
                 fit_label = str(contract.get("platform") or "").strip()
             rows_v69325.append((_multi_title_v69325(pkg, contract), fit_label, source))
@@ -68643,11 +68775,9 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 live_rows_v69326,
             ):
                 raw_store_price_v69437 = original_row_v69437[2]
-                table_title_v69437 = re.sub(
-                    r"\s+",
-                    " ",
-                    str(title_v69437 or "").split("|", 1)[0],
-                ).strip()
+                table_title_v69437 = _workspace_sales_customer_product_title_v69450(
+                    title_v69437,
+                )
                 lines_v69326.append(
                     "| "
                     + " | ".join([
@@ -71207,11 +71337,11 @@ def _workspace_sales_broad_product_manifest_v69411(prompt_text):
         if not page_id:
             continue
 
-        title = re.sub(
+        title = html.unescape(re.sub(
             r"\s+",
             " ",
-            str(payload.get("page_title") or payload.get("title") or "").split("|", 1)[0],
-        ).strip()
+            str(payload.get("page_title") or payload.get("title") or ""),
+        )).strip()
         image_url = str(payload.get("image_url") or "").strip()
         meta_row = dict(meta)
         if image_url:
@@ -71622,11 +71752,11 @@ def _workspace_sales_broad_product_manifest_v69410(prompt_text):
         if not page_id:
             continue
 
-        title = re.sub(
+        title = html.unescape(re.sub(
             r"\s+",
             " ",
-            str(payload.get("page_title") or payload.get("title") or "").split("|", 1)[0],
-        ).strip()
+            str(payload.get("page_title") or payload.get("title") or ""),
+        )).strip()
         image_url = str(payload.get("image_url") or "").strip()
         meta_row = dict(meta)
         if image_url:
@@ -73860,30 +73990,59 @@ def _workspace_sales_shared_topical_image_dedupe_v69440(images):
 
 
 def _workspace_sales_bind_topical_product_caption_v69449(record, package):
-    """Attach exact product identity to a topical image caption without changing selection."""
+    """Attach a concise exact-product caption without changing image selection.
+
+    v69449 correctly preserved one compatibility image per exact product, but the
+    full SEO title made PDF/mobile captions wrap excessively and the 180-character
+    slice could end mid-word. v69450 keeps the exact product identity in metadata
+    and builds the visible caption only from already-authoritative screen/platform/
+    fitment facts, falling back to the concise exact title when those facts are
+    sparse. No image selection, dedupe, provenance, or I/O behavior changes.
+    """
     if not isinstance(record, dict):
         return record
     item = dict(record)
     package = dict(package or {})
-    product_name = html.unescape(re.sub(
+    raw_product_name = html.unescape(re.sub(
         r"\s+",
         " ",
         str(package.get("page_title") or package.get("title") or ""),
     )).strip()
-    if not product_name:
+    if not raw_product_name:
         return item
-    # Keep the exact product identity visible. Some ATP product names use | between
-    # vehicle siblings (for example F250 | F350 | F450), so splitting on the first
-    # pipe would corrupt the product name. The renderer already caps the final label.
-    concise_name = product_name
+
+    contract = _workspace_atp_product_contract_v69205(package)
+    concise_title = _workspace_sales_customer_product_title_v69450(
+        raw_product_name,
+        contract,
+        fallback=raw_product_name,
+    )
+    screen = re.sub(r"\s+", " ", str(contract.get("screen_size") or "")).strip()
+    platform = re.sub(r"\s+", " ", str(contract.get("platform") or "")).strip()
+    fitment = _workspace_atp_first_response_fitment_v69348(contract, None)
+
+    identity_bits = []
+    for value in (screen, platform, fitment):
+        value = re.sub(r"\s+", " ", str(value or "")).strip()
+        if value and value.casefold() not in {x.casefold() for x in identity_bits}:
+            identity_bits.append(value)
+    product_label = " · ".join(identity_bits)
+    if len(identity_bits) < 2:
+        product_label = concise_title
+
     base_name = re.sub(r"\s+", " ", str(item.get("name") or "Compatibility")).strip()
     if "compat" in (
         str(item.get("website_atp_topic_v69399") or "") + " "
         + str(item.get("website_atp_image_role_v69399") or "")
     ).casefold():
         base_name = "Compatibility"
-    item["name"] = f"{base_name} — {concise_name}"[:180]
-    item["website_sales_exact_product_display_name_v69449"] = product_name[:500]
+
+    item["name"] = _workspace_sales_bounded_label_v69450(
+        f"{base_name} — {product_label}",
+        180,
+    )
+    item["website_sales_exact_product_display_name_v69449"] = raw_product_name[:500]
+    item["website_sales_exact_product_caption_v69450"] = item["name"]
     return item
 
 
