@@ -93,15 +93,17 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69462
-# Scope: prevent an in-flight answer from being cancelled by a second chat submission.
-# The composer remains editable so staff can type the next inquiry while AutoTecPro AI is
-# still working, but Enter/send are guarded until the current turn fully commits. Draft text
-# is preserved across Streamlit DOM refreshes. This is presentation/submission concurrency
-# hardening only; v69461 answer persistence plus all Sales, Technical, Marketing, Graphic,
-# Auth, learning, WooCommerce, image-authority, and product-fitment behavior is preserved.
-AUTOTECPRO_RELEASE_VERSION = "v69462"
-AUTOTECPRO_RELEASE_BUILD = "v69462-inflight-turn-submission-guard-draft-preservation-20260925"
+# AutoTecPro AI v69463
+# Scope: make the prepared next-inquiry draft durable across the *end* of an active
+# Streamlit run. v69462 blocked concurrent submission correctly, but its browser draft
+# existed only in controller memory and was restored only while the turn was busy; a
+# composer replacement immediately after Python unlocked the turn could therefore erase
+# the unsent second inquiry. v69463 keeps that draft in per-tab sessionStorage and restores
+# it both while busy and after unlock until the user actually submits it. All v69462 turn
+# serialization plus Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce,
+# image-authority, product-fitment, voice, and composer-layout behavior is preserved.
+AUTOTECPRO_RELEASE_VERSION = "v69463"
+AUTOTECPRO_RELEASE_BUILD = "v69463-durable-next-inquiry-draft-across-unlock-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -6338,17 +6340,20 @@ def _install_composer_top_left_fallback_v69459():
     )
 
 
-def _install_chat_turn_guard_v69462():
-    """Keep a second chat submit from cancelling the answer currently in flight.
+def _install_chat_turn_guard_v69463():
+    """Serialize chat submits and preserve the next unsent inquiry across DOM replacement.
 
-    Streamlit permits the chat textarea to remain interactive while the Python script is
-    still running. A second submit during that window starts a new ScriptRunner execution
-    and can cancel the first run before its assistant message is durably committed. This
-    browser controller arms synchronously on the *first* send/Enter event, allows that
-    submission through, then blocks only subsequent submit actions until Python explicitly
-    unlocks it after the turn is committed. The textarea and microphone remain usable so a
-    staff member can prepare the next inquiry while waiting. Any draft is restored if
-    Streamlit recreates the composer DOM during the active turn.
+    v69462 correctly prevented a second submit from cancelling the active ScriptRunner turn,
+    but its prepared-draft copy lived only in the controller's in-memory state and the restore
+    path ran only while ``busy``. Streamlit can replace ``st.chat_input`` immediately after
+    Python unlocks the completed turn; that post-unlock replacement can therefore erase text
+    typed while the previous answer was still running.
+
+    v69463 keeps the unsent next-inquiry draft in per-tab ``sessionStorage`` and treats it as
+    durable browser state until the user actually submits that text. Restoration runs both
+    while busy and after unlock, including delayed post-unlock passes, so React/Streamlit DOM
+    replacement cannot silently clear the prepared inquiry. The server-side conversation and
+    provider pipelines remain untouched.
     """
     _run_invisible_trusted_browser_script_v69453(
         r"""
@@ -6356,8 +6361,54 @@ def _install_chat_turn_guard_v69462():
         (() => {
           const root = window;
           const doc = document;
-          const GLOBAL_KEY = "__atpChatTurnGuardV69462";
-          const PENDING_KEY = "__atpChatTurnGuardPendingV69462";
+          const GLOBAL_KEY = "__atpChatTurnGuardV69463";
+          const PENDING_KEY = "__atpChatTurnGuardPendingV69463";
+          const STORAGE_KEY = "__atpChatPreparedDraftV69463";
+          const STORAGE_TTL_MS = 30 * 60 * 1000;
+
+          // A hot deployment can leave the previous controller alive in an already-open tab.
+          // Remove only the v69462 listeners/timer before installing the v69463 controller.
+          try {
+            const prior = root.__atpChatTurnGuardV69462;
+            if (prior && typeof prior.cleanup === "function") prior.cleanup();
+            delete root.__atpChatTurnGuardV69462;
+            delete root.__atpChatTurnGuardPendingV69462;
+          } catch (error) {}
+
+          function readStoredDraft() {
+            try {
+              const raw = root.sessionStorage?.getItem(STORAGE_KEY);
+              if (!raw) return "";
+              const parsed = JSON.parse(raw);
+              const value = String(parsed?.value || "");
+              const updatedAt = Number(parsed?.updatedAt || 0);
+              if (!value || !updatedAt || Date.now() - updatedAt > STORAGE_TTL_MS) {
+                root.sessionStorage?.removeItem(STORAGE_KEY);
+                return "";
+              }
+              return value;
+            } catch (error) {
+              return "";
+            }
+          }
+
+          function writeStoredDraft(value) {
+            const next = String(value || "");
+            try {
+              if (!next) {
+                root.sessionStorage?.removeItem(STORAGE_KEY);
+                return;
+              }
+              root.sessionStorage?.setItem(
+                STORAGE_KEY,
+                JSON.stringify({ value: next, updatedAt: Date.now() })
+              );
+            } catch (error) {}
+          }
+
+          function clearStoredDraft() {
+            try { root.sessionStorage?.removeItem(STORAGE_KEY); } catch (error) {}
+          }
 
           const existing = root[GLOBAL_KEY];
           if (existing && typeof existing.refresh === "function") {
@@ -6376,13 +6427,14 @@ def _install_chat_turn_guard_v69462():
             busySince: 0,
             submittedValue: "",
             waitingForSubmittedClear: false,
-            draft: "",
+            draft: readStoredDraft(),
             blockedSubmitAttempt: false,
             allowFirstSubmitUntil: 0,
             observer: null,
             timer: null,
             seenStreamlitRunning: false,
             idleObservedAt: 0,
+            restoreTimers: [],
           };
 
           function composer() {
@@ -6421,24 +6473,66 @@ def _install_chat_turn_guard_v69462():
             );
           }
 
+          function syncDraftFromStorage() {
+            const stored = readStoredDraft();
+            if (stored && stored !== state.draft) state.draft = stored;
+            return state.draft;
+          }
+
+          function persistDraft(value) {
+            const next = String(value || "");
+            state.draft = next;
+            writeStoredDraft(next);
+          }
+
           function rememberDraftFromInput(input) {
-            if (!state.busy || !input) return;
+            if (!input) return;
             const value = String(input.value || "");
+
             if (state.waitingForSubmittedClear) {
               if (!value) {
+                // This is the native composer clearing the prompt that was just submitted,
+                // not the user's prepared next inquiry.
                 state.waitingForSubmittedClear = false;
                 state.submittedValue = "";
-                state.draft = "";
                 return;
               }
               if (value === state.submittedValue) return;
-              // The browser may replace the submitted text with the user's next draft
-              // without exposing an intermediate empty-value event. Treat any different
-              // value as the new draft instead of restoring the already-submitted prompt.
+              // The user started the next inquiry before an intermediate empty event was
+              // observable. From this point forward the new value is a real draft.
               state.waitingForSubmittedClear = false;
               state.submittedValue = "";
             }
-            state.draft = value;
+
+            // Capture drafts both while busy and after unlock. This is important because
+            // Streamlit can finish the Python run before its final composer DOM settles.
+            persistDraft(value);
+          }
+
+          function restoreDraftIfNeeded() {
+            const input = inputElement();
+            if (!input || state.waitingForSubmittedClear) return;
+            const draft = syncDraftFromStorage();
+            if (draft && !String(input.value || "")) {
+              setReactValue(input, draft);
+            }
+          }
+
+          function scheduleRestorePasses() {
+            for (const timer of state.restoreTimers) {
+              try { root.clearTimeout(timer); } catch (error) {}
+            }
+            state.restoreTimers = [];
+            for (const delay of [0, 40, 120, 300, 700, 1400, 2600]) {
+              state.restoreTimers.push(
+                root.setTimeout(() => {
+                  try {
+                    restoreDraftIfNeeded();
+                    apply();
+                  } catch (error) {}
+                }, delay)
+              );
+            }
           }
 
           function apply() {
@@ -6446,46 +6540,42 @@ def _install_chat_turn_guard_v69462():
             if (!current) return;
             const input = inputElement(current);
 
-            if (state.busy) {
-              current.dataset.atpTurnBusyV69462 = "true";
-              current.classList.add("atp-turn-busy-v69462");
+            // v69463: an unsent draft is restored even after busy becomes false. The draft
+            // remains authoritative until the user actually submits it or manually clears it.
+            if (input && !state.waitingForSubmittedClear) {
+              const draft = syncDraftFromStorage();
+              if (draft && !String(input.value || "")) setReactValue(input, draft);
+            }
 
-              if (
-                input &&
-                !state.waitingForSubmittedClear &&
-                state.draft &&
-                !String(input.value || "")
-              ) {
-                setReactValue(input, state.draft);
-              }
+            if (state.busy) {
+              current.dataset.atpTurnBusyV69463 = "true";
+              current.classList.add("atp-turn-busy-v69463");
 
               for (const button of sendButtons(current)) {
-                if (!button.dataset.atpTurnGuardTitleV69462) {
-                  button.dataset.atpTurnGuardTitleV69462 = button.getAttribute("title") || "__EMPTY__";
+                if (!button.dataset.atpTurnGuardTitleV69463) {
+                  button.dataset.atpTurnGuardTitleV69463 = button.getAttribute("title") || "__EMPTY__";
                 }
-                button.dataset.atpTurnGuardBlockedV69462 = "true";
+                button.dataset.atpTurnGuardBlockedV69463 = "true";
                 button.style.setProperty("pointer-events", "none", "important");
                 button.style.setProperty("opacity", "0.45", "important");
                 button.style.setProperty("cursor", "not-allowed", "important");
                 button.setAttribute("title", "Wait for the current response to finish");
               }
             } else {
-              current.removeAttribute("data-atp-turn-busy-v69462");
-              current.classList.remove("atp-turn-busy-v69462");
+              current.removeAttribute("data-atp-turn-busy-v69463");
+              current.classList.remove("atp-turn-busy-v69463");
               for (const button of [...current.querySelectorAll("button")]) {
-                if (button.dataset.atpTurnGuardBlockedV69462 === "true") {
-                  delete button.dataset.atpTurnGuardBlockedV69462;
+                if (button.dataset.atpTurnGuardBlockedV69463 === "true") {
+                  delete button.dataset.atpTurnGuardBlockedV69463;
                   button.style.removeProperty("pointer-events");
                   button.style.removeProperty("opacity");
                   button.style.removeProperty("cursor");
-                  const priorTitle = button.dataset.atpTurnGuardTitleV69462;
+                  const priorTitle = button.dataset.atpTurnGuardTitleV69463;
                   if (priorTitle === "__EMPTY__") button.removeAttribute("title");
                   else if (priorTitle) button.setAttribute("title", priorTitle);
-                  delete button.dataset.atpTurnGuardTitleV69462;
+                  delete button.dataset.atpTurnGuardTitleV69463;
                 }
               }
-              // Re-run the existing voice/send controller's state calculation without
-              // clearing the user's prepared draft.
               if (input) {
                 try { input.dispatchEvent(new Event("input", { bubbles: true })); } catch (error) {}
               }
@@ -6495,11 +6585,13 @@ def _install_chat_turn_guard_v69462():
           function beginBusyFromSubmit() {
             if (state.busy) return;
             const input = inputElement();
+            const submitted = String(input?.value || "");
             state.busy = true;
             state.busySince = Date.now();
-            state.submittedValue = String(input?.value || "");
-            state.waitingForSubmittedClear = Boolean(state.submittedValue);
+            state.submittedValue = submitted;
+            state.waitingForSubmittedClear = Boolean(submitted);
             state.draft = "";
+            clearStoredDraft();
             state.blockedSubmitAttempt = false;
             // The custom AutoTecPro send proxy immediately invokes the hidden native
             // Streamlit send button. Allow only that synchronous first-submit cascade.
@@ -6522,7 +6614,11 @@ def _install_chat_turn_guard_v69462():
             } else {
               const input = inputElement();
               if (input && !state.waitingForSubmittedClear) {
-                state.draft = String(input.value || state.draft || "");
+                const currentValue = String(input.value || "");
+                if (currentValue) persistDraft(currentValue);
+                else syncDraftFromStorage();
+              } else {
+                syncDraftFromStorage();
               }
               state.busy = false;
               state.busySince = 0;
@@ -6532,6 +6628,9 @@ def _install_chat_turn_guard_v69462():
               state.allowFirstSubmitUntil = 0;
               state.seenStreamlitRunning = false;
               state.idleObservedAt = 0;
+              // The final Streamlit DOM can settle *after* Python sends the unlock. Keep
+              // restoring the prepared inquiry through that post-run replacement window.
+              scheduleRestorePasses();
             }
             apply();
           }
@@ -6596,6 +6695,13 @@ def _install_chat_turn_guard_v69462():
             rememberDraftFromInput(event.target);
           }
 
+          function onCompositionEndCapture(event) {
+            const current = composer();
+            if (!current || !current.contains(event.target)) return;
+            if (event.target !== inputElement(current)) return;
+            rememberDraftFromInput(event.target);
+          }
+
           function streamlitRunningVisible() {
             const status = doc.querySelector('[data-testid="stStatusWidget"]');
             if (!status) return false;
@@ -6613,7 +6719,10 @@ def _install_chat_turn_guard_v69462():
 
           function healthCheck() {
             apply();
-            if (!state.busy) return;
+            if (!state.busy) {
+              restoreDraftIfNeeded();
+              return;
+            }
 
             if (streamlitRunningVisible()) {
               state.seenStreamlitRunning = true;
@@ -6641,21 +6750,26 @@ def _install_chat_turn_guard_v69462():
           doc.addEventListener("click", onClickCapture, true);
           doc.addEventListener("submit", onSubmitCapture, true);
           doc.addEventListener("input", onInputCapture, true);
+          doc.addEventListener("compositionend", onCompositionEndCapture, true);
 
           const observeRoot = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
           state.observer = new MutationObserver(() => root.requestAnimationFrame(apply));
           if (observeRoot) {
             state.observer.observe(observeRoot, { childList: true, subtree: true });
           }
-          state.timer = root.setInterval(healthCheck, 350);
+          state.timer = root.setInterval(healthCheck, 250);
 
           function cleanup() {
             try { state.observer?.disconnect(); } catch (error) {}
             try { root.clearInterval(state.timer); } catch (error) {}
+            for (const timer of state.restoreTimers) {
+              try { root.clearTimeout(timer); } catch (error) {}
+            }
             try { doc.removeEventListener("keydown", onKeyDownCapture, true); } catch (error) {}
             try { doc.removeEventListener("click", onClickCapture, true); } catch (error) {}
             try { doc.removeEventListener("submit", onSubmitCapture, true); } catch (error) {}
             try { doc.removeEventListener("input", onInputCapture, true); } catch (error) {}
+            try { doc.removeEventListener("compositionend", onCompositionEndCapture, true); } catch (error) {}
           }
 
           root[GLOBAL_KEY] = {
@@ -6663,7 +6777,8 @@ def _install_chat_turn_guard_v69462():
             refresh: apply,
             cleanup,
             isBusy: () => Boolean(state.busy),
-            hasDraft: () => Boolean(state.draft),
+            hasDraft: () => Boolean(syncDraftFromStorage()),
+            draftValue: () => String(syncDraftFromStorage() || ""),
           };
 
           if (typeof root[PENDING_KEY] === "boolean") {
@@ -6671,6 +6786,7 @@ def _install_chat_turn_guard_v69462():
             delete root[PENDING_KEY];
           } else {
             apply();
+            scheduleRestorePasses();
           }
         })();
         </script>
@@ -6678,20 +6794,20 @@ def _install_chat_turn_guard_v69462():
     )
 
 
-def _set_chat_composer_busy_v69462(is_busy):
-    """Synchronize the Python turn lifecycle with the browser submission guard."""
-    busy_js_v69462 = "true" if bool(is_busy) else "false"
+def _set_chat_composer_busy_v69463(is_busy):
+    """Synchronize Python turn lifecycle with the durable v69463 browser guard."""
+    busy_js_v69463 = "true" if bool(is_busy) else "false"
     _run_invisible_trusted_browser_script_v69453(
         f"""
         <script>
         (() => {{
           try {{
             const root = window;
-            const controller = root.__atpChatTurnGuardV69462;
+            const controller = root.__atpChatTurnGuardV69463;
             if (controller && typeof controller.setBusy === "function") {{
-              controller.setBusy({busy_js_v69462}, "python-lifecycle");
+              controller.setBusy({busy_js_v69463}, "python-lifecycle");
             }} else {{
-              root.__atpChatTurnGuardPendingV69462 = {busy_js_v69462};
+              root.__atpChatTurnGuardPendingV69463 = {busy_js_v69463};
             }}
           }} catch (error) {{}}
         }})();
@@ -105914,11 +106030,11 @@ else:
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
     _install_composer_top_left_fallback_v69459()
-    # v69462: arm a browser-side submission guard before the native composer mounts.
+    # v69463: arm a durable browser-side submission guard before the native composer mounts.
     # Staff can keep typing the next inquiry while a response is running, but a second
     # Enter/send cannot interrupt the current ScriptRunner turn. Draft text survives
     # composer DOM replacement until the current answer has fully committed.
-    _install_chat_turn_guard_v69462()
+    _install_chat_turn_guard_v69463()
     # Keep the original stable composer. Attachments remain in the proven managed
     # uploader above, while the normal bottom-right send arrow submits the turn.
     chat_prompt = st.chat_input("Message AutoTecPro AI...")
@@ -106037,14 +106153,14 @@ else:
     if not prompt:
         # A controlled rerun after a terminal/direct answer has no new prompt. Ensure
         # any client-side guard inherited from the completed turn is released.
-        _set_chat_composer_busy_v69462(False)
+        _set_chat_composer_busy_v69463(False)
 
     if prompt:
         # Browser capture normally locks synchronously on the original send event. This
         # server-side confirmation covers tool/attachment submissions and DOM edge cases.
-        _set_chat_composer_busy_v69462(True)
+        _set_chat_composer_busy_v69463(True)
         diagnostic_log(
-            "chat_inflight_submission_guard_active_v69462",
+            "chat_inflight_submission_guard_active_v69463",
             workspace=str(assistant),
             conversation_id=st.session_state.get("conversation_id"),
         )
@@ -106162,8 +106278,8 @@ else:
             )
         except ArchiveValidationError as error:
             st.error(f"ZIP analysis was stopped: {error}")
-            _set_chat_composer_busy_v69462(False)
-            diagnostic_log("chat_inflight_submission_guard_released_on_archive_error_v69462")
+            _set_chat_composer_busy_v69463(False)
+            diagnostic_log("chat_inflight_submission_guard_released_on_archive_error_v69463")
             st.stop()
 
         technical_followup_prompt_v68879 = interaction_prompt
@@ -107956,8 +108072,8 @@ else:
             if not lease_token_v68848:
                 diagnostic_log("graphic_v68848_duplicate_execution_blocked", job_id=str(durable_job_v68844.get("job_id") or ""))
                 st.info("This image request is already processing in another session. The result will appear when it completes.")
-                _set_chat_composer_busy_v69462(False)
-                diagnostic_log("chat_inflight_submission_guard_released_on_graphic_duplicate_v69462")
+                _set_chat_composer_busy_v69463(False)
+                diagnostic_log("chat_inflight_submission_guard_released_on_graphic_duplicate_v69463")
                 st.stop()
             durable_job_v68844["lease_token_local"] = lease_token_v68848
             current_attempt_v68844 = int(durable_job_v68844.get("attempt") or 0)
@@ -113292,12 +113408,12 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
-        # v69462: the answer is committed, but keep the send guard armed through the
+        # v69463: the answer is committed, but keep the send guard armed through the
         # remaining maintenance/final-render work in this same ScriptRunner execution.
         # The user may keep typing a draft, but submission is released only at the true
         # end of the run so the upper-right Streamlit running indicator and the guard end
         # together instead of leaving a small cancellation window.
-        _release_chat_guard_at_script_end_v69462 = True
+        _release_chat_guard_at_script_end_v69463 = True
 
         # v69461: normal text workspaces must not immediately destroy the just-rendered
         # answer/composer DOM. The user-observed production failure happened after the
@@ -114372,14 +114488,15 @@ _render_final_print_authority_v69009()
 # from flashing during Streamlit reruns.
 _finish_auth_transition(_auth_transition_placeholder)
 
-# v69462: release normal chat submission only after the entire Streamlit execution has
+# v69463: release normal chat submission only after the entire Streamlit execution has
 # finished its post-answer maintenance and final UI work. This intentionally sits at the
 # end of the script so a second inquiry cannot cancel the previous answer while the native
-# running indicator is still active. The browser controller preserves any typed draft.
-if bool(locals().get("_release_chat_guard_at_script_end_v69462", False)):
-    _set_chat_composer_busy_v69462(False)
+# running indicator is still active. The browser controller preserves any typed draft
+# in per-tab sessionStorage through the post-unlock composer replacement window.
+if bool(locals().get("_release_chat_guard_at_script_end_v69463", False)):
+    _set_chat_composer_busy_v69463(False)
     diagnostic_log(
-        "chat_inflight_submission_guard_released_v69462",
+        "chat_inflight_submission_guard_released_v69463",
         workspace=str(locals().get("assistant") or ""),
         conversation_id=st.session_state.get("conversation_id"),
         message_count=len(st.session_state.get("messages", [])),
