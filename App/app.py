@@ -93,14 +93,14 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69457
-# Scope: production cleanup after v69456 live verification: image-index schema truth,
-# catalog latency, price-follow-up reuse, exact product-identity parsing, and UI-runtime
-# deprecation isolation. No vehicle, product ID, product URL, factory-system, or catalog
-# item is hard-coded. Protected Graphic generation, Technical answering, Marketing,
-# Auth authority, learning transactions, and product-bound image behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69457"
-AUTOTECPRO_RELEASE_BUILD = "v69457-live-followup-hardening-performance-schema-ui-20260925"
+# AutoTecPro AI v69458
+# Scope: restore the proven v69456 chat-composer DOM targeting after the v69457
+# non-deprecated UI bridge changed JavaScript execution context. Voice dictation,
+# composer autogrow, and top-left input alignment are restored without reverting the
+# v69457 Sales/schema/performance fixes. Protected Graphic generation, Technical
+# answering, Marketing, Auth, learning, and product-bound image behavior are unchanged.
+AUTOTECPRO_RELEASE_VERSION = "v69458"
+AUTOTECPRO_RELEASE_BUILD = "v69458-composer-voice-parent-context-restoration-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -6209,16 +6209,17 @@ def _run_invisible_trusted_browser_script_v69453(script_html):
     )
 
 
-def _run_legacy_ui_runtime_without_deprecated_html_v69457(callback, *args, **kwargs):
+def _run_legacy_ui_runtime_without_deprecated_html_v69458(callback, *args, **kwargs):
     """Run trusted AutoTecPro UI-runtime helpers without deprecated components.html.
 
-    The external ``autotecpro_ui_runtime`` module still contains legacy zero-height
-    ``components.html`` script shims. v69457 installs a module-local proxy into that
-    helper module's own globals: only its ``html`` attribute is redirected to the
-    browser-verified v69453 ``st.html`` path; every other components attribute is
-    delegated unchanged. The global Streamlit components module is never monkey-
-    patched, so concurrent users and unrelated third-party components cannot race
-    against this compatibility bridge.
+    v69458 keeps the module-local proxy introduced in v69457, but preserves the
+    helper JavaScript's original ``window.parent`` references byte-for-byte.  The
+    production v69457 screenshot proved that rewriting ``window.parent`` to
+    ``window`` moves the DOM lookup into the hidden st.html execution context, so
+    the voice button cannot mount and the composer autogrow/top-left layout
+    controller cannot find ``stChatInput``.  Preserving ``window.parent`` restores
+    the exact parent-document targeting used by the proven v69456 helpers while
+    retaining the non-deprecated st.html transport and module-local isolation.
     """
     if not callable(callback):
         return None
@@ -6229,9 +6230,9 @@ def _run_legacy_ui_runtime_without_deprecated_html_v69457(callback, *args, **kwa
     if original_components_v69457 is None:
         return callback(*args, **kwargs)
 
-    if not bool(getattr(original_components_v69457, "_atp_direct_html_proxy_v69457", False)):
-        class _UiRuntimeComponentsProxyV69457:
-            _atp_direct_html_proxy_v69457 = True
+    if not bool(getattr(original_components_v69457, "_atp_direct_html_proxy_v69458", False)):
+        class _UiRuntimeComponentsProxyV69458:
+            _atp_direct_html_proxy_v69458 = True
 
             def __init__(self, delegate_v69457):
                 self._delegate_v69457 = delegate_v69457
@@ -6241,15 +6242,40 @@ def _run_legacy_ui_runtime_without_deprecated_html_v69457(callback, *args, **kwa
 
             def html(self, body_v69457, *html_args_v69457, **html_kwargs_v69457):
                 trusted_body_v69457 = str(body_v69457 or "")
-                trusted_body_v69457 = trusted_body_v69457.replace("window.parent", "window")
+                # v69458: DO NOT rewrite window.parent. These trusted helpers must
+                # target the Streamlit parent document from the hidden st.html host.
                 _run_invisible_trusted_browser_script_v69453(trusted_body_v69457)
                 return None
 
-        callback_globals_v69457["components"] = _UiRuntimeComponentsProxyV69457(
+        callback_globals_v69457["components"] = _UiRuntimeComponentsProxyV69458(
             original_components_v69457
         )
     return callback(*args, **kwargs)
 
+
+
+def _install_composer_top_left_fallback_v69458():
+    """Keep chat text top-left while the restored runtime controller mounts."""
+    st.markdown(
+        """
+        <style>
+        html body div[data-testid="stChatInput"] textarea {
+            text-align: left !important;
+            vertical-align: top !important;
+            padding-top: 11px !important;
+            padding-bottom: 11px !important;
+            padding-left: 4px !important;
+            padding-right: 4px !important;
+            line-height: 22px !important;
+            white-space: pre-wrap !important;
+        }
+        html body div[data-testid="stChatInput"] textarea::placeholder {
+            text-align: left !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 def _sync_native_chat_send_arrow_for_attachments(has_attachments):
     """Enable the existing native chat send arrow for attachment-only turns.
@@ -105411,7 +105437,7 @@ else:
     )
     st.session_state["chat_submission_upload_count_v68620"] = len(uploaded_files)
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
-    _run_legacy_ui_runtime_without_deprecated_html_v69457(install_global_chat_file_dropzone)
+    _run_legacy_ui_runtime_without_deprecated_html_v69458(install_global_chat_file_dropzone)
 
     # v69026: bound the live DOM on long conversations. Persistent history is
     # unchanged; only the newest messages are mounted into the active browser DOM.
@@ -105467,13 +105493,14 @@ else:
 
     st.markdown('<div id="chat-bottom-anchor"></div>', unsafe_allow_html=True)
     if st.session_state.get("scroll_to_bottom"):
-        _run_legacy_ui_runtime_without_deprecated_html_v69457(auto_scroll_to_latest)
+        _run_legacy_ui_runtime_without_deprecated_html_v69458(auto_scroll_to_latest)
         st.session_state.scroll_to_bottom = False
 
-    _run_legacy_ui_runtime_without_deprecated_html_v69457(install_email_safe_assistant_copy_v69359)
-    _run_legacy_ui_runtime_without_deprecated_html_v69457(install_browser_voice_dictation)
-    _run_legacy_ui_runtime_without_deprecated_html_v69457(install_chat_composer_autogrow)
+    _run_legacy_ui_runtime_without_deprecated_html_v69458(install_email_safe_assistant_copy_v69359)
+    _run_legacy_ui_runtime_without_deprecated_html_v69458(install_browser_voice_dictation)
+    _run_legacy_ui_runtime_without_deprecated_html_v69458(install_chat_composer_autogrow)
     install_composer_width_safety_css()
+    _install_composer_top_left_fallback_v69458()
     # Keep the original stable composer. Attachments remain in the proven managed
     # uploader above, while the normal bottom-right send arrow submits the turn.
     chat_prompt = st.chat_input("Message AutoTecPro AI...")
