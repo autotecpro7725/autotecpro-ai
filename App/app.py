@@ -93,7 +93,7 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69466
+# AutoTecPro AI v69467
 # Scope: harden the next-inquiry draft bridge after a source-level audit of Streamlit 1.61.
 # Native submit_mode="disable" remains the authoritative turn serializer. The prepared second
 # inquiry now lives in a body-level fixed overlay outside Streamlit/React's managed chat-input
@@ -102,8 +102,8 @@
 # React-aware value injection plus post-transfer verification/retry before the draft overlay is
 # retired. Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce, image-authority,
 # product-fitment, voice, and completed-answer persistence behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69466"
-AUTOTECPRO_RELEASE_BUILD = "v69466-durable-overlay-submit-confirmation-20260925"
+AUTOTECPRO_RELEASE_VERSION = "v69467"
+AUTOTECPRO_RELEASE_BUILD = "v69467-dual-slot-next-inquiry-transaction-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -6340,22 +6340,24 @@ def _install_composer_top_left_fallback_v69459():
     )
 
 
-def _install_chat_turn_guard_v69466():
-    """Preserve the next inquiry until Streamlit confirms that inquiry was submitted.
+def _install_chat_turn_guard_v69467():
+    """Keep submitted and next-draft inquiries in separate browser-side slots.
 
-    v69466 fixes the remaining lifecycle hole found in production after v69465.  v69465
-    transferred the prepared draft into Streamlit's React-controlled textarea as soon as the
-    preceding run became idle, and could retire the overlay after a same-tick DOM equality
-    check. React could reconcile the controlled value back to empty on a later frame, which
-    made the prepared second inquiry disappear even though the server-side turn lock worked.
+    v69467 fixes the overlap defect reproduced in production after v69466: a single
+    sessionStorage value represented both the inquiry being submitted and the inquiry
+    the user was already typing behind it.  When the next native run was acknowledged,
+    clearing the submitted value could therefore collide with the newly typed draft.
 
-    v69466 changes the state machine: the body-level draft overlay remains the visible source
-    of truth after the prior run completes. Its value stays in per-tab sessionStorage and is
-    mirrored into the native textarea only to arm Streamlit's normal send control. The overlay
-    and storage are NOT cleared on transfer. They are cleared only after a new native chat run
-    is observed (native submit_mode="disable" makes the real textarea disabled), which is the
-    browser-level acknowledgement that Streamlit accepted the prepared inquiry. Enter/click
-    submission failures therefore leave the user's text intact and retryable.
+    The state machine is now transactional and dual-slot:
+      * DRAFT_KEY: editable next inquiry only.
+      * PENDING_KEY: immutable inquiry that has been handed to Streamlit but is not yet
+        acknowledged by a new native run.
+
+    On submit, the current draft is atomically MOVED to PENDING_KEY and the overlay is
+    cleared immediately for the following inquiry.  A later busy/run acknowledgement
+    clears only PENDING_KEY; it never touches the new draft.  If submission fails, the
+    pending inquiry is restored only when the draft slot is still empty, so neither turn
+    can erase the other.
     """
     _run_invisible_trusted_browser_script_v69453(
         r"""
@@ -6363,16 +6365,19 @@ def _install_chat_turn_guard_v69466():
         (() => {
           const root = window;
           const doc = document;
-          const GLOBAL_KEY = "__atpChatTurnGuardV69466";
-          const PENDING_KEY = "__atpChatTurnGuardPendingV69466";
-          const STORAGE_KEY = "__atpChatPreparedDraftV69466";
-          const LEGACY_KEYS = [
+          const GLOBAL_KEY = "__atpChatTurnGuardV69467";
+          const PY_BUSY_KEY = "__atpChatTurnGuardPendingV69467";
+          const DRAFT_KEY = "__atpChatPreparedDraftV69467";
+          const PENDING_SUBMIT_KEY = "__atpChatPendingSubmitV69467";
+          const LEGACY_DRAFT_KEYS = [
+            "__atpChatPreparedDraftV69466",
             "__atpChatPreparedDraftV69465",
             "__atpChatPreparedDraftV69464",
             "__atpChatPreparedDraftV69463"
           ];
-          const OVERLAY_ID = "atp-next-inquiry-draft-v69466";
+          const OVERLAY_ID = "atp-next-inquiry-draft-v69467";
           const STORAGE_TTL_MS = 30 * 60 * 1000;
+          const SUBMIT_ACK_TIMEOUT_MS = 4500;
 
           function composer() {
             return doc.querySelector('div[data-testid="stChatInput"]');
@@ -6383,9 +6388,8 @@ def _install_chat_turn_guard_v69466():
             return (
               container.querySelector('textarea[data-testid="stChatInputTextArea"]') ||
               [...container.querySelectorAll("textarea")].find(
-                (node) => node.id !== OVERLAY_ID && !node.classList.contains("atp-next-inquiry-draft-v69466")
-              ) ||
-              null
+                (node) => node.id !== OVERLAY_ID && !node.classList.contains("atp-next-inquiry-draft-v69467")
+              ) || null
             );
           }
 
@@ -6406,7 +6410,7 @@ def _install_chat_turn_guard_v69466():
             return null;
           }
 
-          function readStorageRecord(key) {
+          function readRecord(key) {
             try {
               const raw = root.sessionStorage?.getItem(key);
               if (!raw) return "";
@@ -6418,59 +6422,49 @@ def _install_chat_turn_guard_v69466():
                 return "";
               }
               return value;
-            } catch (error) {
-              return "";
-            }
+            } catch (error) { return ""; }
           }
 
-          function writeDraft(value) {
+          function writeRecord(key, value) {
             const next = String(value || "");
             try {
-              if (!next) {
-                root.sessionStorage?.removeItem(STORAGE_KEY);
-                return;
-              }
-              root.sessionStorage?.setItem(
-                STORAGE_KEY,
-                JSON.stringify({ value: next, updatedAt: Date.now() })
-              );
+              if (!next) root.sessionStorage?.removeItem(key);
+              else root.sessionStorage?.setItem(key, JSON.stringify({value: next, updatedAt: Date.now()}));
             } catch (error) {}
           }
 
           function readDraft() {
-            let value = readStorageRecord(STORAGE_KEY);
+            let value = readRecord(DRAFT_KEY);
             if (value) return value;
-            for (const key of LEGACY_KEYS) {
-              value = readStorageRecord(key);
+            for (const key of LEGACY_DRAFT_KEYS) {
+              value = readRecord(key);
               if (value) {
-                writeDraft(value);
+                writeRecord(DRAFT_KEY, value);
                 break;
               }
             }
-            for (const key of LEGACY_KEYS) {
+            for (const key of LEGACY_DRAFT_KEYS) {
               try { root.sessionStorage?.removeItem(key); } catch (error) {}
             }
             return value || "";
           }
+          function writeDraft(value) { writeRecord(DRAFT_KEY, value); }
+          function clearDraft() { writeRecord(DRAFT_KEY, ""); }
+          function readPending() { return readRecord(PENDING_SUBMIT_KEY); }
+          function writePending(value) { writeRecord(PENDING_SUBMIT_KEY, value); }
+          function clearPending() { writeRecord(PENDING_SUBMIT_KEY, ""); }
 
-          function clearDraft() {
-            try { root.sessionStorage?.removeItem(STORAGE_KEY); } catch (error) {}
-          }
-
-          function overlay() {
-            return doc.getElementById(OVERLAY_ID);
-          }
-
-          function removeOverlay() {
-            try { overlay()?.remove(); } catch (error) {}
-          }
+          function overlay() { return doc.getElementById(OVERLAY_ID); }
+          function removeOverlay() { try { overlay()?.remove(); } catch (error) {} }
 
           function nativeDisabled(input = nativeInput()) {
             if (!input) return false;
+            const c = composer();
+            const button = sendButton(c);
             return Boolean(
-              input.disabled ||
-              input.getAttribute("aria-disabled") === "true" ||
-              input.closest('[aria-disabled="true"]')
+              input.disabled || input.getAttribute("aria-disabled") === "true" ||
+              input.closest('[aria-disabled="true"]') ||
+              (button && (button.disabled || button.getAttribute("aria-disabled") === "true"))
             );
           }
 
@@ -6478,14 +6472,12 @@ def _install_chat_turn_guard_v69466():
             if (!source || !target) return;
             try {
               const style = root.getComputedStyle(source);
-              const props = [
-                "font-family", "font-size", "font-weight", "font-style",
-                "line-height", "letter-spacing", "text-align", "color",
-                "background-color", "padding-top", "padding-right",
-                "padding-bottom", "padding-left", "border-radius",
-                "caret-color", "text-rendering", "-webkit-text-fill-color"
-              ];
-              for (const prop of props) {
+              for (const prop of [
+                "font-family","font-size","font-weight","font-style","line-height",
+                "letter-spacing","text-align","color","background-color","padding-top",
+                "padding-right","padding-bottom","padding-left","border-radius","caret-color",
+                "text-rendering","-webkit-text-fill-color"
+              ]) {
                 const value = style.getPropertyValue(prop);
                 if (value) target.style.setProperty(prop, value, "important");
               }
@@ -6513,9 +6505,9 @@ def _install_chat_turn_guard_v69466():
 
           function restoreMic() {
             const mic = doc.getElementById("atp-browser-voice-dictation");
-            if (!mic || mic.dataset.atpDraftBridgeDisabledV69466 !== "true") return;
+            if (!mic || mic.dataset.atpDraftBridgeDisabledV69467 !== "true") return;
             try {
-              delete mic.dataset.atpDraftBridgeDisabledV69466;
+              delete mic.dataset.atpDraftBridgeDisabledV69467;
               mic.style.removeProperty("pointer-events");
               mic.style.removeProperty("opacity");
               mic.setAttribute("title", "Voice dictation");
@@ -6526,7 +6518,7 @@ def _install_chat_turn_guard_v69466():
             const mic = doc.getElementById("atp-browser-voice-dictation");
             if (!mic) return;
             try {
-              mic.dataset.atpDraftBridgeDisabledV69466 = "true";
+              mic.dataset.atpDraftBridgeDisabledV69467 = "true";
               mic.style.setProperty("pointer-events", "none", "important");
               mic.style.setProperty("opacity", "0.45", "important");
               mic.setAttribute("title", "Voice input is available when the current response finishes");
@@ -6540,32 +6532,22 @@ def _install_chat_turn_guard_v69466():
             try {
               const prototype = root.HTMLTextAreaElement?.prototype || Object.getPrototypeOf(input);
               const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
-              if (setter) setter.call(input, next);
-              else input.value = next;
+              if (setter) setter.call(input, next); else input.value = next;
               try {
                 const tracker = input._valueTracker;
                 if (tracker && typeof tracker.setValue === "function") tracker.setValue(previous);
               } catch (error) {}
-              let inputEvent;
-              try {
-                inputEvent = new InputEvent("input", {
-                  bubbles: true,
-                  inputType: "insertText",
-                  data: null,
-                });
-              } catch (error) {
-                inputEvent = new Event("input", { bubbles: true });
-              }
-              input.dispatchEvent(inputEvent);
-              input.dispatchEvent(new Event("change", { bubbles: true }));
+              let evt;
+              try { evt = new InputEvent("input", {bubbles:true, inputType:"insertText", data:null}); }
+              catch (error) { evt = new Event("input", {bubbles:true}); }
+              input.dispatchEvent(evt);
+              input.dispatchEvent(new Event("change", {bubbles:true}));
               return String(input.value || "") === next;
-            } catch (error) {
-              return false;
-            }
+            } catch (error) { return false; }
           }
 
           function restoreLegacyArtifacts() {
-            for (const version of ["V69465", "V69464", "V69463", "V69462"]) {
+            for (const version of ["V69466","V69465","V69464","V69463","V69462"]) {
               try {
                 const controller = root[`__atpChatTurnGuard${version}`];
                 if (controller && typeof controller.cleanup === "function") controller.cleanup();
@@ -6574,21 +6556,19 @@ def _install_chat_turn_guard_v69466():
               } catch (error) {}
             }
             for (const id of [
-              "atp-next-inquiry-draft-v69465",
-              "atp-next-inquiry-draft-v69464"
+              "atp-next-inquiry-draft-v69466","atp-next-inquiry-draft-v69465","atp-next-inquiry-draft-v69464"
             ]) {
               try { doc.getElementById(id)?.remove(); } catch (error) {}
             }
           }
-
           restoreLegacyArtifacts();
 
           const existing = root[GLOBAL_KEY];
           if (existing && typeof existing.refresh === "function") {
             try {
-              if (typeof root[PENDING_KEY] === "boolean") {
-                existing.setPythonBusy(root[PENDING_KEY]);
-                delete root[PENDING_KEY];
+              if (typeof root[PY_BUSY_KEY] === "boolean") {
+                existing.setPythonBusy(root[PY_BUSY_KEY]);
+                delete root[PY_BUSY_KEY];
               }
               existing.refresh();
             } catch (error) {}
@@ -6596,26 +6576,19 @@ def _install_chat_turn_guard_v69466():
           }
 
           const state = {
-            pythonBusy: false,
-            wasBusy: false,
-            submissionPending: "",
-            submitToken: 0,
-            internalClick: false,
-            observer: null,
-            timer: null,
-            scheduled: false,
+            pythonBusy:false,
+            internalClick:false,
+            observer:null,
+            timer:null,
+            scheduled:false,
+            submitToken:0,
+            pendingStartedAt:0,
+            lastClickAt:0,
+            lastBusy:false,
           };
 
           function effectiveBusy(input = nativeInput()) {
             return Boolean(state.pythonBusy || nativeDisabled(input));
-          }
-
-          function mirrorDraftIntoNative(input, value) {
-            if (!input || effectiveBusy(input)) return false;
-            const expected = String(value || "");
-            if (!expected) return false;
-            if (String(input.value || "") !== expected) setReactValue(input, expected);
-            return String(input.value || "") === expected;
           }
 
           function ensureOverlay(input) {
@@ -6624,208 +6597,189 @@ def _install_chat_turn_guard_v69466():
             if (!draft) {
               draft = doc.createElement("textarea");
               draft.id = OVERLAY_ID;
-              draft.className = "atp-next-inquiry-draft-v69466";
+              draft.className = "atp-next-inquiry-draft-v69467";
               draft.setAttribute("aria-label", "Next inquiry draft");
               draft.setAttribute("autocomplete", "off");
               draft.setAttribute("spellcheck", "true");
               draft.placeholder = "Type your next message...";
               draft.value = readDraft();
-              draft.style.setProperty("box-sizing", "border-box", "important");
-              draft.style.setProperty("border", "0", "important");
-              draft.style.setProperty("outline", "0", "important");
-              draft.style.setProperty("box-shadow", "none", "important");
-              draft.style.setProperty("resize", "none", "important");
-              draft.style.setProperty("overflow-y", "auto", "important");
-              draft.style.setProperty("white-space", "pre-wrap", "important");
-              draft.style.setProperty("overflow-wrap", "break-word", "important");
-              draft.style.setProperty("z-index", "2147483000", "important");
-              draft.style.setProperty("pointer-events", "auto", "important");
-              draft.style.setProperty("opacity", "1", "important");
-              draft.style.setProperty("margin", "0", "important");
-              copyTextareaVisuals(input, draft);
-
-              const persist = () => {
-                const value = String(draft.value || "");
-                writeDraft(value);
-                if (!effectiveBusy(nativeInput())) mirrorDraftIntoNative(nativeInput(), value);
-              };
+              for (const [k,v] of Object.entries({
+                "box-sizing":"border-box","border":"0","outline":"0","box-shadow":"none",
+                "resize":"none","overflow-y":"auto","white-space":"pre-wrap","overflow-wrap":"break-word",
+                "z-index":"2147483000","pointer-events":"auto","opacity":"1","margin":"0"
+              })) draft.style.setProperty(k,v,"important");
+              copyTextareaVisuals(input,draft);
+              const persist = () => writeDraft(String(draft.value || ""));
               draft.addEventListener("input", persist);
               draft.addEventListener("change", persist);
               draft.addEventListener("compositionend", persist);
               draft.addEventListener("keydown", (event) => {
                 if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  persist();
-                  submitPreparedDraft();
+                  event.preventDefault(); event.stopPropagation();
+                  persist(); submitPreparedDraft();
                 }
               });
               doc.body.appendChild(draft);
             } else {
               const stored = readDraft();
-              if (stored && String(draft.value || "") !== stored && doc.activeElement !== draft) {
-                draft.value = stored;
-              }
+              if (String(draft.value || "") !== stored && doc.activeElement !== draft) draft.value = stored;
             }
-            copyTextareaVisuals(input, draft);
-            positionOverlay(input, draft);
+            copyTextareaVisuals(input,draft);
+            positionOverlay(input,draft);
             return draft;
           }
 
-          function confirmSubmittedOnBusyStart(input) {
-            if (!state.submissionPending) return;
-            if (!nativeDisabled(input) && !state.pythonBusy) return;
-            const submitted = state.submissionPending;
-            state.submissionPending = "";
+          function acknowledgePendingIfBusy(input) {
+            const pending = readPending();
+            if (!pending) return false;
+            if (!effectiveBusy(input)) return false;
+            clearPending();
+            state.pendingStartedAt = 0;
             state.submitToken += 1;
-            clearDraft();
-            const draft = overlay();
-            if (draft && String(draft.value || "") === submitted) draft.value = "";
+            return true;
+          }
+
+          function restoreFailedPendingIfNeeded() {
+            const pending = readPending();
+            if (!pending) return;
+            if (Date.now() - Number(state.pendingStartedAt || 0) < SUBMIT_ACK_TIMEOUT_MS) return;
+            if (effectiveBusy(nativeInput())) return;
+            const currentDraft = readDraft();
+            if (!currentDraft) {
+              writeDraft(pending);
+              const d = ensureOverlay(nativeInput());
+              if (d) d.value = pending;
+            }
+            clearPending();
+            state.pendingStartedAt = 0;
+            state.submitToken += 1;
           }
 
           function submitPreparedDraft() {
             const input = nativeInput();
-            if (!input || effectiveBusy(input)) return false;
-            const draft = overlay();
-            const value = String(draft?.value || readDraft() || "");
+            if (!input || effectiveBusy(input) || readPending()) return false;
+            const draftNode = overlay();
+            const value = String(draftNode?.value || readDraft() || "");
             if (!value.trim()) return false;
-            writeDraft(value);
-            const token = ++state.submitToken;
-            state.submissionPending = value;
 
-            const attemptSubmit = (attempt = 0) => {
-              if (token !== state.submitToken || !state.submissionPending) return;
+            // Transaction boundary: submitted inquiry and following draft become separate slots.
+            writePending(value);
+            clearDraft();
+            if (draftNode) draftNode.value = "";
+            state.pendingStartedAt = Date.now();
+            state.lastClickAt = 0;
+            const token = ++state.submitToken;
+
+            const attempt = (n=0) => {
+              if (token !== state.submitToken) return;
+              const pending = readPending();
+              if (!pending) return;
               const currentInput = nativeInput();
               if (!currentInput) return;
               if (effectiveBusy(currentInput)) {
-                confirmSubmittedOnBusyStart(currentInput);
+                acknowledgePendingIfBusy(currentInput);
                 scheduleApply();
                 return;
               }
-              mirrorDraftIntoNative(currentInput, value);
+              setReactValue(currentInput, pending);
               const button = sendButton();
-              if (String(currentInput.value || "") === value && button && !button.disabled && button.getAttribute("aria-disabled") !== "true") {
-                try {
-                  state.internalClick = true;
-                  button.click();
-                } catch (error) {
-                } finally {
-                  state.internalClick = false;
+              if (String(currentInput.value || "") === pending && button && !button.disabled && button.getAttribute("aria-disabled") !== "true") {
+                if (!state.lastClickAt || Date.now() - state.lastClickAt >= 700) {
+                  state.lastClickAt = Date.now();
+                  try { state.internalClick = true; button.click(); }
+                  catch (error) {}
+                  finally { state.internalClick = false; }
                 }
-              } else if (String(currentInput.value || "") === value && !button) {
-                try {
-                  currentInput.dispatchEvent(new KeyboardEvent("keydown", {
-                    key: "Enter", code: "Enter", bubbles: true, cancelable: true
-                  }));
-                } catch (error) {}
+              } else if (String(currentInput.value || "") === pending && !button) {
+                try { currentInput.dispatchEvent(new KeyboardEvent("keydown", {key:"Enter",code:"Enter",bubbles:true,cancelable:true})); }
+                catch (error) {}
               }
-              if (attempt < 12) {
-                const delays = [16, 32, 60, 100, 160, 240, 360, 500, 700, 900, 1200, 1500, 1800];
-                root.setTimeout(() => attemptSubmit(attempt + 1), delays[Math.min(attempt, delays.length - 1)]);
+              if (n < 14) {
+                const delays=[16,32,60,100,160,240,360,500,700,900,1200,1500,1800,2200,2600];
+                root.setTimeout(()=>attempt(n+1),delays[Math.min(n,delays.length-1)]);
               }
             };
-            root.requestAnimationFrame(() => attemptSubmit(0));
+            root.requestAnimationFrame(()=>attempt(0));
+            scheduleApply();
             return true;
           }
 
           function apply() {
-            state.scheduled = false;
-            const input = nativeInput();
+            state.scheduled=false;
+            const input=nativeInput();
             if (!input) return;
-            const busy = effectiveBusy(input);
-            if (busy) {
-              confirmSubmittedOnBusyStart(input);
-              ensureOverlay(input);
-              disableMic();
+            const busy=effectiveBusy(input);
+            if (busy) acknowledgePendingIfBusy(input);
+            else restoreFailedPendingIfNeeded();
+
+            const draftValue=readDraft();
+            const pendingValue=readPending();
+            if (busy || draftValue || pendingValue) {
+              const d=ensureOverlay(input);
+              if (d && doc.activeElement !== d && String(d.value || "") !== draftValue) d.value=draftValue;
+              if (busy) disableMic(); else restoreMic();
             } else {
-              const stored = readDraft();
-              if (stored) {
-                const draft = ensureOverlay(input);
-                if (draft && !String(draft.value || "")) draft.value = stored;
-                mirrorDraftIntoNative(input, String(draft?.value || stored));
-                restoreMic();
-              } else {
-                removeOverlay();
-                restoreMic();
-              }
+              removeOverlay(); restoreMic();
             }
-            state.wasBusy = busy;
+            state.lastBusy=busy;
           }
 
           function scheduleApply() {
             if (state.scheduled) return;
-            state.scheduled = true;
+            state.scheduled=true;
             root.requestAnimationFrame(apply);
           }
 
           function onComposerClickCapture(event) {
             if (state.internalClick) return;
-            const input = nativeInput();
-            if (!input || effectiveBusy(input)) return;
-            const draft = readDraft();
-            if (!draft) return;
-            const target = event.target?.closest?.("button");
-            if (!target) return;
-            const c = composer();
-            if (!c || !c.contains(target)) return;
+            const input=nativeInput();
+            if (!input || effectiveBusy(input) || readPending()) return;
+            const value=readDraft();
+            if (!value) return;
+            const target=event.target?.closest?.("button");
+            const c=composer();
+            if (!target || !c || !c.contains(target)) return;
             if (target.id === "atp-browser-voice-dictation") return;
-            const label = `${target.getAttribute("aria-label") || ""} ${target.title || ""}`.toLowerCase();
+            const label=`${target.getAttribute("aria-label") || ""} ${target.title || ""}`.toLowerCase();
             if (label.includes("voice") || label.includes("microphone") || label.includes("record")) return;
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation?.();
+            event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
             submitPreparedDraft();
           }
 
-          function setPythonBusy(value) {
-            state.pythonBusy = Boolean(value);
-            scheduleApply();
-          }
+          function setPythonBusy(value) { state.pythonBusy=Boolean(value); scheduleApply(); }
 
-          doc.addEventListener("click", onComposerClickCapture, true);
-          root.addEventListener("resize", scheduleApply, true);
-          root.addEventListener("scroll", scheduleApply, true);
+          doc.addEventListener("click",onComposerClickCapture,true);
+          root.addEventListener("resize",scheduleApply,true);
+          root.addEventListener("scroll",scheduleApply,true);
           if (root.visualViewport) {
-            root.visualViewport.addEventListener("resize", scheduleApply);
-            root.visualViewport.addEventListener("scroll", scheduleApply);
+            root.visualViewport.addEventListener("resize",scheduleApply);
+            root.visualViewport.addEventListener("scroll",scheduleApply);
           }
-
-          const observeRoot = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
-          state.observer = new MutationObserver(scheduleApply);
-          if (observeRoot) {
-            state.observer.observe(observeRoot, {
-              childList: true,
-              subtree: true,
-              attributes: true,
-              attributeFilter: ["disabled", "aria-disabled", "style", "class"]
-            });
-          }
-          state.timer = root.setInterval(scheduleApply, 80);
+          const observeRoot=doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+          state.observer=new MutationObserver(scheduleApply);
+          if (observeRoot) state.observer.observe(observeRoot,{childList:true,subtree:true,attributes:true,attributeFilter:["disabled","aria-disabled","style","class"]});
+          state.timer=root.setInterval(scheduleApply,60);
 
           function cleanup() {
             try { state.observer?.disconnect(); } catch (error) {}
             try { root.clearInterval(state.timer); } catch (error) {}
-            try { doc.removeEventListener("click", onComposerClickCapture, true); } catch (error) {}
-            try { root.removeEventListener("resize", scheduleApply, true); } catch (error) {}
-            try { root.removeEventListener("scroll", scheduleApply, true); } catch (error) {}
-            try { root.visualViewport?.removeEventListener("resize", scheduleApply); } catch (error) {}
-            try { root.visualViewport?.removeEventListener("scroll", scheduleApply); } catch (error) {}
-            restoreMic();
-            removeOverlay();
+            try { doc.removeEventListener("click",onComposerClickCapture,true); } catch (error) {}
+            try { root.removeEventListener("resize",scheduleApply,true); } catch (error) {}
+            try { root.removeEventListener("scroll",scheduleApply,true); } catch (error) {}
+            try { root.visualViewport?.removeEventListener("resize",scheduleApply); } catch (error) {}
+            try { root.visualViewport?.removeEventListener("scroll",scheduleApply); } catch (error) {}
+            restoreMic(); removeOverlay();
           }
 
-          root[GLOBAL_KEY] = {
-            setPythonBusy,
-            refresh: scheduleApply,
-            cleanup,
-            hasDraft: () => Boolean(readDraft()),
-            draftValue: () => String(readDraft() || ""),
-            submitDraft: submitPreparedDraft,
+          root[GLOBAL_KEY]={
+            setPythonBusy,refresh:scheduleApply,cleanup,
+            hasDraft:()=>Boolean(readDraft()),
+            draftValue:()=>String(readDraft() || ""),
+            pendingValue:()=>String(readPending() || ""),
+            submitDraft:submitPreparedDraft,
           };
-
-          if (typeof root[PENDING_KEY] === "boolean") {
-            setPythonBusy(root[PENDING_KEY]);
-            delete root[PENDING_KEY];
+          if (typeof root[PY_BUSY_KEY] === "boolean") {
+            setPythonBusy(root[PY_BUSY_KEY]); delete root[PY_BUSY_KEY];
           }
           scheduleApply();
         })();
@@ -6833,27 +6787,27 @@ def _install_chat_turn_guard_v69466():
         """
     )
 
-def _set_chat_composer_busy_v69466(is_busy):
-    """Mirror Python lifecycle into the v69466 draft bridge; Streamlit owns locking."""
-    busy_js_v69466 = "true" if bool(is_busy) else "false"
+
+def _set_chat_composer_busy_v69467(is_busy):
+    """Mirror structured-tool Python lifecycle into the v69467 dual-slot bridge."""
+    busy_js_v69467 = "true" if bool(is_busy) else "false"
     _run_invisible_trusted_browser_script_v69453(
         f"""
         <script>
         (() => {{
           try {{
             const root = window;
-            const controller = root.__atpChatTurnGuardV69466;
+            const controller = root.__atpChatTurnGuardV69467;
             if (controller && typeof controller.setPythonBusy === "function") {{
-              controller.setPythonBusy({busy_js_v69466});
+              controller.setPythonBusy({busy_js_v69467});
             }} else {{
-              root.__atpChatTurnGuardPendingV69466 = {busy_js_v69466};
+              root.__atpChatTurnGuardPendingV69467 = {busy_js_v69467};
             }}
           }} catch (error) {{}}
         }})();
         </script>
         """
     )
-
 
 def _sync_native_chat_send_arrow_for_attachments(has_attachments):
     """Enable the existing native chat send arrow for attachment-only turns.
@@ -106069,16 +106023,16 @@ else:
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
     _install_composer_top_left_fallback_v69459()
-    # v69466: Streamlit 1.61 natively serializes chat submissions with submit_mode="disable".
+    # v69467: Streamlit 1.61 natively serializes chat submissions with submit_mode="disable".
     # The browser bridge overlays a body-level draft textarea only while the native widget
     # is disabled. The draft stays outside Streamlit/React's managed chat subtree, so staff
     # can prepare the next inquiry without exposing that text to widget reconciliation.
-    _install_chat_turn_guard_v69466()
+    _install_chat_turn_guard_v69467()
     # Keep the original stable composer. Attachments remain in the proven managed
     # uploader above, while the normal bottom-right send arrow submits the turn.
     chat_prompt = st.chat_input(
         "Message AutoTecPro AI...",
-        key="atp_chat_input_v69464",
+        key="atp_chat_input_v69467",
         submit_mode="disable",
     )
 
@@ -106196,7 +106150,7 @@ else:
     if not prompt:
         # A controlled rerun after a terminal/direct answer has no new prompt. Ensure
         # any client-side guard inherited from the completed turn is released.
-        _set_chat_composer_busy_v69466(False)
+        _set_chat_composer_busy_v69467(False)
 
     if prompt:
         # For a real st.chat_input submission, Streamlit 1.61 has already entered its
@@ -106205,14 +106159,14 @@ else:
         # could otherwise leave a stale browser-side busy flag after Streamlit correctly
         # re-enables the widget. Keep the Python latch only for structured/tool submissions
         # that did not originate from the native chat input.
-        native_chat_submission_v69466 = bool(chat_prompt)
-        _set_chat_composer_busy_v69466(not native_chat_submission_v69466)
+        native_chat_submission_v69467 = bool(chat_prompt)
+        _set_chat_composer_busy_v69467(not native_chat_submission_v69467)
         diagnostic_log(
-            "chat_native_submit_guard_active_v69466",
+            "chat_native_submit_guard_active_v69467",
             workspace=str(assistant),
             conversation_id=st.session_state.get("conversation_id"),
-            native_chat_submission=native_chat_submission_v69466,
-            python_fallback_busy=not native_chat_submission_v69466,
+            native_chat_submission=native_chat_submission_v69467,
+            python_fallback_busy=not native_chat_submission_v69467,
         )
         command_preflight_started_v68864 = time.perf_counter()
         # v69355: exact-key vector-search memoization is valid for this user turn only.
@@ -106328,8 +106282,8 @@ else:
             )
         except ArchiveValidationError as error:
             st.error(f"ZIP analysis was stopped: {error}")
-            _set_chat_composer_busy_v69466(False)
-            diagnostic_log("chat_native_submit_guard_released_on_archive_error_v69466")
+            _set_chat_composer_busy_v69467(False)
+            diagnostic_log("chat_native_submit_guard_released_on_archive_error_v69467")
             st.stop()
 
         technical_followup_prompt_v68879 = interaction_prompt
@@ -108122,8 +108076,8 @@ else:
             if not lease_token_v68848:
                 diagnostic_log("graphic_v68848_duplicate_execution_blocked", job_id=str(durable_job_v68844.get("job_id") or ""))
                 st.info("This image request is already processing in another session. The result will appear when it completes.")
-                _set_chat_composer_busy_v69466(False)
-                diagnostic_log("chat_native_submit_guard_released_on_graphic_duplicate_v69466")
+                _set_chat_composer_busy_v69467(False)
+                diagnostic_log("chat_native_submit_guard_released_on_graphic_duplicate_v69467")
                 st.stop()
             durable_job_v68844["lease_token_local"] = lease_token_v68848
             current_attempt_v68844 = int(durable_job_v68844.get("attempt") or 0)
@@ -113458,11 +113412,11 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
-        # v69466: keep the Python-side draft bridge busy through final maintenance. Native
+        # v69467: keep the Python-side structured-tool bridge busy through final maintenance. Native
         # Streamlit remains disabled until scriptFinished, so the draft overlay is not
         # transferred back into the real composer until the framework itself declares the
         # run complete.
-        _release_chat_guard_at_script_end_v69466 = True
+        _release_chat_guard_at_script_end_v69467 = True
 
         # v69461: normal text workspaces must not immediately destroy the just-rendered
         # answer/composer DOM. The user-observed production failure happened after the
@@ -114537,14 +114491,14 @@ _render_final_print_authority_v69009()
 # from flashing during Streamlit reruns.
 _finish_auth_transition(_auth_transition_placeholder)
 
-# v69466: release only the Python-side draft signal at the end of the script. Streamlit
+# v69467: release only the Python-side structured-tool signal at the end of the script. Streamlit
 # submit_mode="disable" remains the authoritative lock until the frontend receives
 # scriptFinished. The isolated draft is transferred into the native composer only after
 # that native disabled state clears.
-if bool(locals().get("_release_chat_guard_at_script_end_v69466", False)):
-    _set_chat_composer_busy_v69466(False)
+if bool(locals().get("_release_chat_guard_at_script_end_v69467", False)):
+    _set_chat_composer_busy_v69467(False)
     diagnostic_log(
-        "chat_native_submit_guard_released_v69466",
+        "chat_native_submit_guard_released_v69467",
         workspace=str(locals().get("assistant") or ""),
         conversation_id=st.session_state.get("conversation_id"),
         message_count=len(st.session_state.get("messages", [])),
