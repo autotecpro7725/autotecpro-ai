@@ -93,12 +93,14 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69456
-# Scope: generic multi-model Sales identity completeness + resilient learning-schema compatibility.
-# No vehicle, product ID, product URL, factory-system, or catalog item is hard-coded.
-# Protected Graphic generation, Technical answering, Marketing, Auth and UI behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69456"
-AUTOTECPRO_RELEASE_BUILD = "v69456-generic-family-recall-schema-resilience-20260925"
+# AutoTecPro AI v69457
+# Scope: production cleanup after v69456 live verification: image-index schema truth,
+# catalog latency, price-follow-up reuse, exact product-identity parsing, and UI-runtime
+# deprecation isolation. No vehicle, product ID, product URL, factory-system, or catalog
+# item is hard-coded. Protected Graphic generation, Technical answering, Marketing,
+# Auth authority, learning transactions, and product-bound image behavior remain unchanged.
+AUTOTECPRO_RELEASE_VERSION = "v69457"
+AUTOTECPRO_RELEASE_BUILD = "v69457-live-followup-hardening-performance-schema-ui-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -2499,7 +2501,7 @@ def _workspace_product_currency_url_v69437(source_url, currency_code):
         return ""
 
 
-@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=128, show_spinner=False)
 def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
     """Read WooCommerce's own displayed price for one exact product/currency.
 
@@ -2516,7 +2518,7 @@ def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
             "currency": currency,
         }
 
-    result = dict(_current_product_page_price_by_exact_url_v69340(target_url, timeout_seconds=3.0) or {})
+    result = dict(_current_product_page_price_by_exact_url_v69340(target_url, timeout_seconds=1.8) or {})
     if str(result.get("status") or "") != "verified":
         result["requested_currency"] = currency
         result["currency_url"] = target_url
@@ -6205,6 +6207,48 @@ def _run_invisible_trusted_browser_script_v69453(script_html):
         width="content",
         unsafe_allow_javascript=True,
     )
+
+
+def _run_legacy_ui_runtime_without_deprecated_html_v69457(callback, *args, **kwargs):
+    """Run trusted AutoTecPro UI-runtime helpers without deprecated components.html.
+
+    The external ``autotecpro_ui_runtime`` module still contains legacy zero-height
+    ``components.html`` script shims. v69457 installs a module-local proxy into that
+    helper module's own globals: only its ``html`` attribute is redirected to the
+    browser-verified v69453 ``st.html`` path; every other components attribute is
+    delegated unchanged. The global Streamlit components module is never monkey-
+    patched, so concurrent users and unrelated third-party components cannot race
+    against this compatibility bridge.
+    """
+    if not callable(callback):
+        return None
+    callback_globals_v69457 = getattr(callback, "__globals__", None)
+    if not isinstance(callback_globals_v69457, dict):
+        return callback(*args, **kwargs)
+    original_components_v69457 = callback_globals_v69457.get("components")
+    if original_components_v69457 is None:
+        return callback(*args, **kwargs)
+
+    if not bool(getattr(original_components_v69457, "_atp_direct_html_proxy_v69457", False)):
+        class _UiRuntimeComponentsProxyV69457:
+            _atp_direct_html_proxy_v69457 = True
+
+            def __init__(self, delegate_v69457):
+                self._delegate_v69457 = delegate_v69457
+
+            def __getattr__(self, name_v69457):
+                return getattr(self._delegate_v69457, name_v69457)
+
+            def html(self, body_v69457, *html_args_v69457, **html_kwargs_v69457):
+                trusted_body_v69457 = str(body_v69457 or "")
+                trusted_body_v69457 = trusted_body_v69457.replace("window.parent", "window")
+                _run_invisible_trusted_browser_script_v69453(trusted_body_v69457)
+                return None
+
+        callback_globals_v69457["components"] = _UiRuntimeComponentsProxyV69457(
+            original_components_v69457
+        )
+    return callback(*args, **kwargs)
 
 
 def _sync_native_chat_send_arrow_for_attachments(has_attachments):
@@ -61012,42 +61056,105 @@ def _website_image_schema_profile_reset_v69176():
 
 
 def _website_image_index_schema_profile_v69129():
-    """Detect usable modern/legacy/hybrid image-index schema from actual live columns."""
+    """Detect the *actual* live image-index schema without trusting fallback columns.
+
+    v69457: ``get_table_columns`` intentionally has a broad production fallback for
+    learning durability. That fallback is not proof that an optional column exists
+    in an older Supabase schema. The image index therefore validates its own base
+    schema and optional columns with bounded read-only probes before selecting or
+    filtering on them. This prevents a missing optional field such as ``source_type``
+    from disabling exact product-image recovery.
+    """
     now_value = time.monotonic()
     cached = dict(_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176.get("profile") or {})
     cached_at = float(_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176.get("at") or 0.0)
-    if cached.get("ready") and (now_value - cached_at) < 60.0:
+    if cached.get("ready") and (now_value - cached_at) < 300.0:
         return cached
-    actual_columns = set()
+
+    hinted_columns_v69457 = set()
     try:
-        actual_columns = set(get_table_columns("learned_knowledge") or [])
+        hinted_columns_v69457 = set(get_table_columns("learned_knowledge") or [])
     except Exception as error:
-        diagnostic_log("website_image_index_column_introspection_failed_v69176", error_type=type(error).__name__, error=str(error)[:400])
-    def build_profile(columns):
-        cols=set(columns or [])
-        if "id" not in cols:
-            return None
-        if "issue" in cols and ("solution" in cols or "approved_answer" in cols):
-            return {"ready":True,"mode":"modern","columns":sorted(cols)}
-        if "question" in cols and "approved_answer" in cols:
-            return {"ready":True,"mode":"legacy","columns":sorted(cols)}
-        return None
-    profile=build_profile(actual_columns)
-    if profile:
-        _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"]=dict(profile)
-        _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"]=now_value
-        return profile
-    probes=(("modern",["id","issue","solution"]),("modern",["id","issue","approved_answer"]),("legacy",["id","question","approved_answer"]))
-    for mode, columns in probes:
+        diagnostic_log(
+            "website_image_index_column_introspection_failed_v69176",
+            error_type=type(error).__name__, error=str(error)[:400],
+        )
+
+    base_candidates_v69457 = (
+        ("modern", ["id", "issue", "solution"]),
+        ("modern", ["id", "issue", "approved_answer"]),
+        ("legacy", ["id", "question", "approved_answer"]),
+    )
+    selected_mode_v69457 = ""
+    actual_columns_v69457 = set()
+    base_probe_errors_v69457 = []
+    for mode_v69457, columns_v69457 in base_candidates_v69457:
         try:
-            supabase.table("learned_knowledge").select(",".join(columns)).limit(1).execute()
-            profile={"ready":True,"mode":mode,"columns":list(columns)}
-            _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"]=dict(profile)
-            _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"]=now_value
-            return profile
+            supabase.table("learned_knowledge").select(
+                ",".join(columns_v69457)
+            ).limit(1).execute()
+            selected_mode_v69457 = mode_v69457
+            actual_columns_v69457.update(columns_v69457)
+            break
         except Exception as error:
-            diagnostic_log("website_image_index_schema_probe_failed_v69176", mode=mode, columns=",".join(columns), error_type=type(error).__name__, error=str(error)[:300])
-    return {"ready":False,"mode":"unavailable","columns":sorted(actual_columns)}
+            base_probe_errors_v69457.append({
+                "mode": mode_v69457,
+                "columns": ",".join(columns_v69457),
+                "error_type": type(error).__name__,
+                "error": str(error)[:240],
+            })
+
+    if not selected_mode_v69457:
+        diagnostic_log(
+            "website_image_index_schema_unavailable_v69457",
+            probes=base_probe_errors_v69457[:3],
+        )
+        return {
+            "ready": False,
+            "mode": "unavailable",
+            "columns": sorted(actual_columns_v69457),
+        }
+
+    optional_candidates_v69457 = (
+        ("solution", "approved_answer", "source_type", "updated_at", "created_at", "keywords")
+        if selected_mode_v69457 == "modern"
+        else ("issue", "solution", "source_type", "updated_at", "created_at", "keywords")
+    )
+    # Probe only columns that are useful to this subsystem. A one-column miss is
+    # isolated and cannot poison the entire schema profile.
+    for column_v69457 in optional_candidates_v69457:
+        if column_v69457 in actual_columns_v69457:
+            continue
+        # If introspection succeeded and definitively omitted the column, skip the
+        # network probe. If it returned the broad fallback, the probe below is the
+        # source of truth.
+        try:
+            supabase.table("learned_knowledge").select(
+                f"id,{column_v69457}"
+            ).limit(1).execute()
+            actual_columns_v69457.add(column_v69457)
+        except Exception as error:
+            diagnostic_log(
+                "website_image_index_optional_column_absent_v69457",
+                column=column_v69457,
+                error_type=type(error).__name__,
+            )
+
+    profile = {
+        "ready": True,
+        "mode": selected_mode_v69457,
+        "columns": sorted(actual_columns_v69457),
+    }
+    _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"] = dict(profile)
+    _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"] = now_value
+    diagnostic_log(
+        "website_image_index_schema_verified_v69457",
+        mode=selected_mode_v69457,
+        columns=sorted(actual_columns_v69457),
+        source_type_available="source_type" in actual_columns_v69457,
+        hinted_source_type="source_type" in hinted_columns_v69457,
+    )
+    return profile
 
 
 
@@ -67899,6 +68006,19 @@ def _workspace_sales_feature_intro_v69426(package, contract=None):
     return "Key confirmed features include " + ", ".join(parts) + "."
 
 
+def _workspace_sales_family_display_label_v69457(family):
+    """Display one already-authoritative internal family token without changing fitment."""
+    value_v69457 = re.sub(r"\s+", " ", str(family or "")).strip().casefold()
+    if re.fullmatch(r"[fe]\d{3}", value_v69457):
+        return value_v69457.upper()
+    ram_v69457 = re.fullmatch(r"ram(1500|2500|3500)", value_v69457)
+    if ram_v69457:
+        return f"RAM {ram_v69457.group(1)}"
+    if value_v69457 == "ram":
+        return "RAM"
+    return value_v69457.replace("_", " ").title()
+
+
 def _workspace_sales_first_turn_fitment_direct_answer_v69405(
     workspace_label,
     prompt_text,
@@ -67995,8 +68115,33 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
         if not title:
             title = "AutoTecPro infotainment system"
 
+        # v69457: if an exact compatible model is absent from the official Woo title,
+        # make the verified match explicit in the Fitment column instead of rewriting
+        # the official product name. This is display-only and uses only the already-
+        # authoritative requested family + exact contract model intersection.
+        fitment_display_v69457 = fitment or "Compatible"
+        contract_models_v69457 = {
+            str(x or "").casefold().strip()
+            for x in (contract.get("models") or [])
+            if str(x or "").strip()
+        }
+        requested_model_labels_v69457 = [
+            _workspace_sales_family_display_label_v69457(family_v69457)
+            for family_v69457 in prompt_families
+            if str(family_v69457 or "").casefold().strip() in contract_models_v69457
+        ]
+        missing_title_labels_v69457 = [
+            label_v69457 for label_v69457 in requested_model_labels_v69457
+            if label_v69457 and label_v69457.casefold() not in title.casefold()
+        ]
+        if missing_title_labels_v69457:
+            fitment_display_v69457 = (
+                " / ".join(dict.fromkeys(missing_title_labels_v69457))
+                + " • " + fitment_display_v69457
+            )
+
         seen_pages.add(page_id)
-        rows.append((title, fitment or "Compatible", source, contract, pkg))
+        rows.append((title, fitment_display_v69457, source, contract, pkg))
 
     if not rows:
         return ""
@@ -68691,22 +68836,35 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
         )
         for row_v69436 in rows:
             source_v69436 = str(row_v69436.get("source") or "").strip()
-            woo_lookup_v69436 = _woocommerce_product_by_source_url_v69326(
-                source_v69436
+            recent_snapshot_v69457 = _workspace_sales_recent_catalog_price_v69457(
+                row_v69436.get("package") or {}
             )
-            price_label_v69436 = _woocommerce_price_label_v69326(
-                woo_lookup_v69436
-            )
-            price_source_v69436 = "WooCommerce"
+            woo_lookup_v69436 = {}
             page_lookup_v69436 = {}
-            if not price_label_v69436:
-                page_lookup_v69436 = _current_product_page_price_by_exact_url_v69340(
+            if recent_snapshot_v69457:
+                price_label_v69436 = str(recent_snapshot_v69457.get("price_label") or "")
+                price_source_v69436 = "Current WooCommerce catalog snapshot"
+                diagnostic_log(
+                    "workspace_sales_same_case_price_snapshot_reused_v69457",
+                    source_url=source_v69436[:700],
+                    price=price_label_v69436[:120],
+                )
+            else:
+                woo_lookup_v69436 = _woocommerce_product_by_source_url_v69326(
                     source_v69436
                 )
-                price_label_v69436 = _current_product_page_price_label_v69340(
-                    page_lookup_v69436
+                price_label_v69436 = _woocommerce_price_label_v69326(
+                    woo_lookup_v69436
                 )
-                price_source_v69436 = "Current product page"
+                price_source_v69436 = "WooCommerce"
+                if not price_label_v69436:
+                    page_lookup_v69436 = _current_product_page_price_by_exact_url_v69340(
+                        source_v69436
+                    )
+                    price_label_v69436 = _current_product_page_price_label_v69340(
+                        page_lookup_v69436
+                    )
+                    price_source_v69436 = "Current product page"
 
             if price_label_v69436:
                 verified_v69436 += 1
@@ -70792,7 +70950,7 @@ def _workspace_sales_woocommerce_store_api_page_v69414(search_term, page=1):
     return safe_json_response(response)
 
 
-@st.cache_data(ttl=90, max_entries=8, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=8, show_spinner=False)
 def _workspace_sales_woocommerce_store_api_full_scan_v69415():
     """Read storefront-visible Woo products without relying on search-token behavior."""
     if not WOOCOMMERCE_STORE_URL:
@@ -71087,6 +71245,134 @@ def _workspace_sales_woocommerce_search_v69413(search_term):
     }
 
 
+def _workspace_sales_trusted_identity_generic_families_v69457(value):
+    """Extract brand-adjacent model tokens from trusted product identity, exactly.
+
+    This is deliberately *not* a typo corrector. It preserves support for catalog
+    families outside the legacy parser vocabulary (for example NX, Q5 or 3 Series)
+    while preventing SequenceMatcher repairs such as E280 -> E250 from being applied
+    to authoritative Woo product metadata. Customer-query typo repair remains
+    unchanged in ``_workspace_sales_fuzzy_vehicle_families_v69416``.
+    """
+    text_v69457 = html.unescape(re.sub(r"\s+", " ", str(value or ""))).strip().casefold()
+    if not text_v69457:
+        return set()
+    tokens_v69457 = re.findall(r"[a-z0-9]+", text_v69457)
+    brands_v69457 = {
+        "chevy", "chevrolet", "gmc", "ford", "dodge", "ram", "jeep",
+        "toyota", "honda", "nissan", "infiniti", "lexus", "acura",
+        "bmw", "audi", "mercedes", "porsche", "cadillac", "buick",
+        "chrysler", "hyundai", "kia", "lincoln", "mazda", "subaru",
+        "tesla", "volkswagen", "volvo",
+    }
+    skip_v69457 = {
+        "autotecpro", "product", "products", "screen", "radio", "stereo",
+        "navigation", "infotainment", "android", "touch", "touchscreen",
+        "system", "unit", "head", "style", "tesla", "hd", "ips", "qhd",
+        "gps", "wifi", "carplay", "camera", "cluster", "cockpit", "digital",
+        "oem", "fit", "inch", "inches", "benz",
+    }
+    out_v69457 = set()
+    for index_v69457, token_v69457 in enumerate(tokens_v69457):
+        if token_v69457 not in brands_v69457:
+            continue
+        nearby_v69457 = []
+        for candidate_v69457 in tokens_v69457[index_v69457 + 1:index_v69457 + 7]:
+            if re.fullmatch(r"(?:19|20)\d{2}", candidate_v69457):
+                continue
+            if candidate_v69457 in brands_v69457 or candidate_v69457 in skip_v69457:
+                continue
+            nearby_v69457.append(candidate_v69457)
+            if len(nearby_v69457) >= 2:
+                break
+        if not nearby_v69457:
+            continue
+        first_v69457 = nearby_v69457[0]
+        family_v69457 = first_v69457
+        if len(nearby_v69457) >= 2:
+            second_v69457 = nearby_v69457[1]
+            if first_v69457.isdigit() and second_v69457 == "series":
+                family_v69457 = f"{first_v69457} series"
+            elif len(first_v69457) == 1 and second_v69457 == "class":
+                family_v69457 = f"{first_v69457} class"
+            elif first_v69457 in {"land", "range"} and second_v69457 in {"cruiser", "rover"}:
+                family_v69457 = f"{first_v69457} {second_v69457}"
+            elif re.fullmatch(r"[a-z]{1,3}", first_v69457) and re.fullmatch(r"\d{1,3}", second_v69457):
+                family_v69457 = first_v69457 + second_v69457
+        compact_v69457 = re.sub(r"[^a-z0-9]", "", family_v69457)
+        if len(compact_v69457) < 2:
+            continue
+        family_pattern_v69457 = r"\b" + r"[-_\s]*".join(
+            re.escape(piece_v69457)
+            for piece_v69457 in re.findall(r"[a-z]+|\d+", family_v69457)
+        ) + r"\b"
+        positive_v69457 = False
+        for match_v69457 in re.finditer(family_pattern_v69457, text_v69457):
+            before_v69457 = text_v69457[max(0, match_v69457.start() - 90):match_v69457.start()]
+            after_v69457 = text_v69457[match_v69457.end():match_v69457.end() + 70]
+            negative_v69457 = bool(re.search(
+                r"(?:do\s+not\s+use|don't\s+use|not\s+for|wrong|avoid|"
+                r"instead\s+of|rather\s+than|exclude(?:s|d)?|unsupported)"
+                r"[^.;:]{0,70}$",
+                before_v69457,
+            )) or bool(re.search(
+                r"^\s*(?:is\s+)?(?:not\s+supported|unsupported|excluded)",
+                after_v69457,
+            ))
+            if not negative_v69457:
+                positive_v69457 = True
+                break
+        if positive_v69457:
+            out_v69457.add(family_v69457.replace(" ", "_"))
+    return out_v69457
+
+
+def _workspace_sales_exact_factory_system_v69457(description_html):
+    """Return a factory-system label only from exact-current ATP product semantics."""
+    raw_v69457 = str(description_html or "")
+    if not raw_v69457:
+        return ""
+    current_tags_v69457 = re.findall(
+        r"<[^>]+data-atp-current-source\s*=\s*[\"'](?:true|1|yes)[\"'][^>]*>",
+        raw_v69457,
+        flags=re.I | re.S,
+    )
+    evidence_v69457 = " ".join(current_tags_v69457)
+    for attr_v69457 in (
+        "data-atp-factory-system",
+        "data-atp-retained-factory-system",
+        "data-atp-factory-system-scope",
+    ):
+        match_v69457 = re.search(
+            rf"{re.escape(attr_v69457)}\s*=\s*[\"']([^\"']+)[\"']",
+            evidence_v69457,
+            flags=re.I,
+        )
+        if match_v69457:
+            return re.sub(r"\s+", " ", html.unescape(match_v69457.group(1))).strip()
+
+    feature_values_v69457 = " ".join(re.findall(
+        r"data-atp-feature\s*=\s*[\"']([^\"']+)[\"']",
+        evidence_v69457,
+        flags=re.I,
+    )).casefold()
+    negative_v69457 = re.search(
+        r"(?:non|no|without)[-_\s]*sync[-_\s]*([1-4])",
+        feature_values_v69457,
+        flags=re.I,
+    )
+    if negative_v69457:
+        return f"Without Original Microsoft SYNC {negative_v69457.group(1)}"
+    positive_v69457 = re.search(
+        r"(?:original[-_\s]*)?sync[-_\s]*([1-4])",
+        feature_values_v69457,
+        flags=re.I,
+    )
+    if positive_v69457:
+        return f"Original Microsoft SYNC {positive_v69457.group(1)}"
+    return ""
+
+
 def _workspace_sales_woocommerce_contract_v69413(product):
     """Build deterministic fitment/display facts from one published WooCommerce product."""
     product = dict(product or {})
@@ -71117,8 +71403,9 @@ def _workspace_sales_woocommerce_contract_v69413(product):
     families = sorted({
         str(x or "").casefold().strip()
         for x in (
-            set(_workspace_sales_fuzzy_vehicle_families_v69416(identity_text) or set())
+            set(_website_identity_vehicle_families_v69022(identity_text) or set())
             | set(_workspace_source_identity_vehicle_families_v69456(identity_text) or set())
+            | set(_workspace_sales_trusted_identity_generic_families_v69457(identity_text) or set())
         )
         if str(x or "").strip()
     })
@@ -71430,10 +71717,93 @@ def _workspace_sales_woocommerce_contract_v69413(product):
         "facts": facts,
         "features": list(facts),
         "feature_summary": exact_feature_summary_v69426,
+        "factory_system": _workspace_sales_exact_factory_system_v69457(
+            description_html_v69421
+        ),
         "compatibility_branches": branches,
         "related_products": [],
         "primary_images": primary_images[:1],
     }
+
+
+def _workspace_sales_woocommerce_price_snapshot_v69457(product):
+    """Capture a verified storefront price already present in the catalog response.
+
+    The public Woo Store API includes both currency metadata and integer minor-unit
+    prices. Reusing that fresh same-request value makes an immediate price follow-up
+    deterministic and avoids re-querying the same product. Authenticated wc/v3 rows
+    without explicit currency metadata are intentionally not guessed.
+    """
+    product_v69457 = dict(product or {})
+    prices_v69457 = product_v69457.get("prices")
+    if not isinstance(prices_v69457, dict):
+        return {}
+    currency_v69457 = str(prices_v69457.get("currency_code") or "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", currency_v69457):
+        return {}
+    try:
+        minor_v69457 = int(prices_v69457.get("currency_minor_unit"))
+        if minor_v69457 < 0 or minor_v69457 > 6:
+            return {}
+    except Exception:
+        return {}
+    scale_v69457 = float(10 ** minor_v69457)
+    raw_values_v69457 = []
+    price_range_v69457 = prices_v69457.get("price_range")
+    if isinstance(price_range_v69457, dict):
+        for key_v69457 in ("min_amount", "max_amount"):
+            if str(price_range_v69457.get(key_v69457) or "").strip():
+                raw_values_v69457.append(price_range_v69457.get(key_v69457))
+    if not raw_values_v69457:
+        for key_v69457 in ("price", "sale_price", "regular_price"):
+            value_v69457 = prices_v69457.get(key_v69457)
+            if str(value_v69457 or "").strip():
+                raw_values_v69457.append(value_v69457)
+                if key_v69457 == "price":
+                    break
+    numeric_v69457 = []
+    for value_v69457 in raw_values_v69457:
+        try:
+            numeric_v69457.append(float(str(value_v69457).replace(",", "")) / scale_v69457)
+        except Exception:
+            continue
+    if not numeric_v69457:
+        return {}
+    low_v69457 = min(numeric_v69457)
+    high_v69457 = max(numeric_v69457)
+    label_v69457 = (
+        f"{currency_v69457} {low_v69457:,.2f}"
+        if abs(high_v69457 - low_v69457) < 0.005
+        else f"{currency_v69457} {low_v69457:,.2f}–{high_v69457:,.2f}"
+    )
+    return {
+        "status": "verified",
+        "currency": currency_v69457,
+        "min_price": low_v69457,
+        "max_price": high_v69457,
+        "price_label": label_v69457,
+        "captured_at_epoch": time.time(),
+        "source": "woocommerce_store_catalog_snapshot_v69457",
+    }
+
+
+def _workspace_sales_recent_catalog_price_v69457(package, max_age_seconds=180.0):
+    package_v69457 = dict(package or {})
+    snapshot_v69457 = package_v69457.get("workspace_sales_woocommerce_price_snapshot_v69457")
+    if not isinstance(snapshot_v69457, dict):
+        return {}
+    if str(snapshot_v69457.get("status") or "") != "verified":
+        return {}
+    try:
+        age_v69457 = max(0.0, time.time() - float(snapshot_v69457.get("captured_at_epoch") or 0.0))
+    except Exception:
+        return {}
+    if age_v69457 > float(max_age_seconds):
+        return {}
+    label_v69457 = str(snapshot_v69457.get("price_label") or "").strip()
+    if not label_v69457:
+        return {}
+    return dict(snapshot_v69457)
 
 
 def _workspace_sales_woocommerce_package_v69413(product):
@@ -71534,10 +71904,13 @@ def _workspace_sales_woocommerce_package_v69413(product):
         "workspace_sales_woocommerce_catalog_v69415": True,
         "workspace_sales_woocommerce_product_id_v69413": product.get("id"),
         "workspace_sales_woocommerce_primary_v69413": hero,
+        "workspace_sales_woocommerce_price_snapshot_v69457": (
+            _workspace_sales_woocommerce_price_snapshot_v69457(product)
+        ),
     }
 
 
-@st.cache_data(ttl=90, max_entries=8, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=8, show_spinner=False)
 def _workspace_sales_woocommerce_authenticated_full_scan_v69456():
     """Read the published Woo catalog without search-token filtering.
 
@@ -71599,23 +71972,30 @@ def _workspace_sales_woocommerce_authenticated_full_scan_v69456():
 
 
 def _workspace_sales_woocommerce_complete_full_scan_v69456():
-    """Return one complete published catalog from the strongest available provider."""
-    authenticated_v69456 = _workspace_sales_woocommerce_authenticated_full_scan_v69456()
-    if str(authenticated_v69456.get("status") or "") == "ok":
-        return dict(authenticated_v69456)
-    public_v69456 = _workspace_sales_woocommerce_store_api_full_scan_v69415()
-    if str(public_v69456.get("status") or "") == "ok":
-        return dict(public_v69456)
+    """Return one complete published catalog with the storefront path first.
+
+    v69457: the public Store API is the exact customer-visible published catalog and
+    was healthy in the v69456 production trace, while authenticated wc/v3 repeatedly
+    timed out. Try the complete public catalog first; use authenticated wc/v3 only as
+    a failover. Completeness authority is unchanged and no search-token result is
+    treated as exhaustive.
+    """
+    public_v69457 = _workspace_sales_woocommerce_store_api_full_scan_v69415()
+    if str(public_v69457.get("status") or "") == "ok":
+        return dict(public_v69457)
+    authenticated_v69457 = _workspace_sales_woocommerce_authenticated_full_scan_v69456()
+    if str(authenticated_v69457.get("status") or "") == "ok":
+        return dict(authenticated_v69457)
     diagnostic_log(
         "workspace_sales_woo_complete_scan_unavailable_v69456",
-        authenticated_reason=str(authenticated_v69456.get("reason") or "")[:240],
-        public_reason=str(public_v69456.get("reason") or "")[:240],
+        public_reason=str(public_v69457.get("reason") or "")[:240],
+        authenticated_reason=str(authenticated_v69457.get("reason") or "")[:240],
     )
     return {
         "status": "unavailable",
         "reason": "woocommerce_complete_catalog_unavailable",
-        "authenticated": dict(authenticated_v69456 or {}),
-        "public": dict(public_v69456 or {}),
+        "authenticated": dict(authenticated_v69457 or {}),
+        "public": dict(public_v69457 or {}),
         "products": [],
     }
 
@@ -71701,31 +72081,66 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
 
     products_by_id = {}
     failures = []
-    for family in families:
-        result = _workspace_sales_woocommerce_search_v69413(family)
-        if str(result.get("status") or "") != "ok":
-            failures.append(dict(result))
-            continue
-        diagnostic_log(
-            "workspace_sales_woocommerce_family_search_v69415",
-            family=family,
-            provider=str(result.get("provider") or "unknown"),
-            products=len(result.get("products") or []),
-        )
-        for product in result.get("products") or []:
-            if not isinstance(product, dict):
-                continue
-            product_id = str(product.get("id") or product.get("permalink") or product.get("slug") or "")
-            if product_id:
-                products_by_id[product_id] = dict(product)
 
-    # v69455: a non-empty Woo family search is not proof of completeness.
-    # Merge bounded/cached storefront rows for the requested year, then let the
-    # unchanged semantic family + product-kind gates decide exact membership.
-    products_by_id = _workspace_sales_merge_full_scan_completeness_v69455(
-        products_by_id,
-        years,
-    )
+    # v69457: broad discovery requires a complete catalog anyway. Fetch that bounded
+    # catalog once and avoid the redundant family-search network wave that previously
+    # ran before the same full scan. If the complete provider is unavailable, retain
+    # the existing family-search path as a fail-closed fallback.
+    complete_scan_v69457 = _workspace_sales_woocommerce_complete_full_scan_v69456()
+    if str(complete_scan_v69457.get("status") or "") == "ok":
+        for product_v69457 in complete_scan_v69457.get("products") or []:
+            if not isinstance(product_v69457, dict):
+                continue
+            product_id_v69457 = str(
+                product_v69457.get("id")
+                or product_v69457.get("permalink")
+                or product_v69457.get("slug")
+                or ""
+            ).strip()
+            if product_id_v69457:
+                products_by_id[product_id_v69457] = dict(product_v69457)
+        diagnostic_log(
+            "workspace_sales_complete_catalog_direct_v69457",
+            provider=str(complete_scan_v69457.get("provider") or "unknown"),
+            products=len(products_by_id),
+            pages=int(complete_scan_v69457.get("pages") or 0),
+        )
+        # Preserve the established completeness diagnostic used by production
+        # observability/audits even though v69457 no longer performs a redundant
+        # search-first network wave before the same full catalog.
+        diagnostic_log(
+            "workspace_sales_woo_completeness_scan_v69455",
+            requested_years=list(years),
+            provider=str(complete_scan_v69457.get("provider") or "unknown"),
+            scanned_products=len(products_by_id),
+            added_products=len(products_by_id),
+            merged_products=len(products_by_id),
+            pages=int(complete_scan_v69457.get("pages") or 0),
+            validation="existing_exact_family_year_kind_gates",
+        )
+    else:
+        failures.append(dict(complete_scan_v69457 or {}))
+        for family in families:
+            result = _workspace_sales_woocommerce_search_v69413(family)
+            if str(result.get("status") or "") != "ok":
+                failures.append(dict(result))
+                continue
+            diagnostic_log(
+                "workspace_sales_woocommerce_family_search_v69415",
+                family=family,
+                provider=str(result.get("provider") or "unknown"),
+                products=len(result.get("products") or []),
+            )
+            for product in result.get("products") or []:
+                if not isinstance(product, dict):
+                    continue
+                product_id = str(product.get("id") or product.get("permalink") or product.get("slug") or "")
+                if product_id:
+                    products_by_id[product_id] = dict(product)
+        products_by_id = _workspace_sales_merge_full_scan_completeness_v69455(
+            products_by_id,
+            years,
+        )
 
     if failures and not products_by_id:
         reason = str((failures[0] or {}).get("reason") or "woocommerce_catalog_unavailable")
@@ -104996,7 +105411,7 @@ else:
     )
     st.session_state["chat_submission_upload_count_v68620"] = len(uploaded_files)
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
-    install_global_chat_file_dropzone()
+    _run_legacy_ui_runtime_without_deprecated_html_v69457(install_global_chat_file_dropzone)
 
     # v69026: bound the live DOM on long conversations. Persistent history is
     # unchanged; only the newest messages are mounted into the active browser DOM.
@@ -105052,12 +105467,12 @@ else:
 
     st.markdown('<div id="chat-bottom-anchor"></div>', unsafe_allow_html=True)
     if st.session_state.get("scroll_to_bottom"):
-        auto_scroll_to_latest()
+        _run_legacy_ui_runtime_without_deprecated_html_v69457(auto_scroll_to_latest)
         st.session_state.scroll_to_bottom = False
 
-    install_email_safe_assistant_copy_v69359()
-    install_browser_voice_dictation()
-    install_chat_composer_autogrow()
+    _run_legacy_ui_runtime_without_deprecated_html_v69457(install_email_safe_assistant_copy_v69359)
+    _run_legacy_ui_runtime_without_deprecated_html_v69457(install_browser_voice_dictation)
+    _run_legacy_ui_runtime_without_deprecated_html_v69457(install_chat_composer_autogrow)
     install_composer_width_safety_css()
     # Keep the original stable composer. Attachments remain in the proven managed
     # uploader above, while the normal bottom-right send arrow submits the turn.
