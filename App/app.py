@@ -93,11 +93,12 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69454
-# Scope: learning durability / transactional consistency / attachment authority hardening.
-# Protected Graphic generation, Technical answering, Sales retrieval, Marketing, Auth and UI behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69455"
-AUTOTECPRO_RELEASE_BUILD = "v69455-woocommerce-broad-catalog-completeness-20260925"
+# AutoTecPro AI v69456
+# Scope: generic multi-model Sales identity completeness + resilient learning-schema compatibility.
+# No vehicle, product ID, product URL, factory-system, or catalog item is hard-coded.
+# Protected Graphic generation, Technical answering, Marketing, Auth and UI behavior remain unchanged.
+AUTOTECPRO_RELEASE_VERSION = "v69456"
+AUTOTECPRO_RELEASE_BUILD = "v69456-generic-family-recall-schema-resilience-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -7541,17 +7542,58 @@ def get_table_columns(table_name):
 
 
 
+_LEARNING_CORE_SCHEMA_FIELDS_V69456 = {
+    "assistant", "vehicle", "issue", "solution", "approved_answer",
+    "question", "keywords", "source_question", "source_answer",
+    "source_conversation_id", "confidence_score", "times_seen",
+    "openai_file_id", "vector_store_id", "synced",
+}
+
+# Optional metadata may legitimately be absent on older production schemas. These
+# fields must never make an otherwise authoritative learning transaction fail.
+_LEARNING_OPTIONAL_SCHEMA_FIELDS_V69456 = {
+    "username", "record_type", "department", "category", "source_type",
+    "staff_confirmed", "embedding_status", "completeness_score", "times_used",
+    "search_count", "approved", "created_by", "updated_at", "created_at",
+}
+_LEARNING_SCHEMA_MISSING_OPTIONAL_V69456 = set()
+_LEARNING_SCHEMA_MISSING_OPTIONAL_LOCK_V69456 = threading.Lock()
+
+
+def _learning_missing_column_from_error_v69456(error):
+    text_v69456 = str(error or "")
+    patterns_v69456 = (
+        r"Could not find the ['\"]([^'\"]+)['\"] column",
+        r"column ['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]? of .* does not exist",
+        r"['\"]column['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+    )
+    for pattern_v69456 in patterns_v69456:
+        match_v69456 = re.search(pattern_v69456, text_v69456, flags=re.I)
+        if match_v69456:
+            return str(match_v69456.group(1) or "").strip()
+    return ""
+
+
+def _learning_known_missing_optional_v69456():
+    with _LEARNING_SCHEMA_MISSING_OPTIONAL_LOCK_V69456:
+        return set(_LEARNING_SCHEMA_MISSING_OPTIONAL_V69456)
+
+
+def _learning_mark_missing_optional_v69456(column_v69456):
+    column_v69456 = str(column_v69456 or "").strip()
+    if not column_v69456:
+        return
+    with _LEARNING_SCHEMA_MISSING_OPTIONAL_LOCK_V69456:
+        _LEARNING_SCHEMA_MISSING_OPTIONAL_V69456.add(column_v69456)
+
+
 def filter_payload_for_table(table_name, payload):
     """Remove optional unknown fields, but never silently strip core learning authority."""
     columns = set(get_table_columns(table_name))
     if not columns:
         return payload
     if str(table_name) == "learned_knowledge":
-        protected_v69454 = {
-            "assistant", "vehicle", "issue", "solution", "approved_answer",
-            "source_type", "staff_confirmed", "embedding_status",
-            "vector_store_id", "openai_file_id", "updated_at",
-        }
+        protected_v69454 = set(_LEARNING_CORE_SCHEMA_FIELDS_V69456)
         missing_v69454 = sorted(
             key for key in protected_v69454
             if key in dict(payload or {}) and key not in columns
@@ -7600,12 +7642,55 @@ def safe_select_rows(table_name, order_columns=None, limit=500):
         raise
 
 
+def _safe_learning_write_v69456(operation_v69456, payload_v69456, row_id_v69456=None):
+    clean_v69456 = dict(filter_payload_for_table("learned_knowledge", payload_v69456) or {})
+    known_missing_v69456 = _learning_known_missing_optional_v69456()
+    clean_v69456 = {
+        key_v69456: value_v69456
+        for key_v69456, value_v69456 in clean_v69456.items()
+        if key_v69456 not in known_missing_v69456
+    }
+
+    for _attempt_v69456 in range(1, 9):
+        try:
+            if operation_v69456 == "insert":
+                return supabase.table("learned_knowledge").insert(clean_v69456).execute()
+            return (
+                supabase.table("learned_knowledge")
+                .update(clean_v69456)
+                .eq("id", row_id_v69456)
+                .execute()
+            )
+        except Exception as error_v69456:
+            missing_v69456 = _learning_missing_column_from_error_v69456(error_v69456)
+            if (
+                missing_v69456
+                and missing_v69456 in _LEARNING_OPTIONAL_SCHEMA_FIELDS_V69456
+                and missing_v69456 in clean_v69456
+            ):
+                clean_v69456.pop(missing_v69456, None)
+                _learning_mark_missing_optional_v69456(missing_v69456)
+                diagnostic_log(
+                    "learning_optional_schema_field_omitted_v69456",
+                    operation=operation_v69456,
+                    field=missing_v69456,
+                    error_type=type(error_v69456).__name__,
+                )
+                continue
+            raise
+    raise RuntimeError("Learning schema compatibility retries were exhausted.")
+
+
 def safe_insert_row(table_name, payload):
+    if str(table_name) == "learned_knowledge":
+        return _safe_learning_write_v69456("insert", payload)
     clean_payload = filter_payload_for_table(table_name, payload)
     return supabase.table(table_name).insert(clean_payload).execute()
 
 
 def safe_update_row(table_name, payload, row_id):
+    if str(table_name) == "learned_knowledge":
+        return _safe_learning_write_v69456("update", payload, row_id_v69456=row_id)
     clean_payload = filter_payload_for_table(table_name, payload)
     return supabase.table(table_name).update(clean_payload).eq("id", row_id).execute()
 
@@ -62673,6 +62758,91 @@ def _website_identity_vehicle_families_v69022(value):
     peak = max(positive.values())
     return {k for k, v in positive.items() if v >= max(1.0, peak - 1.0)}
 
+def _workspace_source_identity_vehicle_families_v69456(value):
+    """Preserve all families declared by a trusted product title/permalink.
+
+    The legacy parser intentionally applies frequency suppression to noisy prose.
+    That can be too aggressive when a trusted identity combines a title and URL:
+    models repeated in both can suppress a sibling model present only in one source.
+
+    v69456 does not introduce any vehicle/product lookup table. Instead it runs the
+    existing conservative parser independently over identity components and bounded
+    token windows, then unions only what that same parser already recognizes. This
+    removes cross-component frequency bias without broadening the parser vocabulary
+    or inspecting arbitrary page body prose.
+    """
+    text_v69456 = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text_v69456:
+        return set()
+
+    components_v69456 = [text_v69456]
+    # Titles, URLs, slugs and metadata fields are commonly joined with whitespace.
+    # Parse each bounded component independently so repetition in one component
+    # cannot suppress a valid family in another.
+    components_v69456.extend(
+        piece_v69456
+        for piece_v69456 in re.split(r"(?:https?://\S+|[|;])", text_v69456)
+        if str(piece_v69456 or "").strip()
+    )
+    for url_v69456 in re.findall(r"https?://\S+", text_v69456, flags=re.I):
+        try:
+            parsed_v69456 = urllib.parse.urlsplit(url_v69456)
+            components_v69456.extend([
+                str(parsed_v69456.path or ""),
+                str(parsed_v69456.query or ""),
+            ])
+        except Exception:
+            components_v69456.append(url_v69456)
+
+    # Also parse bounded token windows. The existing parser remains the only family
+    # recognizer; windows merely prevent unrelated repeated identity tokens from
+    # changing its frequency threshold.
+    normalized_v69456 = re.sub(r"[^A-Za-z0-9]+", " ", text_v69456).strip()
+    tokens_v69456 = normalized_v69456.split()
+    for index_v69456 in range(len(tokens_v69456)):
+        window_v69456 = " ".join(tokens_v69456[index_v69456:index_v69456 + 6])
+        if window_v69456:
+            components_v69456.append(window_v69456)
+
+    families_v69456 = set()
+    seen_components_v69456 = set()
+    for component_v69456 in components_v69456:
+        clean_v69456 = re.sub(r"\s+", " ", str(component_v69456 or "")).strip()
+        key_v69456 = clean_v69456.casefold()
+        if not clean_v69456 or key_v69456 in seen_components_v69456:
+            continue
+        seen_components_v69456.add(key_v69456)
+        families_v69456.update(
+            _website_identity_vehicle_families_v69022(clean_v69456) or set()
+        )
+
+    # Windows are recall-only. Re-apply polarity against the original trusted
+    # identity so a phrase such as "not for <model>" cannot become positive merely
+    # because a smaller window lost its negative prefix. This is vocabulary-free:
+    # it evaluates only families already recognized by the existing parser.
+    lowered_v69456 = text_v69456.casefold()
+    for family_v69456 in list(families_v69456):
+        chunks_v69456 = re.findall(r"[a-z]+|\d+", str(family_v69456).casefold())
+        if not chunks_v69456:
+            continue
+        family_pattern_v69456 = r"\b" + r"[-_\s]*".join(
+            re.escape(chunk_v69456) for chunk_v69456 in chunks_v69456
+        ) + r"\b"
+        score_v69456 = 0.0
+        for match_v69456 in re.finditer(family_pattern_v69456, lowered_v69456):
+            before_v69456 = lowered_v69456[max(0, match_v69456.start() - 100):match_v69456.start()]
+            negative_v69456 = bool(re.search(
+                r"(?:do\s+not\s+use|don't\s+use|not\s+for|not\s+the|wrong|avoid|"
+                r"instead\s+of|rather\s+than|do\s+not\s+apply|exclude(?:s|d)?|"
+                r"unsupported)[^.;:]{0,80}$",
+                before_v69456,
+            ))
+            score_v69456 += -5.0 if negative_v69456 else 2.0
+        if score_v69456 <= 0:
+            families_v69456.discard(family_v69456)
+    return families_v69456
+
+
 def _website_identity_years_v69022(value):
     text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
     years = set()
@@ -65826,7 +65996,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         # Retrieved package bodies may contain related-product links/snippets for other vehicles;
         # those must never grant the declared Final source URL authority for a different family.
         source_identity_text_v69358 = " ".join((title, source))
-        source_families_v69358 = set(_website_identity_vehicle_families_v69022(source_identity_text_v69358))
+        source_families_v69358 = set(_workspace_source_identity_vehicle_families_v69456(source_identity_text_v69358))
         source_years_v69358 = set(_website_identity_years_v69022(source_identity_text_v69358))
         body_families_v69358 = set(_website_identity_vehicle_families_v69022(text[:24000]))
         body_years_v69358 = set(_website_identity_years_v69022(text[:24000]))
@@ -65853,7 +66023,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         # This blocks cross-product leakage such as Colorado/Audi pages whose retrieved
         # body happened to mention a Dodge RAM related product.
         source_identity_text_v69358 = " ".join((str(c.get("title") or ""), str(c.get("source_url") or "")))
-        source_families_v69358 = set(_website_identity_vehicle_families_v69022(source_identity_text_v69358))
+        source_families_v69358 = set(_workspace_source_identity_vehicle_families_v69456(source_identity_text_v69358))
         source_years_v69358 = set(_website_identity_years_v69022(source_identity_text_v69358))
 
         # v69448: exact-current semantic product identity can safely expand a
@@ -70946,7 +71116,10 @@ def _workspace_sales_woocommerce_contract_v69413(product):
     ])
     families = sorted({
         str(x or "").casefold().strip()
-        for x in (_workspace_sales_fuzzy_vehicle_families_v69416(identity_text) or [])
+        for x in (
+            set(_workspace_sales_fuzzy_vehicle_families_v69416(identity_text) or set())
+            | set(_workspace_source_identity_vehicle_families_v69456(identity_text) or set())
+        )
         if str(x or "").strip()
     })
 
@@ -71281,8 +71454,17 @@ def _workspace_sales_woocommerce_package_v69413(product):
     })
     years = sorted({
         int(x)
-        for x in _workspace_sales_woocommerce_years_v69413(
-            " ".join([name, str(product.get("slug") or ""), permalink])
+        for x in (
+            list(_workspace_sales_woocommerce_years_v69413(
+                " ".join([name, str(product.get("slug") or ""), permalink])
+            ) or [])
+            + [
+                year_v69456
+                for branch_v69456 in (contract.get("compatibility_branches") or [])
+                if isinstance(branch_v69456, dict)
+                and bool(branch_v69456.get("current_source", True))
+                for year_v69456 in (branch_v69456.get("years") or [])
+            ]
         )
         if str(x).isdigit()
     })
@@ -71355,91 +71537,146 @@ def _workspace_sales_woocommerce_package_v69413(product):
     }
 
 
+@st.cache_data(ttl=90, max_entries=8, show_spinner=False)
+def _workspace_sales_woocommerce_authenticated_full_scan_v69456():
+    """Read the published Woo catalog without search-token filtering.
+
+    This is a generic completeness source for installations where the public Store
+    API is unavailable or incomplete. It is bounded exactly like the public scan and
+    uses the already-configured authenticated Woo client; no product-specific query
+    is introduced.
+    """
+    if not woocommerce_is_configured():
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_credentials_not_configured",
+            "products": [],
+        }
+    products_v69456 = {}
+    try:
+        for page_v69456 in range(1, 21):
+            batch_v69456 = woocommerce_api_request(
+                "products",
+                params={
+                    "status": "publish",
+                    "per_page": 100,
+                    "page": page_v69456,
+                },
+            )
+            if not isinstance(batch_v69456, list):
+                raise RuntimeError("Unexpected authenticated Woo full-catalog response.")
+            for item_v69456 in batch_v69456:
+                if not isinstance(item_v69456, dict):
+                    continue
+                key_v69456 = str(
+                    item_v69456.get("id")
+                    or item_v69456.get("permalink")
+                    or item_v69456.get("slug")
+                    or ""
+                ).strip()
+                if key_v69456:
+                    products_v69456[key_v69456] = dict(item_v69456)
+            if len(batch_v69456) < 100:
+                return {
+                    "status": "ok",
+                    "provider": "wc_v3_full_scan",
+                    "products": list(products_v69456.values()),
+                    "pages": page_v69456,
+                }
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_authenticated_catalog_exceeds_verified_bound",
+            "products": [],
+        }
+    except Exception as error_v69456:
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_authenticated_full_scan_failed",
+            "error_type": type(error_v69456).__name__,
+            "error": str(error_v69456)[:500],
+            "products": [],
+        }
+
+
+def _workspace_sales_woocommerce_complete_full_scan_v69456():
+    """Return one complete published catalog from the strongest available provider."""
+    authenticated_v69456 = _workspace_sales_woocommerce_authenticated_full_scan_v69456()
+    if str(authenticated_v69456.get("status") or "") == "ok":
+        return dict(authenticated_v69456)
+    public_v69456 = _workspace_sales_woocommerce_store_api_full_scan_v69415()
+    if str(public_v69456.get("status") or "") == "ok":
+        return dict(public_v69456)
+    diagnostic_log(
+        "workspace_sales_woo_complete_scan_unavailable_v69456",
+        authenticated_reason=str(authenticated_v69456.get("reason") or "")[:240],
+        public_reason=str(public_v69456.get("reason") or "")[:240],
+    )
+    return {
+        "status": "unavailable",
+        "reason": "woocommerce_complete_catalog_unavailable",
+        "authenticated": dict(authenticated_v69456 or {}),
+        "public": dict(public_v69456 or {}),
+        "products": [],
+    }
+
+
 def _workspace_sales_merge_full_scan_completeness_v69455(
     products_by_id,
     requested_years,
 ):
-    """Supplement non-empty Woo search results with year-matching full-catalog rows.
+    """Supplement search results with the complete published catalog generically.
 
-    Woo search endpoints are token/title based and can return a non-empty but
-    incomplete result set. AutoTecPro product titles can intentionally omit a
-    supported sibling model while the exact current product description carries
-    authoritative ``data-atp-*`` compatibility metadata. A search for that omitted
-    model therefore cannot discover the product at all.
-
-    v69455 keeps the fast family search, then merges only storefront-visible full-
-    catalog products whose identity year range contains every requested year. The
-    existing package builder and exact semantic family gate remain authoritative for
-    model fitment, so this step broadens discovery candidates without broadening
-    compatibility authority. The Store API scan is already bounded and cached.
+    v69456 removes the last discovery-time assumption that title/permalink years are
+    sufficient to decide whether a product deserves validation. The full scan is
+    already bounded and cached, so every published product can safely reach the
+    existing product-kind, exact-current semantic family, and year gates. Those gates
+    remain authoritative; this helper changes candidate recall only.
     """
-    merged_v69455 = {
-        str(key): dict(value)
-        for key, value in dict(products_by_id or {}).items()
-        if str(key).strip() and isinstance(value, dict)
+    merged_v69456 = {
+        str(key_v69456): dict(value_v69456)
+        for key_v69456, value_v69456 in dict(products_by_id or {}).items()
+        if str(key_v69456).strip() and isinstance(value_v69456, dict)
     }
-    requested_years_v69455 = {
-        int(x) for x in (requested_years or []) if str(x).isdigit()
-    }
-
-    full_scan_v69455 = _workspace_sales_woocommerce_store_api_full_scan_v69415()
-    if str(full_scan_v69455.get("status") or "") != "ok":
+    full_scan_v69456 = _workspace_sales_woocommerce_complete_full_scan_v69456()
+    if str(full_scan_v69456.get("status") or "") != "ok":
         diagnostic_log(
             "workspace_sales_woo_completeness_scan_unavailable_v69455",
-            reason=str(full_scan_v69455.get("reason") or "")[:240],
-            existing_products=len(merged_v69455),
+            reason=str(full_scan_v69456.get("reason") or "")[:240],
+            existing_products=len(merged_v69456),
         )
-        return merged_v69455
+        return merged_v69456
 
-    scanned_v69455 = 0
-    year_candidates_v69455 = 0
-    added_v69455 = 0
-    for product_v69455 in full_scan_v69455.get("products") or []:
-        if not isinstance(product_v69455, dict):
+    scanned_v69456 = 0
+    added_v69456 = 0
+    for product_v69456 in full_scan_v69456.get("products") or []:
+        if not isinstance(product_v69456, dict):
             continue
-        scanned_v69455 += 1
-        product_id_v69455 = str(
-            product_v69455.get("id")
-            or product_v69455.get("permalink")
-            or product_v69455.get("slug")
+        scanned_v69456 += 1
+        product_id_v69456 = str(
+            product_v69456.get("id")
+            or product_v69456.get("permalink")
+            or product_v69456.get("slug")
             or ""
         ).strip()
-        if not product_id_v69455 or product_id_v69455 in merged_v69455:
+        if not product_id_v69456 or product_id_v69456 in merged_v69456:
             continue
-
-        identity_v69455 = " ".join([
-            str(product_v69455.get("name") or ""),
-            str(product_v69455.get("slug") or ""),
-            str(product_v69455.get("permalink") or ""),
-        ])
-        identity_years_v69455 = {
-            int(x)
-            for x in (_workspace_sales_woocommerce_years_v69413(identity_v69455) or [])
-            if str(x).isdigit()
-        }
-        if (
-            requested_years_v69455
-            and (
-                not identity_years_v69455
-                or not requested_years_v69455.issubset(identity_years_v69455)
-            )
-        ):
-            continue
-
-        year_candidates_v69455 += 1
-        merged_v69455[product_id_v69455] = dict(product_v69455)
-        added_v69455 += 1
+        merged_v69456[product_id_v69456] = dict(product_v69456)
+        added_v69456 += 1
 
     diagnostic_log(
         "workspace_sales_woo_completeness_scan_v69455",
-        requested_years=sorted(requested_years_v69455),
-        scanned_products=scanned_v69455,
-        year_candidates=year_candidates_v69455,
-        added_products=added_v69455,
-        merged_products=len(merged_v69455),
-        pages=int(full_scan_v69455.get("pages") or 0),
+        requested_years=sorted({
+            int(x_v69456) for x_v69456 in (requested_years or [])
+            if str(x_v69456).isdigit()
+        }),
+        provider=str(full_scan_v69456.get("provider") or "unknown"),
+        scanned_products=scanned_v69456,
+        added_products=added_v69456,
+        merged_products=len(merged_v69456),
+        pages=int(full_scan_v69456.get("pages") or 0),
+        validation="existing_exact_family_year_kind_gates",
     )
-    return merged_v69455
+    return merged_v69456
 
 
 @st.cache_data(ttl=90, max_entries=128, show_spinner=False)
@@ -72253,7 +72490,7 @@ def _workspace_sales_broad_product_manifest_v69411(prompt_text):
         ])
         row_families = {
             str(x or "").casefold().strip()
-            for x in (_website_identity_vehicle_families_v69022(identity_blob) or [])
+            for x in (_workspace_source_identity_vehicle_families_v69456(identity_blob) or [])
             if str(x or "").strip()
         }
         if not row_families or not pf.issubset(row_families):
