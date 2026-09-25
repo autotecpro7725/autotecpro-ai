@@ -93,14 +93,15 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69459
+# AutoTecPro AI v69460
+# Scope: keep chat composer controls alive across result reruns and show full product fitment ranges.
 # Scope: restore the proven iframe execution model for browser UI-runtime helpers using
 # Streamlit's supported st.iframe API. Voice dictation, send proxy, composer autogrow,
 # and top-left input alignment are restored while retaining all v69457 Sales/schema/
 # performance fixes. Protected Graphic generation, Technical answering, Marketing,
 # Auth, learning, and product-bound image behavior are unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69459"
-AUTOTECPRO_RELEASE_BUILD = "v69459-supported-iframe-composer-voice-restoration-20260925"
+AUTOTECPRO_RELEASE_VERSION = "v69460"
+AUTOTECPRO_RELEASE_BUILD = "v69460-stable-composer-rerun-fitment-range-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -68176,9 +68177,13 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
             continue
 
         contract = _workspace_atp_product_contract_v69205(pkg)
+        # v69460: the customer's requested year is an eligibility filter, not the
+        # display range. Once this exact product is proven compatible, show its
+        # complete authoritative fitment span (for example 2009–2016), rather
+        # than collapsing the Fitment cell to only the queried year (2014).
         fitment = _workspace_atp_first_response_fitment_v69348(
             contract,
-            prompt_years,
+            None,
         )
         if prompt_years and not fitment:
             continue
@@ -68201,30 +68206,10 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
         if not title:
             title = "AutoTecPro infotainment system"
 
-        # v69457: if an exact compatible model is absent from the official Woo title,
-        # make the verified match explicit in the Fitment column instead of rewriting
-        # the official product name. This is display-only and uses only the already-
-        # authoritative requested family + exact contract model intersection.
+        # v69460: keep the Fitment column semantically pure: it displays the
+        # complete authoritative product year/trim range. Vehicle-model matching
+        # remains enforced by the existing family gates and product authority.
         fitment_display_v69457 = fitment or "Compatible"
-        contract_models_v69457 = {
-            str(x or "").casefold().strip()
-            for x in (contract.get("models") or [])
-            if str(x or "").strip()
-        }
-        requested_model_labels_v69457 = [
-            _workspace_sales_family_display_label_v69457(family_v69457)
-            for family_v69457 in prompt_families
-            if str(family_v69457 or "").casefold().strip() in contract_models_v69457
-        ]
-        missing_title_labels_v69457 = [
-            label_v69457 for label_v69457 in requested_model_labels_v69457
-            if label_v69457 and label_v69457.casefold() not in title.casefold()
-        ]
-        if missing_title_labels_v69457:
-            fitment_display_v69457 = (
-                " / ".join(dict.fromkeys(missing_title_labels_v69457))
-                + " • " + fitment_display_v69457
-            )
 
         seen_pages.add(page_id)
         rows.append((title, fitment_display_v69457, source, contract, pkg))
@@ -105557,8 +105542,14 @@ else:
         st.session_state.scroll_to_bottom = False
 
     _run_legacy_ui_runtime_without_deprecated_html_v69459(install_email_safe_assistant_copy_v69359)
-    _run_legacy_ui_runtime_without_deprecated_html_v69459(install_browser_voice_dictation)
-    _run_legacy_ui_runtime_without_deprecated_html_v69459(install_chat_composer_autogrow)
+    # v69460: restore the proven v69456 transport for the two controllers that
+    # mutate the live st.chat_input DOM. The v69459 iframe lifecycle can be torn
+    # down after a Streamlit result rerun, which removes the microphone/send
+    # controls and can leave the composer owner with stale inline layout. Direct
+    # components.html is intentionally retained only for these two trusted local
+    # controllers until they are migrated to a native component.
+    install_browser_voice_dictation()
+    install_chat_composer_autogrow()
     install_composer_width_safety_css()
     _install_composer_top_left_fallback_v69459()
     # Keep the original stable composer. Attachments remain in the proven managed
