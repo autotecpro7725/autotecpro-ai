@@ -93,17 +93,18 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69463
-# Scope: make the prepared next-inquiry draft durable across the *end* of an active
-# Streamlit run. v69462 blocked concurrent submission correctly, but its browser draft
-# existed only in controller memory and was restored only while the turn was busy; a
-# composer replacement immediately after Python unlocked the turn could therefore erase
-# the unsent second inquiry. v69463 keeps that draft in per-tab sessionStorage and restores
-# it both while busy and after unlock until the user actually submits it. All v69462 turn
-# serialization plus Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce,
-# image-authority, product-fitment, voice, and composer-layout behavior is preserved.
-AUTOTECPRO_RELEASE_VERSION = "v69463"
-AUTOTECPRO_RELEASE_BUILD = "v69463-durable-next-inquiry-draft-across-unlock-20260925"
+# AutoTecPro AI v69464
+# Scope: eliminate the remaining next-inquiry loss race by moving turn serialization onto
+# Streamlit 1.61's native chat-input submit_mode="disable" lifecycle, while preserving the
+# ability to type the next inquiry during the active response through an isolated browser
+# draft overlay. The draft no longer lives inside Streamlit's controlled textarea while the
+# current ScriptRunner execution is active, so Streamlit cannot erase it when the chat widget
+# is reconciled at script completion. When the native composer is re-enabled, the draft is
+# transferred back into the real chat input and remains there until the user submits it.
+# Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce, image-authority,
+# product-fitment, voice, and completed-answer persistence behavior remain unchanged.
+AUTOTECPRO_RELEASE_VERSION = "v69464"
+AUTOTECPRO_RELEASE_BUILD = "v69464-native-submit-serialization-isolated-next-draft-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -6340,20 +6341,20 @@ def _install_composer_top_left_fallback_v69459():
     )
 
 
-def _install_chat_turn_guard_v69463():
-    """Serialize chat submits and preserve the next unsent inquiry across DOM replacement.
+def _install_chat_turn_guard_v69464():
+    """Use Streamlit's native turn lock and isolate the next inquiry from widget resets.
 
-    v69462 correctly prevented a second submit from cancelling the active ScriptRunner turn,
-    but its prepared-draft copy lived only in the controller's in-memory state and the restore
-    path ran only while ``busy``. Streamlit can replace ``st.chat_input`` immediately after
-    Python unlocks the completed turn; that post-unlock replacement can therefore erase text
-    typed while the previous answer was still running.
+    Streamlit 1.61 supports ``st.chat_input(..., submit_mode="disable")``. That native mode
+    is the authoritative serialization layer: after a submission, Streamlit itself disables
+    the real chat widget until the current ScriptRunner execution has completely finished.
 
-    v69463 keeps the unsent next-inquiry draft in per-tab ``sessionStorage`` and treats it as
-    durable browser state until the user actually submits that text. Restoration runs both
-    while busy and after unlock, including delayed post-unlock passes, so React/Streamlit DOM
-    replacement cannot silently clear the prepared inquiry. The server-side conversation and
-    provider pipelines remain untouched.
+    Staff still need to prepare the next inquiry while the AI is working. A small browser
+    bridge therefore mounts a visually identical *draft-only* textarea over the disabled
+    native textarea. The draft is stored per tab in ``sessionStorage`` and is never part of
+    Streamlit's controlled widget state while the current turn is active. When Streamlit
+    re-enables the native textarea, the bridge transfers the draft back into the real widget.
+    This removes the v69462/v69463 race where Streamlit's final widget reconciliation could
+    clear text that had been typed directly into its own controlled textarea.
     """
     _run_invisible_trusted_browser_script_v69453(
         r"""
@@ -6361,29 +6362,37 @@ def _install_chat_turn_guard_v69463():
         (() => {
           const root = window;
           const doc = document;
-          const GLOBAL_KEY = "__atpChatTurnGuardV69463";
-          const PENDING_KEY = "__atpChatTurnGuardPendingV69463";
-          const STORAGE_KEY = "__atpChatPreparedDraftV69463";
+          const GLOBAL_KEY = "__atpChatTurnGuardV69464";
+          const PENDING_KEY = "__atpChatTurnGuardPendingV69464";
+          const STORAGE_KEY = "__atpChatPreparedDraftV69464";
+          const LEGACY_STORAGE_KEY = "__atpChatPreparedDraftV69463";
+          const OVERLAY_ID = "atp-next-inquiry-draft-v69464";
           const STORAGE_TTL_MS = 30 * 60 * 1000;
 
-          // A hot deployment can leave the previous controller alive in an already-open tab.
-          // Remove only the v69462 listeners/timer before installing the v69463 controller.
-          try {
-            const prior = root.__atpChatTurnGuardV69462;
-            if (prior && typeof prior.cleanup === "function") prior.cleanup();
-            delete root.__atpChatTurnGuardV69462;
-            delete root.__atpChatTurnGuardPendingV69462;
-          } catch (error) {}
+          function composer() {
+            return doc.querySelector('div[data-testid="stChatInput"]');
+          }
 
-          function readStoredDraft() {
+          function nativeInput(container = composer()) {
+            if (!container) return null;
+            return (
+              container.querySelector('textarea[data-testid="stChatInputTextArea"]') ||
+              [...container.querySelectorAll("textarea")].find(
+                (node) => node.id !== OVERLAY_ID && !node.classList.contains("atp-next-inquiry-draft-v69464")
+              ) ||
+              null
+            );
+          }
+
+          function readStorageRecord(key) {
             try {
-              const raw = root.sessionStorage?.getItem(STORAGE_KEY);
+              const raw = root.sessionStorage?.getItem(key);
               if (!raw) return "";
               const parsed = JSON.parse(raw);
               const value = String(parsed?.value || "");
               const updatedAt = Number(parsed?.updatedAt || 0);
               if (!value || !updatedAt || Date.now() - updatedAt > STORAGE_TTL_MS) {
-                root.sessionStorage?.removeItem(STORAGE_KEY);
+                root.sessionStorage?.removeItem(key);
                 return "";
               }
               return value;
@@ -6392,7 +6401,17 @@ def _install_chat_turn_guard_v69463():
             }
           }
 
-          function writeStoredDraft(value) {
+          function readDraft() {
+            let value = readStorageRecord(STORAGE_KEY);
+            if (value) return value;
+            // One-time migration for a draft that survived the v69463 deployment.
+            value = readStorageRecord(LEGACY_STORAGE_KEY);
+            if (value) writeDraft(value);
+            try { root.sessionStorage?.removeItem(LEGACY_STORAGE_KEY); } catch (error) {}
+            return value;
+          }
+
+          function writeDraft(value) {
             const next = String(value || "");
             try {
               if (!next) {
@@ -6406,15 +6425,86 @@ def _install_chat_turn_guard_v69463():
             } catch (error) {}
           }
 
-          function clearStoredDraft() {
+          function clearDraft() {
             try { root.sessionStorage?.removeItem(STORAGE_KEY); } catch (error) {}
           }
+
+          function setReactValue(input, value) {
+            if (!input) return;
+            try {
+              const descriptor = Object.getOwnPropertyDescriptor(
+                root.HTMLTextAreaElement?.prototype || Object.getPrototypeOf(input),
+                "value"
+              );
+              if (descriptor?.set) descriptor.set.call(input, value);
+              else input.value = value;
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+            } catch (error) {}
+          }
+
+          function nativeDisabled(input = nativeInput()) {
+            if (!input) return false;
+            return Boolean(
+              input.disabled ||
+              input.getAttribute("aria-disabled") === "true" ||
+              input.closest('[aria-disabled="true"]')
+            );
+          }
+
+          function restoreLegacyGuardArtifacts() {
+            try {
+              const prior63 = root.__atpChatTurnGuardV69463;
+              if (prior63 && typeof prior63.cleanup === "function") prior63.cleanup();
+            } catch (error) {}
+            try {
+              const prior62 = root.__atpChatTurnGuardV69462;
+              if (prior62 && typeof prior62.cleanup === "function") prior62.cleanup();
+            } catch (error) {}
+            try {
+              delete root.__atpChatTurnGuardV69463;
+              delete root.__atpChatTurnGuardPendingV69463;
+              delete root.__atpChatTurnGuardV69462;
+              delete root.__atpChatTurnGuardPendingV69462;
+            } catch (error) {}
+
+            const current = composer();
+            if (!current) return;
+            try {
+              current.removeAttribute("data-atp-turn-busy-v69463");
+              current.removeAttribute("data-atp-turn-busy-v69462");
+              current.classList.remove("atp-turn-busy-v69463", "atp-turn-busy-v69462");
+            } catch (error) {}
+            for (const button of [...current.querySelectorAll("button")]) {
+              try {
+                const title63 = button.dataset.atpTurnGuardTitleV69463;
+                const title62 = button.dataset.atpTurnGuardTitleV69462;
+                if (
+                  button.dataset.atpTurnGuardBlockedV69463 === "true" ||
+                  button.dataset.atpTurnGuardBlockedV69462 === "true"
+                ) {
+                  button.style.removeProperty("pointer-events");
+                  button.style.removeProperty("opacity");
+                  button.style.removeProperty("cursor");
+                  const priorTitle = title63 || title62;
+                  if (priorTitle === "__EMPTY__") button.removeAttribute("title");
+                  else if (priorTitle) button.setAttribute("title", priorTitle);
+                }
+                delete button.dataset.atpTurnGuardBlockedV69463;
+                delete button.dataset.atpTurnGuardBlockedV69462;
+                delete button.dataset.atpTurnGuardTitleV69463;
+                delete button.dataset.atpTurnGuardTitleV69462;
+              } catch (error) {}
+            }
+          }
+
+          restoreLegacyGuardArtifacts();
 
           const existing = root[GLOBAL_KEY];
           if (existing && typeof existing.refresh === "function") {
             try {
               if (typeof root[PENDING_KEY] === "boolean") {
-                existing.setBusy(root[PENDING_KEY], "python-pending");
+                existing.setPythonBusy(root[PENDING_KEY]);
                 delete root[PENDING_KEY];
               }
               existing.refresh();
@@ -6423,391 +6513,282 @@ def _install_chat_turn_guard_v69463():
           }
 
           const state = {
-            busy: false,
-            busySince: 0,
-            submittedValue: "",
-            waitingForSubmittedClear: false,
-            draft: readStoredDraft(),
-            blockedSubmitAttempt: false,
-            allowFirstSubmitUntil: 0,
+            pythonBusy: false,
+            wasBusy: false,
+            transferredDraft: "",
             observer: null,
             timer: null,
-            seenStreamlitRunning: false,
-            idleObservedAt: 0,
-            restoreTimers: [],
+            scheduled: false,
           };
 
-          function composer() {
-            return doc.querySelector('div[data-testid="stChatInput"]');
+          function effectiveBusy(input = nativeInput()) {
+            return Boolean(state.pythonBusy || nativeDisabled(input));
           }
 
-          function inputElement(container = composer()) {
-            return container?.querySelector("textarea, input") || null;
+          function overlay() {
+            return doc.getElementById(OVERLAY_ID);
           }
 
-          function setReactValue(input, value) {
+          function restoreNativeAppearance(input) {
             if (!input) return;
             try {
-              const prototype = Object.getPrototypeOf(input);
-              const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
-              if (setter) setter.call(input, value);
-              else input.value = value;
-              input.dispatchEvent(new Event("input", { bubbles: true }));
-              input.dispatchEvent(new Event("change", { bubbles: true }));
+              input.style.removeProperty("opacity");
+              input.style.removeProperty("pointer-events");
+              input.removeAttribute("data-atp-draft-hidden-v69464");
             } catch (error) {}
           }
 
-          function isVoiceButton(button) {
-            return Boolean(
-              button && (
-                button.id === "atp-browser-voice-dictation" ||
-                button.classList?.contains("atp-voice-trigger")
-              )
-            );
+          function removeOverlay() {
+            try { overlay()?.remove(); } catch (error) {}
           }
 
-          function sendButtons(container = composer()) {
-            if (!container) return [];
-            return [...container.querySelectorAll("button")].filter(
-              (button) => !isVoiceButton(button)
-            );
-          }
-
-          function syncDraftFromStorage() {
-            const stored = readStoredDraft();
-            if (stored && stored !== state.draft) state.draft = stored;
-            return state.draft;
-          }
-
-          function persistDraft(value) {
-            const next = String(value || "");
-            state.draft = next;
-            writeStoredDraft(next);
-          }
-
-          function rememberDraftFromInput(input) {
-            if (!input) return;
-            const value = String(input.value || "");
-
-            if (state.waitingForSubmittedClear) {
-              if (!value) {
-                // This is the native composer clearing the prompt that was just submitted,
-                // not the user's prepared next inquiry.
-                state.waitingForSubmittedClear = false;
-                state.submittedValue = "";
-                return;
+          function copyTextareaVisuals(source, target) {
+            if (!source || !target) return;
+            try {
+              const style = root.getComputedStyle(source);
+              const props = [
+                "font-family", "font-size", "font-weight", "font-style",
+                "line-height", "letter-spacing", "text-align", "color",
+                "background-color", "padding-top", "padding-right",
+                "padding-bottom", "padding-left", "border-radius"
+              ];
+              for (const prop of props) {
+                const value = style.getPropertyValue(prop);
+                if (value) target.style.setProperty(prop, value, "important");
               }
-              if (value === state.submittedValue) return;
-              // The user started the next inquiry before an intermediate empty event was
-              // observable. From this point forward the new value is a real draft.
-              state.waitingForSubmittedClear = false;
-              state.submittedValue = "";
-            }
-
-            // Capture drafts both while busy and after unlock. This is important because
-            // Streamlit can finish the Python run before its final composer DOM settles.
-            persistDraft(value);
+            } catch (error) {}
           }
 
-          function restoreDraftIfNeeded() {
-            const input = inputElement();
-            if (!input || state.waitingForSubmittedClear) return;
-            const draft = syncDraftFromStorage();
-            if (draft && !String(input.value || "")) {
-              setReactValue(input, draft);
+          function mountOverlay(input) {
+            if (!input) return null;
+            let draft = overlay();
+            const host = input.parentElement;
+            if (!host) return null;
+
+            if (!draft || !host.contains(draft)) {
+              removeOverlay();
+              draft = doc.createElement("textarea");
+              draft.id = OVERLAY_ID;
+              draft.className = "atp-next-inquiry-draft-v69464";
+              draft.setAttribute("aria-label", "Next inquiry draft");
+              draft.setAttribute("autocomplete", "off");
+              draft.setAttribute("spellcheck", "true");
+              draft.placeholder = "Type your next message...";
+              draft.value = readDraft();
+
+              draft.style.setProperty("position", "absolute", "important");
+              draft.style.setProperty("inset", "0", "important");
+              draft.style.setProperty("width", "100%", "important");
+              draft.style.setProperty("height", "100%", "important");
+              draft.style.setProperty("min-height", "44px", "important");
+              draft.style.setProperty("max-height", "180px", "important");
+              draft.style.setProperty("box-sizing", "border-box", "important");
+              draft.style.setProperty("border", "0", "important");
+              draft.style.setProperty("outline", "0", "important");
+              draft.style.setProperty("box-shadow", "none", "important");
+              draft.style.setProperty("resize", "none", "important");
+              draft.style.setProperty("overflow-y", "auto", "important");
+              draft.style.setProperty("white-space", "pre-wrap", "important");
+              draft.style.setProperty("overflow-wrap", "break-word", "important");
+              draft.style.setProperty("z-index", "6", "important");
+              draft.style.setProperty("pointer-events", "auto", "important");
+              draft.style.setProperty("opacity", "1", "important");
+              copyTextareaVisuals(input, draft);
+
+              try {
+                const hostStyle = root.getComputedStyle(host);
+                if (hostStyle.position === "static") {
+                  host.style.setProperty("position", "relative", "important");
+                }
+              } catch (error) {}
+
+              draft.addEventListener("input", () => {
+                writeDraft(String(draft.value || ""));
+              });
+              draft.addEventListener("change", () => {
+                writeDraft(String(draft.value || ""));
+              });
+              draft.addEventListener("compositionend", () => {
+                writeDraft(String(draft.value || ""));
+              });
+              draft.addEventListener("keydown", (event) => {
+                // The current AI turn owns submission until Streamlit re-enables the
+                // native widget. Enter therefore stays local instead of cancelling it.
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  writeDraft(String(draft.value || ""));
+                }
+              });
+              host.appendChild(draft);
+            } else {
+              const stored = readDraft();
+              if (stored && !String(draft.value || "")) draft.value = stored;
             }
+
+            input.dataset.atpDraftHiddenV69464 = "true";
+            input.style.setProperty("opacity", "0", "important");
+            input.style.setProperty("pointer-events", "none", "important");
+
+            // The microphone writes into the native Streamlit textarea, so disable it
+            // only during the active turn. It is restored as soon as the native widget
+            // is available again; normal voice behavior is otherwise untouched.
+            const mic = doc.getElementById("atp-browser-voice-dictation");
+            if (mic) {
+              mic.dataset.atpDraftBridgeDisabledV69464 = "true";
+              mic.style.setProperty("pointer-events", "none", "important");
+              mic.style.setProperty("opacity", "0.45", "important");
+              mic.setAttribute("title", "Voice input is available when the current response finishes");
+            }
+            return draft;
           }
 
-          function scheduleRestorePasses() {
-            for (const timer of state.restoreTimers) {
-              try { root.clearTimeout(timer); } catch (error) {}
+          function restoreMic() {
+            const mic = doc.getElementById("atp-browser-voice-dictation");
+            if (!mic || mic.dataset.atpDraftBridgeDisabledV69464 !== "true") return;
+            try {
+              delete mic.dataset.atpDraftBridgeDisabledV69464;
+              mic.style.removeProperty("pointer-events");
+              mic.style.removeProperty("opacity");
+              mic.setAttribute("title", "Voice dictation");
+            } catch (error) {}
+          }
+
+          function transferDraftToNative(input) {
+            if (!input) return;
+            const stored = readDraft();
+            restoreNativeAppearance(input);
+            restoreMic();
+            if (stored) {
+              const current = String(input.value || "");
+              if (!current || current !== stored) setReactValue(input, stored);
+              state.transferredDraft = stored;
+            } else {
+              state.transferredDraft = "";
             }
-            state.restoreTimers = [];
-            for (const delay of [0, 40, 120, 300, 700, 1400, 2600]) {
-              state.restoreTimers.push(
-                root.setTimeout(() => {
-                  try {
-                    restoreDraftIfNeeded();
-                    apply();
-                  } catch (error) {}
-                }, delay)
-              );
+            removeOverlay();
+          }
+
+          function syncIdleNativeDraft(input) {
+            if (!input || effectiveBusy(input)) return;
+            if (!state.transferredDraft && !readDraft()) return;
+            const value = String(input.value || "");
+            if (value) {
+              writeDraft(value);
+              state.transferredDraft = value;
             }
           }
 
           function apply() {
+            state.scheduled = false;
             const current = composer();
-            if (!current) return;
-            const input = inputElement(current);
+            const input = nativeInput(current);
+            if (!current || !input) return;
 
-            // v69463: an unsent draft is restored even after busy becomes false. The draft
-            // remains authoritative until the user actually submits it or manually clears it.
-            if (input && !state.waitingForSubmittedClear) {
-              const draft = syncDraftFromStorage();
-              if (draft && !String(input.value || "")) setReactValue(input, draft);
-            }
-
-            if (state.busy) {
-              current.dataset.atpTurnBusyV69463 = "true";
-              current.classList.add("atp-turn-busy-v69463");
-
-              for (const button of sendButtons(current)) {
-                if (!button.dataset.atpTurnGuardTitleV69463) {
-                  button.dataset.atpTurnGuardTitleV69463 = button.getAttribute("title") || "__EMPTY__";
-                }
-                button.dataset.atpTurnGuardBlockedV69463 = "true";
-                button.style.setProperty("pointer-events", "none", "important");
-                button.style.setProperty("opacity", "0.45", "important");
-                button.style.setProperty("cursor", "not-allowed", "important");
-                button.setAttribute("title", "Wait for the current response to finish");
+            const busy = effectiveBusy(input);
+            if (busy) {
+              // If a previously transferred draft has just caused a new native run,
+              // that draft has been submitted. Clear it before accepting the next one.
+              if (!state.wasBusy && state.transferredDraft) {
+                clearDraft();
+                state.transferredDraft = "";
               }
+              mountOverlay(input);
             } else {
-              current.removeAttribute("data-atp-turn-busy-v69463");
-              current.classList.remove("atp-turn-busy-v69463");
-              for (const button of [...current.querySelectorAll("button")]) {
-                if (button.dataset.atpTurnGuardBlockedV69463 === "true") {
-                  delete button.dataset.atpTurnGuardBlockedV69463;
-                  button.style.removeProperty("pointer-events");
-                  button.style.removeProperty("opacity");
-                  button.style.removeProperty("cursor");
-                  const priorTitle = button.dataset.atpTurnGuardTitleV69463;
-                  if (priorTitle === "__EMPTY__") button.removeAttribute("title");
-                  else if (priorTitle) button.setAttribute("title", priorTitle);
-                  delete button.dataset.atpTurnGuardTitleV69463;
-                }
-              }
-              if (input) {
-                try { input.dispatchEvent(new Event("input", { bubbles: true })); } catch (error) {}
-              }
+              transferDraftToNative(input);
+              syncIdleNativeDraft(input);
             }
+            state.wasBusy = busy;
           }
 
-          function beginBusyFromSubmit() {
-            if (state.busy) return;
-            const input = inputElement();
-            const submitted = String(input?.value || "");
-            state.busy = true;
-            state.busySince = Date.now();
-            state.submittedValue = submitted;
-            state.waitingForSubmittedClear = Boolean(submitted);
-            state.draft = "";
-            clearStoredDraft();
-            state.blockedSubmitAttempt = false;
-            // The custom AutoTecPro send proxy immediately invokes the hidden native
-            // Streamlit send button. Allow only that synchronous first-submit cascade.
-            state.allowFirstSubmitUntil = performance.now() + 180;
-            state.seenStreamlitRunning = false;
-            state.idleObservedAt = 0;
-            apply();
+          function scheduleApply() {
+            if (state.scheduled) return;
+            state.scheduled = true;
+            root.requestAnimationFrame(apply);
           }
 
-          function setBusy(value, reason = "python") {
-            const next = Boolean(value);
-            if (next) {
-              if (!state.busy) {
-                state.busy = true;
-                state.busySince = Date.now();
-                state.allowFirstSubmitUntil = 0;
-                state.seenStreamlitRunning = false;
-                state.idleObservedAt = 0;
-              }
-            } else {
-              const input = inputElement();
-              if (input && !state.waitingForSubmittedClear) {
-                const currentValue = String(input.value || "");
-                if (currentValue) persistDraft(currentValue);
-                else syncDraftFromStorage();
-              } else {
-                syncDraftFromStorage();
-              }
-              state.busy = false;
-              state.busySince = 0;
-              state.submittedValue = "";
-              state.waitingForSubmittedClear = false;
-              state.blockedSubmitAttempt = false;
-              state.allowFirstSubmitUntil = 0;
-              state.seenStreamlitRunning = false;
-              state.idleObservedAt = 0;
-              // The final Streamlit DOM can settle *after* Python sends the unlock. Keep
-              // restoring the prepared inquiry through that post-run replacement window.
-              scheduleRestorePasses();
-            }
-            apply();
-          }
-
-          function shouldAllowFirstCascade() {
-            return state.busy && performance.now() <= state.allowFirstSubmitUntil;
-          }
-
-          function blockSubmitEvent(event) {
-            state.blockedSubmitAttempt = true;
-            try { event.preventDefault(); } catch (error) {}
-            try { event.stopImmediatePropagation(); } catch (error) {}
-            try { event.stopPropagation(); } catch (error) {}
-            apply();
-          }
-
-          function onKeyDownCapture(event) {
-            const current = composer();
-            if (!current || !current.contains(event.target)) return;
-            if (event.key !== "Enter" || event.shiftKey) return;
-
-            if (!state.busy) {
-              beginBusyFromSubmit();
-              return;
-            }
-            if (shouldAllowFirstCascade()) return;
-            blockSubmitEvent(event);
-          }
-
-          function onClickCapture(event) {
-            const current = composer();
-            if (!current) return;
-            const button = event.target?.closest?.("button");
-            if (!button || !current.contains(button) || isVoiceButton(button)) return;
-
-            if (!state.busy) {
-              beginBusyFromSubmit();
-              return;
-            }
-            if (shouldAllowFirstCascade()) return;
-            blockSubmitEvent(event);
-          }
-
-          function onSubmitCapture(event) {
-            const current = composer();
-            if (!current) return;
-            const form = event.target;
-            if (!form?.contains?.(current) && !current.closest("form")?.isSameNode?.(form)) return;
-
-            if (!state.busy) {
-              beginBusyFromSubmit();
-              return;
-            }
-            if (shouldAllowFirstCascade()) return;
-            blockSubmitEvent(event);
-          }
-
-          function onInputCapture(event) {
-            const current = composer();
-            if (!current || !current.contains(event.target)) return;
-            if (event.target !== inputElement(current)) return;
-            rememberDraftFromInput(event.target);
-          }
-
-          function onCompositionEndCapture(event) {
-            const current = composer();
-            if (!current || !current.contains(event.target)) return;
-            if (event.target !== inputElement(current)) return;
-            rememberDraftFromInput(event.target);
-          }
-
-          function streamlitRunningVisible() {
-            const status = doc.querySelector('[data-testid="stStatusWidget"]');
-            if (!status) return false;
-            try {
-              const style = root.getComputedStyle(status);
-              if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
-                return false;
-              }
-              const rect = status.getBoundingClientRect();
-              return rect.width > 0 && rect.height > 0;
-            } catch (error) {
-              return true;
-            }
-          }
-
-          function healthCheck() {
-            apply();
-            if (!state.busy) {
-              restoreDraftIfNeeded();
-              return;
-            }
-
-            if (streamlitRunningVisible()) {
-              state.seenStreamlitRunning = true;
-              state.idleObservedAt = 0;
-              return;
-            }
-
-            // Normal completion is explicitly unlocked by Python. This is only a
-            // crash/st.stop failsafe: once the Streamlit running indicator was seen
-            // and has stayed gone for 1.5s, do not leave the composer stuck forever.
-            if (state.seenStreamlitRunning) {
-              if (!state.idleObservedAt) state.idleObservedAt = Date.now();
-              if (Date.now() - state.idleObservedAt >= 1500) {
-                setBusy(false, "streamlit-idle-failsafe");
-                return;
+          function onNativeInputCapture(event) {
+            const input = nativeInput();
+            if (!input || event.target !== input) return;
+            if (effectiveBusy(input)) return;
+            // Once a draft has been transferred back, keep storage synchronized with
+            // genuine user edits until that draft is actually submitted.
+            if (state.transferredDraft || readDraft()) {
+              const value = String(input.value || "");
+              if (value) {
+                writeDraft(value);
+                state.transferredDraft = value;
+              } else if (event.isTrusted) {
+                clearDraft();
+                state.transferredDraft = "";
               }
             }
-
-            if (state.busySince && Date.now() - state.busySince > 10 * 60 * 1000) {
-              setBusy(false, "max-duration-failsafe");
-            }
           }
 
-          doc.addEventListener("keydown", onKeyDownCapture, true);
-          doc.addEventListener("click", onClickCapture, true);
-          doc.addEventListener("submit", onSubmitCapture, true);
-          doc.addEventListener("input", onInputCapture, true);
-          doc.addEventListener("compositionend", onCompositionEndCapture, true);
+          function setPythonBusy(value) {
+            state.pythonBusy = Boolean(value);
+            scheduleApply();
+          }
+
+          doc.addEventListener("input", onNativeInputCapture, true);
+          doc.addEventListener("change", onNativeInputCapture, true);
 
           const observeRoot = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
-          state.observer = new MutationObserver(() => root.requestAnimationFrame(apply));
+          state.observer = new MutationObserver(scheduleApply);
           if (observeRoot) {
-            state.observer.observe(observeRoot, { childList: true, subtree: true });
+            state.observer.observe(observeRoot, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ["disabled", "aria-disabled"]
+            });
           }
-          state.timer = root.setInterval(healthCheck, 250);
+          state.timer = root.setInterval(scheduleApply, 120);
 
           function cleanup() {
             try { state.observer?.disconnect(); } catch (error) {}
             try { root.clearInterval(state.timer); } catch (error) {}
-            for (const timer of state.restoreTimers) {
-              try { root.clearTimeout(timer); } catch (error) {}
-            }
-            try { doc.removeEventListener("keydown", onKeyDownCapture, true); } catch (error) {}
-            try { doc.removeEventListener("click", onClickCapture, true); } catch (error) {}
-            try { doc.removeEventListener("submit", onSubmitCapture, true); } catch (error) {}
-            try { doc.removeEventListener("input", onInputCapture, true); } catch (error) {}
-            try { doc.removeEventListener("compositionend", onCompositionEndCapture, true); } catch (error) {}
+            try { doc.removeEventListener("input", onNativeInputCapture, true); } catch (error) {}
+            try { doc.removeEventListener("change", onNativeInputCapture, true); } catch (error) {}
+            const input = nativeInput();
+            restoreNativeAppearance(input);
+            restoreMic();
+            removeOverlay();
           }
 
           root[GLOBAL_KEY] = {
-            setBusy,
-            refresh: apply,
+            setPythonBusy,
+            refresh: scheduleApply,
             cleanup,
-            isBusy: () => Boolean(state.busy),
-            hasDraft: () => Boolean(syncDraftFromStorage()),
-            draftValue: () => String(syncDraftFromStorage() || ""),
+            hasDraft: () => Boolean(readDraft()),
+            draftValue: () => String(readDraft() || ""),
           };
 
           if (typeof root[PENDING_KEY] === "boolean") {
-            setBusy(root[PENDING_KEY], "python-pending");
+            setPythonBusy(root[PENDING_KEY]);
             delete root[PENDING_KEY];
-          } else {
-            apply();
-            scheduleRestorePasses();
           }
+          scheduleApply();
         })();
         </script>
         """
     )
 
 
-def _set_chat_composer_busy_v69463(is_busy):
-    """Synchronize Python turn lifecycle with the durable v69463 browser guard."""
-    busy_js_v69463 = "true" if bool(is_busy) else "false"
+def _set_chat_composer_busy_v69464(is_busy):
+    """Mirror Python lifecycle into the v69464 draft bridge; native Streamlit owns locking."""
+    busy_js_v69464 = "true" if bool(is_busy) else "false"
     _run_invisible_trusted_browser_script_v69453(
         f"""
         <script>
         (() => {{
           try {{
             const root = window;
-            const controller = root.__atpChatTurnGuardV69463;
-            if (controller && typeof controller.setBusy === "function") {{
-              controller.setBusy({busy_js_v69463}, "python-lifecycle");
+            const controller = root.__atpChatTurnGuardV69464;
+            if (controller && typeof controller.setPythonBusy === "function") {{
+              controller.setPythonBusy({busy_js_v69464});
             }} else {{
-              root.__atpChatTurnGuardPendingV69463 = {busy_js_v69463};
+              root.__atpChatTurnGuardPendingV69464 = {busy_js_v69464};
             }}
           }} catch (error) {{}}
         }})();
@@ -106030,14 +106011,18 @@ else:
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
     _install_composer_top_left_fallback_v69459()
-    # v69463: arm a durable browser-side submission guard before the native composer mounts.
-    # Staff can keep typing the next inquiry while a response is running, but a second
-    # Enter/send cannot interrupt the current ScriptRunner turn. Draft text survives
-    # composer DOM replacement until the current answer has fully committed.
-    _install_chat_turn_guard_v69463()
+    # v69464: Streamlit 1.61 natively serializes chat submissions with submit_mode="disable".
+    # The browser bridge overlays an isolated draft textarea only while the native widget
+    # is disabled, so staff can prepare the next inquiry without placing that draft inside
+    # Streamlit's controlled textarea during the active ScriptRunner execution.
+    _install_chat_turn_guard_v69464()
     # Keep the original stable composer. Attachments remain in the proven managed
     # uploader above, while the normal bottom-right send arrow submits the turn.
-    chat_prompt = st.chat_input("Message AutoTecPro AI...")
+    chat_prompt = st.chat_input(
+        "Message AutoTecPro AI...",
+        key="atp_chat_input_v69464",
+        submit_mode="disable",
+    )
 
     # v68844: a recoverable Graphic retry resumes as a new controlled Streamlit
     # execution. The user message was already committed on the first execution, so
@@ -106153,14 +106138,15 @@ else:
     if not prompt:
         # A controlled rerun after a terminal/direct answer has no new prompt. Ensure
         # any client-side guard inherited from the completed turn is released.
-        _set_chat_composer_busy_v69463(False)
+        _set_chat_composer_busy_v69464(False)
 
     if prompt:
-        # Browser capture normally locks synchronously on the original send event. This
-        # server-side confirmation covers tool/attachment submissions and DOM edge cases.
-        _set_chat_composer_busy_v69463(True)
+        # Native submit_mode="disable" is the authoritative submission lock. This Python
+        # lifecycle signal keeps the isolated draft overlay active through non-native tool
+        # paths and through the final post-processing portion of the current execution.
+        _set_chat_composer_busy_v69464(True)
         diagnostic_log(
-            "chat_inflight_submission_guard_active_v69463",
+            "chat_native_submit_guard_active_v69464",
             workspace=str(assistant),
             conversation_id=st.session_state.get("conversation_id"),
         )
@@ -106278,8 +106264,8 @@ else:
             )
         except ArchiveValidationError as error:
             st.error(f"ZIP analysis was stopped: {error}")
-            _set_chat_composer_busy_v69463(False)
-            diagnostic_log("chat_inflight_submission_guard_released_on_archive_error_v69463")
+            _set_chat_composer_busy_v69464(False)
+            diagnostic_log("chat_native_submit_guard_released_on_archive_error_v69464")
             st.stop()
 
         technical_followup_prompt_v68879 = interaction_prompt
@@ -108072,8 +108058,8 @@ else:
             if not lease_token_v68848:
                 diagnostic_log("graphic_v68848_duplicate_execution_blocked", job_id=str(durable_job_v68844.get("job_id") or ""))
                 st.info("This image request is already processing in another session. The result will appear when it completes.")
-                _set_chat_composer_busy_v69463(False)
-                diagnostic_log("chat_inflight_submission_guard_released_on_graphic_duplicate_v69463")
+                _set_chat_composer_busy_v69464(False)
+                diagnostic_log("chat_native_submit_guard_released_on_graphic_duplicate_v69464")
                 st.stop()
             durable_job_v68844["lease_token_local"] = lease_token_v68848
             current_attempt_v68844 = int(durable_job_v68844.get("attempt") or 0)
@@ -113408,12 +113394,11 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
-        # v69463: the answer is committed, but keep the send guard armed through the
-        # remaining maintenance/final-render work in this same ScriptRunner execution.
-        # The user may keep typing a draft, but submission is released only at the true
-        # end of the run so the upper-right Streamlit running indicator and the guard end
-        # together instead of leaving a small cancellation window.
-        _release_chat_guard_at_script_end_v69463 = True
+        # v69464: keep the Python-side draft bridge busy through final maintenance. Native
+        # Streamlit remains disabled until scriptFinished, so the draft overlay is not
+        # transferred back into the real composer until the framework itself declares the
+        # run complete.
+        _release_chat_guard_at_script_end_v69464 = True
 
         # v69461: normal text workspaces must not immediately destroy the just-rendered
         # answer/composer DOM. The user-observed production failure happened after the
@@ -114488,15 +114473,14 @@ _render_final_print_authority_v69009()
 # from flashing during Streamlit reruns.
 _finish_auth_transition(_auth_transition_placeholder)
 
-# v69463: release normal chat submission only after the entire Streamlit execution has
-# finished its post-answer maintenance and final UI work. This intentionally sits at the
-# end of the script so a second inquiry cannot cancel the previous answer while the native
-# running indicator is still active. The browser controller preserves any typed draft
-# in per-tab sessionStorage through the post-unlock composer replacement window.
-if bool(locals().get("_release_chat_guard_at_script_end_v69463", False)):
-    _set_chat_composer_busy_v69463(False)
+# v69464: release only the Python-side draft signal at the end of the script. Streamlit
+# submit_mode="disable" remains the authoritative lock until the frontend receives
+# scriptFinished. The isolated draft is transferred into the native composer only after
+# that native disabled state clears.
+if bool(locals().get("_release_chat_guard_at_script_end_v69464", False)):
+    _set_chat_composer_busy_v69464(False)
     diagnostic_log(
-        "chat_inflight_submission_guard_released_v69463",
+        "chat_native_submit_guard_released_v69464",
         workspace=str(locals().get("assistant") or ""),
         conversation_id=st.session_state.get("conversation_id"),
         message_count=len(st.session_state.get("messages", [])),
