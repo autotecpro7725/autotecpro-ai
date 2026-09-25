@@ -102,8 +102,8 @@
 # React-aware value injection plus post-transfer verification/retry before the draft overlay is
 # retired. Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce, image-authority,
 # product-fitment, voice, and completed-answer persistence behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69470"
-AUTOTECPRO_RELEASE_BUILD = "v69470-durable-chat-render-print-payload-20260925"
+AUTOTECPRO_RELEASE_VERSION = "v69471"
+AUTOTECPRO_RELEASE_BUILD = "v69471-standalone-print-window-native-print-hardening-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -9466,6 +9466,47 @@ def _install_body_print_portal_v69470(transcript_html):
         </script>'''.replace('__ATP_PRINT_PAYLOAD_V69470__', payload_v69470)
     )
 
+
+def _install_standalone_print_controller_v69471(transcript_html):
+    """Install deterministic PDF printing outside the Streamlit DOM tree."""
+    try:
+        payload_v69471 = base64.b64encode(str(transcript_html or "").encode("utf-8")).decode("ascii")
+    except Exception:
+        payload_v69471 = ""
+    _run_invisible_trusted_browser_script_v69453(
+        r'''<style id="atp-print-controller-style-v69471">
+        #atp-print-pdf-button-v69471{position:fixed;right:18px;bottom:84px;z-index:2147483000;border:1px solid rgba(148,163,184,.55);border-radius:999px;padding:9px 14px;background:rgba(15,23,42,.92);color:#fff;font:600 13px/1.2 Arial,Helvetica,sans-serif;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+        #atp-print-pdf-button-v69471:hover{background:rgba(30,41,59,.98)}
+        @media print{
+          #atp-print-pdf-button-v69471{display:none!important}
+          body.atp-native-print-v69471>*:not(#atp-native-print-root-v69471){display:none!important;visibility:hidden!important}
+          body.atp-native-print-v69471>#atp-native-print-root-v69471{display:block!important;visibility:visible!important;opacity:1!important;position:static!important;width:100%!important;height:auto!important;overflow:visible!important;margin:0!important;padding:0!important;background:#fff!important;color:#111827!important}
+          body.atp-native-print-v69471>#atp-native-print-root-v69471,body.atp-native-print-v69471>#atp-native-print-root-v69471 *{visibility:visible!important;opacity:1!important;color:#111827!important;-webkit-text-fill-color:#111827!important}
+        }
+        </style><script>(()=>{
+          const root=window,doc=root.document,PAYLOAD='__ATP_PRINT_PAYLOAD_V69471__';
+          const decode=()=>{try{if(!PAYLOAD)return'';const b=atob(PAYLOAD),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return new TextDecoder('utf-8').decode(u)}catch(_){return''}};
+          const transcript=decode(),KEY='__atpStandalonePrintControllerV69471',prior=root[KEY];
+          if(prior&&typeof prior.destroy==='function'){try{prior.destroy()}catch(_){}}
+          for(const id of ['atp-print-portal-v69470','atp-print-portal-style-v69470']){const el=doc.getElementById(id);if(el)el.remove()}
+          const old=root.__atpPrintPortalControllerV69470;if(old){try{if(old.beforePrint)root.removeEventListener('beforeprint',old.beforePrint)}catch(_){}try{if(old.afterPrint)root.removeEventListener('afterprint',old.afterPrint)}catch(_){}try{delete root.__atpPrintPortalControllerV69470}catch(_){}}
+          let nativeRoot=doc.getElementById('atp-native-print-root-v69471');if(!nativeRoot){nativeRoot=doc.createElement('div');nativeRoot.id='atp-native-print-root-v69471';doc.body.appendChild(nativeRoot)}
+          nativeRoot.innerHTML=transcript;nativeRoot.style.setProperty('display','none','important');nativeRoot.setAttribute('aria-hidden','true');
+          const css=`@page{size:auto;margin:12mm 11mm 14mm}html,body{margin:0;padding:0;background:#fff;color:#111827;font-family:Arial,Helvetica,sans-serif;font-size:10.5pt;line-height:1.45}*,*::before,*::after{box-sizing:border-box}.atp-print-transcript-v69007{display:block!important;width:100%!important;margin:0!important;padding:0!important;background:#fff!important;color:#111827!important}.atp-print-header-v69007{margin:0 0 8mm;padding:0 0 4mm;border-bottom:1px solid #cbd5e1}.atp-print-brand-v69007{font-size:18pt;font-weight:700}.atp-print-workspace-v69007{margin-top:1mm;color:#475569}.atp-print-message-v69007{display:block;margin:0 0 6mm}.atp-print-message-v69007.user{break-inside:avoid-page;padding:3mm 4mm;border-left:2px solid #94a3b8;background:#f8fafc}.atp-print-role-v69007{font-weight:700;margin-bottom:1.5mm;color:#334155}.atp-print-body-v69007,.atp-print-body-v69007 *{color:#111827!important;-webkit-text-fill-color:#111827!important;background-color:transparent!important;text-shadow:none!important;box-shadow:none!important;filter:none!important;opacity:1!important;visibility:visible!important}.atp-print-body-v69007 p{margin:0 0 2.4mm}.atp-print-body-v69007 table{width:100%;border-collapse:collapse;background:#fff!important}.atp-print-body-v69007 th,.atp-print-body-v69007 td{border:1px solid #cbd5e1;padding:2mm;vertical-align:top;background:#fff!important;color:#111827!important}.atp-print-image-v69007{display:block;width:fit-content;max-width:125mm;margin:4mm auto;break-inside:avoid-page}.atp-print-image-v69007 img{display:block;max-width:125mm;max-height:115mm;width:auto;height:auto;object-fit:contain;margin:0 auto}.atp-print-image-v69007 figcaption{text-align:center;color:#64748b;font-size:8.5pt;margin-top:1.5mm}`;
+          const build=()=>`<!doctype html><html><head><meta charset="utf-8"><title>AutoTecPro AI Conversation</title><style>${css}</style></head><body>${transcript}</body></html>`;
+          const waitImages=async w=>{const imgs=[...w.document.images];await Promise.all(imgs.map(img=>img.complete?Promise.resolve():new Promise(resolve=>{const done=()=>resolve();img.addEventListener('load',done,{once:true});img.addEventListener('error',done,{once:true});setTimeout(done,2500)})))};
+          const openPrintWindow=async()=>{if(!transcript.trim()){root.alert('There is no conversation content to print yet.');return false}let w=null;try{w=root.open('','_blank')}catch(_){}if(!w){root.alert('Your browser blocked the print window. Please allow pop-ups for AutoTecPro AI and try again.');return false}try{w.document.open();w.document.write(build());w.document.close();await waitImages(w);setTimeout(()=>{try{w.focus();w.print()}catch(_){}},80);return true}catch(_){try{w.close()}catch(__){}return false}};
+          let btn=doc.getElementById('atp-print-pdf-button-v69471');if(!btn){btn=doc.createElement('button');btn.id='atp-print-pdf-button-v69471';btn.type='button';btn.textContent='🖨 Print / Save PDF';doc.body.appendChild(btn)}btn.disabled=!transcript.trim();
+          const onButton=e=>{e.preventDefault();e.stopPropagation();openPrintWindow()};btn.addEventListener('click',onButton);
+          const saved=new Map();
+          const activate=()=>{if(!transcript.trim())return;nativeRoot.innerHTML=transcript;doc.documentElement.classList.add('atp-native-print-v69471');doc.body.classList.add('atp-native-print-v69471');nativeRoot.removeAttribute('aria-hidden');nativeRoot.style.setProperty('display','block','important');nativeRoot.style.setProperty('visibility','visible','important');for(const el of nativeRoot.querySelectorAll('*'))el.style.setProperty('visibility','visible','important');for(const child of [...doc.body.children]){if(child===nativeRoot)continue;saved.set(child,[child.style.getPropertyValue('display'),child.style.getPropertyPriority('display'),child.style.getPropertyValue('visibility'),child.style.getPropertyPriority('visibility')]);child.style.setProperty('display','none','important');child.style.setProperty('visibility','hidden','important')}};
+          const deactivate=()=>{doc.documentElement.classList.remove('atp-native-print-v69471');doc.body.classList.remove('atp-native-print-v69471');for(const [child,state] of saved.entries()){if(state[0])child.style.setProperty('display',state[0],state[1]);else child.style.removeProperty('display');if(state[2])child.style.setProperty('visibility',state[2],state[3]);else child.style.removeProperty('visibility')}saved.clear();nativeRoot.style.setProperty('display','none','important');nativeRoot.setAttribute('aria-hidden','true')};
+          const before=()=>activate(),after=()=>deactivate();root.addEventListener('beforeprint',before);root.addEventListener('afterprint',after);
+          const media=root.matchMedia?root.matchMedia('print'):null,onMedia=e=>{if(e.matches)activate();else deactivate()};try{if(media&&media.addEventListener)media.addEventListener('change',onMedia)}catch(_){}
+          const onKey=e=>{if((e.ctrlKey||e.metaKey)&&String(e.key||'').toLowerCase()==='p'){e.preventDefault();e.stopImmediatePropagation();openPrintWindow()}};doc.addEventListener('keydown',onKey,true);
+          root[KEY]={openPrintWindow,activate,deactivate,destroy:()=>{try{btn.removeEventListener('click',onButton)}catch(_){}try{root.removeEventListener('beforeprint',before);root.removeEventListener('afterprint',after)}catch(_){}try{if(media&&media.removeEventListener)media.removeEventListener('change',onMedia)}catch(_){}try{doc.removeEventListener('keydown',onKey,true)}catch(_){}}};
+        })();</script>'''.replace('__ATP_PRINT_PAYLOAD_V69471__', payload_v69471)
+    )
 
 def _durable_chat_rows_v69470(rows):
     """Normalize durable/session rows to the exact chat fields used by rendering."""
@@ -114709,17 +114750,17 @@ def _render_final_print_authority_v69009():
     )
 
 
-_render_final_print_authority_v69009()
+# v69471: standalone PDF/print document is authoritative; legacy Streamlit-tree print CSS is not emitted.
 try:
-    _print_payload_messages_v69470 = _durable_chat_rows_v69470(st.session_state.get("messages") or [])
-    _print_payload_html_v69470 = _build_print_transcript_html_v69007(
-        _print_payload_messages_v69470,
+    _print_payload_messages_v69471 = _durable_chat_rows_v69470(st.session_state.get("messages") or [])
+    _print_payload_html_v69471 = _build_print_transcript_html_v69007(
+        _print_payload_messages_v69471,
         assistant_label=(st.session_state.get("current_assistant") or globals().get("assistant") or "Technical Support"),
     )
-    _install_body_print_portal_v69470(_print_payload_html_v69470)
-    diagnostic_log("print_portal_payload_ready_v69470", message_count=len(_print_payload_messages_v69470), html_chars=len(_print_payload_html_v69470 or ""))
-except Exception as _print_portal_error_v69470:
-    diagnostic_log("print_portal_payload_failed_v69470", error_type=type(_print_portal_error_v69470).__name__, error=str(_print_portal_error_v69470)[:500])
+    _install_standalone_print_controller_v69471(_print_payload_html_v69471)
+    diagnostic_log("standalone_print_payload_ready_v69471", message_count=len(_print_payload_messages_v69471), html_chars=len(_print_payload_html_v69471 or ""))
+except Exception as _standalone_print_error_v69471:
+    diagnostic_log("standalone_print_payload_failed_v69471", error_type=type(_standalone_print_error_v69471).__name__, error=str(_standalone_print_error_v69471)[:500])
 
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
