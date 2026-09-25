@@ -1,3 +1,4 @@
+# AutoTecPro AI v69451 - explicit Graphic engine pinning + silent-exception observability hardening
 # AutoTecPro AI v69450 - precise product labels + trim-fitment display + concise compatibility captions + Streamlit iframe migration
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
 # AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
@@ -92,8 +93,9 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69450"
-AUTOTECPRO_RELEASE_BUILD = "v69450-product-label-fitment-caption-iframe-hardening-20260924"
+# AutoTecPro AI v69453
+AUTOTECPRO_RELEASE_VERSION = "v69453"
+AUTOTECPRO_RELEASE_BUILD = "v69453-invisible-browser-script-ui-hardening-20260924"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -145,7 +147,7 @@ def _graphic_v69320_is_protected_followup_stop(error):
         if isinstance(error, _GraphicProtectedFollowupStop):
             return True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v69320_is_protected_followup_stop@L147")
     if type(error).__name__ == "_GraphicProtectedFollowupStop":
         return True
     return bool(
@@ -311,6 +313,45 @@ def diagnostic_log(event, **fields):
         pass
 
 
+# v69451: preserve every historical fail-open/fall-through exception contract while
+# making formerly silent failures observable. This helper never mutates session,
+# project, prompt, image, provider, cache, history, auth, or persistence state.
+# It records only a static source scope + exception class, once per process key.
+# Any failure inside the observer is swallowed so it can never alter application flow.
+_SILENT_EXCEPTION_OBSERVED_V69451 = set()
+_SILENT_EXCEPTION_LOCK_V69451 = threading.Lock()
+
+
+def _observe_silent_exception_v69451(scope):
+    try:
+        import sys
+        error_v69451 = sys.exc_info()[1]
+        error_type_v69451 = (
+            type(error_v69451).__name__
+            if error_v69451 is not None
+            else "UnknownException"
+        )
+        key_v69451 = (str(scope or "")[:180], error_type_v69451[:120])
+        should_log_v69451 = False
+        with _SILENT_EXCEPTION_LOCK_V69451:
+            if (
+                key_v69451 not in _SILENT_EXCEPTION_OBSERVED_V69451
+                and len(_SILENT_EXCEPTION_OBSERVED_V69451) < 512
+            ):
+                _SILENT_EXCEPTION_OBSERVED_V69451.add(key_v69451)
+                should_log_v69451 = True
+        if should_log_v69451:
+            diagnostic_log(
+                "silent_exception_observed_v69451",
+                scope=key_v69451[0],
+                error_type=key_v69451[1],
+            )
+    except BaseException:
+        # Observability must never change the legacy fail-open/fall-through behavior.
+        return None
+    return None
+
+
 OPENAI_CHAT_TIMEOUT_SECONDS_V69400 = 45.0
 
 
@@ -329,9 +370,9 @@ def _log_runtime_release_v69400():
             return
         st.session_state["_app_release_logged_v69400"] = marker
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_log_runtime_release_v69400@L331")
     diagnostic_log(
-        "app_release_v69450",
+        "app_release_v69453",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -482,7 +523,7 @@ class _HeavyWorkGuardV69188:
                     }
                     self.coordinator["depth"] = 1
         except Exception:
-            pass
+            _observe_silent_exception_v69451("__enter__@L484")
 
         diagnostic_log(
             "heavy_work_admitted_v69188",
@@ -511,7 +552,7 @@ class _HeavyWorkGuardV69188:
                     if remaining_depth == 0:
                         self.coordinator["active"] = None
         except Exception:
-            pass
+            _observe_silent_exception_v69451("__exit__@L513")
 
         try:
             if self.acquired:
@@ -659,7 +700,7 @@ def _graphic_is_streamlit_stop_exception(error):
         if STREAMLIT_STOP_EXCEPTION is not None and isinstance(error, STREAMLIT_STOP_EXCEPTION):
             return True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_is_streamlit_stop_exception@L661")
     return type(error).__name__ == "StopException"
 
 
@@ -671,7 +712,7 @@ def _graphic_is_streamlit_rerun_exception(error):
         if STREAMLIT_RERUN_EXCEPTION is not None and isinstance(error, STREAMLIT_RERUN_EXCEPTION):
             return True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_is_streamlit_rerun_exception@L673")
     return type(error).__name__ == "RerunException"
 
 
@@ -1096,6 +1137,12 @@ def _effective_workspace_permissions_cached(clean_role, stored_payload):
 
     if clean_role in STRICT_EXTERNAL_ROLES:
         permissions = {key: key == "technical" for key in WORKSPACE_LABELS}
+
+    # v69452 hard boundary: the Admin Panel is role-authorized, not merely a
+    # configurable workspace bit. A stale/manually edited JSON permission can
+    # never grant Admin Panel access to a non-admin account.
+    if clean_role != "admin":
+        permissions["admin"] = False
 
     if not any(permissions.values()):
         permissions["technical"] = True
@@ -1579,7 +1626,7 @@ def _finish_auth_transition(placeholder):
         try:
             placeholder.empty()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_finish_auth_transition@L1581")
     st.session_state.pop("_auth_transition", None)
 
 
@@ -1847,7 +1894,7 @@ def _woocommerce_product_by_source_url_v69326(source_url):
                 else:
                     return {"status":"unavailable","reason":"variation_count_exceeds_verified_bound"}
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_woocommerce_product_by_source_url_v69326@L1849")
 
     def _decimal(value):
         try:
@@ -2898,7 +2945,7 @@ def search_woocommerce_order_number(order_number, access_level="sales"):
         if str(order.get("number") or order.get("id") or "") == clean_number:
             return direct_result
     except Exception:
-        pass
+        _observe_silent_exception_v69451("search_woocommerce_order_number@L2900")
 
     orders = woocommerce_api_request(
         "orders",
@@ -3896,7 +3943,7 @@ def _workspace_sales_usd_rate_v69347(base_currency):
         try:
             st.session_state[cache_key] = dict(result)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_workspace_sales_usd_rate_v69347@L3898")
         return result
     except Exception as error_v69347:
         diagnostic_log(
@@ -5844,7 +5891,7 @@ def _optional_ui_fragment(function):
         try:
             return fragment(function)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_optional_ui_fragment@L5846")
     return function
 
 
@@ -5917,7 +5964,7 @@ def _managed_image_data_url(file_type, file_bytes):
                 return f"data:{mime_type};base64,{encoded}"
         except Exception:
             # Unsupported/corrupt images retain the previous safe fallback.
-            pass
+            _observe_silent_exception_v69451("_managed_image_data_url@L5918")
 
     encoded = base64.b64encode(raw).decode()
     return f"data:{str(file_type or 'image/png')};base64,{encoded}"
@@ -6106,6 +6153,57 @@ def _graphic_v68865_should_show_early_status(prompt_text, assistant, uploaded_fi
     return any(term in value for term in action_terms)
 
 
+def _run_invisible_trusted_browser_script_v69453(script_html):
+    """Execute an internal browser helper without creating a visible iframe row.
+
+    AutoTecPro is pinned to Streamlit 1.61, where ``st.html`` supports trusted
+    JavaScript through ``unsafe_allow_javascript=True`` and executes it directly
+    in the app document instead of inside an iframe.  The marker + scoped CSS
+    collapse only this helper's Streamlit element container so it contributes
+    no border, line, height, gap, focus target, or pointer surface to any
+    workspace.  Only source-controlled internal scripts may be passed here.
+    """
+    trusted_html = (
+        """
+        <style>
+        div[data-testid="stElementContainer"]:has(.stHtml .atp-invisible-browser-script-v69453),
+        div[data-testid="element-container"]:has(.stHtml .atp-invisible-browser-script-v69453) {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            max-width: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
+            flex: 0 0 0 !important;
+        }
+        .stHtml:has(.atp-invisible-browser-script-v69453) {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            overflow: hidden !important;
+        }
+        </style>
+        <span class="atp-invisible-browser-script-v69453" hidden></span>
+        """
+        + str(script_html or "")
+    )
+    st.html(
+        trusted_html,
+        width="content",
+        unsafe_allow_javascript=True,
+    )
+
+
 def _sync_native_chat_send_arrow_for_attachments(has_attachments):
     """Enable the existing native chat send arrow for attachment-only turns.
 
@@ -6116,11 +6214,11 @@ def _sync_native_chat_send_arrow_for_attachments(has_attachments):
     """
     enabled = "true" if bool(has_attachments) else "false"
     sentinel_json = json.dumps(ATTACHMENT_ONLY_CHAT_SENTINEL)
-    st.iframe(
+    _run_invisible_trusted_browser_script_v69453(
         f"""
         <script>
         (() => {{
-          const parentWindow = window.parent;
+          const parentWindow = window;
           const doc = parentWindow.document;
           const sentinel = {sentinel_json};
           const hasAttachments = {enabled};
@@ -6164,9 +6262,6 @@ def _sync_native_chat_send_arrow_for_attachments(has_attachments):
         }})();
         </script>
         """,
-        height=1,
-        width=1,
-        tab_index=-1,
     )
 
 
@@ -7401,7 +7496,7 @@ def get_table_columns(table_name):
         if result.data:
             return [row["column_name"] for row in result.data if row.get("column_name")]
     except Exception:
-        pass
+        _observe_silent_exception_v69451("get_table_columns@L7403")
 
     # Safe minimum fallback only. These are columns used by the original app and are
     # usually present even in older schemas. Optional learning fields are filtered out
@@ -8568,7 +8663,7 @@ def get_saved_login_credentials():
             try:
                 save_login_credentials(username)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("get_saved_login_credentials@L8570")
         return {"remember": True, "username": username, "password": ""}
     except Exception:
         return empty
@@ -8606,17 +8701,17 @@ def remove_saved_login_credentials():
             same_site="strict",
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("remove_saved_login_credentials@L8608")
 
 
 def clear_legacy_browser_login_data():
     """Remove storage values left by earlier experimental Remember Me versions."""
-    st.iframe(
+    _run_invisible_trusted_browser_script_v69453(
         """
         <script>
         (() => {
           try {
-            const storage = window.parent.localStorage;
+            const storage = window.localStorage;
             storage.removeItem("atp_remembered_credentials_v1");
             storage.removeItem("atp_login_profile");
             storage.removeItem("atp_remember_session");
@@ -8626,9 +8721,6 @@ def clear_legacy_browser_login_data():
         })();
         </script>
         """,
-        height=1,
-        width=1,
-        tab_index=-1,
     )
 
 
@@ -8770,7 +8862,7 @@ def _auth_http_session_v69226():
         session.mount("https://", adapter)
         session.mount("http://", adapter)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_auth_http_session_v69226@L8772")
     return session
 
 
@@ -8837,6 +8929,78 @@ def _login_user_lookup_v69186(username, timeout_seconds=6.0):
 
 def _load_active_user_record(username):
     return _login_user_lookup_v69186(username, timeout_seconds=6.0)
+
+
+def _learning_admin_authorized_v69452(*, revalidate=True):
+    """Fail closed unless the active authenticated account is a current admin.
+
+    Explicit learning mutates shared durable knowledge, so a UI/session role alone
+    is not sufficient authority. Admin requests are revalidated against the active
+    server-side user record and the credential fingerprint captured at login.
+    No password, secret, learning payload, or customer content is logged here.
+    """
+    username = str(st.session_state.get("username") or "").strip()
+    session_role = str(st.session_state.get("role") or "").strip().lower()
+    logged_in = bool(st.session_state.get("logged_in"))
+
+    if not logged_in or not username or session_role != "admin":
+        diagnostic_log(
+            "learning_admin_authority_denied_v69452",
+            reason="session_not_admin",
+            role=session_role or "none",
+        )
+        return False
+
+    if not revalidate:
+        return True
+
+    try:
+        active_user = _load_active_user_record(username)
+    except Exception as error:
+        diagnostic_log(
+            "learning_admin_authority_denied_v69452",
+            reason="server_revalidation_failed",
+            role=session_role,
+            error_type=type(error).__name__,
+        )
+        return False
+
+    active_username = str((active_user or {}).get("username") or "").strip()
+    active_role = str((active_user or {}).get("role") or "").strip().lower()
+    if (
+        not active_user
+        or active_role != "admin"
+        or active_username.casefold() != username.casefold()
+    ):
+        diagnostic_log(
+            "learning_admin_authority_denied_v69452",
+            reason="server_record_not_admin",
+            role=active_role or "none",
+        )
+        return False
+
+    session_fingerprint = str(
+        st.session_state.get("_auth_credential_fingerprint_v69186") or ""
+    ).strip()
+    current_fingerprint = _auth_credential_fingerprint(
+        (active_user or {}).get("password")
+    )
+    if (
+        not session_fingerprint
+        or not hmac.compare_digest(session_fingerprint, current_fingerprint)
+    ):
+        diagnostic_log(
+            "learning_admin_authority_denied_v69452",
+            reason="credential_fingerprint_mismatch",
+            role=active_role,
+        )
+        return False
+
+    diagnostic_log(
+        "learning_admin_authority_verified_v69452",
+        role=active_role,
+    )
+    return True
 
 
 def save_authenticated_session(username, remember=False, workspace=None, conversation_id=None, credential_fingerprint=None, admin_section=None):
@@ -8947,7 +9111,7 @@ def remove_authenticated_session():
             same_site="strict",
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("remove_authenticated_session@L8949")
 
 
 def _load_authenticated_user(username, expected_credential_fingerprint=None):
@@ -9129,7 +9293,7 @@ def logout_user():
     try:
         st.query_params.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("logout_user@L9131")
 
     diagnostic_log(
         "logout_requested",
@@ -9149,7 +9313,7 @@ def logout_user():
             try:
                 del st.session_state[key]
             except Exception:
-                pass
+                _observe_silent_exception_v69451("logout_user@L9151")
 
     st.session_state["logged_in"] = False
     st.session_state["messages"] = []
@@ -9168,11 +9332,11 @@ def logout_user():
 
 def _install_login_interaction_fastpath_v69044():
     """Event-driven login form polish with no auth, cookie, or submit authority."""
-    st.iframe(
+    _run_invisible_trusted_browser_script_v69453(
         """
         <script>
         (() => {
-          const root = window.parent;
+          const root = window;
           const doc = root.document;
           const KEY = "__atpLoginInteractionFastpathV69044";
           try { root[KEY]?.cleanup?.(); } catch (error) {}
@@ -9228,9 +9392,6 @@ def _install_login_interaction_fastpath_v69044():
         })();
         </script>
         """,
-        height=1,
-        width=1,
-        tab_index=-1,
     )
 
 
@@ -9379,7 +9540,7 @@ def login_screen():
                 try:
                     st.query_params.clear()
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("login_screen@L9381")
 
                 st.rerun()
             else:
@@ -9388,7 +9549,7 @@ def login_screen():
                 try:
                     st.query_params.clear()
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("login_screen@L9390")
                 st.error("Invalid username or password.")
 
         except Exception as error:
@@ -9446,7 +9607,7 @@ if not bool(st.session_state.get("logged_in")):
         try:
             _auth_transition_placeholder.empty()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("<module>@L9448")
     login_screen()
     # The destination login UI is now complete; remove the transition cover
     # before stopping execution so authenticated content cannot render below it.
@@ -10624,18 +10785,15 @@ _current_workspace_slug = next(
 # This is intentionally not a temporary transition flag: recent Streamlit builds
 # can retain keyed nodes from a previous conditional branch after reconciliation.
 # A permanent marker lets workspace-scoped CSS keep those stale nodes hidden.
-st.iframe(
+_run_invisible_trusted_browser_script_v69453(
     f"""
     <script>
     (() => {{
-        const body = window.parent.document.body;
+        const body = document.body;
         body.dataset.atpCurrentWorkspace = {json.dumps(_current_workspace_slug)};
     }})();
     </script>
     """,
-    height=1,
-    width=1,
-    tab_index=-1,
 )
 
 
@@ -10648,11 +10806,11 @@ _workspace_mobile_collapse_nonce_v68882 = st.session_state.pop(
     None,
 )
 if _workspace_mobile_collapse_nonce_v68882:
-    st.iframe(
+    _run_invisible_trusted_browser_script_v69453(
         f"""
         <script>
         (() => {{
-            const parentWindow = window.parent;
+            const parentWindow = window;
             const doc = parentWindow.document;
             const nonce = {json.dumps(str(_workspace_mobile_collapse_nonce_v68882))};
             const isMobile = parentWindow.matchMedia("(max-width: 768px)").matches;
@@ -10778,9 +10936,6 @@ if _workspace_mobile_collapse_nonce_v68882:
         }})();
         </script>
         """,
-        height=1,
-        width=1,
-        tab_index=-1,
     )
 
 _workspace_nav_started_v68880 = st.session_state.pop(
@@ -10798,7 +10953,7 @@ if _workspace_nav_started_v68880 is not None:
             ),
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("<module>@L10800")
 
 # Persistent workspace DOM isolation.
 #
@@ -12233,7 +12388,7 @@ def _graphic_verified_upload_digest_v68983(uploaded_file, raw=None):
         uploaded_file.graphic_asset_id = digest
         uploaded_file._atp_graphic_asset_id_verified_v68983 = True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_verified_upload_digest_v68983@L12235")
     return digest
 
 def normalized_image_data_url(uploaded_file):
@@ -12456,7 +12611,7 @@ def clean_visible_chat_text(text):
             flags=re.DOTALL,
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("clean_visible_chat_text@L12458")
 
     value = (
         value.replace("&lt;", "<")
@@ -12530,7 +12685,7 @@ def _make_image_preview_data_url_cached(
 
             raw = output.getvalue()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_make_image_preview_data_url_cached@L12532")
 
     encoded = base64.b64encode(raw).decode()
     return f"data:{mime_type};base64,{encoded}"
@@ -13272,7 +13427,7 @@ def save_generated_document_to_knowledge(
         try:
             client.files.delete(file_id)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("save_generated_document_to_knowledge@L13274")
         raise
 
     return {
@@ -13413,7 +13568,7 @@ def _document_icon_data_uri(format_name):
             ).decode("ascii")
             return f"data:image/png;base64,{encoded}"
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_document_icon_data_uri@L13415")
 
     icon_specs = {
         "csv": ("▦", "#64748B", "#475569", "CSV"),
@@ -14134,7 +14289,7 @@ def _workspace_product_page_identity_v69396(raw_url):
         if host in {"autotecpro.com"} and "/product/" in path.casefold():
             return f"product:{host}{path.casefold()}"
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_workspace_product_page_identity_v69396@L14136")
     try:
         return canonical_website_url_identity(value)
     except Exception:
@@ -14204,7 +14359,7 @@ def _workspace_product_image_identity_v69346(image):
             if host and "/product/" in path.casefold():
                 return f"product:{host}{path.casefold()}"
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_workspace_product_image_identity_v69346@L14206")
     # v69347: suppress repeats only when exact product-page identity is proven.
     # Image SHA/URL can legitimately be reused by a different product/model.
     return ""
@@ -15586,7 +15741,7 @@ def _graphic_role_data_url(item):
             try:
                 cache.pop(next(iter(cache)))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_role_data_url@L15588")
         cache[asset_id] = value
     return value
 
@@ -17819,12 +17974,12 @@ def _graphic_cleanup_spooled_uploads_v68847(records):
         try:
             path.unlink(missing_ok=True)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_cleanup_spooled_uploads_v68847@L17821")
     for directory in directories:
         try:
             directory.rmdir()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_cleanup_spooled_uploads_v68847@L17826")
 
 
 def _graphic_spool_upload_records_v68847(files, job_id):
@@ -21091,7 +21246,7 @@ def _graphic_uploaded_file_bytes(uploaded_file):
             try:
                 uploaded_file.seek(position)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_uploaded_file_bytes@L21093")
 
 
 def _graphic_product_fingerprint(role_items):
@@ -21739,7 +21894,7 @@ def _graphic_reference_palette(role_items):
             with Image.open(io.BytesIO(raw)) as im:
                 q=ImageOps.exif_transpose(im).convert("RGB").resize((64,64)).quantize(colors=12).convert("RGB")
                 colors.extend(q.getdata())
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_graphic_reference_palette@L21742")
     if not colors: return {"accent":(236,52,45),"panel":(6,9,14),"text":(255,255,255)}
     # Prefer saturated, moderately bright colors as accent.
     def score(c):
@@ -21898,7 +22053,7 @@ def _graphic_open_product_layer(uploaded_file):
             if cutout.width > 8 and cutout.height > 8:
                 return cutout, True
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_open_product_layer@L21900")
     raw = _graphic_uploaded_file_bytes(uploaded_file)
     if not raw:
         return None, False
@@ -21960,7 +22115,7 @@ def _graphic_collect_result_bytes(result):
         try:
             candidates.extend(list(data))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_collect_result_bytes@L21962")
     # Some SDK surfaces expose the completed image directly.
     if getattr(result, "b64_json", None) or getattr(result, "url", None):
         candidates.append(result)
@@ -22071,7 +22226,7 @@ def compose_graphic_layered_ad(background_bytes, product_file, prompt_text, refe
             _ImageDraw.Draw(card_mask).rounded_rectangle((0, 0, card.width - 1, card.height - 1), radius=max(20, card_pad), fill=255)
             card.putalpha(card_mask)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("compose_graphic_layered_ad@L22073")
         card.alpha_composite(product, (card_pad, card_pad))
         product = card
 
@@ -22627,7 +22782,7 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
                     hashlib.sha256(_graphic_uploaded_file_bytes(file_obj)).hexdigest()
                 )
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_project_role_items@L22629")
         candidate = next(
             (
                 item for item in role_items
@@ -24045,7 +24200,7 @@ def _graphic_v68874_bound_session_cache(cache):
             cache.pop(oldest, None)
             sizes.pop(oldest, None)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68874_bound_session_cache@L24047")
 
     return cache
 
@@ -24077,7 +24232,7 @@ def _graphic_v68874_process_memory_snapshot():
         snapshot["rss_mb"] = round(rss_kb / 1024.0, 2) if rss_kb is not None else None
         snapshot["peak_rss_mb"] = round(peak_kb / 1024.0, 2) if peak_kb is not None else None
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68874_process_memory_snapshot@L24079")
 
     try:
         available_kb = None
@@ -24093,7 +24248,7 @@ def _graphic_v68874_process_memory_snapshot():
             else None
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68874_process_memory_snapshot@L24095")
 
     return snapshot
 
@@ -24120,7 +24275,7 @@ def _graphic_v68874_release_transient_memory(stage=""):
         if callable(clear_cache):
             clear_cache()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68874_release_transient_memory@L24122")
 
     # On Linux/glibc, return free heap arenas to the container where possible.
     try:
@@ -24131,7 +24286,7 @@ def _graphic_v68874_release_transient_memory(stage=""):
             if callable(malloc_trim):
                 malloc_trim(0)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68874_release_transient_memory@L24133")
 
     snapshot = _graphic_v68874_process_memory_snapshot()
     diagnostic_log(
@@ -24947,7 +25102,7 @@ def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template
             box = list(defaults[box_key]); box[index] = value
             defaults[box_key] = clean_box(box, defaults[box_key])
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_reference_layout_blueprint_v9000@L24949")
 
     # Commercial guardrails: the reference product must remain dominant and the
     # information zones must stay substantial. These limits prevent sparse slide-like output.
@@ -25002,7 +25157,7 @@ def _graphic_product_source_signature_v9000(product_item):
             with Image.open(io.BytesIO(raw)) as im:
                 im=ImageOps.exif_transpose(im)
                 result.update({"width":im.width,"height":im.height,"aspect_ratio":round(im.width/max(1,im.height),6)})
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_graphic_product_source_signature_v9000@L25005")
     return result
 
 
@@ -26301,7 +26456,7 @@ def _graphic_lightweight_upload_identity_v22000(file):
                 result["width"], result["height"] = image.size
                 result["mode"] = str(image.mode)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_lightweight_upload_identity_v22000@L26303")
     return result
 
 
@@ -28388,7 +28543,7 @@ def _graphic_v68976_finish_variant_from_exact_source(product, prompt_text=""):
                 try:
                     protected |= np.asarray(mask.convert("L"), dtype=np.uint8) >= 8
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_graphic_v68976_finish_variant_from_exact_source@L28390")
         # Conservative fallback protection for portrait infotainment units if automatic
         # aperture/control masks are unavailable.
         if not protected.any():
@@ -31090,7 +31245,7 @@ def _graphic_progress_update_v3300(status, label, state="running"):
         try:
             status.update(label=label, state=state if state in {"running", "complete", "error"} else "running")
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_progress_update_v3300@L31092")
 
 
 def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
@@ -31574,7 +31729,7 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         del composed
         del background
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_build_hybrid_campaign_result_v3300@L31576")
     _graphic_v68874_release_transient_memory("reference_composite_ready")
 
     scorecard = _graphic_qa_scorecard_v42000(result["layered_metadata"])
@@ -32476,7 +32631,7 @@ def _graphic_ui_source_item_v44000(role_items):
             if item.get("role") == "style_reference":
                 score += 0.25
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_ui_source_item_v44000@L32478")
         scored.append((score, item))
     scored.sort(key=lambda x: x[0], reverse=True)
     return scored[0][1] if scored else None
@@ -33216,7 +33371,7 @@ def _graphic_role_fingerprint_v8200(role_items, roles=None):
                 try:
                     item["_data_url_digest_v68983"] = digest
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_graphic_role_fingerprint_v8200@L33218")
         selected.append({
             "role": role,
             "name": str(item.get("name") or ""),
@@ -33579,7 +33734,7 @@ def _graphic_v69301_localized_cleanup_qa(result, current_canvas, edit_directive=
             with Image.open(io.BytesIO(base_raw)) as im:
                 base_size = [int(im.width), int(im.height)]
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v69301_localized_cleanup_qa@L33581")
     directive = dict(edit_directive or {})
     checks = {
         "image_valid": bool(result_raw),
@@ -33643,7 +33798,7 @@ def _graphic_v69315_background_followup_qa(result, current_canvas, edit_directiv
             with Image.open(io.BytesIO(base_raw)) as im:
                 base_size = [int(im.width), int(im.height)]
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v69315_background_followup_qa@L33645")
     directive = dict(edit_directive or {})
     checks = {
         "image_valid": bool(result_raw),
@@ -34046,7 +34201,7 @@ def _graphic_v69318_followup_transport_qa(result, current_canvas, edit_directive
             with Image.open(io.BytesIO(base_raw)) as im:
                 base_size = [int(im.width), int(im.height)]
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v69318_followup_transport_qa@L34048")
     checks = {
         "image_valid": bool(result_raw),
         "edit_base_present": bool(base_raw),
@@ -38727,7 +38882,7 @@ def _graphic_v68200_font(size, bold=False, italic=False):
         try:
             return ImageFont.truetype(path, max(10,int(size)))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_v68200_font@L38729")
     return ImageFont.load_default()
 
 
@@ -39455,7 +39610,7 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
         try:
             position = uploaded_file.tell()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_v68826_uploaded_file_digest@L39457")
         try:
             raw = bytes(uploaded_file.read() or b"")
         except Exception:
@@ -39464,7 +39619,7 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
             try:
                 uploaded_file.seek(position)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_v68826_uploaded_file_digest@L39466")
     result = {
         "name": Path(str(getattr(uploaded_file, "name", "") or "")).name,
         "type": str(getattr(uploaded_file, "type", "") or "").lower(),
@@ -39474,7 +39629,7 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
     try:
         setattr(uploaded_file, "_atp_graphic_digest_v69255", dict(result))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68826_uploaded_file_digest@L39476")
     return result
 
 
@@ -39557,7 +39712,7 @@ def _graphic_v68826_storage_bucket():
         if admin_client is not None:
             clients.append(admin_client)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68826_storage_bucket@L39559")
     clients.append(supabase)
     for client_obj in clients:
         try:
@@ -40837,7 +40992,7 @@ def _graphic_v68829_release_audit(image):
             if value is not None and float(value) < minimum:
                 explicit_failures.append(key)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_v68829_release_audit@L40839")
     return {
         "engine": GRAPHIC_V68829_INSTALLED_ENGINE,
         "available": any(v is not None for v in checks.values()),
@@ -41042,7 +41197,7 @@ def _graphic_v68988_is_reference_request(prompt_text, uploaded_files=None, force
         if _graphic_v68827_is_reference_mode(prompt_text, uploaded_files, forced_upload_role):
             return True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68988_is_reference_request@L41044")
     state = _graphic_v68988_safe_project_state()
     return bool(
         str(state.get("active_reference_id") or "").strip()
@@ -41337,7 +41492,7 @@ def _graphic_v67200_upload_bytes(item):
         try:
             return bytes(file_obj.getvalue() or b"")
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_v67200_upload_bytes@L41339")
     data_url = str(item.get("data_url") or "")
     if data_url:
         return data_url.encode("utf-8", "ignore")
@@ -41563,7 +41718,7 @@ def _graphic_v67200_prepare_locked_facts(role_items, prompt_text, style_strength
                 if current_ctx is not None:
                     executor_kwargs["initializer"] = lambda: add_script_run_ctx(threading.current_thread(), current_ctx)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_v67200_prepare_locked_facts@L41565")
             with ThreadPoolExecutor(**executor_kwargs) as pool:
                 futures = {name: (pool.submit(func), time.perf_counter()) for name, func in tasks}
                 for name, (future, task_started) in futures.items():
@@ -43039,7 +43194,7 @@ def _uploaded_file_bytes(uploaded_file):
             try:
                 uploaded_file.seek(original_position)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_uploaded_file_bytes@L43041")
 
     return bytes(payload or b"")
 
@@ -43686,7 +43841,7 @@ def _learned_knowledge_schema_remember_missing_v69360(column):
             state["missing_columns"] = missing
             state["learned_at"] = time.monotonic()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_learned_knowledge_schema_remember_missing_v69360@L43688")
 
 
 def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
@@ -45239,7 +45394,7 @@ def _technical_section_package_candidate_v69142(prompt_text, row):
             if full:
                 package_text = full
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_section_package_candidate_v69142@L45241")
     if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text:
         return None
     if _technical_package_header_value_v69113(package_text, "Destination") != "Technical Support Database":
@@ -45291,7 +45446,7 @@ def _technical_section_package_candidate_v69142(prompt_text, row):
     if prompt_families and source_families:
         score += max(0.0, 30.0 - (5.0 * len(source_families)))
     try: score += float(row.get("score") or 0.0) * 10.0
-    except Exception: pass
+    except Exception: _observe_silent_exception_v69451("_technical_section_package_candidate_v69142@L45294")
 
     return {
         "file_id": file_id,
@@ -46394,7 +46549,7 @@ def _technical_source_identity_candidate_v69150(prompt_text, row, *, hydrate=Tru
             if full:
                 text_value = full
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_source_identity_candidate_v69150@L46396")
     if not text_value:
         return None
 
@@ -47570,7 +47725,7 @@ def _workspace_exact_retrieval_cache_clear_v69365():
         with state["lock"]:
             state["entries"].clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_workspace_exact_retrieval_cache_clear_v69365@L47572")
 
 
 def _website_request_vector_search_rows_v69047(request, max_results=12):
@@ -48028,7 +48183,7 @@ def ask_ai_stream(
 
     except _StreamingNotSupportedError:
         # Compatibility with an older OpenAI SDK that does not support stream.
-        pass
+        _observe_silent_exception_v69451("ask_ai_stream@L48029")
 
     # Non-streaming compatibility fallback with the same bounded continuation.
     request = original_request
@@ -48618,15 +48773,15 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("upload_to_vector_store@L48620")
     try:
         vector_store_has_filename.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("upload_to_vector_store@L48624")
     try:
         _vector_store_file_catalog_v69040.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("upload_to_vector_store@L48628")
     return openai_file.id
 
 
@@ -48663,7 +48818,7 @@ def extract_json_object(raw_text):
     try:
         return json.loads(text)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("extract_json_object@L48665")
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
         try:
@@ -49737,7 +49892,7 @@ def upload_learned_record_to_vector_store(
         try:
             _workspace_exact_retrieval_cache_clear_v69365()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49739")
         ready, ingestion_status = wait_for_learned_vector_file_ready(
             vector_store_id,
             openai_file_id,
@@ -49764,17 +49919,17 @@ def upload_learned_record_to_vector_store(
                     file_id=openai_file_id,
                 )
             except Exception:
-                pass
+                _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49766")
             try:
                 client.files.delete(openai_file_id)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49770")
         raise
     finally:
         try:
             os.remove(tmp_path)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49776")
 
 
 def remove_old_learned_vector_file(vector_store_id, file_id):
@@ -49793,11 +49948,11 @@ def remove_old_learned_vector_file(vector_store_id, file_id):
     try:
         client.files.delete(file_id)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("remove_old_learned_vector_file@L49795")
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("remove_old_learned_vector_file@L49799")
     return True
 
 
@@ -50211,6 +50366,12 @@ def process_pending_ai_postprocess():
                 mode = learning_result.get("mode", "saved")
                 if learning_result.get("explicit_learning"):
                     message = f"Knowledge saved permanently ({mode})."
+                    diagnostic_log(
+                        "explicit_learning_persisted_v69452",
+                        workspace=str(job.get("selected_assistant") or ""),
+                        mode=str(mode),
+                        record_id=str(learning_result.get("record_id") or ""),
+                    )
                 elif learning_result.get("staff_confirmed"):
                     message = f"Confirmed staff solution learned ({mode})."
                 elif learning_result.get("unlabeled_final_reply"):
@@ -50220,6 +50381,16 @@ def process_pending_ai_postprocess():
                 else:
                     message = f"Knowledge learned from this case ({mode})."
                 st.toast(message, icon="🧠")
+            elif (
+                learning_result
+                and learning_result.get("authorization_denied")
+                and job.get("explicit_learning")
+            ):
+                st.toast(
+                    "Knowledge was not saved because administrator authorization "
+                    "could not be revalidated.",
+                    icon="🔒",
+                )
         except Exception as error:
             learning_result = None
             diagnostic_log(
@@ -50283,6 +50454,29 @@ def auto_learn_from_latest_answer(
 ):
     if selected_assistant == "⚙️ Admin Panel":
         return None
+
+    # v69452 defense in depth: even if a future routing regression accidentally
+    # queues an explicit learning job, the durable writer itself fails closed
+    # unless the active account revalidates as admin at write time.
+    if bool(explicit_learning) and not _learning_admin_authorized_v69452(
+        revalidate=True
+    ):
+        diagnostic_log(
+            "explicit_learning_persistence_blocked_v69452",
+            workspace=str(selected_assistant),
+            role=str(st.session_state.get("role") or "").strip().lower() or "none",
+        )
+        return {
+            "learned": False,
+            "explicit_learning": True,
+            "authorization_denied": True,
+            "reason": "Admin authorization could not be verified.",
+            "analytics_payload": build_local_analytics_payload(
+                question,
+                answer,
+                selected_assistant,
+            ),
+        }
 
     # Ordinary Graphic Marketing generations are not auto-learned. Explicit
     # staff commands such as "learn this style" may save reusable design guidance.
@@ -50784,7 +50978,7 @@ def safe_avg(rows, field):
             if row.get(field) is not None:
                 values.append(float(row.get(field)))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("safe_avg@L50786")
     if not values:
         return 0
     return round(sum(values) / len(values), 2)
@@ -50810,7 +51004,7 @@ def total_numeric(rows, field):
         try:
             total += int(row.get(field) or 0)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("total_numeric@L50812")
     return total
 
 
@@ -50990,7 +51184,7 @@ def generate_ai_conversation_title(
             words = title.split()[:5]
             return " ".join(words)[:36].rstrip()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("generate_ai_conversation_title@L50992")
 
     return conversation_title_from_text(user_text)
 
@@ -51120,7 +51314,7 @@ def _history_http_session_v69322():
         session_v69322.mount("https://", adapter_v69322)
         session_v69322.mount("http://", adapter_v69322)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_history_http_session_v69322@L51122")
     return session_v69322
 
 
@@ -51159,7 +51353,7 @@ def _history_content_range_total_v69322(response):
             if total_v69322.isdigit():
                 return int(total_v69322)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_history_content_range_total_v69322@L51161")
     return None
 
 
@@ -51714,33 +51908,33 @@ def invalidate_history_cache(
         try:
             _load_conversations_cached.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51716")
         try:
             _conversation_summary_index_cached.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51720")
         try:
             _active_conversation_count_cached.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51724")
         try:
             _history_sidebar_snapshot_cached_v69322.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51728")
 
     if messages:
         try:
             _load_messages_cached.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51734")
         try:
             _conversation_owned_by_user_cached.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51738")
         try:
             _history_messages_after_workspace_proof_cached_v69322.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51742")
 
 
 def load_messages(conversation_id):
@@ -51803,7 +51997,7 @@ def delete_conversation(conversation_id):
             str(conversation_id)
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("delete_conversation@L51805")
     invalidate_history_cache(
         conversations=True,
         messages=True,
@@ -51856,7 +52050,7 @@ def _cached_conversation_row(conversation_id):
             history_limit,
         ).get(str(conversation_id))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_cached_conversation_row@L51858")
 
     return None
 
@@ -51903,7 +52097,7 @@ def get_current_conversation_title():
             session_titles[conversation_key] = title
             return title
     except Exception:
-        pass
+        _observe_silent_exception_v69451("get_current_conversation_title@L51905")
     return "New Case"
 
 
@@ -52008,7 +52202,7 @@ def get_conversation_title_by_id(conversation_id):
             session_titles[conversation_key] = title
             return title
     except Exception:
-        pass
+        _observe_silent_exception_v69451("get_conversation_title_by_id@L52010")
     return "New Case"
 
 
@@ -56087,7 +56281,7 @@ def _graphic_v68993_authority_manifest(prompt_text, uploaded_files, forced_uploa
     try:
         roles = set(_graphic_project_role_set(project or {}))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68993_authority_manifest@L56089")
     has_reference = bool(active_reference_id or ({"reference", "style_reference"} & roles))
     has_product = bool(active_product_id or ({"product", "product_photo"} & roles))
 
@@ -56305,7 +56499,7 @@ def _graphic_v68994_role_fingerprint(role_items, roles=None):
                 try:
                     item["_data_url_digest_v68983"] = digest
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_graphic_v68994_role_fingerprint@L56307")
         selected.append({
             "role": role,
             "name": str(item.get("name") or ""),
@@ -56759,7 +56953,7 @@ def _graphic_v68995_commit_slot_manifest(manifest):
     try:
         _graphic_v66100_cache_put(_graphic_v68995_manifest_cache_key(style_key), dict(manifest))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68995_commit_slot_manifest@L56761")
     return True
 
 def _graphic_v68995_normalize_label(label):
@@ -57000,7 +57194,7 @@ def _graphic_v69272_protected_mode(prompt_text, uploaded_files=None, forced_uplo
         if bool(ns_v69272["_graphic_v68829_is_installed_request"](text_v69272)):
             return "installed", ns_v69272
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v69272_protected_mode@L57002")
     try:
         if bool(ns_v69272["_graphic_v68827_is_reference_mode"](text_v69272, uploaded_files, forced_upload_role)):
             return "reference", ns_v69272
@@ -57014,7 +57208,7 @@ def _graphic_v69272_protected_mode(prompt_text, uploaded_files=None, forced_uplo
             if str(project_v69272.get("active_reference_id") or "") and str(project_v69272.get("active_product_id") or ""):
                 return "reference", ns_v69272
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_v69272_protected_mode@L57016")
     return "other", ns_v69272
 
 
@@ -57255,7 +57449,7 @@ def process_pending_graphic_regeneration():
         st.session_state.pop("_graphic_v68994_durable_authority_hint", None); return False
     try:
         with st.spinner("Creating another image version..."):
-            images = generate_graphic_marketing_images(prompt_text, generation_files)
+            images = _GRAPHIC_V69451_FINAL_ENGINE(prompt_text, generation_files)
             answer_text = generated_image_answer_text(images, regenerated=True)
             stored_content = answer_text + serialize_images_marker(images)
             st.session_state.messages.append({"role": "assistant", "content": stored_content})
@@ -57265,6 +57459,97 @@ def process_pending_graphic_regeneration():
             return True
     except Exception as error:
         st.error(f"Could not regenerate image: {error}"); return False
+
+
+# ============================================================
+# v69451 — Explicit final Graphic runtime pinning
+# ============================================================
+# Historical Graphic releases intentionally wrap earlier authorities. Their captured
+# base functions are part of the production behavior and must NOT be flattened.
+# Pin the final public entry points only after the complete wrapper stack is defined,
+# then route live call sites through these immutable aliases. This removes dependence
+# on later same-name rebinding while preserving the exact current function objects.
+_GRAPHIC_V69451_FINAL_ENGINE = generate_graphic_marketing_images
+_GRAPHIC_V69451_FINAL_PROCESS_PENDING = process_pending_graphic_regeneration
+_GRAPHIC_V69451_FINAL_RESEARCH_VEHICLE = research_graphic_vehicle_profile
+_GRAPHIC_V69451_FINAL_SAVE_STYLE_MEMORY = save_graphic_style_memory
+_GRAPHIC_V69451_FINAL_PUBLICATION_REPORT = _graphic_v68978_reference_publication_report
+_GRAPHIC_V69451_FINAL_QUEUE_DURABLE_JOB = _graphic_queue_durable_job_v68844
+_GRAPHIC_V69451_FINAL_PENDING_DURABLE_JOB = _graphic_pending_durable_job_v68844
+_GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_GET = _graphic_v69258_background_resume_get
+_GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_PUT = _graphic_v69258_background_resume_put
+_GRAPHIC_V69451_FINAL_AUX_CACHE_GET = _graphic_v69263_aux_cache_get
+_GRAPHIC_V69451_FINAL_AUX_CACHE_PUT = _graphic_v69263_aux_cache_put
+_GRAPHIC_V69451_FINAL_PRODUCT_STRUCTURE = _graphic_product_structure_profile_cached_v4300
+
+
+def _graphic_v69451_assert_wrapper_integrity():
+    """Fail closed only if the established Graphic wrapper topology is corrupted."""
+    final_bindings_v69451 = {
+        "engine": _GRAPHIC_V69451_FINAL_ENGINE,
+        "process_pending": _GRAPHIC_V69451_FINAL_PROCESS_PENDING,
+        "research_vehicle": _GRAPHIC_V69451_FINAL_RESEARCH_VEHICLE,
+        "save_style_memory": _GRAPHIC_V69451_FINAL_SAVE_STYLE_MEMORY,
+        "publication_report": _GRAPHIC_V69451_FINAL_PUBLICATION_REPORT,
+        "queue_durable_job": _GRAPHIC_V69451_FINAL_QUEUE_DURABLE_JOB,
+        "pending_durable_job": _GRAPHIC_V69451_FINAL_PENDING_DURABLE_JOB,
+        "background_resume_get": _GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_GET,
+        "background_resume_put": _GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_PUT,
+        "aux_cache_get": _GRAPHIC_V69451_FINAL_AUX_CACHE_GET,
+        "aux_cache_put": _GRAPHIC_V69451_FINAL_AUX_CACHE_PUT,
+        "product_structure": _GRAPHIC_V69451_FINAL_PRODUCT_STRUCTURE,
+    }
+    missing_v69451 = sorted(
+        name_v69451
+        for name_v69451, value_v69451 in final_bindings_v69451.items()
+        if not callable(value_v69451)
+    )
+    if missing_v69451:
+        raise RuntimeError(
+            "Graphic final runtime binding integrity failure: "
+            + ", ".join(missing_v69451)
+        )
+
+    # These are intentionally captured predecessor engines. Equality with the final
+    # public wrapper would create recursion or bypass the protected release chain.
+    predecessor_checks_v69451 = (
+        ("v69272-current-engine", _GRAPHIC_V69272_CURRENT_ENGINE),
+        ("v68995-base-generator", _GRAPHIC_V68995_BASE_GENERATOR),
+        ("v68994-base-queue", _GRAPHIC_V68994_BASE_QUEUE_DURABLE_JOB),
+        ("v68994-base-pending", _GRAPHIC_V68994_BASE_PENDING_DURABLE_JOB),
+        ("v69264-base-resume-get", _GRAPHIC_V69264_BASE_BACKGROUND_RESUME_GET),
+        ("v69264-base-resume-put", _GRAPHIC_V69264_BASE_BACKGROUND_RESUME_PUT),
+        ("v69265-session-aux-get", _GRAPHIC_V69265_SESSION_AUX_GET),
+        ("v69265-session-aux-put", _GRAPHIC_V69265_SESSION_AUX_PUT),
+        ("v69265-original-research", _GRAPHIC_V69265_ORIGINAL_VEHICLE_RESEARCH),
+        ("v68987-base-publication", _GRAPHIC_V68987_BASE_PUBLICATION_REPORT),
+        ("v68827-base-style-memory", _GRAPHIC_V68827_BASE_SAVE_STYLE_MEMORY),
+    )
+    invalid_v69451 = sorted(
+        name_v69451
+        for name_v69451, value_v69451 in predecessor_checks_v69451
+        if (
+            not callable(value_v69451)
+            or value_v69451 is _GRAPHIC_V69451_FINAL_ENGINE
+            or value_v69451 is _GRAPHIC_V69451_FINAL_PROCESS_PENDING
+        )
+    )
+    if invalid_v69451:
+        raise RuntimeError(
+            "Graphic predecessor wrapper integrity failure: "
+            + ", ".join(invalid_v69451)
+        )
+
+    diagnostic_log(
+        "graphic_v69451_wrapper_integrity_verified",
+        final_bindings=len(final_bindings_v69451),
+        predecessor_bindings=len(predecessor_checks_v69451),
+        protected_source_sha=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16],
+    )
+    return True
+
+
+_GRAPHIC_V69451_WRAPPER_INTEGRITY_OK = _graphic_v69451_assert_wrapper_integrity()
 
 
 # Chat History Sidebar
@@ -57453,7 +57738,7 @@ def _website_extract_atp_semantics_v69178(page_html, page_url=""):
         attr_parser.feed(value)
         attr_parser.close()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_extract_atp_semantics_v69178@L57455")
 
     if (
         not scripts
@@ -58209,7 +58494,7 @@ def canonical_website_url_identity(raw_url):
     try:
         hostname = hostname.encode("idna").decode("ascii")
     except Exception:
-        pass
+        _observe_silent_exception_v69451("canonical_website_url_identity@L58211")
 
     port = parsed.port
     if port in {80, 443}:
@@ -58984,7 +59269,7 @@ def _download_public_website_image(image_url, context_score=0, technical_context
         except ValueError:
             raise
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_download_public_website_image@L58986")
 
     return {
         "source_url": final_url,
@@ -59082,7 +59367,7 @@ def _website_preview_visual_metrics_v68998(image_bytes):
             "border_background_difference_ratio": round(foreground_ratio, 6),
         })
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_preview_visual_metrics_v68998@L59084")
     return metrics
 
 
@@ -60213,7 +60498,7 @@ def _website_image_index_upsert_v68883(payload):
     except Exception as error:
         _website_image_schema_profile_reset_v69176(); diagnostic_log("website_image_index_save_failed_v69176",mode=mode,issue=issue[:120],error_type=type(error).__name__,error=str(error)[:500]); return False
     try: _workspace_durable_image_payloads_v69041.clear()
-    except Exception: pass
+    except Exception: _observe_silent_exception_v69451("_website_image_index_upsert_v68883@L60216")
     return True
 
 
@@ -60560,11 +60845,11 @@ def _website_sync_page_image_index_v69003(
     try:
         _website_image_index_rows_v68883.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_sync_page_image_index_v69003@L60562")
     try:
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_sync_page_image_index_v69003@L60566")
     return stats
 
 
@@ -60663,11 +60948,11 @@ def _website_image_transaction_rollback_v69177(
     try:
         _website_image_index_rows_v68883.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_image_transaction_rollback_v69177@L60665")
     try:
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_image_transaction_rollback_v69177@L60669")
 
     cleanup_candidates = set(transaction_archive_paths or []) - prior_archive_paths
     archive_cleanup = _website_cleanup_unreferenced_archives_v69177(cleanup_candidates)
@@ -60763,7 +61048,7 @@ def _website_archive_and_index_images_v68883(
     try:
         _website_image_index_rows_v68883.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_archive_and_index_images_v68883@L60765")
 
     return {
         "indexed": indexed,
@@ -61614,7 +61899,7 @@ def _website_image_atp_semantic_metadata_v69363(payload):
             if isinstance(parsed, dict):
                 return {str(k): str(v) for k, v in parsed.items() if str(k).startswith("data-atp-")}
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_website_image_atp_semantic_metadata_v69363@L61616")
     return {}
 
 
@@ -62075,7 +62360,7 @@ def _technical_configuration_query_v69361(prompt_text):
         if _website_image_query_role_v68884(prompt_text) in {"car_model_ac", "protocol"}:
             return True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_configuration_query_v69361@L62077")
     return any(term in prompt for term in (
         "car model", "car-model", "a/c setting", "ac setting", "a/c type",
         "ac type", "protocol setting", "canbus setting", "can bus setting",
@@ -62377,7 +62662,7 @@ def _website_image_atp_semantic_metadata_v69364(payload):
                         if str(k).startswith("data-atp-") and str(v).strip()
                     }
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_image_atp_semantic_metadata_v69364@L62379")
     return {}
 
 
@@ -62567,7 +62852,7 @@ def _technical_sales_product_image_bridge_v69364(prompt_text, answer_text, max_i
         try:
             score += min(float(meta.get("data-atp-ai-priority") or payload.get("atp_priority_v69178") or 0), 1000.0) / 100.0
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_sales_product_image_bridge_v69364@L62569")
         ranked.append((score, record, role))
 
     ranked.sort(key=lambda item: item[0], reverse=True)
@@ -63306,7 +63591,7 @@ def _technical_image_prefetch_cache_set_v69016(prompt_text, rows):
             cache = dict(ordered[:12])
         st.session_state["_technical_image_prefetch_cache_v69016"] = cache
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_image_prefetch_cache_set_v69016@L63308")
 
 
 def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text=""):
@@ -64963,7 +65248,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
             continue
         grouped.setdefault(file_id, {"rows":[], "score":0.0, "filename":str(row.get("filename") or "")})["rows"].append(dict(row))
         try: grouped[file_id]["score"] = max(float(grouped[file_id]["score"]), float(row.get("score") or 0.0))
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_workspace_atp_recovery_packages_from_rows_v69338@L64966")
 
     candidates=[]
     for file_id, info in grouped.items():
@@ -65370,7 +65655,7 @@ def _workspace_atp_package_from_text_v69180(file_id, filename, package_text, des
     years = set()
     for raw in page_identity.get("years") or []:
         try: years.add(int(raw))
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_workspace_atp_package_from_text_v69180@L65373")
     if not years:
         years = set(_website_identity_years_v69022(identity_text))
     systems = {str(x) for x in (page_identity.get("systems") or []) if str(x)} or set(_website_identity_systems_v69022(identity_text))
@@ -65482,7 +65767,7 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
         old_executor = bucket.get("executor")
         if old_executor is not None:
             try: old_executor.shutdown(wait=False, cancel_futures=True)
-            except Exception: pass
+            except Exception: _observe_silent_exception_v69451("_workspace_atp_package_prewarm_start_v69180@L65485")
         last_good = [dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]
         from concurrent.futures import ThreadPoolExecutor
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="atp-workspace-metadata-v69180")
@@ -65636,7 +65921,7 @@ def _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.25):
         )
     if not packages and future is not None and float(wait_seconds or 0)>0:
         try: future.result(timeout=max(0.05,float(wait_seconds)))
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_workspace_atp_package_snapshot_v69180@L65639")
         with state["lock"]:
             bucket=state["destinations"].get(target) or {}
             status=str(bucket.get("status") or "idle")
@@ -65805,7 +66090,7 @@ def _workspace_atp_product_contract_v69205(package):
                 try:
                     contract[dest] = int(str(row.get(key) or "").strip())
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65807")
         for item in split_values(row.get("data-atp-facts")):
             if item not in contract["facts"]:
                 contract["facts"].append(item)
@@ -65820,13 +66105,13 @@ def _workspace_atp_product_contract_v69205(package):
                 try:
                     years.append(int(raw))
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65822")
             excluded = []
             for raw in split_values(row.get("data-atp-excluded-years")):
                 try:
                     excluded.append(int(raw))
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65828")
             if not years:
                 try:
                     ys = int(str(row.get("data-atp-year-start") or "").strip())
@@ -65834,7 +66119,7 @@ def _workspace_atp_product_contract_v69205(package):
                     if ys <= ye and (ye - ys) <= 30:
                         years = list(range(ys, ye + 1))
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65836")
             branch = {
                 "branch_id": branch_id,
                 "make": str(row.get("data-atp-make") or contract.get("make") or "").strip(),
@@ -71071,7 +71356,7 @@ def _workspace_sales_manifest_metadata_v69411(payload):
     try:
         meta.update(_website_image_atp_semantic_metadata_v69364(payload) or {})
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_workspace_sales_manifest_metadata_v69411@L71073")
 
     raw = payload.get("image_structured_metadata_v69017")
     if isinstance(raw, str) and raw.strip():
@@ -74838,7 +75123,7 @@ def _website_image_self_heal_index_v69047(prompt_text, payload):
     try:
         st.session_state["_website_image_self_heal_attempts_v69047"] = list(attempted)[-64:]
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_image_self_heal_index_v69047@L74840")
 
     durable = {
         key: value for key, value in dict(payload).items()
@@ -74867,7 +75152,7 @@ def _website_image_self_heal_index_v69047(prompt_text, payload):
             try:
                 _website_image_index_rows_v68883.clear()
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_image_self_heal_index_v69047@L74869")
         diagnostic_log(
             "website_image_index_self_heal_v69047",
             saved=saved,
@@ -75395,7 +75680,7 @@ def _website_learning_canonical_identity_v69175(raw_url):
     try:
         hostname = hostname.encode("idna").decode("ascii")
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_learning_canonical_identity_v69175@L75397")
     port = parsed.port
     if port in {80, 443}:
         port = None
@@ -75437,7 +75722,7 @@ def _website_learning_url_identities_v69175(extraction):
         try:
             identities.add(_website_learning_canonical_identity_v69175(raw))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_website_learning_url_identities_v69175@L75439")
     return identities
 
 
@@ -75450,7 +75735,7 @@ def _website_package_learning_url_identities_v69175(package_text):
             try:
                 identities.add(_website_learning_canonical_identity_v69175(raw))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_package_learning_url_identities_v69175@L75452")
     return identities
 
 
@@ -75551,7 +75836,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69175(
     try:
         _vector_store_file_catalog_v69040.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69175@L75553")
     catalog = list(_vector_store_file_catalog_v69040(vector_store_id) or [])
     matched = 0
     retired_ids = []
@@ -75606,7 +75891,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69175(
                 _vector_store_file_catalog_v69040.clear()
                 vector_store_has_filename.clear()
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69175@L75608")
         if ok:
             retired_ids.append(file_id)
             if candidate.get("source_url"):
@@ -75789,7 +76074,7 @@ def _website_retire_conflicting_image_rows_v69174(source_urls):
     try:
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_retire_conflicting_image_rows_v69174@L75791")
     return {"matched": matched, "retired": retired, "failed": failed}
 
 
@@ -75824,7 +76109,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69174(
     try:
         _vector_store_file_catalog_v69040.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69174@L75826")
     try:
         catalog = list(_vector_store_file_catalog_v69040(vector_store_id) or [])
     except Exception as error:
@@ -75902,7 +76187,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69174(
         _vector_store_file_catalog_v69040.clear()
         vector_store_has_filename.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69174@L75904")
     diagnostic_log(
         "technical_conflicting_website_supersession_v69174",
         matched=matched, retired=retired, failed=failed,
@@ -76041,7 +76326,7 @@ def _website_supersede_conflicting_technical_learned_records_v69123(
                     row_id,
                 )
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_supersede_conflicting_technical_learned_records_v69123@L76043")
 
     diagnostic_log(
         "technical_learned_supersession_v69123",
@@ -77526,7 +77811,7 @@ def _technical_exact_package_image_evidence_v69155(package_text, selected_image_
             )
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_exact_package_image_evidence_v69155@L77528")
     try:
         payloads.extend(
             _website_legacy_html_payloads_from_file_v69012(
@@ -77534,7 +77819,7 @@ def _technical_exact_package_image_evidence_v69155(package_text, selected_image_
             )
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_exact_package_image_evidence_v69155@L77536")
 
     out, seen = [], set()
     for item in payloads:
@@ -78591,7 +78876,7 @@ def _technical_package_candidate_score_v69157(prompt_text, package):
     years = set()
     for raw in (package.get('years') or []):
         try: years.add(int(raw))
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_technical_package_candidate_score_v69157@L78594")
     systems = set(str(x) for x in (package.get('systems') or []) if str(x))
     codes = set(str(x).casefold() for x in (package.get('product_codes') or []) if str(x))
     prompt_codes_cf = set(str(x).casefold() for x in prompt_codes)
@@ -78894,7 +79179,7 @@ def _technical_vector_store_generation_v69161(store, *, max_age_seconds=0.75):
                 try:
                     counts[key] = getattr(file_counts, key)
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_technical_vector_store_generation_v69161@L78896")
         fallback = {
             "id": clean_store,
             "status": str(getattr(vector_store, "status", "") or ""),
@@ -79334,7 +79619,7 @@ def _technical_registry_upsert_package_v69162(package, vector_store_id=""):
         try:
             _technical_registry_rows_v69162.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_registry_upsert_package_v69162@L79336")
         return True
     except Exception as error:
         diagnostic_log(
@@ -79926,7 +80211,7 @@ def _technical_current_package_authority_v69157(prompt_text):
             store,
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_current_package_authority_v69157@L79928")
 
     return {
         "status": "recovered",
@@ -80810,7 +81095,7 @@ def _technical_exact_source_auto_repair_v69172(prompt_text, current_payload, vec
     try:
         _technical_package_prewarm_inject_v69121(file_id, filename, package_text)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_exact_source_auto_repair_v69172@L80812")
     diagnostic_log(
         "technical_exact_source_auto_repair_verified_v69172",
         source_url=source_url[:700],
@@ -81042,7 +81327,7 @@ def _technical_durable_snapshot_commit_verified_v69171(package, vector_store_id=
     try:
         _technical_durable_snapshot_row_v69171.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_durable_snapshot_commit_verified_v69171@L81044")
     diagnostic_log(
         "technical_durable_snapshot_commit_verified_v69171",
         file_id=str(package.get("file_id") or "")[:160],
@@ -81161,18 +81446,18 @@ def _technical_scope_from_package_and_source_v69236(package, payload=None):
             if str(x).strip()
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81163")
 
     years = set()
     for raw_year in package.get("years") or []:
         try:
             years.add(int(raw_year))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81170")
     try:
         years.update(int(x) for x in (_website_identity_years_v69022(source_identity_text) or set()))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81174")
 
     systems = {str(x) for x in (package.get("systems") or []) if str(x).strip()}
     system_tokens = set(_technical_factory_system_tokens_v69231(source_identity_text, systems) or [])
@@ -81180,7 +81465,7 @@ def _technical_scope_from_package_and_source_v69236(package, payload=None):
     try:
         identity_systems.update(_website_identity_systems_v69022(source_identity_text) or set())
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81182")
     return {
         "families": families,
         "years": years,
@@ -81340,7 +81625,7 @@ def _technical_registry_verify_exact_package_v69233(package, vector_store_id="")
     try:
         _technical_registry_rows_v69162.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_registry_verify_exact_package_v69233@L81342")
     try:
         rows = list(_technical_registry_rows_v69162(vector_store_id) or [])
     except Exception:
@@ -81575,7 +81860,7 @@ def _technical_active_authority_upsert_package_v69164(
                 try:
                     _technical_active_authority_row_v69164.clear()
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_technical_active_authority_upsert_package_v69164@L81577")
             except Exception as error:
                 stats["failed"] += 1
                 diagnostic_log(
@@ -81669,7 +81954,7 @@ def _technical_active_authority_commit_verified_v69167(
     try:
         _technical_active_authority_row_v69164.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_active_authority_commit_verified_v69167@L81671")
 
     verified = []
     for family in families:
@@ -81796,7 +82081,7 @@ def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
             )
             return ""
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_exact_file_text_v69182@L81798")
 
     capability_state_v69324 = _technical_file_content_capability_state_v69324()
     unsupported_v69324 = bool(
@@ -81944,7 +82229,7 @@ def _technical_active_authority_bootstrap_v69164(prompt_text, vector_store_id):
             try:
                 py.add(int(raw))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_active_authority_bootstrap_v69164@L81946")
         if pf and family not in pf:
             continue
         if py and year not in py:
@@ -82647,7 +82932,7 @@ def _technical_bound_image_urls_v69169(prompt_text, authority, max_images=8):
             str(authority.get("file_id") or ""),
         ))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_bound_image_urls_v69169@L82649")
     try:
         payloads.extend(_website_legacy_html_payloads_from_file_v69012(
             package_text,
@@ -82655,7 +82940,7 @@ def _technical_bound_image_urls_v69169(prompt_text, authority, max_images=8):
             str(authority.get("file_id") or ""),
         ))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_bound_image_urls_v69169@L82657")
     if not payloads:
         return []
 
@@ -82883,14 +83168,14 @@ def _technical_exact_authority_chat_images_v69170(prompt_text, authority, max_im
             ) or []:
                 add_payload(raw, "exact_package")
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_exact_authority_chat_images_v69170@L82885")
         try:
             for raw in _website_legacy_html_payloads_from_file_v69012(
                 package_text, filename, file_id
             ) or []:
                 add_payload(raw, "exact_package")
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_exact_authority_chat_images_v69170@L82892")
 
     # Durable-index fallback is still exact-source-bound: no semantic search, no
     # another page, and no different file when the durable row carries file identity.
@@ -84238,7 +84523,7 @@ def _website_openai_file_text_v68892(file_id):
             if isinstance(value, str):
                 return value
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_website_openai_file_text_v68892@L84240")
 
     return ""
 
@@ -84436,7 +84721,7 @@ def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_re
             try:
                 years.add(int(value))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_admin_website_package_catalog_v69113@L84438")
         if not years:
             years = set(_website_identity_years_v69022(identity_text))
         systems = set(str(x) for x in (page_identity.get("systems") or []) if str(x))
@@ -84525,7 +84810,7 @@ def _technical_package_prewarm_start_v69119(store, revision):
             try:
                 stale_executor.shutdown(wait=False, cancel_futures=True)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_package_prewarm_start_v69119@L84527")
 
         last_good = [
             dict(item) for item in (state.get("packages") or [])
@@ -84717,7 +85002,7 @@ def _technical_package_prewarm_snapshot_v69119(
         try:
             future.result(timeout=max(0.05, float(wait_seconds)))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_package_prewarm_snapshot_v69119@L84719")
 
     with state["lock"]:
         packages = [
@@ -84737,7 +85022,7 @@ def _technical_package_prewarm_invalidate_v69119():
             try:
                 executor.shutdown(wait=False, cancel_futures=True)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_package_prewarm_invalidate_v69119@L84739")
         has_packages = bool(state.get("packages"))
         state.update({
             "key": "",
@@ -85927,7 +86212,7 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
         try:
             years.add(int(raw_year))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_package_from_text_v69121@L85929")
     if not years:
         years = set(_website_identity_years_v69022(identity_text))
 
@@ -86112,7 +86397,7 @@ def _technical_compile_one_package_v69199(package):
         try:
             runtime_years.append(int(raw_year))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_compile_one_package_v69199@L86114")
     runtime_systems = [str(x) for x in (package.get("systems") or []) if str(x).strip()]
     runtime_codes = [str(x) for x in (package.get("product_codes") or []) if str(x).strip()]
     if not runtime_families or not runtime_years:
@@ -86311,7 +86596,7 @@ def _technical_resolve_family_year_v69199(prompt_text, store="", allow_registry=
             try:
                 row_years.add(int(raw_year))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_resolve_family_year_v69199@L86313")
         if year not in row_years:
             continue
         for raw_family in row.get("vehicle_families") or []:
@@ -86678,7 +86963,7 @@ def _technical_package_model_year_eligible_v69242(package, family, year):
         try:
             years.add(int(raw))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_package_model_year_eligible_v69242@L86680")
     if years:
         return clean_year in years
     # Last exact-package fallback: root year-start/end is permitted only when no
@@ -88078,7 +88363,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             try:
                 row_years_v69228.add(int(raw_year_v69228))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_compiled_on_demand_hydrate_v69199@L88080")
         if family not in row_families_v69228 or int(year) not in row_years_v69228:
             continue
         row_systems_v69228 = {
@@ -88318,7 +88603,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             try:
                 package_years_v69228.add(int(raw_year_v69228))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_compiled_on_demand_hydrate_v69199@L88320")
         if family not in package_families_v69228 or int(year) not in package_years_v69228:
             rejected_v69228 += 1
             diagnostic_log(
@@ -88763,7 +89048,7 @@ def _technical_compile_one_package_v69198(package):
         try:
             years.append(int(raw_year))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_compile_one_package_v69198@L88765")
     if not families or not years:
         return []
 
@@ -90167,13 +90452,13 @@ def _website_remove_vector_file_v68892(vector_store_id, file_id):
         client.files.delete(file_id)
     except Exception:
         # Vector-store detachment is authoritative. OpenAI file cleanup is best-effort.
-        pass
+        _observe_silent_exception_v69451("_website_remove_vector_file_v68892@L90168")
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
         _vector_store_file_catalog_v69040.clear()
         vector_store_has_filename.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_remove_vector_file_v68892@L90175")
     return True
 
 
@@ -90252,11 +90537,11 @@ def _website_invalidate_learning_caches_v69109(database_choices):
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90254")
     try:
         _technical_package_prewarm_invalidate_v69119()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90258")
     destinations = [
         str(x or "").strip() for x in (database_choices or [])
         if str(x or "").strip() in _WEBSITE_LEARNING_REVISIONS_V69109
@@ -90276,7 +90561,7 @@ def _website_invalidate_learning_caches_v69109(database_choices):
             if callable(clear):
                 clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90278")
     try:
         for key in (
             "_technical_image_prefetch_cache_v69016",
@@ -90286,7 +90571,7 @@ def _website_invalidate_learning_caches_v69109(database_choices):
         ):
             st.session_state.pop(key, None)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90288")
     bumped_revisions_v69119 = {
         d: _website_bump_destination_revision_v69109(d)
         for d in destinations
@@ -90408,7 +90693,7 @@ def _website_remove_superseded_vectors_v69109(vector_store_id, rows):
                 _vector_store_file_catalog_v69040.clear()
                 vector_store_has_filename.clear()
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_remove_superseded_vectors_v69109@L90410")
         if ok:
             removed += 1
         else:
@@ -90805,7 +91090,7 @@ def render_learn_from_website(database_choice):
             or extraction.get("source_url")
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("render_learn_from_website@L90807")
 
     if (
         current_url_identity
@@ -91322,7 +91607,7 @@ def invalidate_admin_read_caches():
         try:
             cached_function.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_admin_read_caches@L91324")
 
 
 @_admin_upload_fragment_decorator
@@ -91464,7 +91749,7 @@ def _document_visual_events_docx_v69017(file_bytes):
                 if rid and target:
                     rels[rid] = target
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_document_visual_events_docx_v69017@L91466")
         events = []
         body = document_xml.find("w:body", ns)
         current_heading = ""
@@ -91891,7 +92176,7 @@ def _upload_knowledge_transaction_v69040(
                 try:
                     _product_library_storage_remove([archive_path])
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_upload_knowledge_transaction_v69040@L91893")
         raise
     old_rows = [
         row for row in _vector_store_file_catalog_v69040(vector_store_id)
@@ -92143,7 +92428,7 @@ def _create_pending_openai_file(uploaded_file):
     try:
         uploaded_file.seek(0)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_create_pending_openai_file@L92145")
     created = client.files.create(file=uploaded_file, purpose="assistants")
     return {
         "file_id": created.id,
@@ -92454,7 +92739,7 @@ def _delete_pending_openai_files(attachments):
         try:
             client.files.delete(file_id)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_delete_pending_openai_files@L92456")
 
 
 
@@ -96080,7 +96365,7 @@ def _technical_registry_overlap_options_v69379(store, family, year):
                     ):
                         continue
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_technical_registry_overlap_options_v69379@L96082")
             packages.append(dict(row))
 
     options = []
@@ -96522,19 +96807,19 @@ def _technical_package_option_v69377(package, family=""):
             if 1980 <= lo <= hi <= 2100:
                 years.update(range(lo, hi + 1))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_package_option_v69377@L96524")
     if not years:
         try:
             mapping = _technical_model_year_scope_map_v69242(package)
             years.update(int(x) for x in (mapping.get(clean_family) or set()))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_package_option_v69377@L96530")
     if not years:
         for raw in package.get("years") or []:
             try:
                 years.add(int(raw))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_package_option_v69377@L96536")
     year_label = ""
     if years:
         lo, hi = min(years), max(years)
@@ -96613,7 +96898,7 @@ def _technical_package_overlap_ambiguity_v69377(prompt_text):
         if _technical_explicit_factory_system_v69228(prompt):
             return {}
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_package_overlap_ambiguity_v69377@L96615")
     if re.search(r"\b(?:19|20)\d{2}\s*[-–—]\s*(?:19|20)\d{2}\b", prompt):
         return {}
     if re.search(r"\b(?:old|new|newer|legacy)[\s-]*body(?:\s+style)?\b", prompt, flags=re.I):
@@ -97162,7 +97447,7 @@ def _technical_confirmed_payload_scope_match_v69384(payload, state):
             if target_page and _website_image_page_identity_v69003(payload) == target_page:
                 return True
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_confirmed_payload_scope_match_v69384@L97164")
 
     meta = _website_image_atp_semantic_metadata_v69363(payload)
     workspace = str(meta.get("data-atp-workspace") or "").casefold().strip()
@@ -97276,7 +97561,7 @@ def _technical_confirmed_snapshot_v69387(state):
             if cached:
                 cache_state["entries"].pop(cache_key, None)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_confirmed_snapshot_v69387@L97278")
 
     started = time.perf_counter()
     try:
@@ -97310,7 +97595,7 @@ def _technical_confirmed_snapshot_v69387(state):
                 )
                 entries.pop(oldest, None)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_confirmed_snapshot_v69387@L97312")
     diagnostic_log(
         "technical_confirmed_snapshot_cache_store_v69392",
         key=cache_key[:16],
@@ -97738,7 +98023,7 @@ def _technical_confirmed_topic_index_v69395(state):
                 if cached:
                     cache_state["entries"].pop(cache_key, None)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_confirmed_topic_index_v69395@L97740")
 
     started = time.perf_counter()
     snapshot = _technical_confirmed_snapshot_v69387(state)
@@ -97877,7 +98162,7 @@ def _technical_confirmed_topic_index_v69395(state):
                 )
                 entries.pop(oldest, None)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_confirmed_topic_index_v69395@L97879")
     diagnostic_log(
         "technical_topic_index_built_v69395",
         key=cache_key[:16],
@@ -98918,11 +99203,11 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
         try:
             score += int(meta.get("data-atp-first-response-priority") or 0)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_confirmed_package_exact_images_v69382@L98920")
         try:
             score += int(meta.get("data-atp-priority") or payload.get("atp_priority_v69178") or 0)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_confirmed_package_exact_images_v69382@L98924")
         # For audio, the two installation/routing images are the intended first response.
         # Secondary replacement/amp diagnostics cannot outrank them.
         ranked.append((score, role, payload))
@@ -99632,7 +99917,7 @@ def _product_library_clear_read_caches():
     try:
         _product_library_asset_data_url.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_product_library_clear_read_caches@L99634")
 
 
 def _product_library_fact_lookup(prompt):
@@ -101930,7 +102215,7 @@ def render_admin_latest_learned_fragment():
                     try:
                         _admin_learned_records_view_cached.clear()
                     except Exception:
-                        pass
+                        _observe_silent_exception_v69451("render_admin_latest_learned_fragment@L101932")
                     st.session_state[learned_page_key] = min(
                         current_learned_page, remaining_pages,
                     )
@@ -102675,7 +102960,7 @@ def _graphic_style_row_profile(row):
                 if isinstance(parsed, list):
                     paths.extend(str(x).strip() for x in parsed if str(x).strip())
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_style_row_profile@L102677")
     if not paths:
         match = re.search(r"Image Storage Path:\s*([^\n]+)", solution, flags=re.I)
         if match and match.group(1).strip():
@@ -103052,7 +103337,7 @@ def render_graphic_intelligence_center():
             try:
                 quality_scores.append(float(review.get("product_accuracy_score")))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("render_graphic_intelligence_center@L103054")
         st.write(f"**Workflow usage:** Standard {workflow_counts['standard']} · Cleanup {workflow_counts['cleanup']} · Comparison {workflow_counts['comparison']}")
         if quality_scores:
             st.write(f"**Average product-accuracy score:** {round(sum(quality_scores)/len(quality_scores), 1)} / 100")
@@ -103073,6 +103358,7 @@ def render_graphic_intelligence_center():
 
 if (
     assistant == "⚙️ Admin Panel"
+    and str(st.session_state.get("role") or "").strip().lower() == "admin"
     and user_can_access_workspace("admin")
 ):
 
@@ -103790,7 +104076,7 @@ else:
             st.session_state.pop("pending_graphic_regeneration", None)
             diagnostic_log("graphic_v69022_stale_regeneration_blocked_on_manual_entry")
         else:
-            process_pending_graphic_regeneration()
+            _GRAPHIC_V69451_FINAL_PROCESS_PENDING()
 
     st.markdown('<div id="chat-bottom-anchor"></div>', unsafe_allow_html=True)
     if st.session_state.get("scroll_to_bottom"):
@@ -103924,7 +104210,7 @@ else:
         try:
             st.session_state["_workspace_vector_search_turn_cache_v69355"] = {}
         except Exception:
-            pass
+            _observe_silent_exception_v69451("<module>@L103926")
         graphic_early_status_v68865 = None
         if _graphic_v68865_should_show_early_status(
             prompt,
@@ -104112,7 +104398,7 @@ else:
                         expanded=False,
                     )
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L104114")
             _graphic_v68854_rehydrate_project_if_needed()
 
         if assistant == "🎨 Graphic Marketing" and not is_graphic_resume_v68844:
@@ -104127,7 +104413,7 @@ else:
                     try:
                         current_edit_upload_v69319.graphic_role = "supporting"
                     except Exception:
-                        pass
+                        _observe_silent_exception_v69451("<module>@L104129")
                 diagnostic_log("graphic_v69319_current_turn_assets_protected_from_product_authority", upload_count=sum(1 for x in (effective_uploaded_files or []) if str(getattr(x,"type","") or "").casefold().startswith("image/")))
             added_assets_v69319 = remember_graphic_project_assets(
                 effective_uploaded_files,
@@ -104258,18 +104544,38 @@ else:
                 assistant,
             )
         )
-        technical_website_learning_requested_v68870 = bool(
+        technical_website_learning_detected_v69452 = bool(
             technical_website_learning_url_v68870
         )
-
-        explicit_learning_requested = (
+        explicit_learning_detected_v69452 = (
             False
-            if technical_website_learning_requested_v68870
+            if technical_website_learning_detected_v69452
             else detect_explicit_learning_command(
                 interaction_prompt,
                 has_recent_context=bool(st.session_state.get("messages")),
                 has_attachments=bool(effective_uploaded_files),
             )
+        )
+        learning_command_detected_v69452 = bool(
+            technical_website_learning_detected_v69452
+            or explicit_learning_detected_v69452
+        )
+        learning_admin_authorized_v69452 = (
+            _learning_admin_authorized_v69452(revalidate=True)
+            if learning_command_detected_v69452
+            else False
+        )
+        explicit_learning_access_denied_v69452 = bool(
+            learning_command_detected_v69452
+            and not learning_admin_authorized_v69452
+        )
+        technical_website_learning_requested_v68870 = bool(
+            technical_website_learning_detected_v69452
+            and learning_admin_authorized_v69452
+        )
+        explicit_learning_requested = bool(
+            explicit_learning_detected_v69452
+            and learning_admin_authorized_v69452
         )
         learning_context_snapshot = (
             recent_learning_conversation_context(max_messages=8)
@@ -104277,12 +104583,11 @@ else:
             else ""
         )
 
-        # Explicit learning is a storage workflow, not a product-library lookup.
-        # A long pasted knowledge block may contain model numbers that would
-        # otherwise trigger unrelated product photos and attach them to the AI
-        # acknowledgement. Keep the uploaded evidence, but suppress automatic
-        # Product Library enrichment for this turn.
-        if explicit_learning_requested:
+        # v69452: every explicit durable-learning command is routed as a storage
+        # workflow even when authorization is denied. This prevents a denied
+        # "learn and save" message from falling through into product lookup,
+        # provider generation, Graphic style saving, or another learning path.
+        if learning_command_detected_v69452:
             product_library_lookup = None
             product_library_images = []
 
@@ -104329,7 +104634,7 @@ else:
                 try:
                     st.session_state.messages[-1]["content"] = user_content_to_save
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L104331")
 
             # v69226: immediate acknowledgement. Presentation-only. For v69381
             # text-only turns the placeholder is already on-screen; other paths use
@@ -104505,7 +104810,7 @@ else:
                 if early_loading_status_placeholder_v69226 is not None:
                     early_loading_status_placeholder_v69226.empty()
             except Exception:
-                pass
+                _observe_silent_exception_v69451("<module>@L104507")
 
             direct_content_v69388 = (
                 direct_answer_v69388
@@ -104644,7 +104949,7 @@ else:
                     if early_loading_status_placeholder_v69226 is not None:
                         early_loading_status_placeholder_v69226.empty()
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L104646")
 
                 visual_content_v69393 = (
                     visual_answer_v69393
@@ -104718,7 +105023,7 @@ else:
                 if early_loading_status_placeholder_v69226 is not None:
                     early_loading_status_placeholder_v69226.empty()
             except Exception:
-                pass
+                _observe_silent_exception_v69451("<module>@L104720")
 
             assistant_content_v69380 = terminal_answer_v69380
             st.session_state.messages.append({
@@ -104771,7 +105076,7 @@ else:
                     "Checking generation intent and project readiness..."
                 )
             except Exception:
-                pass
+                _observe_silent_exception_v69451("<module>@L104773")
         diagnostic_log(
             "command_preflight_ready_v68864",
             workspace=str(assistant),
@@ -104783,13 +105088,10 @@ else:
             upload_count=len(effective_uploaded_files or []),
         )
 
-        # A staff command such as "learn this and save this" must take
-        # precedence over every content detector. The pasted material can
-        # legitimately mention PDF, document, weather, order numbers, product
-        # models, compatibility, or other trigger words; none of those should
-        # launch a document export, live integration, workspace tool, vector
-        # search, or product-library enrichment during the learning turn.
-        if explicit_learning_requested:
+        # v69452: an explicit learning command takes precedence over every
+        # content detector whether it is authorized or denied. A denied command
+        # must fail closed instead of falling through to another tool/provider.
+        if learning_command_detected_v69452:
             execution_plan = {
                 **execution_plan,
                 "document": None,
@@ -104798,7 +105100,11 @@ else:
                 "workspace": {"type": "none"},
                 "response_mode": {
                     "type": "complete_standard",
-                    "label": "Learning Confirmation",
+                    "label": (
+                        "Learning Confirmation"
+                        if learning_admin_authorized_v69452
+                        else "Admin Authorization Required"
+                    ),
                 },
                 "use_file_search": False,
             }
@@ -105305,7 +105611,7 @@ else:
                         expanded=False,
                     )
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L105307")
             graphic_early_status_v68865 = None
         is_graphic_project_ready_ack = bool(
             assistant == "🎨 Graphic Marketing"
@@ -105494,7 +105800,26 @@ else:
         previous_response_export_requested = False
         direct_document_export_requested = False
 
-        if is_graphic_reference_learning:
+        if explicit_learning_access_denied_v69452:
+            response_start_time = time.time()
+            answer = (
+                "Learn and save is restricted to administrator accounts. "
+                "No shared knowledge was saved or changed."
+            )
+            diagnostic_log(
+                "learning_command_blocked_non_admin_v69452",
+                role=str(st.session_state.get("role") or "").strip().lower() or "none",
+                workspace=str(assistant),
+                website_learning=bool(technical_website_learning_detected_v69452),
+            )
+            response_time = round(time.time() - response_start_time, 2)
+            tokens_used = None
+            render_chat_message(
+                "assistant",
+                answer,
+                message_index=len(st.session_state.messages),
+            )
+        elif is_graphic_reference_learning:
             response_start_time = time.time()
             try:
                 with st.spinner("Analyzing and saving reference style..."):
@@ -105566,11 +105891,11 @@ else:
         ):
             response_start_time = time.time()
             website_chat_images_v68870 = []
-            if str(st.session_state.get("role") or "").strip().lower() != "admin":
+            if not learning_admin_authorized_v69452:
                 answer = (
                     "Website learning changes the shared Technical Support knowledge base, "
-                    "so this command is restricted to admin accounts. Please use an admin "
-                    "account or submit the page through Admin Panel → Upload Knowledge."
+                    "so this command is restricted to administrator accounts. "
+                    "No shared knowledge was saved or changed."
                 )
             else:
                 try:
@@ -105703,7 +106028,7 @@ else:
                         ).hexdigest()
                     )
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L105705")
             project_before_generation_v68837 = get_graphic_project_state()
             switch_v68837 = dict(
                 project_before_generation_v68837.get(
@@ -105796,7 +106121,7 @@ else:
                 try:
                     graphic_early_status_v68865.empty()
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L105798")
                 graphic_early_status_v68865 = None
 
             _graphic_v68874_release_transient_memory("before_graphic_generation")
@@ -105835,7 +106160,7 @@ else:
             followup_interruption_retry_exhausted_v69317 = False
             try:
                 with _heavy_work_guard_v69188("graphic-generation"):
-                    generated_images = generate_graphic_marketing_images(
+                    generated_images = _GRAPHIC_V69451_FINAL_ENGINE(
                         prompt,
                         graphic_generation_files,
                         use_approved_style=graphic_options.get("use_approved_style", True),
@@ -106866,7 +107191,7 @@ else:
                                     unsafe_allow_html=True,
                                 )
                             except Exception:
-                                pass
+                                _observe_silent_exception_v69451("<module>@L106868")
 
                             # Record a safe diagnostic in Streamlit Cloud logs without
                             # exposing request contents, uploaded-file data, or secrets.
@@ -107261,7 +107586,7 @@ else:
                                         product_context_v69156, ""
                                     )
                             except Exception:
-                                pass
+                                _observe_silent_exception_v69451("<module>@L107263")
 
                             # Remove any earlier v69124 sibling context from this request.
                             # v69155 has now hydrated the full exact package and is the
@@ -107278,7 +107603,7 @@ else:
                                         "\n\n" + prior_variant_context_v69124, ""
                                     ).replace(prior_variant_context_v69124, "")
                             except Exception:
-                                pass
+                                _observe_silent_exception_v69451("<module>@L107280")
 
                             # Persist exact structural provenance for rerun/history.
                             st.session_state["_technical_last_section_authority_v69142"] = {
@@ -109112,7 +109437,7 @@ else:
                                     unsafe_allow_html=True,
                                 )
                             except Exception:
-                                pass
+                                _observe_silent_exception_v69451("<module>@L109114")
 
                             # Record a safe diagnostic in Streamlit Cloud logs without
                             # exposing request contents, uploaded-file data, or secrets.
@@ -110566,7 +110891,7 @@ else:
             try:
                 technical_image_prefetch_executor_active_v69015.shutdown(wait=False)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("<module>@L110568")
 
         # Product Library photos are stored with the assistant message just like
         # uploaded/generated images. This keeps them visible after Streamlit
@@ -111037,6 +111362,7 @@ else:
             not is_woocommerce_request
             and not is_graphic_reference_learning
             and not technical_website_learning_requested_v68870
+            and not explicit_learning_access_denied_v69452
         ):
             queue_ai_postprocess(
                 interaction_prompt,
@@ -111077,7 +111403,7 @@ else:
                     cancel_futures=False,
                 )
             except Exception:
-                pass
+                _observe_silent_exception_v69451("<module>@L111079")
 
         st.session_state.scroll_to_bottom = True
         diagnostic_log(
