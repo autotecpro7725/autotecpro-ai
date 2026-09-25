@@ -96,8 +96,8 @@
 # AutoTecPro AI v69454
 # Scope: learning durability / transactional consistency / attachment authority hardening.
 # Protected Graphic generation, Technical answering, Sales retrieval, Marketing, Auth and UI behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69454"
-AUTOTECPRO_RELEASE_BUILD = "v69454-learning-transaction-durability-hardening-20260925"
+AUTOTECPRO_RELEASE_VERSION = "v69455"
+AUTOTECPRO_RELEASE_BUILD = "v69455-woocommerce-broad-catalog-completeness-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -71355,6 +71355,93 @@ def _workspace_sales_woocommerce_package_v69413(product):
     }
 
 
+def _workspace_sales_merge_full_scan_completeness_v69455(
+    products_by_id,
+    requested_years,
+):
+    """Supplement non-empty Woo search results with year-matching full-catalog rows.
+
+    Woo search endpoints are token/title based and can return a non-empty but
+    incomplete result set. AutoTecPro product titles can intentionally omit a
+    supported sibling model while the exact current product description carries
+    authoritative ``data-atp-*`` compatibility metadata. A search for that omitted
+    model therefore cannot discover the product at all.
+
+    v69455 keeps the fast family search, then merges only storefront-visible full-
+    catalog products whose identity year range contains every requested year. The
+    existing package builder and exact semantic family gate remain authoritative for
+    model fitment, so this step broadens discovery candidates without broadening
+    compatibility authority. The Store API scan is already bounded and cached.
+    """
+    merged_v69455 = {
+        str(key): dict(value)
+        for key, value in dict(products_by_id or {}).items()
+        if str(key).strip() and isinstance(value, dict)
+    }
+    requested_years_v69455 = {
+        int(x) for x in (requested_years or []) if str(x).isdigit()
+    }
+
+    full_scan_v69455 = _workspace_sales_woocommerce_store_api_full_scan_v69415()
+    if str(full_scan_v69455.get("status") or "") != "ok":
+        diagnostic_log(
+            "workspace_sales_woo_completeness_scan_unavailable_v69455",
+            reason=str(full_scan_v69455.get("reason") or "")[:240],
+            existing_products=len(merged_v69455),
+        )
+        return merged_v69455
+
+    scanned_v69455 = 0
+    year_candidates_v69455 = 0
+    added_v69455 = 0
+    for product_v69455 in full_scan_v69455.get("products") or []:
+        if not isinstance(product_v69455, dict):
+            continue
+        scanned_v69455 += 1
+        product_id_v69455 = str(
+            product_v69455.get("id")
+            or product_v69455.get("permalink")
+            or product_v69455.get("slug")
+            or ""
+        ).strip()
+        if not product_id_v69455 or product_id_v69455 in merged_v69455:
+            continue
+
+        identity_v69455 = " ".join([
+            str(product_v69455.get("name") or ""),
+            str(product_v69455.get("slug") or ""),
+            str(product_v69455.get("permalink") or ""),
+        ])
+        identity_years_v69455 = {
+            int(x)
+            for x in (_workspace_sales_woocommerce_years_v69413(identity_v69455) or [])
+            if str(x).isdigit()
+        }
+        if (
+            requested_years_v69455
+            and (
+                not identity_years_v69455
+                or not requested_years_v69455.issubset(identity_years_v69455)
+            )
+        ):
+            continue
+
+        year_candidates_v69455 += 1
+        merged_v69455[product_id_v69455] = dict(product_v69455)
+        added_v69455 += 1
+
+    diagnostic_log(
+        "workspace_sales_woo_completeness_scan_v69455",
+        requested_years=sorted(requested_years_v69455),
+        scanned_products=scanned_v69455,
+        year_candidates=year_candidates_v69455,
+        added_products=added_v69455,
+        merged_products=len(merged_v69455),
+        pages=int(full_scan_v69455.get("pages") or 0),
+    )
+    return merged_v69455
+
+
 @st.cache_data(ttl=90, max_entries=128, show_spinner=False)
 def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
     """Authoritative broad Sales catalog from current published WooCommerce products."""
@@ -71394,6 +71481,14 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
             product_id = str(product.get("id") or product.get("permalink") or product.get("slug") or "")
             if product_id:
                 products_by_id[product_id] = dict(product)
+
+    # v69455: a non-empty Woo family search is not proof of completeness.
+    # Merge bounded/cached storefront rows for the requested year, then let the
+    # unchanged semantic family + product-kind gates decide exact membership.
+    products_by_id = _workspace_sales_merge_full_scan_completeness_v69455(
+        products_by_id,
+        years,
+    )
 
     if failures and not products_by_id:
         reason = str((failures[0] or {}).get("reason") or "woocommerce_catalog_unavailable")
