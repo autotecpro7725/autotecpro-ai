@@ -93,7 +93,7 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69467
+# AutoTecPro AI v69468
 # Scope: harden the next-inquiry draft bridge after a source-level audit of Streamlit 1.61.
 # Native submit_mode="disable" remains the authoritative turn serializer. The prepared second
 # inquiry now lives in a body-level fixed overlay outside Streamlit/React's managed chat-input
@@ -102,8 +102,8 @@
 # React-aware value injection plus post-transfer verification/retry before the draft overlay is
 # retired. Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce, image-authority,
 # product-fitment, voice, and completed-answer persistence behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69467"
-AUTOTECPRO_RELEASE_BUILD = "v69467-dual-slot-next-inquiry-transaction-20260925"
+AUTOTECPRO_RELEASE_VERSION = "v69468"
+AUTOTECPRO_RELEASE_BUILD = "v69468-voice-safe-dual-slot-composer-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -6340,24 +6340,24 @@ def _install_composer_top_left_fallback_v69459():
     )
 
 
-def _install_chat_turn_guard_v69467():
-    """Keep submitted and next-draft inquiries in separate browser-side slots.
+def _install_chat_turn_guard_v69468():
+    """Install the v69468 transactional composer + voice compatibility controller.
 
-    v69467 fixes the overlap defect reproduced in production after v69466: a single
-    sessionStorage value represented both the inquiry being submitted and the inquiry
-    the user was already typing behind it.  When the next native run was acknowledged,
-    clearing the submitted value could therefore collide with the newly typed draft.
+    v69468 keeps the v69467 dual-slot draft/pending model and hardens every browser
+    boundary that can race with Streamlit's controlled chat widget:
+      * the editable next inquiry lives in DRAFT_KEY;
+      * the submitted-but-not-yet-acknowledged inquiry lives in PENDING_KEY;
+      * pending acknowledgement requires Streamlit's *native* disabled transition,
+        never the Python fallback busy flag;
+      * a failed submission is never discarded when a newer draft already exists;
+      * send interception is limited to actual send controls;
+      * the custom microphone is never disabled by the draft bridge and speech is
+        routed to the visible editor (overlay while busy/drafting, native input when idle).
 
-    The state machine is now transactional and dual-slot:
-      * DRAFT_KEY: editable next inquiry only.
-      * PENDING_KEY: immutable inquiry that has been handed to Streamlit but is not yet
-        acknowledged by a new native run.
-
-    On submit, the current draft is atomically MOVED to PENDING_KEY and the overlay is
-    cleared immediately for the following inquiry.  A later busy/run acknowledgement
-    clears only PENDING_KEY; it never touches the new draft.  If submission fails, the
-    pending inquiry is restored only when the draft slot is still empty, so neither turn
-    can erase the other.
+    The last item fixes the v69467 voice regression: the legacy voice controller always
+    wrote speech into Streamlit's native textarea, while v69467 could place a body-level
+    draft textarea over it and also disabled the mic during an active response.  Speech
+    therefore went into a hidden editor or the microphone became unclickable.
     """
     _run_invisible_trusted_browser_script_v69453(
         r"""
@@ -6365,17 +6365,20 @@ def _install_chat_turn_guard_v69467():
         (() => {
           const root = window;
           const doc = document;
-          const GLOBAL_KEY = "__atpChatTurnGuardV69467";
-          const PY_BUSY_KEY = "__atpChatTurnGuardPendingV69467";
-          const DRAFT_KEY = "__atpChatPreparedDraftV69467";
-          const PENDING_SUBMIT_KEY = "__atpChatPendingSubmitV69467";
+          const GLOBAL_KEY = "__atpChatTurnGuardV69468";
+          const PY_BUSY_KEY = "__atpChatTurnGuardPendingV69468";
+          const DRAFT_KEY = "__atpChatPreparedDraftV69468";
+          const PENDING_SUBMIT_KEY = "__atpChatPendingSubmitV69468";
           const LEGACY_DRAFT_KEYS = [
+            "__atpChatPreparedDraftV69467",
             "__atpChatPreparedDraftV69466",
             "__atpChatPreparedDraftV69465",
             "__atpChatPreparedDraftV69464",
             "__atpChatPreparedDraftV69463"
           ];
-          const OVERLAY_ID = "atp-next-inquiry-draft-v69467";
+          const OVERLAY_ID = "atp-next-inquiry-draft-v69468";
+          const VOICE_ID = "atp-browser-voice-dictation";
+          const SEND_PROXY_ID = "atp-send-proxy";
           const STORAGE_TTL_MS = 30 * 60 * 1000;
           const SUBMIT_ACK_TIMEOUT_MS = 4500;
 
@@ -6388,27 +6391,23 @@ def _install_chat_turn_guard_v69467():
             return (
               container.querySelector('textarea[data-testid="stChatInputTextArea"]') ||
               [...container.querySelectorAll("textarea")].find(
-                (node) => node.id !== OVERLAY_ID && !node.classList.contains("atp-next-inquiry-draft-v69467")
+                (node) => node.id !== OVERLAY_ID && !node.classList.contains("atp-next-inquiry-draft-v69468")
               ) || null
             );
           }
 
-          function sendButton(container = composer()) {
+          function nativeSend(container = composer()) {
             if (!container) return null;
-            const candidates = [
-              container.querySelector('button[data-testid="stChatInputSubmitButton"]'),
-              container.querySelector('button[type="submit"]'),
-              doc.getElementById("atp-send-proxy"),
-              ...container.querySelectorAll("button")
-            ].filter(Boolean);
-            for (const button of candidates) {
-              if (button.id === "atp-browser-voice-dictation") continue;
-              const label = `${button.getAttribute("aria-label") || ""} ${button.title || ""}`.toLowerCase();
-              if (label.includes("voice") || label.includes("microphone") || label.includes("record")) continue;
-              return button;
-            }
-            return null;
+            return (
+              container.querySelector('button[data-testid="stChatInputSubmitButton"]') ||
+              [...container.querySelectorAll('button[type="submit"]')].find(
+                (button) => button.id !== VOICE_ID && button.id !== SEND_PROXY_ID
+              ) || null
+            );
           }
+
+          function sendProxy() { return doc.getElementById(SEND_PROXY_ID); }
+          function voiceButton() { return doc.getElementById(VOICE_ID); }
 
           function readRecord(key) {
             try {
@@ -6457,10 +6456,9 @@ def _install_chat_turn_guard_v69467():
           function overlay() { return doc.getElementById(OVERLAY_ID); }
           function removeOverlay() { try { overlay()?.remove(); } catch (error) {} }
 
-          function nativeDisabled(input = nativeInput()) {
+          function nativeRunBusy(input = nativeInput()) {
             if (!input) return false;
-            const c = composer();
-            const button = sendButton(c);
+            const button = nativeSend();
             return Boolean(
               input.disabled || input.getAttribute("aria-disabled") === "true" ||
               input.closest('[aria-disabled="true"]') ||
@@ -6503,25 +6501,21 @@ def _install_chat_turn_guard_v69467():
             } catch (error) {}
           }
 
-          function restoreMic() {
-            const mic = doc.getElementById("atp-browser-voice-dictation");
-            if (!mic || mic.dataset.atpDraftBridgeDisabledV69467 !== "true") return;
-            try {
-              delete mic.dataset.atpDraftBridgeDisabledV69467;
-              mic.style.removeProperty("pointer-events");
-              mic.style.removeProperty("opacity");
-              mic.setAttribute("title", "Voice dictation");
-            } catch (error) {}
-          }
-
-          function disableMic() {
-            const mic = doc.getElementById("atp-browser-voice-dictation");
+          function forceMicUsable() {
+            const mic = voiceButton();
             if (!mic) return;
             try {
-              mic.dataset.atpDraftBridgeDisabledV69467 = "true";
-              mic.style.setProperty("pointer-events", "none", "important");
-              mic.style.setProperty("opacity", "0.45", "important");
-              mic.setAttribute("title", "Voice input is available when the current response finishes");
+              for (const key of Object.keys(mic.dataset || {})) {
+                if (key.toLowerCase().includes("draftbridgedisabled")) delete mic.dataset[key];
+              }
+              mic.disabled = false;
+              mic.removeAttribute("aria-disabled");
+              mic.style.removeProperty("pointer-events");
+              mic.style.removeProperty("opacity");
+              if (!state.voiceListening) {
+                mic.setAttribute("title", "Voice dictation");
+                mic.setAttribute("aria-label", "Start voice dictation");
+              }
             } catch (error) {}
           }
 
@@ -6547,7 +6541,7 @@ def _install_chat_turn_guard_v69467():
           }
 
           function restoreLegacyArtifacts() {
-            for (const version of ["V69466","V69465","V69464","V69463","V69462"]) {
+            for (const version of ["V69467","V69466","V69465","V69464","V69463","V69462"]) {
               try {
                 const controller = root[`__atpChatTurnGuard${version}`];
                 if (controller && typeof controller.cleanup === "function") controller.cleanup();
@@ -6556,7 +6550,8 @@ def _install_chat_turn_guard_v69467():
               } catch (error) {}
             }
             for (const id of [
-              "atp-next-inquiry-draft-v69466","atp-next-inquiry-draft-v69465","atp-next-inquiry-draft-v69464"
+              "atp-next-inquiry-draft-v69467","atp-next-inquiry-draft-v69466",
+              "atp-next-inquiry-draft-v69465","atp-next-inquiry-draft-v69464"
             ]) {
               try { doc.getElementById(id)?.remove(); } catch (error) {}
             }
@@ -6584,11 +6579,13 @@ def _install_chat_turn_guard_v69467():
             submitToken:0,
             pendingStartedAt:0,
             lastClickAt:0,
-            lastBusy:false,
+            voiceRecognition:null,
+            voiceListening:false,
+            voiceIdleHtml:"",
           };
 
           function effectiveBusy(input = nativeInput()) {
-            return Boolean(state.pythonBusy || nativeDisabled(input));
+            return Boolean(state.pythonBusy || nativeRunBusy(input));
           }
 
           function ensureOverlay(input) {
@@ -6597,7 +6594,7 @@ def _install_chat_turn_guard_v69467():
             if (!draft) {
               draft = doc.createElement("textarea");
               draft.id = OVERLAY_ID;
-              draft.className = "atp-next-inquiry-draft-v69467";
+              draft.className = "atp-next-inquiry-draft-v69468";
               draft.setAttribute("aria-label", "Next inquiry draft");
               draft.setAttribute("autocomplete", "off");
               draft.setAttribute("spellcheck", "true");
@@ -6609,7 +6606,7 @@ def _install_chat_turn_guard_v69467():
                 "z-index":"2147483000","pointer-events":"auto","opacity":"1","margin":"0"
               })) draft.style.setProperty(k,v,"important");
               copyTextareaVisuals(input,draft);
-              const persist = () => writeDraft(String(draft.value || ""));
+              const persist = () => { writeDraft(String(draft.value || "")); scheduleApply(); };
               draft.addEventListener("input", persist);
               draft.addEventListener("change", persist);
               draft.addEventListener("compositionend", persist);
@@ -6629,30 +6626,161 @@ def _install_chat_turn_guard_v69467():
             return draft;
           }
 
-          function acknowledgePendingIfBusy(input) {
+          function acknowledgePendingIfNativeBusy(input) {
             const pending = readPending();
-            if (!pending) return false;
-            if (!effectiveBusy(input)) return false;
+            if (!pending || !state.pendingStartedAt) return false;
+            if (!nativeRunBusy(input)) return false;
             clearPending();
             state.pendingStartedAt = 0;
             state.submitToken += 1;
             return true;
           }
 
-          function restoreFailedPendingIfNeeded() {
+          function activeVoiceEditor() {
+            const input = nativeInput();
+            if (!input) return null;
+            const draftValue = readDraft();
+            const pendingValue = readPending();
+            if (effectiveBusy(input) || draftValue || pendingValue || overlay()) return ensureOverlay(input);
+            return input;
+          }
+
+          function persistVoiceValue(editor, value) {
+            const next = String(value || "");
+            if (!editor) return;
+            if (editor.id === OVERLAY_ID) {
+              editor.value = next;
+              writeDraft(next);
+              try { editor.dispatchEvent(new Event("input", {bubbles:true})); } catch (error) {}
+            } else {
+              setReactValue(editor, next);
+            }
+          }
+
+          function resetIntegratedVoice(button = voiceButton()) {
+            state.voiceListening = false;
+            state.voiceRecognition = null;
+            if (!button) return;
+            try {
+              button.classList.remove("listening");
+              if (state.voiceIdleHtml) button.innerHTML = state.voiceIdleHtml;
+              button.setAttribute("title", "Voice dictation");
+              button.setAttribute("aria-label", "Start voice dictation");
+            } catch (error) {}
+          }
+
+          function onVoiceClickCapture(event) {
+            const target = event.target?.closest?.(`#${VOICE_ID}`);
+            if (!target) return;
+            const SpeechRecognition = root.SpeechRecognition || root.webkitSpeechRecognition;
+            if (!SpeechRecognition) return; // let the legacy controller show its unsupported message
+
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation?.();
+            forceMicUsable();
+
+            if (state.voiceListening && state.voiceRecognition) {
+              try { state.voiceRecognition.stop(); } catch (error) {}
+              return;
+            }
+
+            const editor = activeVoiceEditor();
+            if (!editor) return;
+            try {
+              const recognition = new SpeechRecognition();
+              state.voiceRecognition = recognition;
+              recognition.continuous = false;
+              recognition.interimResults = true;
+              recognition.maxAlternatives = 1;
+              recognition.lang = doc.documentElement.lang || root.navigator.language || "en-US";
+              let committed = String(editor.value || "").trim();
+              state.voiceIdleHtml = target.innerHTML || state.voiceIdleHtml;
+
+              recognition.onstart = () => {
+                state.voiceListening = true;
+                try {
+                  target.classList.add("listening");
+                  target.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>';
+                  target.setAttribute("title", "Listening — tap to stop");
+                  target.setAttribute("aria-label", "Stop voice dictation");
+                } catch (error) {}
+              };
+
+              recognition.onresult = (resultEvent) => {
+                let interim = "";
+                let finalText = "";
+                for (let i = resultEvent.resultIndex; i < resultEvent.results.length; i += 1) {
+                  const transcript = resultEvent.results[i][0].transcript;
+                  if (resultEvent.results[i].isFinal) finalText += transcript;
+                  else interim += transcript;
+                }
+                const prefix = committed ? committed + " " : "";
+                const next = (prefix + finalText + interim).trimStart();
+                persistVoiceValue(editor, next);
+                if (finalText) committed = (prefix + finalText).trim();
+                scheduleApply();
+              };
+              recognition.onerror = () => {};
+              recognition.onend = () => { resetIntegratedVoice(target); scheduleApply(); };
+              recognition.start();
+            } catch (error) {
+              resetIntegratedVoice(target);
+            }
+          }
+
+          function attemptPendingSubmit(token, n=0) {
+            if (token !== state.submitToken) return;
             const pending = readPending();
             if (!pending) return;
+            const currentInput = nativeInput();
+            if (!currentInput) return;
+            if (nativeRunBusy(currentInput)) {
+              acknowledgePendingIfNativeBusy(currentInput);
+              scheduleApply();
+              return;
+            }
+            if (state.pythonBusy) return;
+            setReactValue(currentInput, pending);
+            const button = nativeSend();
+            if (String(currentInput.value || "") === pending && button && !button.disabled && button.getAttribute("aria-disabled") !== "true") {
+              if (!state.lastClickAt || Date.now() - state.lastClickAt >= 700) {
+                state.lastClickAt = Date.now();
+                try { state.internalClick = true; button.click(); }
+                catch (error) {}
+                finally { state.internalClick = false; }
+              }
+            } else if (String(currentInput.value || "") === pending && !button) {
+              try { currentInput.dispatchEvent(new KeyboardEvent("keydown", {key:"Enter",code:"Enter",bubbles:true,cancelable:true})); }
+              catch (error) {}
+            }
+            if (n < 14) {
+              const delays=[16,32,60,100,160,240,360,500,700,900,1200,1500,1800,2200,2600];
+              root.setTimeout(()=>attemptPendingSubmit(token,n+1),delays[Math.min(n,delays.length-1)]);
+            }
+          }
+
+          function recoverOrRetryFailedPending() {
+            const pending = readPending();
+            if (!pending || !state.pendingStartedAt) return;
             if (Date.now() - Number(state.pendingStartedAt || 0) < SUBMIT_ACK_TIMEOUT_MS) return;
-            if (effectiveBusy(nativeInput())) return;
+            if (nativeRunBusy(nativeInput()) || state.pythonBusy) return;
             const currentDraft = readDraft();
             if (!currentDraft) {
               writeDraft(pending);
+              clearPending();
+              state.pendingStartedAt = 0;
+              state.submitToken += 1;
               const d = ensureOverlay(nativeInput());
               if (d) d.value = pending;
+              return;
             }
-            clearPending();
-            state.pendingStartedAt = 0;
-            state.submitToken += 1;
+            // Never discard PENDING merely because the user already typed the following turn.
+            // Keep the immutable submitted inquiry and retry it independently of the newer draft.
+            state.pendingStartedAt = Date.now();
+            state.lastClickAt = 0;
+            const token = ++state.submitToken;
+            root.requestAnimationFrame(()=>attemptPendingSubmit(token,0));
           }
 
           function submitPreparedDraft() {
@@ -6662,66 +6790,57 @@ def _install_chat_turn_guard_v69467():
             const value = String(draftNode?.value || readDraft() || "");
             if (!value.trim()) return false;
 
-            // Transaction boundary: submitted inquiry and following draft become separate slots.
             writePending(value);
             clearDraft();
             if (draftNode) draftNode.value = "";
             state.pendingStartedAt = Date.now();
             state.lastClickAt = 0;
             const token = ++state.submitToken;
-
-            const attempt = (n=0) => {
-              if (token !== state.submitToken) return;
-              const pending = readPending();
-              if (!pending) return;
-              const currentInput = nativeInput();
-              if (!currentInput) return;
-              if (effectiveBusy(currentInput)) {
-                acknowledgePendingIfBusy(currentInput);
-                scheduleApply();
-                return;
-              }
-              setReactValue(currentInput, pending);
-              const button = sendButton();
-              if (String(currentInput.value || "") === pending && button && !button.disabled && button.getAttribute("aria-disabled") !== "true") {
-                if (!state.lastClickAt || Date.now() - state.lastClickAt >= 700) {
-                  state.lastClickAt = Date.now();
-                  try { state.internalClick = true; button.click(); }
-                  catch (error) {}
-                  finally { state.internalClick = false; }
-                }
-              } else if (String(currentInput.value || "") === pending && !button) {
-                try { currentInput.dispatchEvent(new KeyboardEvent("keydown", {key:"Enter",code:"Enter",bubbles:true,cancelable:true})); }
-                catch (error) {}
-              }
-              if (n < 14) {
-                const delays=[16,32,60,100,160,240,360,500,700,900,1200,1500,1800,2200,2600];
-                root.setTimeout(()=>attempt(n+1),delays[Math.min(n,delays.length-1)]);
-              }
-            };
-            root.requestAnimationFrame(()=>attempt(0));
+            root.requestAnimationFrame(()=>attemptPendingSubmit(token,0));
             scheduleApply();
             return true;
+          }
+
+          function isActualSendControl(target) {
+            if (!target) return false;
+            if (target.id === SEND_PROXY_ID) return true;
+            if (target.matches?.('button[data-testid="stChatInputSubmitButton"]')) return true;
+            if (target.matches?.('button[type="submit"]') && target.id !== VOICE_ID) return true;
+            return false;
+          }
+
+          function syncProxyState(busy, draftValue, pendingValue) {
+            const proxy = sendProxy();
+            if (!proxy) return;
+            const ownsDraftFlow = Boolean(overlay() || draftValue || pendingValue || busy);
+            if (!ownsDraftFlow) return; // legacy controller owns normal native-input state
+            const enabled = Boolean(!busy && !pendingValue && String(draftValue || "").trim());
+            try {
+              proxy.disabled = !enabled;
+              proxy.setAttribute("aria-disabled", enabled ? "false" : "true");
+              proxy.setAttribute("title", enabled ? "Send message" : (busy ? "Wait for the current response to finish" : "Send message"));
+            } catch (error) {}
           }
 
           function apply() {
             state.scheduled=false;
             const input=nativeInput();
             if (!input) return;
-            const busy=effectiveBusy(input);
-            if (busy) acknowledgePendingIfBusy(input);
-            else restoreFailedPendingIfNeeded();
+            const nativeBusy=nativeRunBusy(input);
+            const busy=Boolean(state.pythonBusy || nativeBusy);
+            if (nativeBusy) acknowledgePendingIfNativeBusy(input);
+            else recoverOrRetryFailedPending();
 
             const draftValue=readDraft();
             const pendingValue=readPending();
             if (busy || draftValue || pendingValue) {
               const d=ensureOverlay(input);
               if (d && doc.activeElement !== d && String(d.value || "") !== draftValue) d.value=draftValue;
-              if (busy) disableMic(); else restoreMic();
             } else {
-              removeOverlay(); restoreMic();
+              removeOverlay();
             }
-            state.lastBusy=busy;
+            forceMicUsable();
+            syncProxyState(busy,draftValue,pendingValue);
           }
 
           function scheduleApply() {
@@ -6732,22 +6851,21 @@ def _install_chat_turn_guard_v69467():
 
           function onComposerClickCapture(event) {
             if (state.internalClick) return;
+            const target=event.target?.closest?.("button");
+            if (!target || target.id === VOICE_ID || !isActualSendControl(target)) return;
+            const c=composer();
+            if (!c || !c.contains(target)) return;
             const input=nativeInput();
             if (!input || effectiveBusy(input) || readPending()) return;
             const value=readDraft();
-            if (!value) return;
-            const target=event.target?.closest?.("button");
-            const c=composer();
-            if (!target || !c || !c.contains(target)) return;
-            if (target.id === "atp-browser-voice-dictation") return;
-            const label=`${target.getAttribute("aria-label") || ""} ${target.title || ""}`.toLowerCase();
-            if (label.includes("voice") || label.includes("microphone") || label.includes("record")) return;
+            if (!String(value || "").trim()) return;
             event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
             submitPreparedDraft();
           }
 
           function setPythonBusy(value) { state.pythonBusy=Boolean(value); scheduleApply(); }
 
+          doc.addEventListener("click",onVoiceClickCapture,true);
           doc.addEventListener("click",onComposerClickCapture,true);
           root.addEventListener("resize",scheduleApply,true);
           root.addEventListener("scroll",scheduleApply,true);
@@ -6763,12 +6881,14 @@ def _install_chat_turn_guard_v69467():
           function cleanup() {
             try { state.observer?.disconnect(); } catch (error) {}
             try { root.clearInterval(state.timer); } catch (error) {}
+            try { state.voiceRecognition?.stop?.(); } catch (error) {}
+            try { doc.removeEventListener("click",onVoiceClickCapture,true); } catch (error) {}
             try { doc.removeEventListener("click",onComposerClickCapture,true); } catch (error) {}
             try { root.removeEventListener("resize",scheduleApply,true); } catch (error) {}
             try { root.removeEventListener("scroll",scheduleApply,true); } catch (error) {}
             try { root.visualViewport?.removeEventListener("resize",scheduleApply); } catch (error) {}
             try { root.visualViewport?.removeEventListener("scroll",scheduleApply); } catch (error) {}
-            restoreMic(); removeOverlay();
+            forceMicUsable(); removeOverlay();
           }
 
           root[GLOBAL_KEY]={
@@ -6788,20 +6908,20 @@ def _install_chat_turn_guard_v69467():
     )
 
 
-def _set_chat_composer_busy_v69467(is_busy):
-    """Mirror structured-tool Python lifecycle into the v69467 dual-slot bridge."""
-    busy_js_v69467 = "true" if bool(is_busy) else "false"
+def _set_chat_composer_busy_v69468(is_busy):
+    """Mirror structured-tool Python lifecycle into the v69468 browser controller."""
+    busy_js_v69468 = "true" if bool(is_busy) else "false"
     _run_invisible_trusted_browser_script_v69453(
         f"""
         <script>
         (() => {{
           try {{
             const root = window;
-            const controller = root.__atpChatTurnGuardV69467;
+            const controller = root.__atpChatTurnGuardV69468;
             if (controller && typeof controller.setPythonBusy === "function") {{
-              controller.setPythonBusy({busy_js_v69467});
+              controller.setPythonBusy({busy_js_v69468});
             }} else {{
-              root.__atpChatTurnGuardPendingV69467 = {busy_js_v69467};
+              root.__atpChatTurnGuardPendingV69468 = {busy_js_v69468};
             }}
           }} catch (error) {{}}
         }})();
@@ -106023,16 +106143,16 @@ else:
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
     _install_composer_top_left_fallback_v69459()
-    # v69467: Streamlit 1.61 natively serializes chat submissions with submit_mode="disable".
+    # v69468: Streamlit 1.61 natively serializes chat submissions with submit_mode="disable".
     # The browser bridge overlays a body-level draft textarea only while the native widget
     # is disabled. The draft stays outside Streamlit/React's managed chat subtree, so staff
     # can prepare the next inquiry without exposing that text to widget reconciliation.
-    _install_chat_turn_guard_v69467()
+    _install_chat_turn_guard_v69468()
     # Keep the original stable composer. Attachments remain in the proven managed
     # uploader above, while the normal bottom-right send arrow submits the turn.
     chat_prompt = st.chat_input(
         "Message AutoTecPro AI...",
-        key="atp_chat_input_v69467",
+        key="atp_chat_input_v69468",
         submit_mode="disable",
     )
 
@@ -106150,7 +106270,7 @@ else:
     if not prompt:
         # A controlled rerun after a terminal/direct answer has no new prompt. Ensure
         # any client-side guard inherited from the completed turn is released.
-        _set_chat_composer_busy_v69467(False)
+        _set_chat_composer_busy_v69468(False)
 
     if prompt:
         # For a real st.chat_input submission, Streamlit 1.61 has already entered its
@@ -106159,14 +106279,14 @@ else:
         # could otherwise leave a stale browser-side busy flag after Streamlit correctly
         # re-enables the widget. Keep the Python latch only for structured/tool submissions
         # that did not originate from the native chat input.
-        native_chat_submission_v69467 = bool(chat_prompt)
-        _set_chat_composer_busy_v69467(not native_chat_submission_v69467)
+        native_chat_submission_v69468 = bool(chat_prompt)
+        _set_chat_composer_busy_v69468(not native_chat_submission_v69468)
         diagnostic_log(
-            "chat_native_submit_guard_active_v69467",
+            "chat_native_submit_guard_active_v69468",
             workspace=str(assistant),
             conversation_id=st.session_state.get("conversation_id"),
-            native_chat_submission=native_chat_submission_v69467,
-            python_fallback_busy=not native_chat_submission_v69467,
+            native_chat_submission=native_chat_submission_v69468,
+            python_fallback_busy=not native_chat_submission_v69468,
         )
         command_preflight_started_v68864 = time.perf_counter()
         # v69355: exact-key vector-search memoization is valid for this user turn only.
@@ -106282,8 +106402,8 @@ else:
             )
         except ArchiveValidationError as error:
             st.error(f"ZIP analysis was stopped: {error}")
-            _set_chat_composer_busy_v69467(False)
-            diagnostic_log("chat_native_submit_guard_released_on_archive_error_v69467")
+            _set_chat_composer_busy_v69468(False)
+            diagnostic_log("chat_native_submit_guard_released_on_archive_error_v69468")
             st.stop()
 
         technical_followup_prompt_v68879 = interaction_prompt
@@ -108076,8 +108196,8 @@ else:
             if not lease_token_v68848:
                 diagnostic_log("graphic_v68848_duplicate_execution_blocked", job_id=str(durable_job_v68844.get("job_id") or ""))
                 st.info("This image request is already processing in another session. The result will appear when it completes.")
-                _set_chat_composer_busy_v69467(False)
-                diagnostic_log("chat_native_submit_guard_released_on_graphic_duplicate_v69467")
+                _set_chat_composer_busy_v69468(False)
+                diagnostic_log("chat_native_submit_guard_released_on_graphic_duplicate_v69468")
                 st.stop()
             durable_job_v68844["lease_token_local"] = lease_token_v68848
             current_attempt_v68844 = int(durable_job_v68844.get("attempt") or 0)
@@ -113412,11 +113532,11 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
-        # v69467: keep the Python-side structured-tool bridge busy through final maintenance. Native
+        # v69468: keep the Python-side structured-tool bridge busy through final maintenance. Native
         # Streamlit remains disabled until scriptFinished, so the draft overlay is not
         # transferred back into the real composer until the framework itself declares the
         # run complete.
-        _release_chat_guard_at_script_end_v69467 = True
+        _release_chat_guard_at_script_end_v69468 = True
 
         # v69461: normal text workspaces must not immediately destroy the just-rendered
         # answer/composer DOM. The user-observed production failure happened after the
@@ -114491,14 +114611,14 @@ _render_final_print_authority_v69009()
 # from flashing during Streamlit reruns.
 _finish_auth_transition(_auth_transition_placeholder)
 
-# v69467: release only the Python-side structured-tool signal at the end of the script. Streamlit
+# v69468: release only the Python-side structured-tool signal at the end of the script. Streamlit
 # submit_mode="disable" remains the authoritative lock until the frontend receives
 # scriptFinished. The isolated draft is transferred into the native composer only after
 # that native disabled state clears.
-if bool(locals().get("_release_chat_guard_at_script_end_v69467", False)):
-    _set_chat_composer_busy_v69467(False)
+if bool(locals().get("_release_chat_guard_at_script_end_v69468", False)):
+    _set_chat_composer_busy_v69468(False)
     diagnostic_log(
-        "chat_native_submit_guard_released_v69467",
+        "chat_native_submit_guard_released_v69468",
         workspace=str(locals().get("assistant") or ""),
         conversation_id=st.session_state.get("conversation_id"),
         message_count=len(st.session_state.get("messages", [])),
