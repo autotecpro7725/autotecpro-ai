@@ -93,9 +93,11 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69453
-AUTOTECPRO_RELEASE_VERSION = "v69453"
-AUTOTECPRO_RELEASE_BUILD = "v69453-invisible-browser-script-ui-hardening-20260924"
+# AutoTecPro AI v69454
+# Scope: learning durability / transactional consistency / attachment authority hardening.
+# Protected Graphic generation, Technical answering, Sales retrieval, Marketing, Auth and UI behavior remain unchanged.
+AUTOTECPRO_RELEASE_VERSION = "v69454"
+AUTOTECPRO_RELEASE_BUILD = "v69454-learning-transaction-durability-hardening-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -7502,10 +7504,19 @@ def get_table_columns(table_name):
     # usually present even in older schemas. Optional learning fields are filtered out
     # unless Supabase confirms they exist.
     fallback = {
+        # v69454: this table is a production-owned schema, not an arbitrary external
+        # table. If information_schema RPC is unavailable, preserve the complete
+        # known learning contract instead of silently stripping authoritative fields
+        # such as assistant/vehicle/solution/source_type. Supabase remains the final
+        # schema validator and will fail closed if an installation is genuinely older.
         "learned_knowledge": [
-            "id", "question", "approved_answer", "keywords",
-            "source_conversation_id", "openai_file_id", "vector_store_id",
-            "synced", "created_at"
+            "id", "username", "record_type", "department", "category",
+            "assistant", "vehicle", "issue", "solution", "approved_answer",
+            "question", "keywords", "source_question", "source_answer",
+            "source_conversation_id", "confidence_score", "completeness_score",
+            "times_seen", "times_used", "search_count", "openai_file_id",
+            "vector_store_id", "synced", "embedding_status", "source_type",
+            "staff_confirmed", "approved", "created_by", "created_at", "updated_at"
         ],
         "ai_analytics": [
             "id", "username", "assistant", "vehicle", "issue", "product",
@@ -7531,10 +7542,29 @@ def get_table_columns(table_name):
 
 
 def filter_payload_for_table(table_name, payload):
-    """Remove fields that do not exist in Supabase table to prevent PGRST204 errors."""
+    """Remove optional unknown fields, but never silently strip core learning authority."""
     columns = set(get_table_columns(table_name))
     if not columns:
         return payload
+    if str(table_name) == "learned_knowledge":
+        protected_v69454 = {
+            "assistant", "vehicle", "issue", "solution", "approved_answer",
+            "source_type", "staff_confirmed", "embedding_status",
+            "vector_store_id", "openai_file_id", "updated_at",
+        }
+        missing_v69454 = sorted(
+            key for key in protected_v69454
+            if key in dict(payload or {}) and key not in columns
+        )
+        if missing_v69454:
+            diagnostic_log(
+                "learning_schema_contract_blocked_v69454",
+                missing=",".join(missing_v69454),
+            )
+            raise RuntimeError(
+                "Learning schema verification failed for required fields: "
+                + ", ".join(missing_v69454)
+            )
     return {k: v for k, v in payload.items() if k in columns}
 
 
@@ -48791,13 +48821,23 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
 # ============================================================
 
 def get_learning_vector_store_id(selected_assistant):
+    """Resolve a learning destination fail-closed; never default unknown workspaces to Technical."""
     if is_sales_workspace(selected_assistant):
-        return SALES_VECTOR_STORE_ID
-    if is_marketing_workspace(selected_assistant):
-        return MARKETING_VECTOR_STORE_ID
-    if is_graphic_workspace(selected_assistant):
-        return GRAPHIC_VECTOR_STORE_ID
-    return TECHNICAL_VECTOR_STORE_ID
+        vector_store_id = SALES_VECTOR_STORE_ID
+    elif is_marketing_workspace(selected_assistant):
+        vector_store_id = MARKETING_VECTOR_STORE_ID
+    elif is_graphic_workspace(selected_assistant):
+        vector_store_id = GRAPHIC_VECTOR_STORE_ID
+    elif _normalized_workspace_name(selected_assistant) == "technical support":
+        vector_store_id = TECHNICAL_VECTOR_STORE_ID
+    else:
+        raise RuntimeError(
+            f"Unsupported learning workspace: {clean_assistant_label(selected_assistant) or selected_assistant!s}"
+        )
+    vector_store_id = str(vector_store_id or "").strip()
+    if not vector_store_id.startswith("vs_"):
+        raise RuntimeError("The learning vector store is not configured for this workspace.")
+    return vector_store_id
 
 
 def normalize_text_for_match(value):
@@ -49303,11 +49343,18 @@ def detect_explicit_learning_command(
     if not normalized:
         return False
 
-    # Never mistake deletion/forgetting instructions for a save command.
+    # v69454: never mistake deletion/forgetting instructions for a save command,
+    # while preserving the intentional positive command "don't forget this".
+    deletion_probe_v69454 = re.sub(
+        r"\bdon['’]?t\s+forget\s+(?:this|it)\b",
+        "",
+        normalized,
+        flags=re.IGNORECASE,
+    )
     if re.search(
         r"\b(?:forget|delete|remove|erase)\b.*"
         r"\b(?:knowledge|memory|record|this|it)\b",
-        normalized,
+        deletion_probe_v69454,
     ):
         return False
 
@@ -49423,9 +49470,16 @@ def extract_explicit_learning_payload(prompt_text):
     if not value:
         return ""
     patterns = (
-        r"^\s*(?:please\s+)?learn\s+(?:and\s+save\s+)?this\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?save\s+this\s+(?:to|in)\s+(?:memory|knowledge)\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?remember\s+this\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?learn\s+(?:and\s+save\s+)?(?:this|it)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?teach\s+(?:(?:the\s+ai|autotecpro\s+ai)\s+)?(?:this|it)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?save\s+(?:this|it)(?:\s+permanently|\s+(?:for|to)\s+future\s+(?:reference|use|cases?)|\s+(?:to|in)\s+(?:the\s+)?(?:memory|knowledge(?:\s+base)?|database))?\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?remember\s+(?:this|it)(?:\s+for\s+future\s+(?:reference|use|cases?))?\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?add\s+(?:this|it)\s+to\s+(?:the\s+)?(?:knowledge\s+base|memory|database)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?store\s+(?:this|it)(?:\s+as\s+(?:permanent\s+)?knowledge)?\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?keep\s+(?:this|it)\s+for\s+(?:later|future\s+(?:reference|use|cases?))\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?don['’]?t\s+forget\s+(?:this|it)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?use\s+(?:this|it)\s+for\s+future\s+(?:cases?|reference|support)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?make\s+(?:this|it)\s+(?:permanent|part\s+of\s+(?:the\s+)?knowledge\s+base)\s*[:\-]?\s*",
     )
     cleaned = value
     for pattern in patterns:
@@ -49570,6 +49624,7 @@ def extract_learning_candidate(
     staff_teaching=False,
     conversation_context="",
     explicit_requested=False,
+    learning_attachments=None,
 ):
     """Extract a department-specific professional record without DB schema changes."""
     safe_question = redact_learning_private_data(question)
@@ -49663,10 +49718,36 @@ RECENT CONTEXT:
 {safe_context}
 """
     try:
+        learning_attachment_parts_v69454 = []
+        for attachment_v69454 in (learning_attachments or []):
+            if not isinstance(attachment_v69454, dict):
+                continue
+            image_url_v69454 = str(attachment_v69454.get("image_url") or "").strip()
+            file_id_v69454 = str(attachment_v69454.get("file_id") or "").strip()
+            if image_url_v69454.startswith("data:image/"):
+                learning_attachment_parts_v69454.append({
+                    "type": "input_image",
+                    "image_url": image_url_v69454,
+                })
+            elif file_id_v69454:
+                learning_attachment_parts_v69454.append({
+                    "type": "input_file",
+                    "file_id": file_id_v69454,
+                })
+        if learning_attachment_parts_v69454:
+            response_input_v69454 = [{
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": extraction_prompt},
+                    *learning_attachment_parts_v69454,
+                ],
+            }]
+        else:
+            response_input_v69454 = extraction_prompt
         response = client.responses.create(
             model="gpt-5.5",
             instructions="Return only valid JSON. No markdown.",
-            input=extraction_prompt,
+            input=response_input_v69454,
         )
         data = extract_json_object(response.output_text)
     except Exception:
@@ -49738,7 +49819,21 @@ RECENT CONTEXT:
     minimum_solution_length = 50 if explicit_requested else (
         30 if (staff_confirmed or staff_teaching) else 100
     )
-    if len(solution) < minimum_solution_length or len(safe_question) < 5:
+    # v69454: a body-less explicit command ("save this" / "learn and save this")
+    # intentionally derives authority from the immediately preceding redacted
+    # context or staged attachment. Do not reject it merely because the stripped
+    # command body is empty. Non-explicit learning still requires a real message.
+    explicit_source_present_v69454 = bool(
+        str(safe_question or "").strip()
+        or str(safe_context or "").strip()
+        or list(learning_attachments or [])
+    )
+    if len(solution) < minimum_solution_length:
+        should_learn = False
+    if explicit_requested:
+        if not explicit_source_present_v69454:
+            should_learn = False
+    elif len(safe_question) < 5:
         should_learn = False
     # Ordinary AI-generated drafts are not authoritative enough for permanent
     # learning. Auto Learn is intentionally staff-driven, like a durable company
@@ -49825,7 +49920,7 @@ Source Question:
 {safe_record.get("source_question", "")}
 
 Source Answer:
-{safe_record.get("source_answer", "")}
+{_learning_visible_source_answer_v69454(safe_record.get("source_answer", ""))}
 
 Retrieval Instruction:
 Prefer this approved record when its exact model number, product/SKU, vehicle/year,
@@ -49956,33 +50051,270 @@ def remove_old_learned_vector_file(vector_store_id, file_id):
     return True
 
 
-def find_duplicate_learned_knowledge(candidate, selected_assistant):
+
+LEARNING_SUPPORTING_FILES_PREFIX_V69454 = "[ATP_SUPPORTING_OPENAI_FILES_V69454]"
+_LEARNING_WRITE_LOCK_V69454 = threading.RLock()
+
+
+def _learning_supporting_file_ids_v69454(row):
+    """Recover internal supporting-file IDs without exposing them in retrieval text."""
+    raw = str((row or {}).get("source_answer") or "")
+    match = re.search(
+        re.escape(LEARNING_SUPPORTING_FILES_PREFIX_V69454) + r"(\[[^\n]*\])",
+        raw,
+    )
+    if not match:
+        return []
     try:
-        all_rows = safe_select_rows(
-            "learned_knowledge",
-            order_columns=["updated_at", "created_at"],
-            limit=200,
+        values = json.loads(match.group(1))
+    except Exception:
+        return []
+    return [str(value).strip() for value in values if str(value).strip()]
+
+
+def _learning_visible_source_answer_v69454(value):
+    """Strip internal supporting-file registry metadata from vector documents."""
+    return re.sub(
+        re.escape(LEARNING_SUPPORTING_FILES_PREFIX_V69454) + r"\[[^\n]*\]",
+        "",
+        str(value or ""),
+    ).strip()
+
+
+def _learning_supporting_marker_v69454(file_ids):
+    clean = list(dict.fromkeys(
+        str(value).strip() for value in (file_ids or []) if str(value).strip()
+    ))
+    return (
+        LEARNING_SUPPORTING_FILES_PREFIX_V69454
+        + json.dumps(clean, ensure_ascii=False, separators=(",", ":"))
+        if clean else ""
+    )
+
+
+def _detach_learning_supporting_files_v69454(vector_store_id, file_ids):
+    for file_id in list(dict.fromkeys(str(x).strip() for x in (file_ids or []) if str(x).strip())):
+        try:
+            client.vector_stores.files.delete(
+                vector_store_id=str(vector_store_id or ""),
+                file_id=file_id,
+            )
+        except Exception as error:
+            text_v69454 = str(error or "").lower()
+            if not any(token in text_v69454 for token in ("404", "not found", "does not exist")):
+                diagnostic_log(
+                    "learning_supporting_detach_failed_v69454",
+                    file_id=file_id,
+                    error_type=type(error).__name__,
+                )
+
+
+def remove_learned_vector_file_strict_v69454(vector_store_id, file_id, *, attempts=3):
+    """Detach and delete a learned file with bounded retries; fail closed on uncertainty."""
+    vector_store_id = str(vector_store_id or "").strip()
+    file_id = str(file_id or "").strip()
+    if not file_id:
+        return True
+    if not vector_store_id.startswith("vs_"):
+        raise RuntimeError("A valid vector store is required to remove learned knowledge.")
+
+    last_error = None
+    detached = False
+    for attempt in range(max(1, int(attempts or 1))):
+        try:
+            client.vector_stores.files.delete(
+                vector_store_id=vector_store_id,
+                file_id=file_id,
+            )
+            detached = True
+            break
+        except Exception as error:
+            text_v69454 = str(error or "").lower()
+            if any(token in text_v69454 for token in ("404", "not found", "does not exist")):
+                detached = True
+                break
+            last_error = error
+            if attempt + 1 < max(1, int(attempts or 1)):
+                time.sleep(0.25 * (attempt + 1))
+    if not detached:
+        raise RuntimeError(
+            f"Could not detach stale learned vector file {file_id}: {type(last_error).__name__ if last_error else 'unknown error'}"
         )
 
-        approved_rows = [
-            row for row in all_rows
-            if not is_pending_knowledge_row(row)
-        ]
+    # Deleting the underlying OpenAI file is desirable but a successfully detached
+    # file is already non-searchable. Retry deletion and log any residual file.
+    file_deleted = False
+    for attempt in range(max(1, int(attempts or 1))):
+        try:
+            client.files.delete(file_id)
+            file_deleted = True
+            break
+        except Exception as error:
+            text_v69454 = str(error or "").lower()
+            if any(token in text_v69454 for token in ("404", "not found", "does not exist")):
+                file_deleted = True
+                break
+            last_error = error
+            if attempt + 1 < max(1, int(attempts or 1)):
+                time.sleep(0.25 * (attempt + 1))
+    if not file_deleted:
+        diagnostic_log(
+            "learned_file_delete_residual_v69454",
+            file_id=file_id,
+            error_type=type(last_error).__name__ if last_error else "Unknown",
+        )
 
-        clean_assistant = clean_assistant_label(
-            selected_assistant
-        ).strip().lower()
-
-        # Duplicate merging is strictly department-scoped. Retrieval may be
-        # one-way across departments, but durable records must never be merged
-        # into or overwrite another department's knowledge.
-        rows = [
-            row for row in approved_rows
-            if str(row.get("assistant") or "").strip().lower()
-            == clean_assistant
-        ]
+    try:
+        _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
-        return None, 0
+        _observe_silent_exception_v69451("remove_learned_vector_file_strict_v69454")
+    return True
+
+
+def _delete_learned_row_transaction_v69454(row, *, admin_client=None):
+    """Delete vector authority first; never hide a DB row while its vector remains searchable."""
+    row = dict(row or {})
+    row_id = row.get("id")
+    if row_id is None:
+        raise RuntimeError("The learned record has no database ID.")
+    vector_store_id = str(row.get("vector_store_id") or "").strip()
+    main_file_id = str(row.get("openai_file_id") or "").strip()
+    supporting_ids = _learning_supporting_file_ids_v69454(row)
+    if (main_file_id or supporting_ids) and not vector_store_id.startswith("vs_"):
+        vector_store_id = get_learning_vector_store_id(row.get("assistant") or "")
+
+    if main_file_id:
+        remove_learned_vector_file_strict_v69454(vector_store_id, main_file_id)
+    for supporting_id in supporting_ids:
+        remove_learned_vector_file_strict_v69454(vector_store_id, supporting_id)
+
+    db = admin_client or supabase
+    result = db.table("learned_knowledge").delete().eq("id", row_id).execute()
+    diagnostic_log(
+        "learned_record_deleted_transactionally_v69454",
+        record_id=str(row_id),
+        supporting_files=len(supporting_ids),
+    )
+    try:
+        invalidate_admin_read_caches()
+    except Exception:
+        pass
+    return result
+
+
+def _reconcile_processing_learned_vectors_v69454(limit=8):
+    """Periodically repair rows whose vector ingestion completed after the original timeout."""
+    now_mono = time.monotonic()
+    last = float(st.session_state.get("_learning_vector_reconcile_at_v69454", 0.0) or 0.0)
+    if now_mono - last < 300.0:
+        return 0
+    st.session_state["_learning_vector_reconcile_at_v69454"] = now_mono
+    repaired = 0
+    try:
+        rows = (
+            supabase.table("learned_knowledge")
+            .select("id,openai_file_id,vector_store_id,synced,embedding_status")
+            .eq("synced", False)
+            .limit(max(1, int(limit or 8)))
+            .execute().data or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "learned_vector_reconcile_read_failed_v69454",
+            error_type=type(error).__name__,
+        )
+        return 0
+    for row in rows:
+        file_id = str(row.get("openai_file_id") or "").strip()
+        vector_store_id = str(row.get("vector_store_id") or "").strip()
+        if not file_id or not vector_store_id.startswith("vs_"):
+            continue
+        try:
+            vector_file = client.vector_stores.files.retrieve(
+                vector_store_id=vector_store_id,
+                file_id=file_id,
+            )
+            status = str(getattr(vector_file, "status", "") or "").lower()
+            if status == "completed":
+                safe_update_row(
+                    "learned_knowledge",
+                    {"synced": True, "embedding_status": "synced", "updated_at": now_iso()},
+                    row.get("id"),
+                )
+                repaired += 1
+            elif status in {"failed", "cancelled"}:
+                safe_update_row(
+                    "learned_knowledge",
+                    {"synced": False, "embedding_status": status, "updated_at": now_iso()},
+                    row.get("id"),
+                )
+        except Exception as error:
+            diagnostic_log(
+                "learned_vector_reconcile_item_failed_v69454",
+                record_id=str(row.get("id") or ""),
+                error_type=type(error).__name__,
+            )
+    if repaired:
+        diagnostic_log("learned_vector_reconciled_v69454", repaired=repaired)
+    return repaired
+
+
+def find_duplicate_learned_knowledge(candidate, selected_assistant):
+    """Find duplicates across the full current department and fail closed on read errors."""
+    clean_assistant_label_v69454 = clean_assistant_label(selected_assistant).strip()
+    clean_assistant = clean_assistant_label_v69454.lower()
+    if not clean_assistant:
+        raise RuntimeError("A valid learning workspace is required for duplicate detection.")
+
+    query_error_v69454 = None
+    all_rows = []
+    try:
+        # Query the department first so a busy global table cannot push older
+        # same-department knowledge outside an arbitrary newest-200 window.
+        query_v69454 = (
+            supabase.table("learned_knowledge")
+            .select("*")
+            .eq("assistant", clean_assistant_label_v69454)
+            .limit(2000)
+        )
+        try:
+            query_v69454 = query_v69454.order("updated_at", desc=True)
+        except Exception:
+            pass
+        all_rows = list(query_v69454.execute().data or [])
+    except Exception as error_v69454:
+        query_error_v69454 = error_v69454
+        try:
+            all_rows = safe_select_rows(
+                "learned_knowledge",
+                order_columns=["updated_at", "created_at"],
+                limit=2000,
+            )
+        except Exception as fallback_error_v69454:
+            diagnostic_log(
+                "learned_duplicate_read_failed_v69454",
+                workspace=clean_assistant_label_v69454,
+                error_type=type(fallback_error_v69454).__name__,
+            )
+            raise RuntimeError(
+                "Duplicate safety check is unavailable; learning was not changed."
+            ) from fallback_error_v69454
+
+    approved_rows = [
+        row for row in all_rows
+        if not is_pending_knowledge_row(row)
+    ]
+    rows = [
+        row for row in approved_rows
+        if str(row.get("assistant") or "").strip().lower() == clean_assistant
+    ]
+    if query_error_v69454 is not None:
+        diagnostic_log(
+            "learned_duplicate_department_query_fallback_v69454",
+            workspace=clean_assistant_label_v69454,
+            rows=len(rows),
+            error_type=type(query_error_v69454).__name__,
+        )
 
     best_row = None
     best_score = 0
@@ -50208,6 +50540,97 @@ def build_local_analytics_payload(question, answer, selected_assistant):
 
 
 
+def _stage_explicit_learning_attachments_v69454(uploaded_files):
+    """Stage explicit-learning attachments across the answer->postprocess rerun."""
+    staged = []
+    for uploaded_file in list(uploaded_files or [])[:8]:
+        name = str(getattr(uploaded_file, "name", "attachment") or "attachment")
+        mime = str(getattr(uploaded_file, "type", "") or "").lower()
+        try:
+            payload = _uploaded_file_bytes(uploaded_file)
+        except Exception as error:
+            diagnostic_log(
+                "learning_attachment_read_failed_v69454",
+                name=name[:160],
+                error_type=type(error).__name__,
+            )
+            raise RuntimeError(f"Could not read learning attachment: {name}") from error
+        if not payload:
+            continue
+        if len(payload) > 20 * 1024 * 1024:
+            raise RuntimeError(f"Learning attachment is too large: {name}")
+        if mime.startswith("image/"):
+            try:
+                image_url = normalized_image_data_url(uploaded_file)
+            except Exception:
+                image_url = ""
+            if not str(image_url or "").startswith("data:image/"):
+                encoded = base64.b64encode(payload).decode("ascii")
+                safe_mime = mime if mime.startswith("image/") else "image/png"
+                image_url = f"data:{safe_mime};base64,{encoded}"
+            staged.append({
+                "name": name,
+                "mime": mime,
+                "image_url": image_url,
+            })
+            continue
+        try:
+            try:
+                created = client.files.create(
+                    file=(name, payload),
+                    purpose="user_data",
+                )
+            except Exception:
+                created = client.files.create(
+                    file=(name, payload),
+                    purpose="assistants",
+                )
+        except Exception as error:
+            diagnostic_log(
+                "learning_attachment_stage_failed_v69454",
+                name=name[:160],
+                error_type=type(error).__name__,
+            )
+            raise RuntimeError(f"Could not stage learning attachment: {name}") from error
+        staged.append({
+            "name": name,
+            "mime": mime,
+            "file_id": str(getattr(created, "id", "") or ""),
+            "temporary": True,
+        })
+    diagnostic_log(
+        "learning_attachments_staged_v69454",
+        count=len(staged),
+        file_count=sum(bool(item.get("file_id")) for item in staged),
+        image_count=sum(bool(item.get("image_url")) for item in staged),
+    )
+    return staged
+
+
+def _cleanup_staged_learning_attachments_v69454(staged):
+    for item in staged or []:
+        file_id = str((item or {}).get("file_id") or "").strip()
+        if not file_id or not bool((item or {}).get("temporary")):
+            continue
+        try:
+            client.files.delete(file_id)
+        except Exception as error:
+            diagnostic_log(
+                "learning_attachment_cleanup_failed_v69454",
+                file_id=file_id,
+                error_type=type(error).__name__,
+            )
+
+
+def _sync_pending_postprocess_compat_v69454():
+    queue = st.session_state.get("_pending_ai_postprocess_queue_v69454")
+    if not isinstance(queue, list):
+        queue = []
+        st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
+    st.session_state["pending_ai_postprocess"] = queue[0] if queue else None
+    return queue
+
+
 def queue_ai_postprocess(
     question,
     answer,
@@ -50220,8 +50643,9 @@ def queue_ai_postprocess(
     is_structured_graphic_tool=False,
     explicit_learning=False,
     learning_context="",
+    learning_attachments=None,
 ):
-    """Queue non-visible learning and analytics for the next Streamlit run."""
+    """Queue learning/analytics FIFO so a later turn cannot overwrite an earlier job."""
     live_type = str(
         (
             detected_live_request
@@ -50240,11 +50664,18 @@ def queue_ai_postprocess(
             + "\n" + str(answer or "")
         ).encode("utf-8", errors="ignore")
     ).hexdigest()
-    if st.session_state.get("last_queued_postprocess_fingerprint") == postprocess_fingerprint:
-        return
-    st.session_state["last_queued_postprocess_fingerprint"] = postprocess_fingerprint
 
-    st.session_state["pending_ai_postprocess"] = {
+    queue = _sync_pending_postprocess_compat_v69454()
+    known = {
+        str(item.get("fingerprint") or "")
+        for item in queue if isinstance(item, dict)
+    }
+    if postprocess_fingerprint in known:
+        return
+    if st.session_state.get("last_processed_postprocess_fingerprint") == postprocess_fingerprint:
+        return
+
+    job = {
         "fingerprint": postprocess_fingerprint,
         "question": str(question or ""),
         "answer": str(answer or ""),
@@ -50257,17 +50688,33 @@ def queue_ai_postprocess(
         "response_time": response_time,
         "tokens_used": tokens_used,
         "is_graphic_generation": bool(is_graphic_generation),
-        "is_structured_marketing_tool": bool(
-            is_structured_marketing_tool
-        ),
-        "is_structured_graphic_tool": bool(
-            is_structured_graphic_tool
-        ),
+        "is_structured_marketing_tool": bool(is_structured_marketing_tool),
+        "is_structured_graphic_tool": bool(is_structured_graphic_tool),
         "explicit_learning": bool(explicit_learning),
         "learning_context": str(learning_context or ""),
+        "learning_attachments": list(learning_attachments or []),
+        "attempts": 0,
+        "queued_at": now_iso(),
     }
-
-
+    queue.append(job)
+    # Bound ordinary maintenance without ever discarding an explicit learning job.
+    if len(queue) > 32:
+        removable = next(
+            (i for i, item in enumerate(queue) if not bool((item or {}).get("explicit_learning"))),
+            None,
+        )
+        if removable is not None:
+            queue.pop(removable)
+        elif len(queue) > 64:
+            raise RuntimeError("The learning queue is full; please allow pending saves to finish.")
+    st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
+    _sync_pending_postprocess_compat_v69454()
+    diagnostic_log(
+        "ai_postprocess_queued_v69454",
+        fingerprint=postprocess_fingerprint[:12],
+        queue_depth=len(queue),
+        explicit_learning=bool(explicit_learning),
+    )
 
 def process_pending_history_trim_v68864():
     """Run per-workspace conversation-limit housekeeping after visible output.
@@ -50324,25 +50771,33 @@ def process_pending_history_trim_v68864():
 
 
 def process_pending_ai_postprocess():
-    """
-    Process one queued maintenance job after the answer has already been saved
-    and displayed. Failures remain non-blocking.
-    """
-    job = st.session_state.pop("pending_ai_postprocess", None)
+    """Process the oldest queued job; explicit learning retries instead of disappearing."""
+    queue = _sync_pending_postprocess_compat_v69454()
+    if not queue:
+        return
+    job = queue[0]
     if not isinstance(job, dict):
+        queue.pop(0)
+        _sync_pending_postprocess_compat_v69454()
         return
 
     fingerprint = str(job.get("fingerprint") or "")
     if fingerprint and st.session_state.get("last_processed_postprocess_fingerprint") == fingerprint:
+        queue.pop(0)
+        _cleanup_staged_learning_attachments_v69454(job.get("learning_attachments"))
+        _sync_pending_postprocess_compat_v69454()
         return
-    if fingerprint:
-        st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
 
     postprocess_started_at = time.perf_counter()
-    # Keep diagnostics compact. Detailed failures are still logged below; normal
-    # maintenance runs only emit the final timing record.
-
     learning_result = None
+    learning_failed = False
+    learning_error = None
+
+    try:
+        _reconcile_processing_learned_vectors_v69454(limit=8)
+    except Exception:
+        pass
+
     if (
         not job.get("is_graphic_generation")
         and not job.get("is_structured_marketing_tool")
@@ -50356,11 +50811,11 @@ def process_pending_ai_postprocess():
                 detected_live_request=job.get("detected_live_request"),
                 explicit_learning=bool(job.get("explicit_learning")),
                 learning_context=job.get("learning_context"),
+                learning_attachments=job.get("learning_attachments"),
             )
             if learning_result and learning_result.get("learned"):
                 st.session_state["_case_learning_context_revision_v68864"] = (
-                    int(st.session_state.get("_case_learning_context_revision_v68864", 0) or 0)
-                    + 1
+                    int(st.session_state.get("_case_learning_context_revision_v68864", 0) or 0) + 1
                 )
                 st.session_state.pop("_case_learning_context_cache_v68864", None)
                 mode = learning_result.get("mode", "saved")
@@ -50387,12 +50842,12 @@ def process_pending_ai_postprocess():
                 and job.get("explicit_learning")
             ):
                 st.toast(
-                    "Knowledge was not saved because administrator authorization "
-                    "could not be revalidated.",
+                    "Knowledge was not saved because administrator authorization could not be revalidated.",
                     icon="🔒",
                 )
         except Exception as error:
-            learning_result = None
+            learning_failed = True
+            learning_error = error
             diagnostic_log(
                 "ai_postprocess_learning_failed",
                 error_type=type(error).__name__,
@@ -50400,6 +50855,8 @@ def process_pending_ai_postprocess():
                 fingerprint=fingerprint[:12],
             )
 
+    # Analytics is independent and should not make an authoritative learning retry
+    # repeat a successful write. It is therefore attempted after learning.
     try:
         log_ai_analytics(
             job.get("question"),
@@ -50417,14 +50874,51 @@ def process_pending_ai_postprocess():
             fingerprint=fingerprint[:12],
         )
 
+    if learning_failed and bool(job.get("explicit_learning")):
+        attempts = int(job.get("attempts") or 0) + 1
+        job["attempts"] = attempts
+        if attempts < 3:
+            queue[0] = job
+            st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
+            _sync_pending_postprocess_compat_v69454()
+            diagnostic_log(
+                "explicit_learning_retry_pending_v69454",
+                fingerprint=fingerprint[:12],
+                attempt=attempts,
+                error_type=type(learning_error).__name__ if learning_error else "Unknown",
+            )
+            st.toast(
+                "Knowledge save hit a temporary error and is queued to retry safely.",
+                icon="🧠",
+            )
+            return
+        st.toast(
+            "Knowledge was not saved after three safe attempts. Existing knowledge was left unchanged.",
+            icon="⚠️",
+        )
+        diagnostic_log(
+            "explicit_learning_retry_exhausted_v69454",
+            fingerprint=fingerprint[:12],
+            attempts=attempts,
+        )
+
+    # Consume only after success, a non-learning maintenance attempt, or exhausted
+    # retries. Marking processed happens here—not before the durable work.
+    queue.pop(0)
+    _cleanup_staged_learning_attachments_v69454(job.get("learning_attachments"))
+    if fingerprint:
+        st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
+    st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
+    _sync_pending_postprocess_compat_v69454()
+
     diagnostic_log(
         "ai_postprocess_finished",
         fingerprint=fingerprint[:12],
         elapsed_seconds=round(time.perf_counter() - postprocess_started_at, 3),
         logged_in=st.session_state.get("logged_in"),
+        queue_depth=len(queue),
+        learning_failed=bool(learning_failed),
     )
-
-
 
 def _auto_learning_is_eligible(question, selected_assistant, explicit_learning=False):
     """Return True only when a message can produce authoritative durable knowledge.
@@ -50451,6 +50945,7 @@ def auto_learn_from_latest_answer(
     detected_live_request=None,
     explicit_learning=False,
     learning_context="",
+    learning_attachments=None,
 ):
     if selected_assistant == "⚙️ Admin Panel":
         return None
@@ -50582,6 +51077,7 @@ def auto_learn_from_latest_answer(
         staff_teaching=staff_teaching,
         conversation_context=conversation_context,
         explicit_requested=explicit_learning,
+        learning_attachments=learning_attachments,
     )
     if candidate.get("should_learn"):
         candidate["confidence_score"] = max(
@@ -50611,6 +51107,15 @@ def auto_learn_from_latest_answer(
 
     if duplicate_row:
         improved = improve_existing_solution(duplicate_row, candidate)
+        if not bool(improved.get("merge_succeeded")):
+            diagnostic_log(
+                "learned_knowledge_merge_aborted_v69454",
+                record_id=str(duplicate_row.get("id") or ""),
+                workspace=str(selected_assistant or ""),
+            )
+            raise RuntimeError(
+                "The existing knowledge could not be safely merged. Nothing was changed."
+            )
 
         record_for_file = {
             "assistant": clean_assistant_label(selected_assistant),
@@ -50643,7 +51148,12 @@ def auto_learn_from_latest_answer(
             "question": safe_question,
             "keywords": improved["keywords"],
             "source_question": safe_question,
-            "source_answer": safe_answer,
+            "source_answer": "\n".join(filter(None, [
+                safe_answer,
+                _learning_supporting_marker_v69454(
+                    _learning_supporting_file_ids_v69454(duplicate_row)
+                ),
+            ])),
             "source_conversation_id": st.session_state.get("conversation_id"),
             "confidence_score": improved["confidence_score"],
             "times_seen": improved["times_seen"],
@@ -50675,14 +51185,42 @@ def auto_learn_from_latest_answer(
             remove_old_learned_vector_file(vector_store_id, openai_file_id)
             raise
 
-        # Only remove the superseded vector after the replacement has uploaded
-        # and the Supabase master record has been updated successfully.
+        # v69454 transactional supersession: a successful DB update is not enough
+        # if the stale vector remains searchable. If strict old-vector cleanup fails,
+        # restore the previous DB authority and remove the new vector.
         old_file_id = duplicate_row.get("openai_file_id")
         if old_file_id and old_file_id != openai_file_id:
-            remove_old_learned_vector_file(
-                duplicate_row.get("vector_store_id") or vector_store_id,
-                old_file_id,
-            )
+            try:
+                remove_learned_vector_file_strict_v69454(
+                    duplicate_row.get("vector_store_id") or vector_store_id,
+                    old_file_id,
+                )
+            except Exception as cleanup_error_v69454:
+                rollback_payload_v69454 = {
+                    key: value for key, value in dict(duplicate_row).items()
+                    if key != "id"
+                }
+                try:
+                    safe_update_row(
+                        "learned_knowledge",
+                        rollback_payload_v69454,
+                        duplicate_row["id"],
+                    )
+                finally:
+                    try:
+                        remove_learned_vector_file_strict_v69454(
+                            vector_store_id, openai_file_id
+                        )
+                    except Exception:
+                        remove_old_learned_vector_file(vector_store_id, openai_file_id)
+                diagnostic_log(
+                    "learned_supersession_rolled_back_v69454",
+                    record_id=str(duplicate_row.get("id") or ""),
+                    error_type=type(cleanup_error_v69454).__name__,
+                )
+                raise RuntimeError(
+                    "The old knowledge vector could not be removed, so the update was rolled back."
+                ) from cleanup_error_v69454
 
         return {
             "learned": True,
@@ -50767,6 +51305,18 @@ def auto_learn_from_latest_answer(
         "file_id": openai_file_id,
         "analytics_payload": candidate.get("analytics_payload"),
     }
+
+
+# v69454 process-local serialization closes the common multi-session race between
+# duplicate detection and insert/update. Database/vector rollback logic below remains
+# authoritative if an external worker or future multi-process deployment races it.
+_AUTO_LEARN_FROM_LATEST_ANSWER_V69454_BASE = auto_learn_from_latest_answer
+
+def _auto_learn_from_latest_answer_serialized_v69454(*args, **kwargs):
+    with _LEARNING_WRITE_LOCK_V69454:
+        return _AUTO_LEARN_FROM_LATEST_ANSWER_V69454_BASE(*args, **kwargs)
+
+auto_learn_from_latest_answer = _auto_learn_from_latest_answer_serialized_v69454
 
 
 # ============================================================
@@ -92912,6 +93462,10 @@ def approve_pending_knowledge(row, edited_solution=None):
                 duplicate_row,
                 candidate,
             )
+            if not bool(improved.get("merge_succeeded")):
+                raise RuntimeError(
+                    "The existing knowledge could not be safely merged. Nothing was changed."
+                )
 
             record_for_file = {
                 "assistant": str(
@@ -92956,7 +93510,9 @@ def approve_pending_knowledge(row, edited_solution=None):
                     or row.get("question")
                     or ""
                 ),
-                "source_answer": "",
+                "source_answer": _learning_supporting_marker_v69454(
+                    _learning_supporting_file_ids_v69454(duplicate_row) + attached_file_ids
+                ),
                 "confidence_score": (
                     record_for_file["confidence_score"]
                 ),
@@ -92987,10 +93543,28 @@ def approve_pending_knowledge(row, edited_solution=None):
 
             old_file_id = duplicate_row.get("openai_file_id")
             if old_file_id and old_file_id != learned_file_id:
-                remove_old_learned_vector_file(
-                    duplicate_row.get("vector_store_id") or vector_store_id,
-                    old_file_id,
-                )
+                try:
+                    remove_learned_vector_file_strict_v69454(
+                        duplicate_row.get("vector_store_id") or vector_store_id,
+                        old_file_id,
+                    )
+                except Exception as cleanup_error_v69454:
+                    rollback_payload_v69454 = {
+                        key: value for key, value in dict(duplicate_row).items()
+                        if key != "id"
+                    }
+                    try:
+                        admin_update_pending_row(duplicate_row["id"], rollback_payload_v69454)
+                    finally:
+                        try:
+                            remove_learned_vector_file_strict_v69454(
+                                vector_store_id, learned_file_id
+                            )
+                        except Exception:
+                            remove_old_learned_vector_file(vector_store_id, learned_file_id)
+                    raise RuntimeError(
+                        "The old knowledge vector could not be removed, so approval was rolled back."
+                    ) from cleanup_error_v69454
             admin_delete_pending_row(row.get("id"))
 
             return {
@@ -93016,7 +93590,7 @@ def approve_pending_knowledge(row, edited_solution=None):
                 or row.get("question")
                 or ""
             ),
-            "source_answer": "",
+            "source_answer": _learning_supporting_marker_v69454(attached_file_ids),
             "confidence_score": candidate["confidence_score"],
             "times_seen": int(row.get("times_seen") or 1),
             "times_used": int(row.get("times_used") or 0),
@@ -93068,9 +93642,25 @@ def approve_pending_knowledge(row, edited_solution=None):
         }
 
     except Exception as error:
+        try:
+            _detach_learning_supporting_files_v69454(
+                locals().get("vector_store_id", ""),
+                locals().get("attached_file_ids", []),
+            )
+        except Exception:
+            pass
         raise RuntimeError(
             f"Approval failed while {approval_stage}: {error}"
         ) from error
+
+_APPROVE_PENDING_KNOWLEDGE_V69454_BASE = approve_pending_knowledge
+
+def _approve_pending_knowledge_serialized_v69454(*args, **kwargs):
+    with _LEARNING_WRITE_LOCK_V69454:
+        return _APPROVE_PENDING_KNOWLEDGE_V69454_BASE(*args, **kwargs)
+
+approve_pending_knowledge = _approve_pending_knowledge_serialized_v69454
+
 
 def reject_pending_knowledge(row):
     """Reject one pending submission and remove its temporary attachments."""
@@ -102200,7 +102790,8 @@ def render_admin_latest_learned_fragment():
                 st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
 
                 if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
-                    supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+                    with _LEARNING_WRITE_LOCK_V69454:
+                        _delete_learned_row_transaction_v69454(row)
                     remaining_records = max(0, learned_total_records - 1)
                     remaining_pages = max(
                         1,
@@ -103030,6 +103621,7 @@ def _graphic_style_rebuild_solution(row, *, name=None, tags=None, extra_note="")
 
 
 def _graphic_style_update_record(row, *, name=None, tags=None, source_type=None, note=""):
+    """Update Graphic style DB + vector authority as one rollback-safe transaction."""
     _graphic_style_version_snapshot(row, action="update")
     solution, clean_name, clean_tags = _graphic_style_rebuild_solution(
         row, name=name, tags=tags, extra_note=note
@@ -103044,20 +103636,68 @@ def _graphic_style_update_record(row, *, name=None, tags=None, source_type=None,
     }
     if source_type is not None:
         payload["source_type"] = source_type
-    return safe_update_row("learned_knowledge", payload, row.get("id"))
+
+    updated_record_v69454 = dict(row or {})
+    updated_record_v69454.update(payload)
+    updated_record_v69454["assistant"] = "Graphic Marketing"
+    updated_record_v69454["vector_store_id"] = GRAPHIC_VECTOR_STORE_ID
+    new_file_id_v69454, vector_ready_v69454, status_v69454 = (
+        upload_learned_record_to_vector_store(
+            updated_record_v69454,
+            GRAPHIC_VECTOR_STORE_ID,
+            return_status=True,
+        )
+    )
+    payload.update({
+        "openai_file_id": new_file_id_v69454,
+        "vector_store_id": GRAPHIC_VECTOR_STORE_ID,
+        "synced": bool(vector_ready_v69454),
+        "embedding_status": "synced" if vector_ready_v69454 else (status_v69454 or "processing"),
+    })
+    try:
+        result = safe_update_row("learned_knowledge", payload, row.get("id"))
+        if not getattr(result, "data", None):
+            raise RuntimeError("Graphic style update returned no saved row.")
+    except Exception:
+        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, new_file_id_v69454)
+        raise
+
+    old_file_id_v69454 = str((row or {}).get("openai_file_id") or "").strip()
+    if old_file_id_v69454 and old_file_id_v69454 != new_file_id_v69454:
+        try:
+            remove_learned_vector_file_strict_v69454(
+                str((row or {}).get("vector_store_id") or GRAPHIC_VECTOR_STORE_ID),
+                old_file_id_v69454,
+            )
+        except Exception as cleanup_error_v69454:
+            rollback_payload_v69454 = {
+                key: value for key, value in dict(row or {}).items() if key != "id"
+            }
+            try:
+                safe_update_row("learned_knowledge", rollback_payload_v69454, row.get("id"))
+            finally:
+                try:
+                    remove_learned_vector_file_strict_v69454(
+                        GRAPHIC_VECTOR_STORE_ID, new_file_id_v69454
+                    )
+                except Exception:
+                    remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, new_file_id_v69454)
+            raise RuntimeError(
+                "Graphic style vector replacement failed; the previous style was restored."
+            ) from cleanup_error_v69454
+    diagnostic_log(
+        "graphic_style_vector_resynced_v69454",
+        record_id=str((row or {}).get("id") or ""),
+        vector_ready=bool(vector_ready_v69454),
+    )
+    return result
 
 
 def _graphic_style_delete_record(row):
-    """Permanently delete one style and remove its vector file when possible."""
+    """Permanently delete one style only after its searchable vector authority is gone."""
     _graphic_style_version_snapshot(row, action="delete")
-    openai_file_id = str(row.get("openai_file_id") or "").strip()
-    try:
-        result = supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
-    except Exception as error:
-        raise RuntimeError(f"Supabase deletion failed: {error}") from error
-    if openai_file_id:
-        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, openai_file_id)
-    return result
+    with _LEARNING_WRITE_LOCK_V69454:
+        return _delete_learned_row_transaction_v69454(row)
 
 
 def _graphic_style_set_default(rows, selected_id):
@@ -104582,6 +105222,24 @@ else:
             if explicit_learning_requested
             else ""
         )
+        learning_attachments_v69454 = []
+        learning_attachment_stage_error_v69454 = ""
+        if (
+            explicit_learning_requested
+            and effective_uploaded_files
+            and not is_graphic_workspace(assistant)
+        ):
+            try:
+                learning_attachments_v69454 = _stage_explicit_learning_attachments_v69454(
+                    effective_uploaded_files
+                )
+            except Exception as attachment_error_v69454:
+                learning_attachment_stage_error_v69454 = str(attachment_error_v69454)[:500]
+                diagnostic_log(
+                    "learning_attachment_stage_aborted_v69454",
+                    workspace=str(assistant),
+                    error_type=type(attachment_error_v69454).__name__,
+                )
 
         # v69452: every explicit durable-learning command is routed as a storage
         # workflow even when authorization is denied. This prevents a denied
@@ -105973,7 +106631,12 @@ else:
         elif explicit_learning_requested and not is_graphic_generation:
             response_start_time = time.time()
             inline_learning_payload = extract_explicit_learning_payload(interaction_prompt)
-            if inline_learning_payload:
+            if learning_attachment_stage_error_v69454:
+                answer = (
+                    "I could not stage the attached learning source safely, so nothing was queued or saved. "
+                    f"Details: {learning_attachment_stage_error_v69454}"
+                )
+            elif inline_learning_payload:
                 answer = (
                     "Knowledge received. I will extract only the new or changed reusable "
                     "facts, merge them with matching approved knowledge, and avoid saving "
@@ -111363,6 +112026,7 @@ else:
             and not is_graphic_reference_learning
             and not technical_website_learning_requested_v68870
             and not explicit_learning_access_denied_v69452
+            and not learning_attachment_stage_error_v69454
         ):
             queue_ai_postprocess(
                 interaction_prompt,
@@ -111376,6 +112040,7 @@ else:
                 is_structured_graphic_tool=is_structured_graphic_tool,
                 explicit_learning=explicit_learning_requested,
                 learning_context=learning_context_snapshot,
+                learning_attachments=learning_attachments_v69454,
             )
 
         # Complete the idempotent submission lifecycle before clearing uploads.
