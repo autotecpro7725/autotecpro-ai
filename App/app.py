@@ -102,8 +102,8 @@
 # React-aware value injection plus post-transfer verification/retry before the draft overlay is
 # retired. Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce, image-authority,
 # product-fitment, voice, and completed-answer persistence behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69468"
-AUTOTECPRO_RELEASE_BUILD = "v69468-voice-safe-dual-slot-composer-20260925"
+AUTOTECPRO_RELEASE_VERSION = "v69470"
+AUTOTECPRO_RELEASE_BUILD = "v69470-durable-chat-render-print-payload-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -9406,6 +9406,104 @@ def render_print_transcript_v69007(messages, assistant_label="Technical Support"
             renderer(transcript_html, unsafe_allow_html=True)
         else:
             st.markdown(transcript_html, unsafe_allow_html=True)
+
+
+def _install_body_print_portal_v69470(transcript_html):
+    """Install an already-materialized body-level print transcript.
+
+    v69470 does not clone a hidden Streamlit node during ``beforeprint``. The
+    complete server-built transcript is encoded into this trusted browser helper
+    and mounted directly under ``document.body`` before the user opens Print.
+    """
+    try:
+        payload_v69470 = base64.b64encode(
+            str(transcript_html or "").encode("utf-8")
+        ).decode("ascii")
+    except Exception:
+        payload_v69470 = ""
+
+    _run_invisible_trusted_browser_script_v69453(
+        r'''<style id="atp-print-portal-style-v69470">
+        @media print {
+            @page { size: auto; margin: 12mm 11mm 14mm; }
+            html, body { width:auto !important; height:auto !important; min-height:0 !important; max-height:none !important; overflow:visible !important; background:#fff !important; color-scheme:light !important; }
+            body > *:not(#atp-print-portal-v69470) { display:none !important; visibility:hidden !important; }
+            html body > #atp-print-portal-v69470 { display:block !important; visibility:visible !important; opacity:1 !important; position:static !important; inset:auto !important; width:100% !important; height:auto !important; min-height:0 !important; max-height:none !important; margin:0 !important; padding:0 !important; overflow:visible !important; transform:none !important; contain:none !important; clip:auto !important; clip-path:none !important; background:#fff !important; color:#111827 !important; color-scheme:light !important; -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+            html body > #atp-print-portal-v69470, html body > #atp-print-portal-v69470 * { visibility:visible !important; opacity:1 !important; color:#111827 !important; -webkit-text-fill-color:#111827 !important; box-sizing:border-box !important; filter:none !important; text-shadow:none !important; }
+            html body > #atp-print-portal-v69470 .atp-print-transcript-v69007 { display:block !important; width:100% !important; height:auto !important; min-height:0 !important; max-height:none !important; margin:0 !important; padding:0 !important; overflow:visible !important; position:static !important; contain:none !important; background:#fff !important; font-family:Arial,Helvetica,sans-serif !important; font-size:10.5pt !important; line-height:1.45 !important; }
+            html body > #atp-print-portal-v69470 .atp-print-message-v69007 { display:block !important; height:auto !important; max-height:none !important; overflow:visible !important; }
+            html body > #atp-print-portal-v69470 table { display:table !important; width:100% !important; border-collapse:collapse !important; }
+            html body > #atp-print-portal-v69470 thead { display:table-header-group !important; }
+            html body > #atp-print-portal-v69470 tbody { display:table-row-group !important; }
+            html body > #atp-print-portal-v69470 tr { display:table-row !important; }
+            html body > #atp-print-portal-v69470 th, html body > #atp-print-portal-v69470 td { display:table-cell !important; border:1px solid #cbd5e1 !important; background:#fff !important; color:#111827 !important; vertical-align:top !important; }
+            html body > #atp-print-portal-v69470 img { display:block !important; max-width:125mm !important; max-height:115mm !important; width:auto !important; height:auto !important; object-fit:contain !important; }
+        }
+        </style>
+        <script>
+        (() => {
+          const root = window, doc = root.document;
+          const PORTAL_ID = 'atp-print-portal-v69470';
+          const PAYLOAD = '__ATP_PRINT_PAYLOAD_V69470__';
+          const oldPortal = doc.getElementById('atp-print-portal-v69469'); if (oldPortal) oldPortal.remove();
+          const oldStyle = doc.getElementById('atp-print-portal-style-v69469'); if (oldStyle) oldStyle.remove();
+          let portal = doc.getElementById(PORTAL_ID);
+          if (!portal) { portal = doc.createElement('div'); portal.id = PORTAL_ID; doc.body.appendChild(portal); }
+          portal.style.display = 'none'; portal.setAttribute('aria-hidden','true');
+          let transcript = '';
+          try { if (PAYLOAD) { const binary = atob(PAYLOAD); const bytes = new Uint8Array(binary.length); for (let i=0;i<binary.length;i+=1) bytes[i]=binary.charCodeAt(i); transcript = new TextDecoder('utf-8').decode(bytes); } } catch (_) { transcript=''; }
+          portal.innerHTML = transcript;
+          const ready = Boolean(transcript.trim() && portal.querySelector('.atp-print-transcript-v69007') && (portal.textContent || '').trim());
+          portal.dataset.atpPrintReady = ready ? '1' : '0'; portal.dataset.atpPrintSource='server-payload-v69470'; portal.dataset.atpPrintChars=String((portal.textContent||'').trim().length);
+          const beforePrint = () => { portal.style.display='block'; portal.removeAttribute('aria-hidden'); };
+          const afterPrint = () => { portal.style.display='none'; portal.setAttribute('aria-hidden','true'); };
+          const KEY='__atpPrintPortalControllerV69470'; const prior=root[KEY];
+          if (prior && prior.beforePrint) root.removeEventListener('beforeprint', prior.beforePrint);
+          if (prior && prior.afterPrint) root.removeEventListener('afterprint', prior.afterPrint);
+          root.addEventListener('beforeprint', beforePrint); root.addEventListener('afterprint', afterPrint);
+          root[KEY] = { beforePrint, afterPrint, portal, ready };
+        })();
+        </script>'''.replace('__ATP_PRINT_PAYLOAD_V69470__', payload_v69470)
+    )
+
+
+def _durable_chat_rows_v69470(rows):
+    """Normalize durable/session rows to the exact chat fields used by rendering."""
+    normalized_v69470 = []
+    for row_v69470 in list(rows or []):
+        if not isinstance(row_v69470, dict):
+            continue
+        role_v69470 = str(row_v69470.get("role") or "").strip().lower()
+        if role_v69470 not in {"user", "assistant"}:
+            continue
+        normalized_v69470.append({"role": role_v69470, "content": str(row_v69470.get("content") or "")})
+    return normalized_v69470
+
+
+def _reconcile_live_chat_with_durable_history_v69470():
+    """Repair completed-turn UI from durable history before rendering."""
+    if not bool(st.session_state.pop("_chat_durable_sync_pending_v69470", False)):
+        return False
+    conversation_v69470 = str(st.session_state.get("conversation_id") or "").strip()
+    username_v69470 = str(st.session_state.get("username") or "").strip()
+    if not conversation_v69470 or not username_v69470 or not history_is_enabled():
+        return False
+    try:
+        durable_v69470 = _durable_chat_rows_v69470(load_messages(conversation_v69470))
+        session_v69470 = _durable_chat_rows_v69470(st.session_state.get("messages") or [])
+        if not durable_v69470:
+            diagnostic_log("chat_durable_render_sync_empty_v69470", conversation_id=conversation_v69470, session_count=len(session_v69470))
+            return False
+        if durable_v69470 != session_v69470:
+            st.session_state.messages = durable_v69470
+            diagnostic_log("chat_durable_render_recovered_v69470", conversation_id=conversation_v69470, before_count=len(session_v69470), durable_count=len(durable_v69470))
+            return True
+        diagnostic_log("chat_durable_render_verified_v69470", conversation_id=conversation_v69470, message_count=len(durable_v69470))
+        return False
+    except Exception as error_v69470:
+        diagnostic_log("chat_durable_render_sync_failed_v69470", conversation_id=conversation_v69470, error_type=type(error_v69470).__name__, error=str(error_v69470)[:500])
+        return False
+
 
 
 REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
@@ -106075,6 +106173,9 @@ else:
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
     _run_legacy_ui_runtime_without_deprecated_html_v69459(install_global_chat_file_dropzone)
 
+    # v69470: reconcile completed durable turns before rendering.
+    _reconcile_live_chat_with_durable_history_v69470()
+
     # v69026: bound the live DOM on long conversations. Persistent history is
     # unchanged; only the newest messages are mounted into the active browser DOM.
     # This materially reduces Safari memory/DOM pressure without deleting history.
@@ -106090,11 +106191,15 @@ else:
         _chat_messages_all_v69026[_chat_render_start_v69026:],
         start=_chat_render_start_v69026,
     ):
-        render_chat_message(
-            msg["role"],
-            msg["content"],
-            message_index=message_index,
+        _message_owner_key_v69470 = (
+            f"chat_message_v69470_{st.session_state.get('conversation_id') or 'local'}_{message_index}"
         )
+        with st.container(key=_message_owner_key_v69470):
+            render_chat_message(
+                msg["role"],
+                msg["content"],
+                message_index=message_index,
+            )
 
     # v69018: create the browser-print transcript during the normal chat render,
     # not at the very end of the Streamlit run.  The same placeholder is updated
@@ -113432,6 +113537,7 @@ else:
                         "assistant",
                         assistant_content_to_save,
                     )
+                    st.session_state["_chat_durable_sync_pending_v69470"] = True
                 except Exception as e:
                     st.warning(f"AI answer was not saved to history: {e}")
 
@@ -114604,6 +114710,16 @@ def _render_final_print_authority_v69009():
 
 
 _render_final_print_authority_v69009()
+try:
+    _print_payload_messages_v69470 = _durable_chat_rows_v69470(st.session_state.get("messages") or [])
+    _print_payload_html_v69470 = _build_print_transcript_html_v69007(
+        _print_payload_messages_v69470,
+        assistant_label=(st.session_state.get("current_assistant") or globals().get("assistant") or "Technical Support"),
+    )
+    _install_body_print_portal_v69470(_print_payload_html_v69470)
+    diagnostic_log("print_portal_payload_ready_v69470", message_count=len(_print_payload_messages_v69470), html_chars=len(_print_payload_html_v69470 or ""))
+except Exception as _print_portal_error_v69470:
+    diagnostic_log("print_portal_payload_failed_v69470", error_type=type(_print_portal_error_v69470).__name__, error=str(_print_portal_error_v69470)[:500])
 
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
