@@ -93,15 +93,15 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69460
-# Scope: keep chat composer controls alive across result reruns and show full product fitment ranges.
-# Scope: restore the proven iframe execution model for browser UI-runtime helpers using
-# Streamlit's supported st.iframe API. Voice dictation, send proxy, composer autogrow,
-# and top-left input alignment are restored while retaining all v69457 Sales/schema/
-# performance fixes. Protected Graphic generation, Technical answering, Marketing,
-# Auth, learning, and product-bound image behavior are unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69460"
-AUTOTECPRO_RELEASE_BUILD = "v69460-stable-composer-rerun-fitment-range-20260925"
+# AutoTecPro AI v69461
+# Scope: preserve completed text-workspace answers in the live DOM instead of immediately
+# destroying/rebuilding them with a forced post-answer st.rerun(). This fixes the observed
+# Sales compatibility result/composer disappearing immediately after a correct response.
+# Graphic Marketing keeps its existing controlled post-generation rerun. All v69460
+# composer, fitment-range, Sales/schema/performance, Technical, Auth, learning, and
+# product-bound image behavior is otherwise unchanged.
+AUTOTECPRO_RELEASE_VERSION = "v69461"
+AUTOTECPRO_RELEASE_BUILD = "v69461-stable-post-answer-dom-persistence-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -112908,7 +112908,27 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
-        st.rerun()
+        # v69461: normal text workspaces must not immediately destroy the just-rendered
+        # answer/composer DOM. The user-observed production failure happened after the
+        # answer was correctly committed and saved, exactly when this unconditional rerun
+        # rebuilt the page. Keep the completed Sales/Technical/Marketing answer mounted;
+        # the next genuine user interaction naturally reruns Streamlit and reconstructs
+        # the saved message from session_state/history. Graphic Marketing retains its
+        # controlled rerun because its durable generation lifecycle depends on it.
+        if assistant == "🎨 Graphic Marketing":
+            diagnostic_log(
+                "ai_response_graphic_controlled_rerun_v69461",
+                conversation_id=st.session_state.get("conversation_id"),
+                message_count=len(st.session_state.get("messages", [])),
+            )
+            st.rerun()
+        else:
+            diagnostic_log(
+                "ai_response_dom_preserved_without_forced_rerun_v69461",
+                workspace=str(assistant),
+                conversation_id=st.session_state.get("conversation_id"),
+                message_count=len(st.session_state.get("messages", [])),
+            )
 
 # Process maintenance only after the completed answer has already been
 # persisted and displayed on the previous run. On the first destination render
