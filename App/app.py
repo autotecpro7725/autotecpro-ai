@@ -93,7 +93,7 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69465
+# AutoTecPro AI v69466
 # Scope: harden the next-inquiry draft bridge after a source-level audit of Streamlit 1.61.
 # Native submit_mode="disable" remains the authoritative turn serializer. The prepared second
 # inquiry now lives in a body-level fixed overlay outside Streamlit/React's managed chat-input
@@ -102,8 +102,8 @@
 # React-aware value injection plus post-transfer verification/retry before the draft overlay is
 # retired. Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce, image-authority,
 # product-fitment, voice, and completed-answer persistence behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69465"
-AUTOTECPRO_RELEASE_BUILD = "v69465-body-overlay-react-transfer-verification-20260925"
+AUTOTECPRO_RELEASE_VERSION = "v69466"
+AUTOTECPRO_RELEASE_BUILD = "v69466-durable-overlay-submit-confirmation-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -6340,21 +6340,22 @@ def _install_composer_top_left_fallback_v69459():
     )
 
 
-def _install_chat_turn_guard_v69465():
-    """Serialize turns natively and preserve the prepared next inquiry outside React.
+def _install_chat_turn_guard_v69466():
+    """Preserve the next inquiry until Streamlit confirms that inquiry was submitted.
 
-    Deep audit finding: v69464 mounted its draft textarea *inside* Streamlit's React-managed
-    ``stChatInput`` subtree. AutoTecPro's legacy autogrow controller also rewrites positioning
-    on that same subtree. Either React reconciliation or the layout controller could therefore
-    remove/reposition the foreign draft node during the exact completion transition we are
-    trying to protect.
+    v69466 fixes the remaining lifecycle hole found in production after v69465.  v69465
+    transferred the prepared draft into Streamlit's React-controlled textarea as soon as the
+    preceding run became idle, and could retire the overlay after a same-tick DOM equality
+    check. React could reconcile the controlled value back to empty on a later frame, which
+    made the prepared second inquiry disappear even though the server-side turn lock worked.
 
-    v69465 keeps Streamlit 1.61 ``submit_mode="disable"`` as the authoritative submission
-    lock, but mounts the editable draft directly under ``document.body`` as a fixed overlay
-    aligned to the native textarea's bounding box. The draft is durable in per-tab
-    ``sessionStorage``. When Streamlit's native textarea re-enables, transfer uses the native
-    textarea value setter + bubbling input/change events and verifies the controlled value
-    across multiple animation/timer passes before retiring the overlay.
+    v69466 changes the state machine: the body-level draft overlay remains the visible source
+    of truth after the prior run completes. Its value stays in per-tab sessionStorage and is
+    mirrored into the native textarea only to arm Streamlit's normal send control. The overlay
+    and storage are NOT cleared on transfer. They are cleared only after a new native chat run
+    is observed (native submit_mode="disable" makes the real textarea disabled), which is the
+    browser-level acknowledgement that Streamlit accepted the prepared inquiry. Enter/click
+    submission failures therefore leave the user's text intact and retryable.
     """
     _run_invisible_trusted_browser_script_v69453(
         r"""
@@ -6362,14 +6363,15 @@ def _install_chat_turn_guard_v69465():
         (() => {
           const root = window;
           const doc = document;
-          const GLOBAL_KEY = "__atpChatTurnGuardV69465";
-          const PENDING_KEY = "__atpChatTurnGuardPendingV69465";
-          const STORAGE_KEY = "__atpChatPreparedDraftV69465";
+          const GLOBAL_KEY = "__atpChatTurnGuardV69466";
+          const PENDING_KEY = "__atpChatTurnGuardPendingV69466";
+          const STORAGE_KEY = "__atpChatPreparedDraftV69466";
           const LEGACY_KEYS = [
+            "__atpChatPreparedDraftV69465",
             "__atpChatPreparedDraftV69464",
             "__atpChatPreparedDraftV69463"
           ];
-          const OVERLAY_ID = "atp-next-inquiry-draft-v69465";
+          const OVERLAY_ID = "atp-next-inquiry-draft-v69466";
           const STORAGE_TTL_MS = 30 * 60 * 1000;
 
           function composer() {
@@ -6381,10 +6383,27 @@ def _install_chat_turn_guard_v69465():
             return (
               container.querySelector('textarea[data-testid="stChatInputTextArea"]') ||
               [...container.querySelectorAll("textarea")].find(
-                (node) => node.id !== OVERLAY_ID && !node.classList.contains("atp-next-inquiry-draft-v69465")
+                (node) => node.id !== OVERLAY_ID && !node.classList.contains("atp-next-inquiry-draft-v69466")
               ) ||
               null
             );
+          }
+
+          function sendButton(container = composer()) {
+            if (!container) return null;
+            const candidates = [
+              container.querySelector('button[data-testid="stChatInputSubmitButton"]'),
+              container.querySelector('button[type="submit"]'),
+              doc.getElementById("atp-send-proxy"),
+              ...container.querySelectorAll("button")
+            ].filter(Boolean);
+            for (const button of candidates) {
+              if (button.id === "atp-browser-voice-dictation") continue;
+              const label = `${button.getAttribute("aria-label") || ""} ${button.title || ""}`.toLowerCase();
+              if (label.includes("voice") || label.includes("microphone") || label.includes("record")) continue;
+              return button;
+            }
+            return null;
           }
 
           function readStorageRecord(key) {
@@ -6485,67 +6504,18 @@ def _install_chat_turn_guard_v69465():
               draft.style.setProperty("left", `${Math.round(rect.left)}px`, "important");
               draft.style.setProperty("top", `${Math.round(rect.top)}px`, "important");
               draft.style.setProperty("width", `${Math.round(rect.width)}px`, "important");
-              draft.style.setProperty("height", `${Math.round(rect.height)}px`, "important");
-              draft.style.setProperty("min-height", `${Math.round(rect.height)}px`, "important");
+              draft.style.setProperty("height", `${Math.max(44, Math.round(rect.height))}px`, "important");
+              draft.style.setProperty("min-height", "44px", "important");
               draft.style.setProperty("max-height", "180px", "important");
               draft.style.setProperty("visibility", "visible", "important");
             } catch (error) {}
           }
 
-          function ensureOverlay(input) {
-            if (!input) return null;
-            let draft = overlay();
-            if (!draft) {
-              draft = doc.createElement("textarea");
-              draft.id = OVERLAY_ID;
-              draft.className = "atp-next-inquiry-draft-v69465";
-              draft.setAttribute("aria-label", "Next inquiry draft");
-              draft.setAttribute("autocomplete", "off");
-              draft.setAttribute("spellcheck", "true");
-              draft.placeholder = "Type your next message...";
-              draft.value = readDraft();
-              draft.style.setProperty("box-sizing", "border-box", "important");
-              draft.style.setProperty("border", "0", "important");
-              draft.style.setProperty("outline", "0", "important");
-              draft.style.setProperty("box-shadow", "none", "important");
-              draft.style.setProperty("resize", "none", "important");
-              draft.style.setProperty("overflow-y", "auto", "important");
-              draft.style.setProperty("white-space", "pre-wrap", "important");
-              draft.style.setProperty("overflow-wrap", "break-word", "important");
-              draft.style.setProperty("z-index", "15", "important");
-              draft.style.setProperty("pointer-events", "auto", "important");
-              draft.style.setProperty("opacity", "1", "important");
-              draft.style.setProperty("margin", "0", "important");
-              copyTextareaVisuals(input, draft);
-
-              const persist = () => writeDraft(String(draft.value || ""));
-              draft.addEventListener("input", persist);
-              draft.addEventListener("change", persist);
-              draft.addEventListener("compositionend", persist);
-              draft.addEventListener("keydown", (event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  persist();
-                }
-              });
-              // document.body is intentionally outside Streamlit/React's managed
-              // chat subtree. React reconciliation cannot delete this draft node.
-              doc.body.appendChild(draft);
-            } else {
-              const stored = readDraft();
-              if (stored && !String(draft.value || "")) draft.value = stored;
-            }
-            copyTextareaVisuals(input, draft);
-            positionOverlay(input, draft);
-            return draft;
-          }
-
           function restoreMic() {
             const mic = doc.getElementById("atp-browser-voice-dictation");
-            if (!mic || mic.dataset.atpDraftBridgeDisabledV69465 !== "true") return;
+            if (!mic || mic.dataset.atpDraftBridgeDisabledV69466 !== "true") return;
             try {
-              delete mic.dataset.atpDraftBridgeDisabledV69465;
+              delete mic.dataset.atpDraftBridgeDisabledV69466;
               mic.style.removeProperty("pointer-events");
               mic.style.removeProperty("opacity");
               mic.setAttribute("title", "Voice dictation");
@@ -6556,7 +6526,7 @@ def _install_chat_turn_guard_v69465():
             const mic = doc.getElementById("atp-browser-voice-dictation");
             if (!mic) return;
             try {
-              mic.dataset.atpDraftBridgeDisabledV69465 = "true";
+              mic.dataset.atpDraftBridgeDisabledV69466 = "true";
               mic.style.setProperty("pointer-events", "none", "important");
               mic.style.setProperty("opacity", "0.45", "important");
               mic.setAttribute("title", "Voice input is available when the current response finishes");
@@ -6568,14 +6538,10 @@ def _install_chat_turn_guard_v69465():
             const next = String(value || "");
             const previous = String(input.value || "");
             try {
-              try { input.focus({ preventScroll: true }); } catch (error) { try { input.focus(); } catch (e) {} }
               const prototype = root.HTMLTextAreaElement?.prototype || Object.getPrototypeOf(input);
               const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
               if (setter) setter.call(input, next);
               else input.value = next;
-              // React's controlled textarea compares the DOM value with its private
-              // tracker before firing onChange. Preserve the pre-write tracker value
-              // so the bubbling input event is observed as a genuine change.
               try {
                 const tracker = input._valueTracker;
                 if (tracker && typeof tracker.setValue === "function") tracker.setValue(previous);
@@ -6599,7 +6565,7 @@ def _install_chat_turn_guard_v69465():
           }
 
           function restoreLegacyArtifacts() {
-            for (const version of ["V69464", "V69463", "V69462"]) {
+            for (const version of ["V69465", "V69464", "V69463", "V69462"]) {
               try {
                 const controller = root[`__atpChatTurnGuard${version}`];
                 if (controller && typeof controller.cleanup === "function") controller.cleanup();
@@ -6607,7 +6573,12 @@ def _install_chat_turn_guard_v69465():
                 delete root[`__atpChatTurnGuardPending${version}`];
               } catch (error) {}
             }
-            try { doc.getElementById("atp-next-inquiry-draft-v69464")?.remove(); } catch (error) {}
+            for (const id of [
+              "atp-next-inquiry-draft-v69465",
+              "atp-next-inquiry-draft-v69464"
+            ]) {
+              try { doc.getElementById(id)?.remove(); } catch (error) {}
+            }
           }
 
           restoreLegacyArtifacts();
@@ -6627,8 +6598,9 @@ def _install_chat_turn_guard_v69465():
           const state = {
             pythonBusy: false,
             wasBusy: false,
-            transferredDraft: "",
-            transferToken: 0,
+            submissionPending: "",
+            submitToken: 0,
+            internalClick: false,
             observer: null,
             timer: null,
             scheduled: false,
@@ -6638,55 +6610,122 @@ def _install_chat_turn_guard_v69465():
             return Boolean(state.pythonBusy || nativeDisabled(input));
           }
 
-          function verifyTransfer(input, expected, token, attempt = 0) {
-            if (token !== state.transferToken || !expected) return;
-            const currentInput = nativeInput();
-            if (!currentInput || effectiveBusy(currentInput)) return;
-            const current = String(currentInput.value || "");
-            if (current === expected) {
-              state.transferredDraft = expected;
-              removeOverlay();
-              restoreMic();
-              return;
-            }
-            if (attempt >= 6) {
-              // Never discard the body-level overlay or sessionStorage copy when
-              // React has not accepted the transfer. Keep the user's text visible.
-              ensureOverlay(currentInput);
-              return;
-            }
-            setReactValue(currentInput, expected);
-            const delays = [0, 16, 40, 90, 180, 320, 500];
-            root.setTimeout(
-              () => verifyTransfer(currentInput, expected, token, attempt + 1),
-              delays[Math.min(attempt + 1, delays.length - 1)]
-            );
+          function mirrorDraftIntoNative(input, value) {
+            if (!input || effectiveBusy(input)) return false;
+            const expected = String(value || "");
+            if (!expected) return false;
+            if (String(input.value || "") !== expected) setReactValue(input, expected);
+            return String(input.value || "") === expected;
           }
 
-          function beginTransfer(input) {
-            if (!input) return;
-            const stored = readDraft();
-            if (!stored) {
-              state.transferredDraft = "";
-              removeOverlay();
-              restoreMic();
-              return;
+          function ensureOverlay(input) {
+            if (!input) return null;
+            let draft = overlay();
+            if (!draft) {
+              draft = doc.createElement("textarea");
+              draft.id = OVERLAY_ID;
+              draft.className = "atp-next-inquiry-draft-v69466";
+              draft.setAttribute("aria-label", "Next inquiry draft");
+              draft.setAttribute("autocomplete", "off");
+              draft.setAttribute("spellcheck", "true");
+              draft.placeholder = "Type your next message...";
+              draft.value = readDraft();
+              draft.style.setProperty("box-sizing", "border-box", "important");
+              draft.style.setProperty("border", "0", "important");
+              draft.style.setProperty("outline", "0", "important");
+              draft.style.setProperty("box-shadow", "none", "important");
+              draft.style.setProperty("resize", "none", "important");
+              draft.style.setProperty("overflow-y", "auto", "important");
+              draft.style.setProperty("white-space", "pre-wrap", "important");
+              draft.style.setProperty("overflow-wrap", "break-word", "important");
+              draft.style.setProperty("z-index", "2147483000", "important");
+              draft.style.setProperty("pointer-events", "auto", "important");
+              draft.style.setProperty("opacity", "1", "important");
+              draft.style.setProperty("margin", "0", "important");
+              copyTextareaVisuals(input, draft);
+
+              const persist = () => {
+                const value = String(draft.value || "");
+                writeDraft(value);
+                if (!effectiveBusy(nativeInput())) mirrorDraftIntoNative(nativeInput(), value);
+              };
+              draft.addEventListener("input", persist);
+              draft.addEventListener("change", persist);
+              draft.addEventListener("compositionend", persist);
+              draft.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  persist();
+                  submitPreparedDraft();
+                }
+              });
+              doc.body.appendChild(draft);
+            } else {
+              const stored = readDraft();
+              if (stored && String(draft.value || "") !== stored && doc.activeElement !== draft) {
+                draft.value = stored;
+              }
             }
-            const token = ++state.transferToken;
-            setReactValue(input, stored);
-            // Do not remove the durable overlay yet. It remains the visible source
-            // of truth until React's controlled textarea is verified to hold it.
-            verifyTransfer(input, stored, token, 0);
+            copyTextareaVisuals(input, draft);
+            positionOverlay(input, draft);
+            return draft;
           }
 
-          function syncIdleNativeDraft(input) {
-            if (!input || effectiveBusy(input)) return;
-            if (!state.transferredDraft && !readDraft()) return;
-            const value = String(input.value || "");
-            if (value) {
-              writeDraft(value);
-              state.transferredDraft = value;
-            }
+          function confirmSubmittedOnBusyStart(input) {
+            if (!state.submissionPending) return;
+            if (!nativeDisabled(input) && !state.pythonBusy) return;
+            const submitted = state.submissionPending;
+            state.submissionPending = "";
+            state.submitToken += 1;
+            clearDraft();
+            const draft = overlay();
+            if (draft && String(draft.value || "") === submitted) draft.value = "";
+          }
+
+          function submitPreparedDraft() {
+            const input = nativeInput();
+            if (!input || effectiveBusy(input)) return false;
+            const draft = overlay();
+            const value = String(draft?.value || readDraft() || "");
+            if (!value.trim()) return false;
+            writeDraft(value);
+            const token = ++state.submitToken;
+            state.submissionPending = value;
+
+            const attemptSubmit = (attempt = 0) => {
+              if (token !== state.submitToken || !state.submissionPending) return;
+              const currentInput = nativeInput();
+              if (!currentInput) return;
+              if (effectiveBusy(currentInput)) {
+                confirmSubmittedOnBusyStart(currentInput);
+                scheduleApply();
+                return;
+              }
+              mirrorDraftIntoNative(currentInput, value);
+              const button = sendButton();
+              if (String(currentInput.value || "") === value && button && !button.disabled && button.getAttribute("aria-disabled") !== "true") {
+                try {
+                  state.internalClick = true;
+                  button.click();
+                } catch (error) {
+                } finally {
+                  state.internalClick = false;
+                }
+              } else if (String(currentInput.value || "") === value && !button) {
+                try {
+                  currentInput.dispatchEvent(new KeyboardEvent("keydown", {
+                    key: "Enter", code: "Enter", bubbles: true, cancelable: true
+                  }));
+                } catch (error) {}
+              }
+              if (attempt < 12) {
+                const delays = [16, 32, 60, 100, 160, 240, 360, 500, 700, 900, 1200, 1500, 1800];
+                root.setTimeout(() => attemptSubmit(attempt + 1), delays[Math.min(attempt, delays.length - 1)]);
+              }
+            };
+            root.requestAnimationFrame(() => attemptSubmit(0));
+            return true;
           }
 
           function apply() {
@@ -6695,19 +6734,20 @@ def _install_chat_turn_guard_v69465():
             if (!input) return;
             const busy = effectiveBusy(input);
             if (busy) {
-              // If the prior transferred draft triggered this new native run, it has
-              // now been submitted. Clear only that submitted draft; a newly typed
-              // overlay value will immediately create a fresh storage record.
-              if (!state.wasBusy && state.transferredDraft) {
-                clearDraft();
-                state.transferredDraft = "";
-                state.transferToken += 1;
-              }
+              confirmSubmittedOnBusyStart(input);
               ensureOverlay(input);
               disableMic();
             } else {
-              beginTransfer(input);
-              syncIdleNativeDraft(input);
+              const stored = readDraft();
+              if (stored) {
+                const draft = ensureOverlay(input);
+                if (draft && !String(draft.value || "")) draft.value = stored;
+                mirrorDraftIntoNative(input, String(draft?.value || stored));
+                restoreMic();
+              } else {
+                removeOverlay();
+                restoreMic();
+              }
             }
             state.wasBusy = busy;
           }
@@ -6718,19 +6758,23 @@ def _install_chat_turn_guard_v69465():
             root.requestAnimationFrame(apply);
           }
 
-          function onNativeInputCapture(event) {
+          function onComposerClickCapture(event) {
+            if (state.internalClick) return;
             const input = nativeInput();
-            if (!input || event.target !== input || effectiveBusy(input)) return;
-            if (state.transferredDraft || readDraft()) {
-              const value = String(input.value || "");
-              if (value) {
-                writeDraft(value);
-                state.transferredDraft = value;
-              } else if (event.isTrusted) {
-                clearDraft();
-                state.transferredDraft = "";
-              }
-            }
+            if (!input || effectiveBusy(input)) return;
+            const draft = readDraft();
+            if (!draft) return;
+            const target = event.target?.closest?.("button");
+            if (!target) return;
+            const c = composer();
+            if (!c || !c.contains(target)) return;
+            if (target.id === "atp-browser-voice-dictation") return;
+            const label = `${target.getAttribute("aria-label") || ""} ${target.title || ""}`.toLowerCase();
+            if (label.includes("voice") || label.includes("microphone") || label.includes("record")) return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation?.();
+            submitPreparedDraft();
           }
 
           function setPythonBusy(value) {
@@ -6738,8 +6782,7 @@ def _install_chat_turn_guard_v69465():
             scheduleApply();
           }
 
-          doc.addEventListener("input", onNativeInputCapture, true);
-          doc.addEventListener("change", onNativeInputCapture, true);
+          doc.addEventListener("click", onComposerClickCapture, true);
           root.addEventListener("resize", scheduleApply, true);
           root.addEventListener("scroll", scheduleApply, true);
           if (root.visualViewport) {
@@ -6762,8 +6805,7 @@ def _install_chat_turn_guard_v69465():
           function cleanup() {
             try { state.observer?.disconnect(); } catch (error) {}
             try { root.clearInterval(state.timer); } catch (error) {}
-            try { doc.removeEventListener("input", onNativeInputCapture, true); } catch (error) {}
-            try { doc.removeEventListener("change", onNativeInputCapture, true); } catch (error) {}
+            try { doc.removeEventListener("click", onComposerClickCapture, true); } catch (error) {}
             try { root.removeEventListener("resize", scheduleApply, true); } catch (error) {}
             try { root.removeEventListener("scroll", scheduleApply, true); } catch (error) {}
             try { root.visualViewport?.removeEventListener("resize", scheduleApply); } catch (error) {}
@@ -6778,6 +6820,7 @@ def _install_chat_turn_guard_v69465():
             cleanup,
             hasDraft: () => Boolean(readDraft()),
             draftValue: () => String(readDraft() || ""),
+            submitDraft: submitPreparedDraft,
           };
 
           if (typeof root[PENDING_KEY] === "boolean") {
@@ -6790,21 +6833,20 @@ def _install_chat_turn_guard_v69465():
         """
     )
 
-
-def _set_chat_composer_busy_v69465(is_busy):
-    """Mirror Python lifecycle into the v69465 draft bridge; Streamlit owns locking."""
-    busy_js_v69465 = "true" if bool(is_busy) else "false"
+def _set_chat_composer_busy_v69466(is_busy):
+    """Mirror Python lifecycle into the v69466 draft bridge; Streamlit owns locking."""
+    busy_js_v69466 = "true" if bool(is_busy) else "false"
     _run_invisible_trusted_browser_script_v69453(
         f"""
         <script>
         (() => {{
           try {{
             const root = window;
-            const controller = root.__atpChatTurnGuardV69465;
+            const controller = root.__atpChatTurnGuardV69466;
             if (controller && typeof controller.setPythonBusy === "function") {{
-              controller.setPythonBusy({busy_js_v69465});
+              controller.setPythonBusy({busy_js_v69466});
             }} else {{
-              root.__atpChatTurnGuardPendingV69465 = {busy_js_v69465};
+              root.__atpChatTurnGuardPendingV69466 = {busy_js_v69466};
             }}
           }} catch (error) {{}}
         }})();
@@ -106027,11 +106069,11 @@ else:
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
     _install_composer_top_left_fallback_v69459()
-    # v69465: Streamlit 1.61 natively serializes chat submissions with submit_mode="disable".
-    # The browser bridge overlays an isolated draft textarea only while the native widget
-    # is disabled, so staff can prepare the next inquiry without placing that draft inside
-    # Streamlit's controlled textarea during the active ScriptRunner execution.
-    _install_chat_turn_guard_v69465()
+    # v69466: Streamlit 1.61 natively serializes chat submissions with submit_mode="disable".
+    # The browser bridge overlays a body-level draft textarea only while the native widget
+    # is disabled. The draft stays outside Streamlit/React's managed chat subtree, so staff
+    # can prepare the next inquiry without exposing that text to widget reconciliation.
+    _install_chat_turn_guard_v69466()
     # Keep the original stable composer. Attachments remain in the proven managed
     # uploader above, while the normal bottom-right send arrow submits the turn.
     chat_prompt = st.chat_input(
@@ -106154,7 +106196,7 @@ else:
     if not prompt:
         # A controlled rerun after a terminal/direct answer has no new prompt. Ensure
         # any client-side guard inherited from the completed turn is released.
-        _set_chat_composer_busy_v69465(False)
+        _set_chat_composer_busy_v69466(False)
 
     if prompt:
         # For a real st.chat_input submission, Streamlit 1.61 has already entered its
@@ -106163,14 +106205,14 @@ else:
         # could otherwise leave a stale browser-side busy flag after Streamlit correctly
         # re-enables the widget. Keep the Python latch only for structured/tool submissions
         # that did not originate from the native chat input.
-        native_chat_submission_v69465 = bool(chat_prompt)
-        _set_chat_composer_busy_v69465(not native_chat_submission_v69465)
+        native_chat_submission_v69466 = bool(chat_prompt)
+        _set_chat_composer_busy_v69466(not native_chat_submission_v69466)
         diagnostic_log(
-            "chat_native_submit_guard_active_v69465",
+            "chat_native_submit_guard_active_v69466",
             workspace=str(assistant),
             conversation_id=st.session_state.get("conversation_id"),
-            native_chat_submission=native_chat_submission_v69465,
-            python_fallback_busy=not native_chat_submission_v69465,
+            native_chat_submission=native_chat_submission_v69466,
+            python_fallback_busy=not native_chat_submission_v69466,
         )
         command_preflight_started_v68864 = time.perf_counter()
         # v69355: exact-key vector-search memoization is valid for this user turn only.
@@ -106286,8 +106328,8 @@ else:
             )
         except ArchiveValidationError as error:
             st.error(f"ZIP analysis was stopped: {error}")
-            _set_chat_composer_busy_v69465(False)
-            diagnostic_log("chat_native_submit_guard_released_on_archive_error_v69465")
+            _set_chat_composer_busy_v69466(False)
+            diagnostic_log("chat_native_submit_guard_released_on_archive_error_v69466")
             st.stop()
 
         technical_followup_prompt_v68879 = interaction_prompt
@@ -108080,8 +108122,8 @@ else:
             if not lease_token_v68848:
                 diagnostic_log("graphic_v68848_duplicate_execution_blocked", job_id=str(durable_job_v68844.get("job_id") or ""))
                 st.info("This image request is already processing in another session. The result will appear when it completes.")
-                _set_chat_composer_busy_v69465(False)
-                diagnostic_log("chat_native_submit_guard_released_on_graphic_duplicate_v69465")
+                _set_chat_composer_busy_v69466(False)
+                diagnostic_log("chat_native_submit_guard_released_on_graphic_duplicate_v69466")
                 st.stop()
             durable_job_v68844["lease_token_local"] = lease_token_v68848
             current_attempt_v68844 = int(durable_job_v68844.get("attempt") or 0)
@@ -113416,11 +113458,11 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
-        # v69465: keep the Python-side draft bridge busy through final maintenance. Native
+        # v69466: keep the Python-side draft bridge busy through final maintenance. Native
         # Streamlit remains disabled until scriptFinished, so the draft overlay is not
         # transferred back into the real composer until the framework itself declares the
         # run complete.
-        _release_chat_guard_at_script_end_v69465 = True
+        _release_chat_guard_at_script_end_v69466 = True
 
         # v69461: normal text workspaces must not immediately destroy the just-rendered
         # answer/composer DOM. The user-observed production failure happened after the
@@ -114495,14 +114537,14 @@ _render_final_print_authority_v69009()
 # from flashing during Streamlit reruns.
 _finish_auth_transition(_auth_transition_placeholder)
 
-# v69465: release only the Python-side draft signal at the end of the script. Streamlit
+# v69466: release only the Python-side draft signal at the end of the script. Streamlit
 # submit_mode="disable" remains the authoritative lock until the frontend receives
 # scriptFinished. The isolated draft is transferred into the native composer only after
 # that native disabled state clears.
-if bool(locals().get("_release_chat_guard_at_script_end_v69465", False)):
-    _set_chat_composer_busy_v69465(False)
+if bool(locals().get("_release_chat_guard_at_script_end_v69466", False)):
+    _set_chat_composer_busy_v69466(False)
     diagnostic_log(
-        "chat_native_submit_guard_released_v69465",
+        "chat_native_submit_guard_released_v69466",
         workspace=str(locals().get("assistant") or ""),
         conversation_id=st.session_state.get("conversation_id"),
         message_count=len(st.session_state.get("messages", [])),
