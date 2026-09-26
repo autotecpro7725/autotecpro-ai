@@ -1,3 +1,4 @@
+# AutoTecPro AI v69475 - deterministic learned recall + reliable upper-right PDF export + unique compatibility visuals
 # AutoTecPro AI v69451 - explicit Graphic engine pinning + silent-exception observability hardening
 # AutoTecPro AI v69450 - precise product labels + trim-fitment display + concise compatibility captions + Streamlit iframe migration
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
@@ -102,8 +103,8 @@
 # React-aware value injection plus post-transfer verification/retry before the draft overlay is
 # retired. Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce, image-authority,
 # product-fitment, voice, and completed-answer persistence behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69473"
-AUTOTECPRO_RELEASE_BUILD = "v69473-v69468-baseline-durable-chat-native-print-20260926"
+AUTOTECPRO_RELEASE_VERSION = "v69475"
+AUTOTECPRO_RELEASE_BUILD = "v69475-upper-print-blob-unique-compatibility-visuals-20260926"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -9583,6 +9584,459 @@ def _install_native_streamlit_print_bridge_v69473(transcript_html):
         })();
         </script>'''.replace('__ATP_NATIVE_PRINT_PAYLOAD_V69473__', payload_v69473)
     )
+
+# ============================================================
+# v69474: deterministic learned-answer recall + server PDF behind native Print
+# ============================================================
+def _normalize_learned_question_v69474(value):
+    """Normalize stable staff-taught questions for exact cross-conversation recall."""
+    value_v69474 = html.unescape(str(value or "")).casefold()
+    value_v69474 = re.sub(r"https?://\S+", " ", value_v69474)
+    value_v69474 = re.sub(r"[^a-z0-9]+", " ", value_v69474)
+    return re.sub(r"\s+", " ", value_v69474).strip()
+
+
+def _learned_recall_is_volatile_v69474(question, detected_live_request=None):
+    """Fail closed for facts that should be re-checked rather than frozen from memory."""
+    live_v69474 = detected_live_request if isinstance(detected_live_request, dict) else {}
+    live_type_v69474 = str(live_v69474.get("type") or "none").strip().casefold()
+    if live_type_v69474 not in {"", "none"}:
+        return True
+    value_v69474 = _normalize_learned_question_v69474(question)
+    if not value_v69474:
+        return True
+    volatile_patterns_v69474 = (
+        r"\bprice\b", r"\bhow much\b", r"\bcost\b", r"\bdiscount\b", r"\bpromotion\b",
+        r"\bpromo\b", r"\bsale price\b", r"\bin stock\b", r"\bstock\b", r"\binventory\b",
+        r"\bavailable now\b", r"\bavailability\b", r"\border status\b", r"\btracking\b",
+        r"\bshipment\b", r"\bdelivery status\b", r"\bexchange rate\b", r"\bcurrency\b",
+        r"\bweather\b", r"\btoday\b", r"\bright now\b", r"\bcurrent price\b",
+        r"\blatest price\b", r"\bwhat do you have\b", r"\bwhat do you carry\b",
+        r"\bwhat products\b", r"\bwhich products\b", r"\bwhat models do you have\b",
+        r"\bwhat models do you carry\b",
+    )
+    return any(re.search(pattern_v69474, value_v69474) for pattern_v69474 in volatile_patterns_v69474)
+
+
+def _cross_conversation_exact_learned_answer_v69474(
+    question,
+    selected_assistant,
+    *,
+    detected_live_request=None,
+):
+    """Return a trusted approved answer for the same stable question across cases.
+
+    Only exact normalized question matches from strong staff-authority records are
+    terminal. Semantic/paraphrased questions continue through the normal vector/model
+    path. Live/current requests are deliberately excluded.
+    """
+    if not str(question or "").strip():
+        return None
+    if str(selected_assistant or "") in {"🎨 Graphic Marketing", "⚙️ Admin Panel"}:
+        return None
+    try:
+        if detect_explicit_learning_command(
+            str(question or ""),
+            has_recent_context=bool(st.session_state.get("messages")),
+            has_attachments=False,
+        ):
+            return None
+    except Exception:
+        pass
+    if _learned_recall_is_volatile_v69474(question, detected_live_request):
+        return None
+
+    normalized_v69474 = _normalize_learned_question_v69474(question)
+    if not normalized_v69474:
+        return None
+    assistant_v69474 = clean_assistant_label(selected_assistant).strip()
+    if not assistant_v69474:
+        return None
+
+    try:
+        response_v69474 = (
+            supabase.table("learned_knowledge")
+            .select("*")
+            .eq("assistant", assistant_v69474)
+            .order("updated_at", desc=True)
+            .limit(250)
+            .execute()
+        )
+        rows_v69474 = [dict(row or {}) for row in list(response_v69474.data or [])]
+    except Exception as error_v69474:
+        diagnostic_log(
+            "cross_case_learned_recall_query_failed_v69474",
+            workspace=assistant_v69474,
+            error_type=type(error_v69474).__name__,
+        )
+        return None
+
+    matches_v69474 = []
+    for row_v69474 in rows_v69474:
+        try:
+            if is_pending_knowledge_row(row_v69474):
+                continue
+        except Exception:
+            pass
+        solution_v69474 = str(
+            row_v69474.get("approved_answer")
+            or row_v69474.get("solution")
+            or ""
+        ).strip()
+        if not solution_v69474:
+            continue
+        try:
+            confidence_v69474 = int(row_v69474.get("confidence_score") or 0)
+        except Exception:
+            confidence_v69474 = 0
+        source_type_v69474 = str(row_v69474.get("source_type") or "").strip().casefold()
+        staff_confirmed_v69474 = bool(row_v69474.get("staff_confirmed"))
+        strong_v69474 = bool(
+            confidence_v69474 >= 95
+            or staff_confirmed_v69474
+            or source_type_v69474 in {
+                "explicit_staff_instruction",
+                "staff_confirmed_solution",
+                "staff_authored_correction",
+            }
+        )
+        if not strong_v69474:
+            continue
+        question_candidates_v69474 = {
+            _normalize_learned_question_v69474(row_v69474.get("source_question")),
+            _normalize_learned_question_v69474(row_v69474.get("question")),
+        }
+        question_candidates_v69474.discard("")
+        if normalized_v69474 not in question_candidates_v69474:
+            continue
+        matches_v69474.append((confidence_v69474, row_v69474))
+
+    if not matches_v69474:
+        return None
+    matches_v69474.sort(key=lambda item_v69474: item_v69474[0], reverse=True)
+    row_v69474 = matches_v69474[0][1]
+    result_v69474 = {
+        "record_id": str(row_v69474.get("id") or ""),
+        "answer": str(row_v69474.get("approved_answer") or row_v69474.get("solution") or "").strip(),
+        "confidence": int(row_v69474.get("confidence_score") or 0),
+        "vehicle": str(row_v69474.get("vehicle") or "").strip(),
+        "issue": str(row_v69474.get("issue") or "").strip(),
+        "source_type": str(row_v69474.get("source_type") or "").strip(),
+    }
+    diagnostic_log(
+        "cross_case_exact_learned_recall_v69474",
+        workspace=assistant_v69474,
+        record_id=result_v69474["record_id"],
+        confidence=result_v69474["confidence"],
+        vehicle=result_v69474["vehicle"][:120],
+    )
+    return result_v69474
+
+
+def _plain_pdf_text_v69474(value):
+    """Normalize rendered chat content into deterministic printable text."""
+    text_v69474 = str(value or "")
+    text_v69474 = re.sub(r"<br\s*/?>", "\n", text_v69474, flags=re.I)
+    text_v69474 = re.sub(r"</(?:p|div|li|tr|h[1-6])>", "\n", text_v69474, flags=re.I)
+    text_v69474 = re.sub(r"<[^>]+>", "", text_v69474)
+    text_v69474 = html.unescape(text_v69474)
+    text_v69474 = re.sub(r"!\[([^\]]*)\]\([^\)]+\)", r"[Image: \1]", text_v69474)
+    text_v69474 = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r"\1 - \2", text_v69474)
+    text_v69474 = re.sub(r"^\s{0,3}#{1,6}\s*", "", text_v69474, flags=re.M)
+    text_v69474 = text_v69474.replace("**", "").replace("__", "").replace("`", "")
+    text_v69474 = re.sub(r"\n{3,}", "\n\n", text_v69474)
+    return text_v69474.strip()
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def _build_conversation_pdf_bytes_v69474(messages_json, assistant_label="Technical Support"):
+    """Build the conversation PDF on the server; browser print CSS is bypassed."""
+    try:
+        rows_v69474 = json.loads(str(messages_json or "[]"))
+    except Exception:
+        rows_v69474 = []
+    if not isinstance(rows_v69474, list) or not rows_v69474:
+        return b""
+
+    from PIL import ImageDraw, ImageFont
+    page_w_v69474, page_h_v69474 = 1191, 1684
+    margin_x_v69474, margin_top_v69474, margin_bottom_v69474 = 86, 92, 92
+    content_w_v69474 = page_w_v69474 - (margin_x_v69474 * 2)
+
+    def font_v69474(size_v69474, bold_v69474=False):
+        names_v69474 = ["DejaVuSans-Bold.ttf", "DejaVuSans.ttf"] if bold_v69474 else ["DejaVuSans.ttf"]
+        for name_v69474 in names_v69474:
+            try:
+                return ImageFont.truetype(name_v69474, size=size_v69474)
+            except Exception:
+                pass
+        return ImageFont.load_default()
+
+    f_title_v69474 = font_v69474(34, True)
+    f_sub_v69474 = font_v69474(20)
+    f_role_v69474 = font_v69474(20, True)
+    f_body_v69474 = font_v69474(18)
+    f_small_v69474 = font_v69474(14)
+    pages_v69474 = []
+    page_v69474 = None
+    draw_v69474 = None
+    y_v69474 = 0
+
+    def new_page_v69474():
+        nonlocal page_v69474, draw_v69474, y_v69474
+        page_v69474 = Image.new("RGB", (page_w_v69474, page_h_v69474), "white")
+        draw_v69474 = ImageDraw.Draw(page_v69474)
+        pages_v69474.append(page_v69474)
+        y_v69474 = margin_top_v69474
+        draw_v69474.text((margin_x_v69474, y_v69474), "AutoTecPro AI", font=f_title_v69474, fill="#111827")
+        y_v69474 += 48
+        draw_v69474.text((margin_x_v69474, y_v69474), str(assistant_label or "Technical Support"), font=f_sub_v69474, fill="#475569")
+        y_v69474 += 42
+        draw_v69474.line((margin_x_v69474, y_v69474, page_w_v69474 - margin_x_v69474, y_v69474), fill="#cbd5e1", width=2)
+        y_v69474 += 28
+
+    def ensure_v69474(required_v69474):
+        if y_v69474 + required_v69474 > page_h_v69474 - margin_bottom_v69474:
+            new_page_v69474()
+
+    def text_width_v69474(text_v69474, font_obj_v69474):
+        try:
+            box_v69474 = draw_v69474.textbbox((0, 0), text_v69474, font=font_obj_v69474)
+            return max(0, box_v69474[2] - box_v69474[0])
+        except Exception:
+            return len(text_v69474) * 9
+
+    def wrap_v69474(text_v69474, font_obj_v69474, width_v69474):
+        result_v69474 = []
+        for raw_v69474 in str(text_v69474 or "").splitlines() or [""]:
+            if not raw_v69474:
+                result_v69474.append("")
+                continue
+            current_v69474 = ""
+            for word_v69474 in raw_v69474.split(" "):
+                candidate_v69474 = word_v69474 if not current_v69474 else current_v69474 + " " + word_v69474
+                if text_width_v69474(candidate_v69474, font_obj_v69474) <= width_v69474:
+                    current_v69474 = candidate_v69474
+                    continue
+                if current_v69474:
+                    result_v69474.append(current_v69474)
+                    current_v69474 = ""
+                token_v69474 = word_v69474
+                while token_v69474 and text_width_v69474(token_v69474, font_obj_v69474) > width_v69474:
+                    lo_v69474, hi_v69474 = 1, len(token_v69474)
+                    while lo_v69474 < hi_v69474:
+                        mid_v69474 = (lo_v69474 + hi_v69474 + 1) // 2
+                        if text_width_v69474(token_v69474[:mid_v69474], font_obj_v69474) <= width_v69474:
+                            lo_v69474 = mid_v69474
+                        else:
+                            hi_v69474 = mid_v69474 - 1
+                    cut_v69474 = max(1, lo_v69474)
+                    result_v69474.append(token_v69474[:cut_v69474])
+                    token_v69474 = token_v69474[cut_v69474:]
+                current_v69474 = token_v69474
+            if current_v69474:
+                result_v69474.append(current_v69474)
+        return result_v69474
+
+    def draw_text_v69474(text_v69474, font_obj_v69474=f_body_v69474, fill_v69474="#111827", line_h_v69474=27):
+        nonlocal y_v69474
+        for line_v69474 in wrap_v69474(text_v69474, font_obj_v69474, content_w_v69474):
+            ensure_v69474(line_h_v69474 + 2)
+            draw_v69474.text((margin_x_v69474, y_v69474), line_v69474, font=font_obj_v69474, fill=fill_v69474)
+            y_v69474 += line_h_v69474
+
+    def fetch_image_v69474(source_v69474):
+        try:
+            source_v69474 = str(source_v69474 or "").strip()
+            if source_v69474.startswith("data:image/") and "," in source_v69474:
+                raw_v69474 = base64.b64decode(source_v69474.split(",", 1)[1])
+            elif source_v69474.startswith("https://"):
+                response_v69474 = get_http_session().get(
+                    source_v69474,
+                    timeout=(2.0, 4.0),
+                    headers={"User-Agent": "AutoTecProAI-PDF/1.0"},
+                )
+                response_v69474.raise_for_status()
+                raw_v69474 = response_v69474.content
+            else:
+                return None
+            with Image.open(io.BytesIO(raw_v69474)) as image_v69474:
+                return image_v69474.convert("RGB")
+        except Exception:
+            return None
+
+    new_page_v69474()
+    rendered_messages_v69474 = 0
+    for message_v69474 in rows_v69474:
+        if not isinstance(message_v69474, dict):
+            continue
+        role_v69474 = str(message_v69474.get("role") or "assistant").strip().casefold()
+        if role_v69474 not in {"user", "assistant"}:
+            continue
+        content_v69474 = str(message_v69474.get("content") or "")
+        content_no_docs_v69474, _docs_v69474 = extract_documents_from_message_content(content_v69474)
+        visible_v69474, images_v69474 = extract_images_from_message_content(content_no_docs_v69474)
+        visible_v69474 = clean_visible_chat_text(visible_v69474)
+        if role_v69474 != "user":
+            visible_v69474 = format_learning_record_for_display(visible_v69474)
+        plain_v69474 = _plain_pdf_text_v69474(visible_v69474)
+        if not plain_v69474 and not images_v69474:
+            continue
+        ensure_v69474(86)
+        draw_v69474.text(
+            (margin_x_v69474, y_v69474),
+            "You" if role_v69474 == "user" else "AutoTecPro AI",
+            font=f_role_v69474,
+            fill="#334155",
+        )
+        y_v69474 += 34
+        draw_text_v69474(plain_v69474)
+        for image_info_v69474 in list(images_v69474 or [])[:8]:
+            if not isinstance(image_info_v69474, dict):
+                continue
+            source_v69474 = str(image_info_v69474.get("data_url") or image_info_v69474.get("url") or "").strip()
+            caption_v69474 = str(image_info_v69474.get("name") or image_info_v69474.get("filename") or "Related image")
+            image_v69474 = fetch_image_v69474(source_v69474)
+            if image_v69474 is None:
+                draw_text_v69474(f"[Image unavailable in PDF: {caption_v69474}]", f_small_v69474, "#64748b", 22)
+                continue
+            max_w_v69474, max_h_v69474 = min(content_w_v69474, 760), 520
+            scale_v69474 = min(max_w_v69474 / max(1, image_v69474.width), max_h_v69474 / max(1, image_v69474.height), 1.0)
+            target_v69474 = (max(1, int(image_v69474.width * scale_v69474)), max(1, int(image_v69474.height * scale_v69474)))
+            image_v69474 = image_v69474.resize(target_v69474, Image.LANCZOS)
+            ensure_v69474(target_v69474[1] + 55)
+            x_v69474 = margin_x_v69474 + max(0, (content_w_v69474 - target_v69474[0]) // 2)
+            page_v69474.paste(image_v69474, (x_v69474, y_v69474))
+            y_v69474 += target_v69474[1] + 8
+            draw_v69474.text((margin_x_v69474, y_v69474), caption_v69474, font=f_small_v69474, fill="#64748b")
+            y_v69474 += 28
+        y_v69474 += 24
+        rendered_messages_v69474 += 1
+
+    if not rendered_messages_v69474:
+        return b""
+    total_pages_v69474 = len(pages_v69474)
+    for page_index_v69474, page_item_v69474 in enumerate(pages_v69474, start=1):
+        footer_draw_v69474 = ImageDraw.Draw(page_item_v69474)
+        footer_draw_v69474.text(
+            (margin_x_v69474, page_h_v69474 - 54),
+            f"AutoTecPro AI - Page {page_index_v69474} of {total_pages_v69474}",
+            font=f_small_v69474,
+            fill="#64748b",
+        )
+    output_v69474 = io.BytesIO()
+    pages_v69474[0].save(
+        output_v69474,
+        format="PDF",
+        save_all=True,
+        append_images=pages_v69474[1:],
+        resolution=144.0,
+    )
+    return output_v69474.getvalue()
+
+
+def _install_upper_right_print_pdf_v69475(messages, assistant_label="Technical Support"):
+    """Route Streamlit's existing upper-right Print action to a verified server PDF.
+
+    The PDF bytes are generated server-side, then embedded into the trusted app
+    document as a Blob payload. This removes the fragile hidden st.download_button
+    dependency and completely bypasses Chrome/Streamlit DOM printing.
+    """
+    normalized_v69475 = _durable_chat_rows_v69473(messages)
+    if not normalized_v69475:
+        return False
+    payload_v69475 = json.dumps(normalized_v69475, ensure_ascii=False, sort_keys=True)
+    pdf_bytes_v69475 = _build_conversation_pdf_bytes_v69474(payload_v69475, assistant_label)
+    if not pdf_bytes_v69475:
+        diagnostic_log("upper_print_pdf_build_empty_v69475", message_count=len(normalized_v69475))
+        return False
+
+    file_name_v69475 = f"AutoTecPro_AI_Conversation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    pdf_b64_v69475 = base64.b64encode(pdf_bytes_v69475).decode("ascii")
+    safe_name_v69475 = json.dumps(file_name_v69475, ensure_ascii=False)
+    safe_b64_v69475 = json.dumps(pdf_b64_v69475)
+
+    script_v69475 = r'''<script>
+    (()=>{
+      const root=window,doc=root.document,KEY='__atpUpperRightPrintPdfV69475';
+      const prior=root[KEY];
+      if(prior&&typeof prior.destroy==='function'){try{prior.destroy()}catch(_){}}
+      const PDF_B64=__ATP_PDF_B64__;
+      const FILE_NAME=__ATP_FILE_NAME__;
+      const normalize=t=>String(t||'').replace(/\s+/g,' ').trim().toLowerCase();
+      let lastTriggerAt=0;
+      const downloadPdf=()=>{
+        const now=Date.now();
+        if(now-lastTriggerAt<700)return true;
+        lastTriggerAt=now;
+        try{
+          const binary=atob(PDF_B64);
+          const bytes=new Uint8Array(binary.length);
+          for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+          const blob=new Blob([bytes],{type:'application/pdf'});
+          const url=URL.createObjectURL(blob);
+          const a=doc.createElement('a');
+          a.href=url;a.download=FILE_NAME;a.rel='noopener';
+          a.style.cssText='position:fixed;left:-10000px;top:-10000px;width:1px;height:1px;opacity:0;pointer-events:none';
+          doc.body.appendChild(a);
+          a.click();
+          setTimeout(()=>{try{a.remove()}catch(_){};try{URL.revokeObjectURL(url)}catch(_){}},60000);
+          return true;
+        }catch(_){return false}
+      };
+      const printTarget=target=>{
+        if(!target||!target.closest)return false;
+        const candidates=[
+          target.closest('[role="menuitem"]'),
+          target.closest('[role="menuitemradio"]'),
+          target.closest('button'),
+          target.closest('[role="button"]'),
+          target.closest('li')
+        ].filter(Boolean);
+        for(const el of candidates){
+          const label=normalize(el.textContent||el.getAttribute('aria-label')||'');
+          if(label==='print'||label.startsWith('print ')){
+            const inMenu=el.closest('[role="menu"],[data-baseweb="popover"],[data-testid*="MainMenu" i],[data-testid*="menu" i],[data-testid*="popover" i]');
+            if(inMenu)return true;
+            try{const r=el.getBoundingClientRect();if(r.top<420&&r.right>(root.innerWidth*.5))return true}catch(_){}
+          }
+        }
+        return false;
+      };
+      const intercept=e=>{
+        if(!printTarget(e.target))return;
+        e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+        downloadPdf();
+      };
+      const keydown=e=>{
+        if(!(e.ctrlKey||e.metaKey)||String(e.key||'').toLowerCase()!=='p')return;
+        e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+        downloadPdf();
+      };
+      doc.addEventListener('click',intercept,true);
+      doc.addEventListener('keydown',keydown,true);
+      const originalPrint=(typeof root.print==='function')?root.print.bind(root):null;
+      try{root.print=()=>{downloadPdf();}}catch(_){}
+      root[KEY]={
+        downloadPdf,
+        destroy:()=>{
+          try{doc.removeEventListener('click',intercept,true)}catch(_){}
+          try{doc.removeEventListener('keydown',keydown,true)}catch(_){}
+          try{if(originalPrint)root.print=originalPrint}catch(_){}
+        }
+      };
+    })();
+    </script>'''
+    script_v69475 = script_v69475.replace('__ATP_PDF_B64__', safe_b64_v69475).replace('__ATP_FILE_NAME__', safe_name_v69475)
+    _run_invisible_trusted_browser_script_v69453(script_v69475)
+    diagnostic_log(
+        "upper_print_pdf_ready_v69475",
+        message_count=len(normalized_v69475),
+        pdf_bytes=len(pdf_bytes_v69475),
+        pdf_b64_chars=len(pdf_b64_v69475),
+        source="server_pdf_blob_native_menu",
+    )
+    return True
 
 
 REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
@@ -76377,6 +76831,108 @@ def _workspace_sales_product_aware_image_dedupe_v69419(images):
 
 
 
+def _workspace_sales_unique_topical_visuals_v69475(images):
+    """Collapse the same authored topical visual to one visible image.
+
+    Exact Sales/Marketing product bindings remain preserved as metadata, but when
+    multiple exact products point to the same compatibility/reference image,
+    customers should see that visual once rather than duplicate cards. Distinct
+    authored topical images remain separate. Ordinary product/hero images are
+    intentionally untouched.
+    """
+    output_v69475 = []
+    visual_index_v69475 = {}
+    suppressed_v69475 = 0
+
+    for record_v69475 in images or []:
+        if not isinstance(record_v69475, dict):
+            continue
+        item_v69475 = dict(record_v69475)
+        exact_topical_v69475 = bool(
+            item_v69475.get("website_sales_exact_topic_visual_lock_v69399")
+            or item_v69475.get("website_sales_exact_topic_semantic_fallback_v69401")
+            or item_v69475.get("website_sales_fast_manifest_mode_v69420") == "topical"
+        )
+        sha_v69475 = str(item_v69475.get("website_image_sha256") or "").strip().casefold()
+        raw_image_v69475 = str(
+            item_v69475.get("archive_web_url")
+            or item_v69475.get("data_url")
+            or ""
+        ).strip()
+        if sha_v69475:
+            visual_key_v69475 = "sha256:" + sha_v69475
+        elif raw_image_v69475.startswith(("http://", "https://")):
+            try:
+                parsed_v69475 = urlparse(raw_image_v69475)
+                visual_key_v69475 = (
+                    "url:"
+                    + str(parsed_v69475.netloc or "").casefold()
+                    + str(parsed_v69475.path or "").casefold()
+                )
+            except Exception:
+                visual_key_v69475 = "url:" + raw_image_v69475.split("?", 1)[0].split("#", 1)[0].casefold()
+        elif raw_image_v69475:
+            visual_key_v69475 = "data:" + hashlib.sha256(
+                raw_image_v69475.encode("utf-8", errors="ignore")
+            ).hexdigest()
+        else:
+            visual_key_v69475 = ""
+        if not exact_topical_v69475 or not visual_key_v69475:
+            output_v69475.append(item_v69475)
+            continue
+        product_identity_v69475 = str(
+            item_v69475.get("website_sales_exact_product_identity_v69399")
+            or item_v69475.get("website_sales_exact_product_identity_v69401")
+            or ""
+        ).strip()
+        display_name_v69475 = str(
+            item_v69475.get("website_sales_exact_product_caption_v69450")
+            or item_v69475.get("website_sales_exact_product_display_name_v69449")
+            or item_v69475.get("name")
+            or ""
+        ).strip()
+
+        if visual_key_v69475 not in visual_index_v69475:
+            bindings_v69475 = [product_identity_v69475] if product_identity_v69475 else []
+            labels_v69475 = [display_name_v69475] if display_name_v69475 else []
+            item_v69475["website_sales_shared_visual_product_bindings_v69475"] = bindings_v69475
+            item_v69475["website_sales_shared_visual_labels_v69475"] = labels_v69475
+            visual_index_v69475[visual_key_v69475] = len(output_v69475)
+            output_v69475.append(item_v69475)
+            continue
+
+        suppressed_v69475 += 1
+        index_v69475 = visual_index_v69475[visual_key_v69475]
+        kept_v69475 = output_v69475[index_v69475]
+        bindings_v69475 = list(kept_v69475.get("website_sales_shared_visual_product_bindings_v69475") or [])
+        if product_identity_v69475 and product_identity_v69475 not in bindings_v69475:
+            bindings_v69475.append(product_identity_v69475)
+        labels_v69475 = list(kept_v69475.get("website_sales_shared_visual_labels_v69475") or [])
+        if display_name_v69475 and display_name_v69475 not in labels_v69475:
+            labels_v69475.append(display_name_v69475)
+        kept_v69475["website_sales_shared_visual_product_bindings_v69475"] = bindings_v69475
+        kept_v69475["website_sales_shared_visual_labels_v69475"] = labels_v69475
+        if len(labels_v69475) > 1:
+            concise_v69475 = []
+            for label_v69475 in labels_v69475:
+                clean_v69475 = re.sub(r"^Compatibility\s*[—-]\s*", "", str(label_v69475), flags=re.I).strip()
+                if clean_v69475 and clean_v69475.casefold() not in {x.casefold() for x in concise_v69475}:
+                    concise_v69475.append(clean_v69475)
+            if concise_v69475:
+                kept_v69475["name"] = _workspace_sales_bounded_label_v69450(
+                    "Compatibility — " + " / ".join(concise_v69475),
+                    220,
+                )
+
+    diagnostic_log(
+        "workspace_sales_duplicate_topical_visuals_collapsed_v69475",
+        input_count=len([x for x in (images or []) if isinstance(x, dict)]),
+        published=len(output_v69475),
+        suppressed=suppressed_v69475,
+    )
+    return output_v69475
+
+
 def _workspace_sales_shared_topical_image_dedupe_v69440(images):
     """Preserve exact topical image bindings per product identity.
 
@@ -109108,7 +109664,30 @@ else:
                                 detected_request,
                             )
                         )
-                        if direct_order_lookup_v69370:
+                        exact_learned_recall_v69474 = None
+                        if (
+                            not direct_order_lookup_v69370
+                            and not explicit_learning_requested
+                            and not graphic_generation_files
+                            and active_structured_tool is None
+                        ):
+                            exact_learned_recall_v69474 = _cross_conversation_exact_learned_answer_v69474(
+                                interaction_prompt,
+                                assistant,
+                                detected_live_request=detected_request,
+                            )
+                        if exact_learned_recall_v69474:
+                            stream_source_v69370 = (
+                                str(exact_learned_recall_v69474.get("answer") or ""),
+                            )
+                            use_file_search = False
+                            diagnostic_log(
+                                "cross_case_exact_learned_answer_committed_v69474",
+                                workspace=str(assistant),
+                                record_id=str(exact_learned_recall_v69474.get("record_id") or ""),
+                                confidence=int(exact_learned_recall_v69474.get("confidence") or 0),
+                            )
+                        elif direct_order_lookup_v69370:
                             # v69371: A simple WooCommerce order lookup is already a complete,
                             # deterministic app-owned answer.  v69370 only *logged* that the
                             # result was committed, then continued through the normal image /
@@ -111841,6 +112420,10 @@ else:
                         if isinstance(x, dict)
                     ]
                     if fast_images_v69420:
+                        if str(fast_manifest_v69420.get("mode") or "") == "topical":
+                            fast_images_v69420 = _workspace_sales_unique_topical_visuals_v69475(
+                                fast_images_v69420
+                            )
                         generated_images.extend(
                             fast_images_v69420
                         )
@@ -113122,6 +113705,14 @@ else:
                 technical_request_prompt_v68879,
                 answer,
                 diagnostic_event="technical_v69050_late_image_publication_restored_v69363",
+            )
+
+        # v69475: identical exact topical compatibility/reference visuals can be
+        # shared by multiple exact products. Show the authored image once while
+        # retaining every exact product binding in metadata/caption.
+        if generated_images and (is_sales_workspace(assistant) or is_marketing_workspace(assistant)):
+            generated_images = _workspace_sales_unique_topical_visuals_v69475(
+                generated_images
             )
 
         # v69346: once a Sales/Marketing product image has already been displayed
@@ -114789,24 +115380,19 @@ def _render_final_print_authority_v69009():
     )
 
 
-_render_final_print_authority_v69009()
+# v69475: do not activate the legacy @media-print DOM path. The upper-right
+# Streamlit Print command is intercepted and served a verified server PDF Blob.
 try:
-    _native_print_messages_v69473 = _durable_chat_rows_v69473(st.session_state.get("messages") or [])
-    _native_print_html_v69473 = _build_print_transcript_html_v69007(
-        _native_print_messages_v69473,
+    _upper_print_messages_v69475 = _durable_chat_rows_v69473(st.session_state.get("messages") or [])
+    _install_upper_right_print_pdf_v69475(
+        _upper_print_messages_v69475,
         assistant_label=(st.session_state.get("current_assistant") or globals().get("assistant") or "Technical Support"),
     )
-    _install_native_streamlit_print_bridge_v69473(_native_print_html_v69473)
+except Exception as _upper_print_error_v69475:
     diagnostic_log(
-        "native_streamlit_print_payload_ready_v69473",
-        message_count=len(_native_print_messages_v69473),
-        html_chars=len(_native_print_html_v69473 or ""),
-    )
-except Exception as _native_print_error_v69473:
-    diagnostic_log(
-        "native_streamlit_print_payload_failed_v69473",
-        error_type=type(_native_print_error_v69473).__name__,
-        error=str(_native_print_error_v69473)[:500],
+        "upper_print_pdf_failed_v69475",
+        error_type=type(_upper_print_error_v69475).__name__,
+        error=str(_upper_print_error_v69475)[:500],
     )
 
 
