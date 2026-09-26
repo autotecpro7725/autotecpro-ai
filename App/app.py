@@ -100,9 +100,9 @@
 # completed-answer persistence, v69468 voice/concurrency guard, v69473 durable chat recovery,
 # v69474 deterministic learned-answer recall, and v69475 compatibility-image dedupe.
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
-# AutoTecPro AI v69481 - exact live Woo feature/short-description/custom-tab authority + typo-safe price routing
-AUTOTECPRO_RELEASE_VERSION = "v69481"
-AUTOTECPRO_RELEASE_BUILD = "v69481-sales-live-feature-commerce-authority-20260926"
+# AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
+AUTOTECPRO_RELEASE_VERSION = "v69482"
+AUTOTECPRO_RELEASE_BUILD = "v69482-technical-image-learning-exact-authority-20260926"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -442,6 +442,13 @@ diagnostic_log(
     generic_feature_queries=True,
     short_description_authority=True,
     custom_tab_authority=True,
+)
+diagnostic_log(
+    "v69482_technical_image_authority_ready",
+    durable_image_schema_contract=True,
+    strict_camera_harness_routing=True,
+    wrong_generic_image_fail_closed=True,
+    prior_sales_authority_preserved=True,
 )
 diagnostic_log(
     "v69480_print_baseline_hardened",
@@ -62187,10 +62194,26 @@ def _website_image_index_schema_profile_v69129():
             "columns": sorted(actual_columns_v69457),
         }
 
+    # v69482: image rows share learned_knowledge with the learning subsystem.
+    # Production proved that ``question`` is NOT NULL even on the modern issue/solution
+    # schema. Probe every field this writer may need instead of treating the minimal
+    # modern read shape as the full insert contract. This keeps image persistence
+    # compatible with both old and new Supabase schemas without guessing.
     optional_candidates_v69457 = (
-        ("solution", "approved_answer", "source_type", "updated_at", "created_at", "keywords")
+        (
+            "question", "vehicle", "assistant", "record_type",
+            "source_question", "source_answer", "source_conversation_id",
+            "confidence_score", "times_seen", "synced",
+            "solution", "approved_answer", "source_type",
+            "updated_at", "created_at", "keywords",
+        )
         if selected_mode_v69457 == "modern"
-        else ("issue", "solution", "source_type", "updated_at", "created_at", "keywords")
+        else (
+            "issue", "solution", "vehicle", "assistant", "record_type",
+            "source_question", "source_answer", "source_conversation_id",
+            "confidence_score", "times_seen", "synced", "source_type",
+            "updated_at", "created_at", "keywords",
+        )
     )
     # Probe only columns that are useful to this subsystem. A one-column miss is
     # isolated and cannot poison the entire schema profile.
@@ -62286,13 +62309,34 @@ def _website_image_index_upsert_v68883(payload):
     solution=WEBSITE_IMAGE_INDEX_PREFIX_V68883+json.dumps(payload,ensure_ascii=False,separators=(",",":"))
     mode=str(profile.get("mode") or ""); available=set(profile.get("columns") or [])
     if mode=="modern":
-        base={"issue":issue,"vehicle":str(payload.get("page_title") or "")[:240],"solution":solution,"approved_answer":solution,"keywords":str(payload.get("keywords") or "")[:5000],"source_type":WEBSITE_IMAGE_INDEX_SOURCE_V68883,"updated_at":now_iso(),"question":str(payload.get("section_heading") or "Website image")[:500]}; lookup="issue"
+        # v69482: ``question`` is a required column in the live learned_knowledge
+        # schema even though image rows are addressed by ``issue``. Use the scoped
+        # image issue as a deterministic non-null question so the image subsystem
+        # cannot poison normal learned-answer recall with human-like questions.
+        base={
+            "issue":issue,
+            "question":issue,
+            "vehicle":str(payload.get("page_title") or "Website image")[:240],
+            "assistant":{"Technical Support Database":"Technical Support","Sales Database":"Sales","Marketing Database":"Marketing"}.get(str(payload.get("database_choice") or ""),"Technical Support"),
+            "record_type":"website_image",
+            "solution":solution,
+            "approved_answer":solution,
+            "keywords":str(payload.get("keywords") or "")[:5000],
+            "source_type":WEBSITE_IMAGE_INDEX_SOURCE_V68883,
+            "source_question":str(payload.get("source_page") or payload.get("requested_page") or "")[:1200],
+            "source_answer":str(payload.get("section_heading") or payload.get("caption") or "Website image")[:2000],
+            "source_conversation_id":None,
+            "confidence_score":100,
+            "times_seen":1,
+            "synced":True,
+            "updated_at":now_iso(),
+        }; lookup="issue"
     else:
         base={"question":issue,"approved_answer":solution,"keywords":(WEBSITE_IMAGE_INDEX_SOURCE_V68883+", "+str(payload.get("keywords") or ""))[:5000],"updated_at":now_iso()}; lookup="question"
     durable={k:v for k,v in base.items() if k in available}
     if lookup not in durable or not any(k in durable for k in ("solution","approved_answer")):
         _website_image_schema_profile_reset_v69176(); diagnostic_log("website_image_index_schema_payload_columns_missing_v69176",mode=mode); return False
-    optional={"assistant":{"Technical Support Database":"Technical Support","Sales Database":"Sales","Marketing Database":"Marketing"}.get(str(payload.get("database_choice") or ""),"Technical Support"),"record_type":"website_image","source_question":str(payload.get("source_page") or "")[:1200],"staff_confirmed":True,"confidence_score":100}
+    optional={"assistant":{"Technical Support Database":"Technical Support","Sales Database":"Sales","Marketing Database":"Marketing"}.get(str(payload.get("database_choice") or ""),"Technical Support"),"record_type":"website_image","source_question":str(payload.get("source_page") or "")[:1200],"staff_confirmed":True,"confidence_score":100,"times_seen":1,"synced":True}
     for k,v in optional.items():
         if k in available and k not in durable:
             durable[k]=v
@@ -64498,6 +64542,35 @@ def _technical_final_image_rejection_reason_v69361(prompt_text, answer_text, ima
             payload = _website_model_control_payload_v69010(image_record)
         if not payload:
             return ""
+
+        strict_camera_kind_v69482 = _technical_strict_camera_harness_request_v69482(prompt_text)
+        if strict_camera_kind_v69482:
+            # Exact semantic fast-path records are pre-verified against the confirmed
+            # package/year branch. Other website images must prove equivalent authored
+            # camera/harness diagnostic metadata or they are rejected.
+            if not bool(image_record.get("technical_camera_harness_exact_v69482")):
+                meta_v69482 = _website_image_atp_semantic_metadata_v69364(payload)
+                combined_v69482 = " ".join([
+                    " ".join(str(v) for v in meta_v69482.values()),
+                    str(payload.get("section_heading") or ""),
+                    str(payload.get("nearby_instruction_text") or ""),
+                    str(payload.get("caption") or ""),
+                    str(payload.get("visual_analysis") or ""),
+                ]).casefold()
+                if "camera" not in combined_v69482:
+                    return "strict_camera_metadata_missing"
+                harnessish_v69482 = any(term in combined_v69482 for term in ("harness", "wiring", "connector", "adapter", "ccd-v"))
+                diagnosticish_v69482 = any(term in combined_v69482 for term in (
+                    "no-camera", "no camera", "no-image", "no image",
+                    "reverse-no-trigger", "factory-camera-no-image",
+                    "reverse-camera-no-image", "harness-problem",
+                ))
+                if strict_camera_kind_v69482 == "camera_harness" and not harnessish_v69482:
+                    return "strict_camera_harness_role_mismatch"
+                if strict_camera_kind_v69482 == "camera_issue" and not (harnessish_v69482 or diagnosticish_v69482):
+                    return "strict_camera_diagnostic_role_mismatch"
+                if any(term in combined_v69482 for term in ("primary-product-image", "product hero", "after-installation-product-reference")):
+                    return "strict_camera_generic_product_image"
 
         fitment_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
         if not _website_identity_years_v69022(fitment_text):
@@ -101375,14 +101448,183 @@ def _technical_confirmed_car_model_fast_image_v69393(prompt_text, state):
     return output_v69393
 
 
+def _technical_strict_camera_harness_request_v69482(prompt_text):
+    """Classify camera/harness requests that require exact authored Technical imagery."""
+    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    if not value:
+        return ""
+    camera = bool(re.search(r"\b(?:camera|reverse camera|backup camera|rear camera)\b", value))
+    if not camera:
+        return ""
+    if re.search(r"\b(?:camera harness|camera wiring|camera connector|camera adapter|show|photo|image|picture|diagram|wiring diagram)\b", value):
+        if any(term in value for term in ("harness", "wiring", "connector", "adapter", "show", "photo", "image", "picture", "diagram")):
+            return "camera_harness"
+    if re.search(r"\b(?:no camera|camera (?:not|isn['’]?t|is not) (?:working|showing)|no image|black screen|reverse (?:does not|doesn['’]?t) trigger|not trigger|camera problem|camera issue)\b", value):
+        return "camera_issue"
+    return ""
+
+
+def _technical_confirmed_camera_harness_images_v69482(prompt_text, state, max_images=2):
+    """Bind only exact current-source camera/harness imagery from the confirmed package.
+
+    The route is intentionally generic. It reads authored data-atp metadata from the
+    selected package and hard-gates year/year-branch before scoring query-key, aliases,
+    problem-intents, topic and image-role. A generic product/reverse-display photo can
+    never outrank an exact year-specific wiring/harness leaf.
+    """
+    request_kind = _technical_strict_camera_harness_request_v69482(prompt_text)
+    if not request_kind or not isinstance(state, dict):
+        return []
+    snapshot = _technical_confirmed_snapshot_v69387(state)
+    if not snapshot:
+        return []
+    semantics = dict(snapshot.get("atp_semantics_v69178") or {})
+    if not semantics:
+        semantics = _technical_package_atp_semantics_v69178(snapshot.get("package_text") or "")
+    rows = [dict(row) for row in (semantics.get("images") or []) if isinstance(row, dict)]
+    if not rows:
+        return []
+
+    try:
+        state_year = int(state.get("year"))
+    except Exception:
+        state_year = None
+    prompt_norm = re.sub(r"[^a-z0-9]+", " ", str(prompt_text or "").casefold()).strip()
+    prompt_tokens = {tok for tok in prompt_norm.split() if len(tok) >= 3 and tok not in {"the","and","for","show","does","with","this","that","tundra"}}
+
+    ranked = []
+    for order, row in enumerate(rows):
+        current = str(row.get("data-atp-current-source") or "").casefold().strip()
+        status = str(row.get("data-atp-source-status") or "").casefold().strip()
+        auto = str(row.get("data-atp-auto-display") or "").casefold().strip()
+        content_type = str(row.get("data-atp-content-type") or "").casefold().strip()
+        authority = str(row.get("data-atp-authority") or "").casefold().strip()
+        routing_authority = str(row.get("data-atp-routing-authority") or "").casefold().strip()
+        if current and current not in {"true","1","yes"}:
+            continue
+        if status and "current" not in status:
+            continue
+        if auto and auto not in {"true","1","yes"}:
+            continue
+        if content_type == "navigation-icon" or authority == "navigation-only":
+            continue
+
+        try:
+            start = int(str(row.get("data-atp-year-start") or "").strip())
+            end = int(str(row.get("data-atp-year-end") or "").strip())
+        except Exception:
+            start = end = None
+        if state_year is not None and start is not None and end is not None and not (start <= state_year <= end):
+            continue
+
+        combined = " ".join(str(row.get(key) or "") for key in (
+            "data-atp-query-key", "data-atp-aliases", "data-atp-problem-intents",
+            "data-atp-image-role", "data-atp-topic", "data-atp-section",
+            "data-atp-intent", "data-atp-answer-bundle", "alt",
+        )).casefold()
+        if "camera" not in combined:
+            continue
+        harnessish = any(term in combined for term in ("harness", "wiring", "connector", "adapter", "ccd-v"))
+        diagnosticish = any(term in combined for term in (
+            "no-camera", "no camera", "no-image", "no image", "reverse-no-trigger",
+            "factory-camera-no-image", "reverse-camera-no-image", "harness-problem",
+        ))
+        if request_kind == "camera_harness" and not harnessish:
+            continue
+        if request_kind == "camera_issue" and not (diagnosticish or harnessish):
+            continue
+
+        score = 0
+        role = str(row.get("data-atp-image-role") or "").casefold().strip()
+        if "wiring-diagram" in role or "wiring diagram" in combined:
+            score += 7000
+        if harnessish:
+            score += 3000
+        if diagnosticish:
+            score += 2500
+        if routing_authority in {"true","1","yes"}:
+            score += 1200
+        if authority == "primary":
+            score += 800
+        if state_year is not None and start is not None and end is not None:
+            score += 1600 if start <= state_year <= end else 0
+            if start == end == state_year:
+                score += 400
+            if end - start <= 5:
+                score += 300
+        overlap = sum(1 for token in prompt_tokens if token in combined)
+        score += overlap * 180
+        try:
+            score += int(row.get("data-atp-first-response-priority") or row.get("data-atp-priority") or 0)
+        except Exception:
+            pass
+
+        url = str(row.get("data-atp-full-resolution-url") or row.get("data-atp-canonical-image-url") or row.get("src") or "").strip()
+        if not url.startswith("https://"):
+            continue
+        semantic_meta = {str(k): str(v) for k, v in row.items() if str(k).startswith("data-atp-")}
+        payload = {
+            "image_url": url,
+            "source_page": str(state.get("source_url") or ""),
+            "page_title": str(snapshot.get("title") or ""),
+            "section_heading": str(row.get("data-atp-heading-title") or row.get("data-atp-section") or "Camera / Harness"),
+            "nearby_instruction_text": str(row.get("data-atp-query-key") or row.get("data-atp-problem-intents") or ""),
+            "caption": str(row.get("alt") or row.get("data-atp-heading-title") or "Camera / harness reference"),
+            "visual_analysis": str(row.get("alt") or "Exact authored camera/harness Technical reference"),
+            "atp_semantic_metadata_v69363": semantic_meta,
+        }
+        record = _website_image_record_for_chat_v68883(payload)
+        if not isinstance(record, dict):
+            continue
+        record["_technical_exact_semantic_payload_v69387"] = payload
+        record["technical_confirmed_package_image_v69382"] = True
+        record["technical_confirmed_semantic_fast_v69392"] = True
+        record["technical_camera_harness_exact_v69482"] = True
+        record["technical_camera_harness_request_kind_v69482"] = request_kind
+        record["technical_confirmed_package_label_v69382"] = str(state.get("label") or "")
+        record["technical_confirmed_package_file_id_v69382"] = str(state.get("file_id") or "")
+        ranked.append((score, -order, role, record))
+
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    output, seen = [], set()
+    # For an explicit camera/harness request, one exact routing-authority image is
+    # normally superior to a gallery. Keep at most two only when both are distinct
+    # exact references from the same compatible branch.
+    limit = 1 if request_kind == "camera_issue" else max(1, min(2, int(max_images or 2)))
+    for _, _, _, record in ranked:
+        key = str(record.get("archive_web_url") or record.get("data_url") or "").strip()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        output.append(record)
+        if len(output) >= limit:
+            break
+    if output:
+        diagnostic_log(
+            "technical_camera_harness_exact_images_v69482",
+            request_kind=request_kind,
+            year=state_year,
+            published=len(output),
+            urls=[str(x.get("archive_web_url") or x.get("data_url") or "")[:500] for x in output],
+        )
+    else:
+        diagnostic_log(
+            "technical_camera_harness_exact_images_fail_closed_v69482",
+            request_kind=request_kind,
+            year=state_year,
+            reason="no_exact_current_compatible_semantic_image",
+        )
+    return output
+
+
 def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_images=2):
     """Fast exact-image path from the already-confirmed package snapshot.
 
     This avoids page-index Supabase reads, full Technical image-index scans, and
     dedicated vector image search when authored semantic metadata already names the
-    exact first-response image. The function is deliberately narrow: Car Model/A-C
-    and the established AUX/factory-amp audio roles only. Other topics fall back to
-    the unchanged legacy image authority.
+    exact first-response image. v69482 extends the proven exact-semantic path to
+    camera/harness diagnostics with strict year-branch gating; unrelated topics still
+    fall back to the unchanged legacy image authority.
     """
     if not isinstance(state, dict):
         return []
@@ -101396,6 +101638,17 @@ def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_ima
             prompt_raw,
             state,
         )
+
+    camera_harness_exact_v69482 = _technical_confirmed_camera_harness_images_v69482(
+        prompt_raw, state, max_images=max_images
+    )
+    if camera_harness_exact_v69482:
+        return camera_harness_exact_v69482
+    # A strict camera/harness visual request must never be satisfied by a generic
+    # product/reverse-display image. If the exact selected package has no compatible
+    # authored leaf, fail closed here and let the answer remain text-only.
+    if _technical_strict_camera_harness_request_v69482(prompt_raw):
+        return []
 
     audio_like = bool(re.search(
         r"\b(?:no audio|no sound|audio|sound|aux|factory amp|amplifier|speakers?)\b",
