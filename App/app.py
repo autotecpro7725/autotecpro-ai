@@ -93,12 +93,17 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69456
-# Scope: generic multi-model Sales identity completeness + resilient learning-schema compatibility.
-# No vehicle, product ID, product URL, factory-system, or catalog item is hard-coded.
-# Protected Graphic generation, Technical answering, Marketing, Auth and UI behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69456"
-AUTOTECPRO_RELEASE_BUILD = "v69456-generic-family-recall-schema-resilience-20260925"
+# AutoTecPro AI v69468
+# Scope: harden the next-inquiry draft bridge after a source-level audit of Streamlit 1.61.
+# Native submit_mode="disable" remains the authoritative turn serializer. The prepared second
+# inquiry now lives in a body-level fixed overlay outside Streamlit/React's managed chat-input
+# subtree, so React reconciliation and AutoTecPro's legacy composer autogrow controller cannot
+# remove or reposition the draft node. Transfer back into the native controlled textarea uses
+# React-aware value injection plus post-transfer verification/retry before the draft overlay is
+# retired. Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce, image-authority,
+# product-fitment, voice, and completed-answer persistence behavior remain unchanged.
+AUTOTECPRO_RELEASE_VERSION = "v69473"
+AUTOTECPRO_RELEASE_BUILD = "v69473-v69468-baseline-durable-chat-native-print-20260926"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -2499,7 +2504,7 @@ def _workspace_product_currency_url_v69437(source_url, currency_code):
         return ""
 
 
-@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=128, show_spinner=False)
 def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
     """Read WooCommerce's own displayed price for one exact product/currency.
 
@@ -2516,7 +2521,7 @@ def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
             "currency": currency,
         }
 
-    result = dict(_current_product_page_price_by_exact_url_v69340(target_url, timeout_seconds=3.0) or {})
+    result = dict(_current_product_page_price_by_exact_url_v69340(target_url, timeout_seconds=1.8) or {})
     if str(result.get("status") or "") != "verified":
         result["requested_currency"] = currency
         result["currency_url"] = target_url
@@ -6207,6 +6212,723 @@ def _run_invisible_trusted_browser_script_v69453(script_html):
     )
 
 
+def _run_legacy_ui_runtime_without_deprecated_html_v69459(callback, *args, **kwargs):
+    """Run trusted legacy UI helpers through Streamlit's supported iframe API.
+
+    v69457/v69458 routed legacy ``components.html`` helpers through ``st.html``.
+    That transport is *not* iframe-equivalent: the imported helpers were written
+    around ``window.parent`` and require a same-origin child frame so they can mount
+    controls into the Streamlit app document. Production screenshots confirmed that
+    the direct ``st.html`` bridge did not mount the microphone/send proxy and did not
+    run the composer layout controller.
+
+    Streamlit's supported ``st.iframe`` API provides the same same-origin iframe
+    execution model as the old components helper without the deprecation warning.
+    The proxy is module-local and never monkey-patches Streamlit globally.
+    """
+    if not callable(callback):
+        return None
+    callback_globals_v69459 = getattr(callback, "__globals__", None)
+    if not isinstance(callback_globals_v69459, dict):
+        return callback(*args, **kwargs)
+    original_components_v69459 = callback_globals_v69459.get("components")
+    if original_components_v69459 is None:
+        return callback(*args, **kwargs)
+
+    if not bool(getattr(original_components_v69459, "_atp_iframe_proxy_v69459", False)):
+        class _UiRuntimeComponentsIframeProxyV69459:
+            _atp_iframe_proxy_v69459 = True
+
+            def __init__(self, delegate_v69459):
+                self._delegate_v69459 = delegate_v69459
+
+            def __getattr__(self, name_v69459):
+                return getattr(self._delegate_v69459, name_v69459)
+
+            def html(self, body_v69459, *html_args_v69459, **html_kwargs_v69459):
+                # Preserve the trusted helper source byte-for-byte. In particular,
+                # window.parent must continue to refer to the Streamlit app document.
+                trusted_body_v69459 = str(body_v69459 or "")
+                requested_height_v69459 = html_kwargs_v69459.get("height", 0)
+                requested_width_v69459 = html_kwargs_v69459.get("width", 0)
+                try:
+                    height_v69459 = max(1, int(requested_height_v69459 or 1))
+                except Exception:
+                    height_v69459 = 1
+                try:
+                    width_v69459 = max(1, int(requested_width_v69459 or 1))
+                except Exception:
+                    width_v69459 = 1
+                # st.iframe requires positive integer dimensions. Collapse the
+                # Streamlit element after the same-origin child frame starts; hiding
+                # the host does not stop the controller, observers, or event handlers.
+                collapse_host_v69459 = r"""
+                <script>
+                (() => {
+                  try {
+                    const frame = window.frameElement;
+                    if (!frame) return;
+                    frame.style.setProperty("width", "1px", "important");
+                    frame.style.setProperty("height", "1px", "important");
+                    frame.style.setProperty("border", "0", "important");
+                    const host = frame.closest(
+                      'div[data-testid="stElementContainer"], div[data-testid="element-container"]'
+                    );
+                    if (host) {
+                      host.style.setProperty("position", "absolute", "important");
+                      host.style.setProperty("width", "1px", "important");
+                      host.style.setProperty("height", "1px", "important");
+                      host.style.setProperty("min-width", "1px", "important");
+                      host.style.setProperty("min-height", "1px", "important");
+                      host.style.setProperty("max-width", "1px", "important");
+                      host.style.setProperty("max-height", "1px", "important");
+                      host.style.setProperty("margin", "0", "important");
+                      host.style.setProperty("padding", "0", "important");
+                      host.style.setProperty("overflow", "hidden", "important");
+                      host.style.setProperty("opacity", "0", "important");
+                      host.style.setProperty("pointer-events", "none", "important");
+                    }
+                  } catch (error) {}
+                })();
+                </script>
+                """
+                st.iframe(
+                    collapse_host_v69459 + trusted_body_v69459,
+                    width=width_v69459,
+                    height=height_v69459,
+                    tab_index=-1,
+                )
+                return None
+
+        callback_globals_v69459["components"] = _UiRuntimeComponentsIframeProxyV69459(
+            original_components_v69459
+        )
+    return callback(*args, **kwargs)
+
+
+def _install_composer_top_left_fallback_v69459():
+    """Force the native editable field to start at the composer's upper-left edge.
+
+    This CSS is intentionally independent of the JavaScript controller so the field
+    remains correctly aligned during the short interval before the iframe helper
+    mounts or if the browser temporarily delays a MutationObserver callback.
+    """
+    st.markdown(
+        """
+        <style>
+        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
+            align-items: flex-start !important;
+            justify-content: flex-start !important;
+        }
+        html body div[data-testid="stChatInput"] textarea {
+            text-align: left !important;
+            vertical-align: top !important;
+            padding-top: 6px !important;
+            padding-bottom: 6px !important;
+            padding-left: 4px !important;
+            padding-right: 4px !important;
+            line-height: 22px !important;
+            white-space: pre-wrap !important;
+        }
+        html body div[data-testid="stChatInput"] textarea::placeholder {
+            text-align: left !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _install_chat_turn_guard_v69468():
+    """Install the v69468 transactional composer + voice compatibility controller.
+
+    v69468 keeps the v69467 dual-slot draft/pending model and hardens every browser
+    boundary that can race with Streamlit's controlled chat widget:
+      * the editable next inquiry lives in DRAFT_KEY;
+      * the submitted-but-not-yet-acknowledged inquiry lives in PENDING_KEY;
+      * pending acknowledgement requires Streamlit's *native* disabled transition,
+        never the Python fallback busy flag;
+      * a failed submission is never discarded when a newer draft already exists;
+      * send interception is limited to actual send controls;
+      * the custom microphone is never disabled by the draft bridge and speech is
+        routed to the visible editor (overlay while busy/drafting, native input when idle).
+
+    The last item fixes the v69467 voice regression: the legacy voice controller always
+    wrote speech into Streamlit's native textarea, while v69467 could place a body-level
+    draft textarea over it and also disabled the mic during an active response.  Speech
+    therefore went into a hidden editor or the microphone became unclickable.
+    """
+    _run_invisible_trusted_browser_script_v69453(
+        r"""
+        <script>
+        (() => {
+          const root = window;
+          const doc = document;
+          const GLOBAL_KEY = "__atpChatTurnGuardV69468";
+          const PY_BUSY_KEY = "__atpChatTurnGuardPendingV69468";
+          const DRAFT_KEY = "__atpChatPreparedDraftV69468";
+          const PENDING_SUBMIT_KEY = "__atpChatPendingSubmitV69468";
+          const LEGACY_DRAFT_KEYS = [
+            "__atpChatPreparedDraftV69467",
+            "__atpChatPreparedDraftV69466",
+            "__atpChatPreparedDraftV69465",
+            "__atpChatPreparedDraftV69464",
+            "__atpChatPreparedDraftV69463"
+          ];
+          const OVERLAY_ID = "atp-next-inquiry-draft-v69468";
+          const VOICE_ID = "atp-browser-voice-dictation";
+          const SEND_PROXY_ID = "atp-send-proxy";
+          const STORAGE_TTL_MS = 30 * 60 * 1000;
+          const SUBMIT_ACK_TIMEOUT_MS = 4500;
+
+          function composer() {
+            return doc.querySelector('div[data-testid="stChatInput"]');
+          }
+
+          function nativeInput(container = composer()) {
+            if (!container) return null;
+            return (
+              container.querySelector('textarea[data-testid="stChatInputTextArea"]') ||
+              [...container.querySelectorAll("textarea")].find(
+                (node) => node.id !== OVERLAY_ID && !node.classList.contains("atp-next-inquiry-draft-v69468")
+              ) || null
+            );
+          }
+
+          function nativeSend(container = composer()) {
+            if (!container) return null;
+            return (
+              container.querySelector('button[data-testid="stChatInputSubmitButton"]') ||
+              [...container.querySelectorAll('button[type="submit"]')].find(
+                (button) => button.id !== VOICE_ID && button.id !== SEND_PROXY_ID
+              ) || null
+            );
+          }
+
+          function sendProxy() { return doc.getElementById(SEND_PROXY_ID); }
+          function voiceButton() { return doc.getElementById(VOICE_ID); }
+
+          function readRecord(key) {
+            try {
+              const raw = root.sessionStorage?.getItem(key);
+              if (!raw) return "";
+              const parsed = JSON.parse(raw);
+              const value = String(parsed?.value || "");
+              const updatedAt = Number(parsed?.updatedAt || 0);
+              if (!value || !updatedAt || Date.now() - updatedAt > STORAGE_TTL_MS) {
+                root.sessionStorage?.removeItem(key);
+                return "";
+              }
+              return value;
+            } catch (error) { return ""; }
+          }
+
+          function writeRecord(key, value) {
+            const next = String(value || "");
+            try {
+              if (!next) root.sessionStorage?.removeItem(key);
+              else root.sessionStorage?.setItem(key, JSON.stringify({value: next, updatedAt: Date.now()}));
+            } catch (error) {}
+          }
+
+          function readDraft() {
+            let value = readRecord(DRAFT_KEY);
+            if (value) return value;
+            for (const key of LEGACY_DRAFT_KEYS) {
+              value = readRecord(key);
+              if (value) {
+                writeRecord(DRAFT_KEY, value);
+                break;
+              }
+            }
+            for (const key of LEGACY_DRAFT_KEYS) {
+              try { root.sessionStorage?.removeItem(key); } catch (error) {}
+            }
+            return value || "";
+          }
+          function writeDraft(value) { writeRecord(DRAFT_KEY, value); }
+          function clearDraft() { writeRecord(DRAFT_KEY, ""); }
+          function readPending() { return readRecord(PENDING_SUBMIT_KEY); }
+          function writePending(value) { writeRecord(PENDING_SUBMIT_KEY, value); }
+          function clearPending() { writeRecord(PENDING_SUBMIT_KEY, ""); }
+
+          function overlay() { return doc.getElementById(OVERLAY_ID); }
+          function removeOverlay() { try { overlay()?.remove(); } catch (error) {} }
+
+          function nativeRunBusy(input = nativeInput()) {
+            if (!input) return false;
+            const button = nativeSend();
+            return Boolean(
+              input.disabled || input.getAttribute("aria-disabled") === "true" ||
+              input.closest('[aria-disabled="true"]') ||
+              (button && (button.disabled || button.getAttribute("aria-disabled") === "true"))
+            );
+          }
+
+          function copyTextareaVisuals(source, target) {
+            if (!source || !target) return;
+            try {
+              const style = root.getComputedStyle(source);
+              for (const prop of [
+                "font-family","font-size","font-weight","font-style","line-height",
+                "letter-spacing","text-align","color","background-color","padding-top",
+                "padding-right","padding-bottom","padding-left","border-radius","caret-color",
+                "text-rendering","-webkit-text-fill-color"
+              ]) {
+                const value = style.getPropertyValue(prop);
+                if (value) target.style.setProperty(prop, value, "important");
+              }
+            } catch (error) {}
+          }
+
+          function positionOverlay(input, draft) {
+            if (!input || !draft) return;
+            try {
+              const rect = input.getBoundingClientRect();
+              if (rect.width <= 0 || rect.height <= 0) {
+                draft.style.setProperty("visibility", "hidden", "important");
+                return;
+              }
+              draft.style.setProperty("position", "fixed", "important");
+              draft.style.setProperty("left", `${Math.round(rect.left)}px`, "important");
+              draft.style.setProperty("top", `${Math.round(rect.top)}px`, "important");
+              draft.style.setProperty("width", `${Math.round(rect.width)}px`, "important");
+              draft.style.setProperty("height", `${Math.max(44, Math.round(rect.height))}px`, "important");
+              draft.style.setProperty("min-height", "44px", "important");
+              draft.style.setProperty("max-height", "180px", "important");
+              draft.style.setProperty("visibility", "visible", "important");
+            } catch (error) {}
+          }
+
+          function forceMicUsable() {
+            const mic = voiceButton();
+            if (!mic) return;
+            try {
+              for (const key of Object.keys(mic.dataset || {})) {
+                if (key.toLowerCase().includes("draftbridgedisabled")) delete mic.dataset[key];
+              }
+              mic.disabled = false;
+              mic.removeAttribute("aria-disabled");
+              mic.style.removeProperty("pointer-events");
+              mic.style.removeProperty("opacity");
+              if (!state.voiceListening) {
+                mic.setAttribute("title", "Voice dictation");
+                mic.setAttribute("aria-label", "Start voice dictation");
+              }
+            } catch (error) {}
+          }
+
+          function setReactValue(input, value) {
+            if (!input) return false;
+            const next = String(value || "");
+            const previous = String(input.value || "");
+            try {
+              const prototype = root.HTMLTextAreaElement?.prototype || Object.getPrototypeOf(input);
+              const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+              if (setter) setter.call(input, next); else input.value = next;
+              try {
+                const tracker = input._valueTracker;
+                if (tracker && typeof tracker.setValue === "function") tracker.setValue(previous);
+              } catch (error) {}
+              let evt;
+              try { evt = new InputEvent("input", {bubbles:true, inputType:"insertText", data:null}); }
+              catch (error) { evt = new Event("input", {bubbles:true}); }
+              input.dispatchEvent(evt);
+              input.dispatchEvent(new Event("change", {bubbles:true}));
+              return String(input.value || "") === next;
+            } catch (error) { return false; }
+          }
+
+          function restoreLegacyArtifacts() {
+            for (const version of ["V69467","V69466","V69465","V69464","V69463","V69462"]) {
+              try {
+                const controller = root[`__atpChatTurnGuard${version}`];
+                if (controller && typeof controller.cleanup === "function") controller.cleanup();
+                delete root[`__atpChatTurnGuard${version}`];
+                delete root[`__atpChatTurnGuardPending${version}`];
+              } catch (error) {}
+            }
+            for (const id of [
+              "atp-next-inquiry-draft-v69467","atp-next-inquiry-draft-v69466",
+              "atp-next-inquiry-draft-v69465","atp-next-inquiry-draft-v69464"
+            ]) {
+              try { doc.getElementById(id)?.remove(); } catch (error) {}
+            }
+          }
+          restoreLegacyArtifacts();
+
+          const existing = root[GLOBAL_KEY];
+          if (existing && typeof existing.refresh === "function") {
+            try {
+              if (typeof root[PY_BUSY_KEY] === "boolean") {
+                existing.setPythonBusy(root[PY_BUSY_KEY]);
+                delete root[PY_BUSY_KEY];
+              }
+              existing.refresh();
+            } catch (error) {}
+            return;
+          }
+
+          const state = {
+            pythonBusy:false,
+            internalClick:false,
+            observer:null,
+            timer:null,
+            scheduled:false,
+            submitToken:0,
+            pendingStartedAt:0,
+            lastClickAt:0,
+            voiceRecognition:null,
+            voiceListening:false,
+            voiceIdleHtml:"",
+          };
+
+          function effectiveBusy(input = nativeInput()) {
+            return Boolean(state.pythonBusy || nativeRunBusy(input));
+          }
+
+          function ensureOverlay(input) {
+            if (!input) return null;
+            let draft = overlay();
+            if (!draft) {
+              draft = doc.createElement("textarea");
+              draft.id = OVERLAY_ID;
+              draft.className = "atp-next-inquiry-draft-v69468";
+              draft.setAttribute("aria-label", "Next inquiry draft");
+              draft.setAttribute("autocomplete", "off");
+              draft.setAttribute("spellcheck", "true");
+              draft.placeholder = "Type your next message...";
+              draft.value = readDraft();
+              for (const [k,v] of Object.entries({
+                "box-sizing":"border-box","border":"0","outline":"0","box-shadow":"none",
+                "resize":"none","overflow-y":"auto","white-space":"pre-wrap","overflow-wrap":"break-word",
+                "z-index":"2147483000","pointer-events":"auto","opacity":"1","margin":"0"
+              })) draft.style.setProperty(k,v,"important");
+              copyTextareaVisuals(input,draft);
+              const persist = () => { writeDraft(String(draft.value || "")); scheduleApply(); };
+              draft.addEventListener("input", persist);
+              draft.addEventListener("change", persist);
+              draft.addEventListener("compositionend", persist);
+              draft.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+                  event.preventDefault(); event.stopPropagation();
+                  persist(); submitPreparedDraft();
+                }
+              });
+              doc.body.appendChild(draft);
+            } else {
+              const stored = readDraft();
+              if (String(draft.value || "") !== stored && doc.activeElement !== draft) draft.value = stored;
+            }
+            copyTextareaVisuals(input,draft);
+            positionOverlay(input,draft);
+            return draft;
+          }
+
+          function acknowledgePendingIfNativeBusy(input) {
+            const pending = readPending();
+            if (!pending || !state.pendingStartedAt) return false;
+            if (!nativeRunBusy(input)) return false;
+            clearPending();
+            state.pendingStartedAt = 0;
+            state.submitToken += 1;
+            return true;
+          }
+
+          function activeVoiceEditor() {
+            const input = nativeInput();
+            if (!input) return null;
+            const draftValue = readDraft();
+            const pendingValue = readPending();
+            if (effectiveBusy(input) || draftValue || pendingValue || overlay()) return ensureOverlay(input);
+            return input;
+          }
+
+          function persistVoiceValue(editor, value) {
+            const next = String(value || "");
+            if (!editor) return;
+            if (editor.id === OVERLAY_ID) {
+              editor.value = next;
+              writeDraft(next);
+              try { editor.dispatchEvent(new Event("input", {bubbles:true})); } catch (error) {}
+            } else {
+              setReactValue(editor, next);
+            }
+          }
+
+          function resetIntegratedVoice(button = voiceButton()) {
+            state.voiceListening = false;
+            state.voiceRecognition = null;
+            if (!button) return;
+            try {
+              button.classList.remove("listening");
+              if (state.voiceIdleHtml) button.innerHTML = state.voiceIdleHtml;
+              button.setAttribute("title", "Voice dictation");
+              button.setAttribute("aria-label", "Start voice dictation");
+            } catch (error) {}
+          }
+
+          function onVoiceClickCapture(event) {
+            const target = event.target?.closest?.(`#${VOICE_ID}`);
+            if (!target) return;
+            const SpeechRecognition = root.SpeechRecognition || root.webkitSpeechRecognition;
+            if (!SpeechRecognition) return; // let the legacy controller show its unsupported message
+
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation?.();
+            forceMicUsable();
+
+            if (state.voiceListening && state.voiceRecognition) {
+              try { state.voiceRecognition.stop(); } catch (error) {}
+              return;
+            }
+
+            const editor = activeVoiceEditor();
+            if (!editor) return;
+            try {
+              const recognition = new SpeechRecognition();
+              state.voiceRecognition = recognition;
+              recognition.continuous = false;
+              recognition.interimResults = true;
+              recognition.maxAlternatives = 1;
+              recognition.lang = doc.documentElement.lang || root.navigator.language || "en-US";
+              let committed = String(editor.value || "").trim();
+              state.voiceIdleHtml = target.innerHTML || state.voiceIdleHtml;
+
+              recognition.onstart = () => {
+                state.voiceListening = true;
+                try {
+                  target.classList.add("listening");
+                  target.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>';
+                  target.setAttribute("title", "Listening — tap to stop");
+                  target.setAttribute("aria-label", "Stop voice dictation");
+                } catch (error) {}
+              };
+
+              recognition.onresult = (resultEvent) => {
+                let interim = "";
+                let finalText = "";
+                for (let i = resultEvent.resultIndex; i < resultEvent.results.length; i += 1) {
+                  const transcript = resultEvent.results[i][0].transcript;
+                  if (resultEvent.results[i].isFinal) finalText += transcript;
+                  else interim += transcript;
+                }
+                const prefix = committed ? committed + " " : "";
+                const next = (prefix + finalText + interim).trimStart();
+                persistVoiceValue(editor, next);
+                if (finalText) committed = (prefix + finalText).trim();
+                scheduleApply();
+              };
+              recognition.onerror = () => {};
+              recognition.onend = () => { resetIntegratedVoice(target); scheduleApply(); };
+              recognition.start();
+            } catch (error) {
+              resetIntegratedVoice(target);
+            }
+          }
+
+          function attemptPendingSubmit(token, n=0) {
+            if (token !== state.submitToken) return;
+            const pending = readPending();
+            if (!pending) return;
+            const currentInput = nativeInput();
+            if (!currentInput) return;
+            if (nativeRunBusy(currentInput)) {
+              acknowledgePendingIfNativeBusy(currentInput);
+              scheduleApply();
+              return;
+            }
+            if (state.pythonBusy) return;
+            setReactValue(currentInput, pending);
+            const button = nativeSend();
+            if (String(currentInput.value || "") === pending && button && !button.disabled && button.getAttribute("aria-disabled") !== "true") {
+              if (!state.lastClickAt || Date.now() - state.lastClickAt >= 700) {
+                state.lastClickAt = Date.now();
+                try { state.internalClick = true; button.click(); }
+                catch (error) {}
+                finally { state.internalClick = false; }
+              }
+            } else if (String(currentInput.value || "") === pending && !button) {
+              try { currentInput.dispatchEvent(new KeyboardEvent("keydown", {key:"Enter",code:"Enter",bubbles:true,cancelable:true})); }
+              catch (error) {}
+            }
+            if (n < 14) {
+              const delays=[16,32,60,100,160,240,360,500,700,900,1200,1500,1800,2200,2600];
+              root.setTimeout(()=>attemptPendingSubmit(token,n+1),delays[Math.min(n,delays.length-1)]);
+            }
+          }
+
+          function recoverOrRetryFailedPending() {
+            const pending = readPending();
+            if (!pending || !state.pendingStartedAt) return;
+            if (Date.now() - Number(state.pendingStartedAt || 0) < SUBMIT_ACK_TIMEOUT_MS) return;
+            if (nativeRunBusy(nativeInput()) || state.pythonBusy) return;
+            const currentDraft = readDraft();
+            if (!currentDraft) {
+              writeDraft(pending);
+              clearPending();
+              state.pendingStartedAt = 0;
+              state.submitToken += 1;
+              const d = ensureOverlay(nativeInput());
+              if (d) d.value = pending;
+              return;
+            }
+            // Never discard PENDING merely because the user already typed the following turn.
+            // Keep the immutable submitted inquiry and retry it independently of the newer draft.
+            state.pendingStartedAt = Date.now();
+            state.lastClickAt = 0;
+            const token = ++state.submitToken;
+            root.requestAnimationFrame(()=>attemptPendingSubmit(token,0));
+          }
+
+          function submitPreparedDraft() {
+            const input = nativeInput();
+            if (!input || effectiveBusy(input) || readPending()) return false;
+            const draftNode = overlay();
+            const value = String(draftNode?.value || readDraft() || "");
+            if (!value.trim()) return false;
+
+            writePending(value);
+            clearDraft();
+            if (draftNode) draftNode.value = "";
+            state.pendingStartedAt = Date.now();
+            state.lastClickAt = 0;
+            const token = ++state.submitToken;
+            root.requestAnimationFrame(()=>attemptPendingSubmit(token,0));
+            scheduleApply();
+            return true;
+          }
+
+          function isActualSendControl(target) {
+            if (!target) return false;
+            if (target.id === SEND_PROXY_ID) return true;
+            if (target.matches?.('button[data-testid="stChatInputSubmitButton"]')) return true;
+            if (target.matches?.('button[type="submit"]') && target.id !== VOICE_ID) return true;
+            return false;
+          }
+
+          function syncProxyState(busy, draftValue, pendingValue) {
+            const proxy = sendProxy();
+            if (!proxy) return;
+            const ownsDraftFlow = Boolean(overlay() || draftValue || pendingValue || busy);
+            if (!ownsDraftFlow) return; // legacy controller owns normal native-input state
+            const enabled = Boolean(!busy && !pendingValue && String(draftValue || "").trim());
+            try {
+              proxy.disabled = !enabled;
+              proxy.setAttribute("aria-disabled", enabled ? "false" : "true");
+              proxy.setAttribute("title", enabled ? "Send message" : (busy ? "Wait for the current response to finish" : "Send message"));
+            } catch (error) {}
+          }
+
+          function apply() {
+            state.scheduled=false;
+            const input=nativeInput();
+            if (!input) return;
+            const nativeBusy=nativeRunBusy(input);
+            const busy=Boolean(state.pythonBusy || nativeBusy);
+            if (nativeBusy) acknowledgePendingIfNativeBusy(input);
+            else recoverOrRetryFailedPending();
+
+            const draftValue=readDraft();
+            const pendingValue=readPending();
+            if (busy || draftValue || pendingValue) {
+              const d=ensureOverlay(input);
+              if (d && doc.activeElement !== d && String(d.value || "") !== draftValue) d.value=draftValue;
+            } else {
+              removeOverlay();
+            }
+            forceMicUsable();
+            syncProxyState(busy,draftValue,pendingValue);
+          }
+
+          function scheduleApply() {
+            if (state.scheduled) return;
+            state.scheduled=true;
+            root.requestAnimationFrame(apply);
+          }
+
+          function onComposerClickCapture(event) {
+            if (state.internalClick) return;
+            const target=event.target?.closest?.("button");
+            if (!target || target.id === VOICE_ID || !isActualSendControl(target)) return;
+            const c=composer();
+            if (!c || !c.contains(target)) return;
+            const input=nativeInput();
+            if (!input || effectiveBusy(input) || readPending()) return;
+            const value=readDraft();
+            if (!String(value || "").trim()) return;
+            event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
+            submitPreparedDraft();
+          }
+
+          function setPythonBusy(value) { state.pythonBusy=Boolean(value); scheduleApply(); }
+
+          doc.addEventListener("click",onVoiceClickCapture,true);
+          doc.addEventListener("click",onComposerClickCapture,true);
+          root.addEventListener("resize",scheduleApply,true);
+          root.addEventListener("scroll",scheduleApply,true);
+          if (root.visualViewport) {
+            root.visualViewport.addEventListener("resize",scheduleApply);
+            root.visualViewport.addEventListener("scroll",scheduleApply);
+          }
+          const observeRoot=doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+          state.observer=new MutationObserver(scheduleApply);
+          if (observeRoot) state.observer.observe(observeRoot,{childList:true,subtree:true,attributes:true,attributeFilter:["disabled","aria-disabled","style","class"]});
+          state.timer=root.setInterval(scheduleApply,60);
+
+          function cleanup() {
+            try { state.observer?.disconnect(); } catch (error) {}
+            try { root.clearInterval(state.timer); } catch (error) {}
+            try { state.voiceRecognition?.stop?.(); } catch (error) {}
+            try { doc.removeEventListener("click",onVoiceClickCapture,true); } catch (error) {}
+            try { doc.removeEventListener("click",onComposerClickCapture,true); } catch (error) {}
+            try { root.removeEventListener("resize",scheduleApply,true); } catch (error) {}
+            try { root.removeEventListener("scroll",scheduleApply,true); } catch (error) {}
+            try { root.visualViewport?.removeEventListener("resize",scheduleApply); } catch (error) {}
+            try { root.visualViewport?.removeEventListener("scroll",scheduleApply); } catch (error) {}
+            forceMicUsable(); removeOverlay();
+          }
+
+          root[GLOBAL_KEY]={
+            setPythonBusy,refresh:scheduleApply,cleanup,
+            hasDraft:()=>Boolean(readDraft()),
+            draftValue:()=>String(readDraft() || ""),
+            pendingValue:()=>String(readPending() || ""),
+            submitDraft:submitPreparedDraft,
+          };
+          if (typeof root[PY_BUSY_KEY] === "boolean") {
+            setPythonBusy(root[PY_BUSY_KEY]); delete root[PY_BUSY_KEY];
+          }
+          scheduleApply();
+        })();
+        </script>
+        """
+    )
+
+
+def _set_chat_composer_busy_v69468(is_busy):
+    """Mirror structured-tool Python lifecycle into the v69468 browser controller."""
+    busy_js_v69468 = "true" if bool(is_busy) else "false"
+    _run_invisible_trusted_browser_script_v69453(
+        f"""
+        <script>
+        (() => {{
+          try {{
+            const root = window;
+            const controller = root.__atpChatTurnGuardV69468;
+            if (controller && typeof controller.setPythonBusy === "function") {{
+              controller.setPythonBusy({busy_js_v69468});
+            }} else {{
+              root.__atpChatTurnGuardPendingV69468 = {busy_js_v69468};
+            }}
+          }} catch (error) {{}}
+        }})();
+        </script>
+        """
+    )
+
 def _sync_native_chat_send_arrow_for_attachments(has_attachments):
     """Enable the existing native chat send arrow for attachment-only turns.
 
@@ -8684,6 +9406,183 @@ def render_print_transcript_v69007(messages, assistant_label="Technical Support"
             renderer(transcript_html, unsafe_allow_html=True)
         else:
             st.markdown(transcript_html, unsafe_allow_html=True)
+
+
+# ============================================================
+# v69473: v69468 baseline + durable chat reconciliation + native Streamlit Print
+# ============================================================
+def _durable_chat_rows_v69473(rows):
+    """Normalize durable/session rows to the exact chat fields used by rendering."""
+    normalized_v69473 = []
+    for row_v69473 in list(rows or []):
+        if not isinstance(row_v69473, dict):
+            continue
+        role_v69473 = str(row_v69473.get("role") or "").strip().lower()
+        if role_v69473 not in {"user", "assistant"}:
+            continue
+        normalized_v69473.append({
+            "role": role_v69473,
+            "content": str(row_v69473.get("content") or ""),
+        })
+    return normalized_v69473
+
+
+def _reconcile_live_chat_with_durable_history_v69473():
+    """Repair completed-turn UI from durable history before rendering."""
+    if not bool(st.session_state.pop("_chat_durable_sync_pending_v69473", False)):
+        return False
+    conversation_v69473 = str(st.session_state.get("conversation_id") or "").strip()
+    username_v69473 = str(st.session_state.get("username") or "").strip()
+    if not conversation_v69473 or not username_v69473 or not history_is_enabled():
+        return False
+    try:
+        durable_v69473 = _durable_chat_rows_v69473(load_messages(conversation_v69473))
+        session_v69473 = _durable_chat_rows_v69473(st.session_state.get("messages") or [])
+        if not durable_v69473:
+            diagnostic_log(
+                "chat_durable_render_sync_empty_v69473",
+                conversation_id=conversation_v69473,
+                session_count=len(session_v69473),
+            )
+            return False
+        if durable_v69473 != session_v69473:
+            st.session_state.messages = durable_v69473
+            diagnostic_log(
+                "chat_durable_render_recovered_v69473",
+                conversation_id=conversation_v69473,
+                before_count=len(session_v69473),
+                durable_count=len(durable_v69473),
+            )
+            return True
+        diagnostic_log(
+            "chat_durable_render_verified_v69473",
+            conversation_id=conversation_v69473,
+            message_count=len(durable_v69473),
+        )
+        return False
+    except Exception as error_v69473:
+        diagnostic_log(
+            "chat_durable_render_sync_failed_v69473",
+            conversation_id=conversation_v69473,
+            error_type=type(error_v69473).__name__,
+            error=str(error_v69473)[:500],
+        )
+        return False
+
+
+def _install_native_streamlit_print_bridge_v69473(transcript_html):
+    """Route Streamlit's built-in upper-right Print action to a clean body portal."""
+    try:
+        payload_v69473 = base64.b64encode(
+            str(transcript_html or "").encode("utf-8")
+        ).decode("ascii")
+    except Exception:
+        payload_v69473 = ""
+
+    _run_invisible_trusted_browser_script_v69453(
+        r'''<style id="atp-native-print-style-v69473">
+        @media print {
+            @page { size: auto; margin: 12mm 11mm 14mm; }
+            html, body {
+                display:block !important; width:auto !important; height:auto !important;
+                min-height:0 !important; max-height:none !important; margin:0 !important;
+                padding:0 !important; overflow:visible !important; background:#fff !important;
+                background-color:#fff !important; color:#111827 !important; color-scheme:light !important;
+                -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important;
+            }
+            body > * { display:none !important; visibility:hidden !important; }
+            html body > #atp-native-print-v69473 {
+                display:block !important; visibility:visible !important; position:static !important;
+                inset:auto !important; width:100% !important; height:auto !important;
+                min-height:0 !important; max-height:none !important; margin:0 !important;
+                padding:0 !important; overflow:visible !important; opacity:1 !important;
+                transform:none !important; contain:none !important; clip:auto !important;
+                clip-path:none !important; background:#fff !important; background-color:#fff !important;
+                color:#111827 !important; -webkit-text-fill-color:#111827 !important; color-scheme:light !important;
+            }
+            html body > #atp-native-print-v69473,
+            html body > #atp-native-print-v69473 * {
+                visibility:visible !important; opacity:1 !important; box-sizing:border-box !important;
+                filter:none !important; text-shadow:none !important; -webkit-text-fill-color:currentColor !important;
+            }
+            html body > #atp-native-print-v69473 * { background-image:none !important; }
+            html body > #atp-native-print-v69473 .atp-print-transcript-v69007 {
+                display:block !important; position:static !important; width:100% !important;
+                height:auto !important; min-height:0 !important; max-height:none !important;
+                margin:0 !important; padding:0 !important; overflow:visible !important;
+                contain:none !important; background:#fff !important; color:#111827 !important;
+                font-family:Arial,Helvetica,sans-serif !important; font-size:10.5pt !important; line-height:1.45 !important;
+            }
+            html body > #atp-native-print-v69473 .atp-print-header-v69007 {
+                display:block !important; margin:0 0 7mm !important; padding:0 0 3mm !important;
+                border-bottom:1px solid #cbd5e1 !important; background:#fff !important;
+            }
+            html body > #atp-native-print-v69473 .atp-print-brand-v69007,
+            html body > #atp-native-print-v69473 .atp-print-role-v69007,
+            html body > #atp-native-print-v69473 .atp-print-body-v69007,
+            html body > #atp-native-print-v69473 .atp-print-body-v69007 * {
+                color:#111827 !important; background-color:transparent !important;
+            }
+            html body > #atp-native-print-v69473 .atp-print-workspace-v69007 {
+                color:#475569 !important; background:transparent !important;
+            }
+            html body > #atp-native-print-v69473 .atp-print-message-v69007,
+            html body > #atp-native-print-v69473 .atp-print-body-v69007 {
+                display:block !important; position:static !important; width:100% !important;
+                height:auto !important; min-height:0 !important; max-height:none !important;
+                overflow:visible !important; transform:none !important; contain:none !important;
+            }
+            html body > #atp-native-print-v69473 table {
+                display:table !important; width:100% !important; border-collapse:collapse !important;
+                table-layout:auto !important; background:#fff !important; color:#111827 !important;
+            }
+            html body > #atp-native-print-v69473 thead { display:table-header-group !important; }
+            html body > #atp-native-print-v69473 tbody { display:table-row-group !important; }
+            html body > #atp-native-print-v69473 tr { display:table-row !important; }
+            html body > #atp-native-print-v69473 th,
+            html body > #atp-native-print-v69473 td {
+                display:table-cell !important; border:1px solid #cbd5e1 !important; padding:2mm !important;
+                vertical-align:top !important; background:#fff !important; color:#111827 !important;
+            }
+            html body > #atp-native-print-v69473 th { background:#f1f5f9 !important; font-weight:700 !important; }
+            html body > #atp-native-print-v69473 a { color:#075985 !important; text-decoration:underline !important; }
+            html body > #atp-native-print-v69473 img {
+                display:block !important; max-width:125mm !important; max-height:115mm !important;
+                width:auto !important; height:auto !important; object-fit:contain !important;
+                break-inside:avoid !important; page-break-inside:avoid !important; background:#fff !important;
+            }
+            html body > #atp-native-print-v69473 pre,
+            html body > #atp-native-print-v69473 code {
+                white-space:pre-wrap !important; overflow-wrap:anywhere !important;
+                color:#111827 !important; background:#f8fafc !important;
+            }
+        }
+        </style>
+        <script>
+        (() => {
+          const root=window, doc=root.document;
+          const PORTAL_ID='atp-native-print-v69473', PAYLOAD='__ATP_NATIVE_PRINT_PAYLOAD_V69473__';
+          const CTRL_KEY='__atpNativePrintControllerV69473';
+          ['atp-print-portal-v69469','atp-print-portal-v69470','atp-standalone-print-v69471'].forEach((id)=>{const n=doc.getElementById(id); if(n)n.remove();});
+          ['atp-print-portal-style-v69469','atp-print-portal-style-v69470','atp-standalone-print-style-v69471'].forEach((id)=>{const n=doc.getElementById(id); if(n)n.remove();});
+          let portal=doc.getElementById(PORTAL_ID);
+          if(!portal){portal=doc.createElement('div'); portal.id=PORTAL_ID; portal.setAttribute('aria-hidden','true'); doc.body.appendChild(portal);}
+          let transcript='';
+          try{if(PAYLOAD){const binary=atob(PAYLOAD); const bytes=new Uint8Array(binary.length); for(let i=0;i<binary.length;i+=1)bytes[i]=binary.charCodeAt(i); transcript=new TextDecoder('utf-8').decode(bytes);}}catch(_){transcript='';}
+          portal.innerHTML=transcript; portal.style.display='none';
+          const printableText=(portal.textContent||'').trim();
+          portal.dataset.atpPrintReady=printableText?'1':'0'; portal.dataset.atpPrintChars=String(printableText.length);
+          portal.dataset.atpPrintSource='durable-server-transcript-v69473';
+          const prior=root[CTRL_KEY];
+          if(prior?.beforePrint)root.removeEventListener('beforeprint',prior.beforePrint);
+          if(prior?.afterPrint)root.removeEventListener('afterprint',prior.afterPrint);
+          const beforePrint=()=>{if((portal.textContent||'').trim()){portal.style.display='block'; portal.removeAttribute('aria-hidden');}};
+          const afterPrint=()=>{portal.style.display='none'; portal.setAttribute('aria-hidden','true');};
+          root.addEventListener('beforeprint',beforePrint); root.addEventListener('afterprint',afterPrint);
+          root[CTRL_KEY]={beforePrint,afterPrint,portal};
+        })();
+        </script>'''.replace('__ATP_NATIVE_PRINT_PAYLOAD_V69473__', payload_v69473)
+    )
 
 
 REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
@@ -61012,42 +61911,105 @@ def _website_image_schema_profile_reset_v69176():
 
 
 def _website_image_index_schema_profile_v69129():
-    """Detect usable modern/legacy/hybrid image-index schema from actual live columns."""
+    """Detect the *actual* live image-index schema without trusting fallback columns.
+
+    v69457: ``get_table_columns`` intentionally has a broad production fallback for
+    learning durability. That fallback is not proof that an optional column exists
+    in an older Supabase schema. The image index therefore validates its own base
+    schema and optional columns with bounded read-only probes before selecting or
+    filtering on them. This prevents a missing optional field such as ``source_type``
+    from disabling exact product-image recovery.
+    """
     now_value = time.monotonic()
     cached = dict(_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176.get("profile") or {})
     cached_at = float(_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176.get("at") or 0.0)
-    if cached.get("ready") and (now_value - cached_at) < 60.0:
+    if cached.get("ready") and (now_value - cached_at) < 300.0:
         return cached
-    actual_columns = set()
+
+    hinted_columns_v69457 = set()
     try:
-        actual_columns = set(get_table_columns("learned_knowledge") or [])
+        hinted_columns_v69457 = set(get_table_columns("learned_knowledge") or [])
     except Exception as error:
-        diagnostic_log("website_image_index_column_introspection_failed_v69176", error_type=type(error).__name__, error=str(error)[:400])
-    def build_profile(columns):
-        cols=set(columns or [])
-        if "id" not in cols:
-            return None
-        if "issue" in cols and ("solution" in cols or "approved_answer" in cols):
-            return {"ready":True,"mode":"modern","columns":sorted(cols)}
-        if "question" in cols and "approved_answer" in cols:
-            return {"ready":True,"mode":"legacy","columns":sorted(cols)}
-        return None
-    profile=build_profile(actual_columns)
-    if profile:
-        _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"]=dict(profile)
-        _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"]=now_value
-        return profile
-    probes=(("modern",["id","issue","solution"]),("modern",["id","issue","approved_answer"]),("legacy",["id","question","approved_answer"]))
-    for mode, columns in probes:
+        diagnostic_log(
+            "website_image_index_column_introspection_failed_v69176",
+            error_type=type(error).__name__, error=str(error)[:400],
+        )
+
+    base_candidates_v69457 = (
+        ("modern", ["id", "issue", "solution"]),
+        ("modern", ["id", "issue", "approved_answer"]),
+        ("legacy", ["id", "question", "approved_answer"]),
+    )
+    selected_mode_v69457 = ""
+    actual_columns_v69457 = set()
+    base_probe_errors_v69457 = []
+    for mode_v69457, columns_v69457 in base_candidates_v69457:
         try:
-            supabase.table("learned_knowledge").select(",".join(columns)).limit(1).execute()
-            profile={"ready":True,"mode":mode,"columns":list(columns)}
-            _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"]=dict(profile)
-            _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"]=now_value
-            return profile
+            supabase.table("learned_knowledge").select(
+                ",".join(columns_v69457)
+            ).limit(1).execute()
+            selected_mode_v69457 = mode_v69457
+            actual_columns_v69457.update(columns_v69457)
+            break
         except Exception as error:
-            diagnostic_log("website_image_index_schema_probe_failed_v69176", mode=mode, columns=",".join(columns), error_type=type(error).__name__, error=str(error)[:300])
-    return {"ready":False,"mode":"unavailable","columns":sorted(actual_columns)}
+            base_probe_errors_v69457.append({
+                "mode": mode_v69457,
+                "columns": ",".join(columns_v69457),
+                "error_type": type(error).__name__,
+                "error": str(error)[:240],
+            })
+
+    if not selected_mode_v69457:
+        diagnostic_log(
+            "website_image_index_schema_unavailable_v69457",
+            probes=base_probe_errors_v69457[:3],
+        )
+        return {
+            "ready": False,
+            "mode": "unavailable",
+            "columns": sorted(actual_columns_v69457),
+        }
+
+    optional_candidates_v69457 = (
+        ("solution", "approved_answer", "source_type", "updated_at", "created_at", "keywords")
+        if selected_mode_v69457 == "modern"
+        else ("issue", "solution", "source_type", "updated_at", "created_at", "keywords")
+    )
+    # Probe only columns that are useful to this subsystem. A one-column miss is
+    # isolated and cannot poison the entire schema profile.
+    for column_v69457 in optional_candidates_v69457:
+        if column_v69457 in actual_columns_v69457:
+            continue
+        # If introspection succeeded and definitively omitted the column, skip the
+        # network probe. If it returned the broad fallback, the probe below is the
+        # source of truth.
+        try:
+            supabase.table("learned_knowledge").select(
+                f"id,{column_v69457}"
+            ).limit(1).execute()
+            actual_columns_v69457.add(column_v69457)
+        except Exception as error:
+            diagnostic_log(
+                "website_image_index_optional_column_absent_v69457",
+                column=column_v69457,
+                error_type=type(error).__name__,
+            )
+
+    profile = {
+        "ready": True,
+        "mode": selected_mode_v69457,
+        "columns": sorted(actual_columns_v69457),
+    }
+    _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"] = dict(profile)
+    _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"] = now_value
+    diagnostic_log(
+        "website_image_index_schema_verified_v69457",
+        mode=selected_mode_v69457,
+        columns=sorted(actual_columns_v69457),
+        source_type_available="source_type" in actual_columns_v69457,
+        hinted_source_type="source_type" in hinted_columns_v69457,
+    )
+    return profile
 
 
 
@@ -67899,6 +68861,19 @@ def _workspace_sales_feature_intro_v69426(package, contract=None):
     return "Key confirmed features include " + ", ".join(parts) + "."
 
 
+def _workspace_sales_family_display_label_v69457(family):
+    """Display one already-authoritative internal family token without changing fitment."""
+    value_v69457 = re.sub(r"\s+", " ", str(family or "")).strip().casefold()
+    if re.fullmatch(r"[fe]\d{3}", value_v69457):
+        return value_v69457.upper()
+    ram_v69457 = re.fullmatch(r"ram(1500|2500|3500)", value_v69457)
+    if ram_v69457:
+        return f"RAM {ram_v69457.group(1)}"
+    if value_v69457 == "ram":
+        return "RAM"
+    return value_v69457.replace("_", " ").title()
+
+
 def _workspace_sales_first_turn_fitment_direct_answer_v69405(
     workspace_label,
     prompt_text,
@@ -67970,9 +68945,13 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
             continue
 
         contract = _workspace_atp_product_contract_v69205(pkg)
+        # v69460: the customer's requested year is an eligibility filter, not the
+        # display range. Once this exact product is proven compatible, show its
+        # complete authoritative fitment span (for example 2009–2016), rather
+        # than collapsing the Fitment cell to only the queried year (2014).
         fitment = _workspace_atp_first_response_fitment_v69348(
             contract,
-            prompt_years,
+            None,
         )
         if prompt_years and not fitment:
             continue
@@ -67995,8 +68974,13 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
         if not title:
             title = "AutoTecPro infotainment system"
 
+        # v69460: keep the Fitment column semantically pure: it displays the
+        # complete authoritative product year/trim range. Vehicle-model matching
+        # remains enforced by the existing family gates and product authority.
+        fitment_display_v69457 = fitment or "Compatible"
+
         seen_pages.add(page_id)
-        rows.append((title, fitment or "Compatible", source, contract, pkg))
+        rows.append((title, fitment_display_v69457, source, contract, pkg))
 
     if not rows:
         return ""
@@ -68691,22 +69675,35 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
         )
         for row_v69436 in rows:
             source_v69436 = str(row_v69436.get("source") or "").strip()
-            woo_lookup_v69436 = _woocommerce_product_by_source_url_v69326(
-                source_v69436
+            recent_snapshot_v69457 = _workspace_sales_recent_catalog_price_v69457(
+                row_v69436.get("package") or {}
             )
-            price_label_v69436 = _woocommerce_price_label_v69326(
-                woo_lookup_v69436
-            )
-            price_source_v69436 = "WooCommerce"
+            woo_lookup_v69436 = {}
             page_lookup_v69436 = {}
-            if not price_label_v69436:
-                page_lookup_v69436 = _current_product_page_price_by_exact_url_v69340(
+            if recent_snapshot_v69457:
+                price_label_v69436 = str(recent_snapshot_v69457.get("price_label") or "")
+                price_source_v69436 = "Current WooCommerce catalog snapshot"
+                diagnostic_log(
+                    "workspace_sales_same_case_price_snapshot_reused_v69457",
+                    source_url=source_v69436[:700],
+                    price=price_label_v69436[:120],
+                )
+            else:
+                woo_lookup_v69436 = _woocommerce_product_by_source_url_v69326(
                     source_v69436
                 )
-                price_label_v69436 = _current_product_page_price_label_v69340(
-                    page_lookup_v69436
+                price_label_v69436 = _woocommerce_price_label_v69326(
+                    woo_lookup_v69436
                 )
-                price_source_v69436 = "Current product page"
+                price_source_v69436 = "WooCommerce"
+                if not price_label_v69436:
+                    page_lookup_v69436 = _current_product_page_price_by_exact_url_v69340(
+                        source_v69436
+                    )
+                    price_label_v69436 = _current_product_page_price_label_v69340(
+                        page_lookup_v69436
+                    )
+                    price_source_v69436 = "Current product page"
 
             if price_label_v69436:
                 verified_v69436 += 1
@@ -70792,7 +71789,7 @@ def _workspace_sales_woocommerce_store_api_page_v69414(search_term, page=1):
     return safe_json_response(response)
 
 
-@st.cache_data(ttl=90, max_entries=8, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=8, show_spinner=False)
 def _workspace_sales_woocommerce_store_api_full_scan_v69415():
     """Read storefront-visible Woo products without relying on search-token behavior."""
     if not WOOCOMMERCE_STORE_URL:
@@ -71087,6 +72084,134 @@ def _workspace_sales_woocommerce_search_v69413(search_term):
     }
 
 
+def _workspace_sales_trusted_identity_generic_families_v69457(value):
+    """Extract brand-adjacent model tokens from trusted product identity, exactly.
+
+    This is deliberately *not* a typo corrector. It preserves support for catalog
+    families outside the legacy parser vocabulary (for example NX, Q5 or 3 Series)
+    while preventing SequenceMatcher repairs such as E280 -> E250 from being applied
+    to authoritative Woo product metadata. Customer-query typo repair remains
+    unchanged in ``_workspace_sales_fuzzy_vehicle_families_v69416``.
+    """
+    text_v69457 = html.unescape(re.sub(r"\s+", " ", str(value or ""))).strip().casefold()
+    if not text_v69457:
+        return set()
+    tokens_v69457 = re.findall(r"[a-z0-9]+", text_v69457)
+    brands_v69457 = {
+        "chevy", "chevrolet", "gmc", "ford", "dodge", "ram", "jeep",
+        "toyota", "honda", "nissan", "infiniti", "lexus", "acura",
+        "bmw", "audi", "mercedes", "porsche", "cadillac", "buick",
+        "chrysler", "hyundai", "kia", "lincoln", "mazda", "subaru",
+        "tesla", "volkswagen", "volvo",
+    }
+    skip_v69457 = {
+        "autotecpro", "product", "products", "screen", "radio", "stereo",
+        "navigation", "infotainment", "android", "touch", "touchscreen",
+        "system", "unit", "head", "style", "tesla", "hd", "ips", "qhd",
+        "gps", "wifi", "carplay", "camera", "cluster", "cockpit", "digital",
+        "oem", "fit", "inch", "inches", "benz",
+    }
+    out_v69457 = set()
+    for index_v69457, token_v69457 in enumerate(tokens_v69457):
+        if token_v69457 not in brands_v69457:
+            continue
+        nearby_v69457 = []
+        for candidate_v69457 in tokens_v69457[index_v69457 + 1:index_v69457 + 7]:
+            if re.fullmatch(r"(?:19|20)\d{2}", candidate_v69457):
+                continue
+            if candidate_v69457 in brands_v69457 or candidate_v69457 in skip_v69457:
+                continue
+            nearby_v69457.append(candidate_v69457)
+            if len(nearby_v69457) >= 2:
+                break
+        if not nearby_v69457:
+            continue
+        first_v69457 = nearby_v69457[0]
+        family_v69457 = first_v69457
+        if len(nearby_v69457) >= 2:
+            second_v69457 = nearby_v69457[1]
+            if first_v69457.isdigit() and second_v69457 == "series":
+                family_v69457 = f"{first_v69457} series"
+            elif len(first_v69457) == 1 and second_v69457 == "class":
+                family_v69457 = f"{first_v69457} class"
+            elif first_v69457 in {"land", "range"} and second_v69457 in {"cruiser", "rover"}:
+                family_v69457 = f"{first_v69457} {second_v69457}"
+            elif re.fullmatch(r"[a-z]{1,3}", first_v69457) and re.fullmatch(r"\d{1,3}", second_v69457):
+                family_v69457 = first_v69457 + second_v69457
+        compact_v69457 = re.sub(r"[^a-z0-9]", "", family_v69457)
+        if len(compact_v69457) < 2:
+            continue
+        family_pattern_v69457 = r"\b" + r"[-_\s]*".join(
+            re.escape(piece_v69457)
+            for piece_v69457 in re.findall(r"[a-z]+|\d+", family_v69457)
+        ) + r"\b"
+        positive_v69457 = False
+        for match_v69457 in re.finditer(family_pattern_v69457, text_v69457):
+            before_v69457 = text_v69457[max(0, match_v69457.start() - 90):match_v69457.start()]
+            after_v69457 = text_v69457[match_v69457.end():match_v69457.end() + 70]
+            negative_v69457 = bool(re.search(
+                r"(?:do\s+not\s+use|don't\s+use|not\s+for|wrong|avoid|"
+                r"instead\s+of|rather\s+than|exclude(?:s|d)?|unsupported)"
+                r"[^.;:]{0,70}$",
+                before_v69457,
+            )) or bool(re.search(
+                r"^\s*(?:is\s+)?(?:not\s+supported|unsupported|excluded)",
+                after_v69457,
+            ))
+            if not negative_v69457:
+                positive_v69457 = True
+                break
+        if positive_v69457:
+            out_v69457.add(family_v69457.replace(" ", "_"))
+    return out_v69457
+
+
+def _workspace_sales_exact_factory_system_v69457(description_html):
+    """Return a factory-system label only from exact-current ATP product semantics."""
+    raw_v69457 = str(description_html or "")
+    if not raw_v69457:
+        return ""
+    current_tags_v69457 = re.findall(
+        r"<[^>]+data-atp-current-source\s*=\s*[\"'](?:true|1|yes)[\"'][^>]*>",
+        raw_v69457,
+        flags=re.I | re.S,
+    )
+    evidence_v69457 = " ".join(current_tags_v69457)
+    for attr_v69457 in (
+        "data-atp-factory-system",
+        "data-atp-retained-factory-system",
+        "data-atp-factory-system-scope",
+    ):
+        match_v69457 = re.search(
+            rf"{re.escape(attr_v69457)}\s*=\s*[\"']([^\"']+)[\"']",
+            evidence_v69457,
+            flags=re.I,
+        )
+        if match_v69457:
+            return re.sub(r"\s+", " ", html.unescape(match_v69457.group(1))).strip()
+
+    feature_values_v69457 = " ".join(re.findall(
+        r"data-atp-feature\s*=\s*[\"']([^\"']+)[\"']",
+        evidence_v69457,
+        flags=re.I,
+    )).casefold()
+    negative_v69457 = re.search(
+        r"(?:non|no|without)[-_\s]*sync[-_\s]*([1-4])",
+        feature_values_v69457,
+        flags=re.I,
+    )
+    if negative_v69457:
+        return f"Without Original Microsoft SYNC {negative_v69457.group(1)}"
+    positive_v69457 = re.search(
+        r"(?:original[-_\s]*)?sync[-_\s]*([1-4])",
+        feature_values_v69457,
+        flags=re.I,
+    )
+    if positive_v69457:
+        return f"Original Microsoft SYNC {positive_v69457.group(1)}"
+    return ""
+
+
 def _workspace_sales_woocommerce_contract_v69413(product):
     """Build deterministic fitment/display facts from one published WooCommerce product."""
     product = dict(product or {})
@@ -71117,8 +72242,9 @@ def _workspace_sales_woocommerce_contract_v69413(product):
     families = sorted({
         str(x or "").casefold().strip()
         for x in (
-            set(_workspace_sales_fuzzy_vehicle_families_v69416(identity_text) or set())
+            set(_website_identity_vehicle_families_v69022(identity_text) or set())
             | set(_workspace_source_identity_vehicle_families_v69456(identity_text) or set())
+            | set(_workspace_sales_trusted_identity_generic_families_v69457(identity_text) or set())
         )
         if str(x or "").strip()
     })
@@ -71430,10 +72556,93 @@ def _workspace_sales_woocommerce_contract_v69413(product):
         "facts": facts,
         "features": list(facts),
         "feature_summary": exact_feature_summary_v69426,
+        "factory_system": _workspace_sales_exact_factory_system_v69457(
+            description_html_v69421
+        ),
         "compatibility_branches": branches,
         "related_products": [],
         "primary_images": primary_images[:1],
     }
+
+
+def _workspace_sales_woocommerce_price_snapshot_v69457(product):
+    """Capture a verified storefront price already present in the catalog response.
+
+    The public Woo Store API includes both currency metadata and integer minor-unit
+    prices. Reusing that fresh same-request value makes an immediate price follow-up
+    deterministic and avoids re-querying the same product. Authenticated wc/v3 rows
+    without explicit currency metadata are intentionally not guessed.
+    """
+    product_v69457 = dict(product or {})
+    prices_v69457 = product_v69457.get("prices")
+    if not isinstance(prices_v69457, dict):
+        return {}
+    currency_v69457 = str(prices_v69457.get("currency_code") or "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", currency_v69457):
+        return {}
+    try:
+        minor_v69457 = int(prices_v69457.get("currency_minor_unit"))
+        if minor_v69457 < 0 or minor_v69457 > 6:
+            return {}
+    except Exception:
+        return {}
+    scale_v69457 = float(10 ** minor_v69457)
+    raw_values_v69457 = []
+    price_range_v69457 = prices_v69457.get("price_range")
+    if isinstance(price_range_v69457, dict):
+        for key_v69457 in ("min_amount", "max_amount"):
+            if str(price_range_v69457.get(key_v69457) or "").strip():
+                raw_values_v69457.append(price_range_v69457.get(key_v69457))
+    if not raw_values_v69457:
+        for key_v69457 in ("price", "sale_price", "regular_price"):
+            value_v69457 = prices_v69457.get(key_v69457)
+            if str(value_v69457 or "").strip():
+                raw_values_v69457.append(value_v69457)
+                if key_v69457 == "price":
+                    break
+    numeric_v69457 = []
+    for value_v69457 in raw_values_v69457:
+        try:
+            numeric_v69457.append(float(str(value_v69457).replace(",", "")) / scale_v69457)
+        except Exception:
+            continue
+    if not numeric_v69457:
+        return {}
+    low_v69457 = min(numeric_v69457)
+    high_v69457 = max(numeric_v69457)
+    label_v69457 = (
+        f"{currency_v69457} {low_v69457:,.2f}"
+        if abs(high_v69457 - low_v69457) < 0.005
+        else f"{currency_v69457} {low_v69457:,.2f}–{high_v69457:,.2f}"
+    )
+    return {
+        "status": "verified",
+        "currency": currency_v69457,
+        "min_price": low_v69457,
+        "max_price": high_v69457,
+        "price_label": label_v69457,
+        "captured_at_epoch": time.time(),
+        "source": "woocommerce_store_catalog_snapshot_v69457",
+    }
+
+
+def _workspace_sales_recent_catalog_price_v69457(package, max_age_seconds=180.0):
+    package_v69457 = dict(package or {})
+    snapshot_v69457 = package_v69457.get("workspace_sales_woocommerce_price_snapshot_v69457")
+    if not isinstance(snapshot_v69457, dict):
+        return {}
+    if str(snapshot_v69457.get("status") or "") != "verified":
+        return {}
+    try:
+        age_v69457 = max(0.0, time.time() - float(snapshot_v69457.get("captured_at_epoch") or 0.0))
+    except Exception:
+        return {}
+    if age_v69457 > float(max_age_seconds):
+        return {}
+    label_v69457 = str(snapshot_v69457.get("price_label") or "").strip()
+    if not label_v69457:
+        return {}
+    return dict(snapshot_v69457)
 
 
 def _workspace_sales_woocommerce_package_v69413(product):
@@ -71534,10 +72743,13 @@ def _workspace_sales_woocommerce_package_v69413(product):
         "workspace_sales_woocommerce_catalog_v69415": True,
         "workspace_sales_woocommerce_product_id_v69413": product.get("id"),
         "workspace_sales_woocommerce_primary_v69413": hero,
+        "workspace_sales_woocommerce_price_snapshot_v69457": (
+            _workspace_sales_woocommerce_price_snapshot_v69457(product)
+        ),
     }
 
 
-@st.cache_data(ttl=90, max_entries=8, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=8, show_spinner=False)
 def _workspace_sales_woocommerce_authenticated_full_scan_v69456():
     """Read the published Woo catalog without search-token filtering.
 
@@ -71599,23 +72811,30 @@ def _workspace_sales_woocommerce_authenticated_full_scan_v69456():
 
 
 def _workspace_sales_woocommerce_complete_full_scan_v69456():
-    """Return one complete published catalog from the strongest available provider."""
-    authenticated_v69456 = _workspace_sales_woocommerce_authenticated_full_scan_v69456()
-    if str(authenticated_v69456.get("status") or "") == "ok":
-        return dict(authenticated_v69456)
-    public_v69456 = _workspace_sales_woocommerce_store_api_full_scan_v69415()
-    if str(public_v69456.get("status") or "") == "ok":
-        return dict(public_v69456)
+    """Return one complete published catalog with the storefront path first.
+
+    v69457: the public Store API is the exact customer-visible published catalog and
+    was healthy in the v69456 production trace, while authenticated wc/v3 repeatedly
+    timed out. Try the complete public catalog first; use authenticated wc/v3 only as
+    a failover. Completeness authority is unchanged and no search-token result is
+    treated as exhaustive.
+    """
+    public_v69457 = _workspace_sales_woocommerce_store_api_full_scan_v69415()
+    if str(public_v69457.get("status") or "") == "ok":
+        return dict(public_v69457)
+    authenticated_v69457 = _workspace_sales_woocommerce_authenticated_full_scan_v69456()
+    if str(authenticated_v69457.get("status") or "") == "ok":
+        return dict(authenticated_v69457)
     diagnostic_log(
         "workspace_sales_woo_complete_scan_unavailable_v69456",
-        authenticated_reason=str(authenticated_v69456.get("reason") or "")[:240],
-        public_reason=str(public_v69456.get("reason") or "")[:240],
+        public_reason=str(public_v69457.get("reason") or "")[:240],
+        authenticated_reason=str(authenticated_v69457.get("reason") or "")[:240],
     )
     return {
         "status": "unavailable",
         "reason": "woocommerce_complete_catalog_unavailable",
-        "authenticated": dict(authenticated_v69456 or {}),
-        "public": dict(public_v69456 or {}),
+        "authenticated": dict(authenticated_v69457 or {}),
+        "public": dict(public_v69457 or {}),
         "products": [],
     }
 
@@ -71701,31 +72920,66 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
 
     products_by_id = {}
     failures = []
-    for family in families:
-        result = _workspace_sales_woocommerce_search_v69413(family)
-        if str(result.get("status") or "") != "ok":
-            failures.append(dict(result))
-            continue
-        diagnostic_log(
-            "workspace_sales_woocommerce_family_search_v69415",
-            family=family,
-            provider=str(result.get("provider") or "unknown"),
-            products=len(result.get("products") or []),
-        )
-        for product in result.get("products") or []:
-            if not isinstance(product, dict):
-                continue
-            product_id = str(product.get("id") or product.get("permalink") or product.get("slug") or "")
-            if product_id:
-                products_by_id[product_id] = dict(product)
 
-    # v69455: a non-empty Woo family search is not proof of completeness.
-    # Merge bounded/cached storefront rows for the requested year, then let the
-    # unchanged semantic family + product-kind gates decide exact membership.
-    products_by_id = _workspace_sales_merge_full_scan_completeness_v69455(
-        products_by_id,
-        years,
-    )
+    # v69457: broad discovery requires a complete catalog anyway. Fetch that bounded
+    # catalog once and avoid the redundant family-search network wave that previously
+    # ran before the same full scan. If the complete provider is unavailable, retain
+    # the existing family-search path as a fail-closed fallback.
+    complete_scan_v69457 = _workspace_sales_woocommerce_complete_full_scan_v69456()
+    if str(complete_scan_v69457.get("status") or "") == "ok":
+        for product_v69457 in complete_scan_v69457.get("products") or []:
+            if not isinstance(product_v69457, dict):
+                continue
+            product_id_v69457 = str(
+                product_v69457.get("id")
+                or product_v69457.get("permalink")
+                or product_v69457.get("slug")
+                or ""
+            ).strip()
+            if product_id_v69457:
+                products_by_id[product_id_v69457] = dict(product_v69457)
+        diagnostic_log(
+            "workspace_sales_complete_catalog_direct_v69457",
+            provider=str(complete_scan_v69457.get("provider") or "unknown"),
+            products=len(products_by_id),
+            pages=int(complete_scan_v69457.get("pages") or 0),
+        )
+        # Preserve the established completeness diagnostic used by production
+        # observability/audits even though v69457 no longer performs a redundant
+        # search-first network wave before the same full catalog.
+        diagnostic_log(
+            "workspace_sales_woo_completeness_scan_v69455",
+            requested_years=list(years),
+            provider=str(complete_scan_v69457.get("provider") or "unknown"),
+            scanned_products=len(products_by_id),
+            added_products=len(products_by_id),
+            merged_products=len(products_by_id),
+            pages=int(complete_scan_v69457.get("pages") or 0),
+            validation="existing_exact_family_year_kind_gates",
+        )
+    else:
+        failures.append(dict(complete_scan_v69457 or {}))
+        for family in families:
+            result = _workspace_sales_woocommerce_search_v69413(family)
+            if str(result.get("status") or "") != "ok":
+                failures.append(dict(result))
+                continue
+            diagnostic_log(
+                "workspace_sales_woocommerce_family_search_v69415",
+                family=family,
+                provider=str(result.get("provider") or "unknown"),
+                products=len(result.get("products") or []),
+            )
+            for product in result.get("products") or []:
+                if not isinstance(product, dict):
+                    continue
+                product_id = str(product.get("id") or product.get("permalink") or product.get("slug") or "")
+                if product_id:
+                    products_by_id[product_id] = dict(product)
+        products_by_id = _workspace_sales_merge_full_scan_completeness_v69455(
+            products_by_id,
+            years,
+        )
 
     if failures and not products_by_id:
         reason = str((failures[0] or {}).get("reason") or "woocommerce_catalog_unavailable")
@@ -104996,7 +106250,11 @@ else:
     )
     st.session_state["chat_submission_upload_count_v68620"] = len(uploaded_files)
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
-    install_global_chat_file_dropzone()
+    _run_legacy_ui_runtime_without_deprecated_html_v69459(install_global_chat_file_dropzone)
+
+    # v69473: preserve every completed middle turn from durable history before
+    # the next Streamlit render can replace the live DOM.
+    _reconcile_live_chat_with_durable_history_v69473()
 
     # v69026: bound the live DOM on long conversations. Persistent history is
     # unchanged; only the newest messages are mounted into the active browser DOM.
@@ -105013,11 +106271,15 @@ else:
         _chat_messages_all_v69026[_chat_render_start_v69026:],
         start=_chat_render_start_v69026,
     ):
-        render_chat_message(
-            msg["role"],
-            msg["content"],
-            message_index=message_index,
+        _message_owner_key_v69473 = (
+            f"chat_message_v69473_{st.session_state.get('conversation_id') or 'local'}_{message_index}"
         )
+        with st.container(key=_message_owner_key_v69473):
+            render_chat_message(
+                msg["role"],
+                msg["content"],
+                message_index=message_index,
+            )
 
     # v69018: create the browser-print transcript during the normal chat render,
     # not at the very end of the Streamlit run.  The same placeholder is updated
@@ -105052,16 +106314,32 @@ else:
 
     st.markdown('<div id="chat-bottom-anchor"></div>', unsafe_allow_html=True)
     if st.session_state.get("scroll_to_bottom"):
-        auto_scroll_to_latest()
+        _run_legacy_ui_runtime_without_deprecated_html_v69459(auto_scroll_to_latest)
         st.session_state.scroll_to_bottom = False
 
-    install_email_safe_assistant_copy_v69359()
+    _run_legacy_ui_runtime_without_deprecated_html_v69459(install_email_safe_assistant_copy_v69359)
+    # v69460: restore the proven v69456 transport for the two controllers that
+    # mutate the live st.chat_input DOM. The v69459 iframe lifecycle can be torn
+    # down after a Streamlit result rerun, which removes the microphone/send
+    # controls and can leave the composer owner with stale inline layout. Direct
+    # components.html is intentionally retained only for these two trusted local
+    # controllers until they are migrated to a native component.
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
+    _install_composer_top_left_fallback_v69459()
+    # v69468: Streamlit 1.61 natively serializes chat submissions with submit_mode="disable".
+    # The browser bridge overlays a body-level draft textarea only while the native widget
+    # is disabled. The draft stays outside Streamlit/React's managed chat subtree, so staff
+    # can prepare the next inquiry without exposing that text to widget reconciliation.
+    _install_chat_turn_guard_v69468()
     # Keep the original stable composer. Attachments remain in the proven managed
     # uploader above, while the normal bottom-right send arrow submits the turn.
-    chat_prompt = st.chat_input("Message AutoTecPro AI...")
+    chat_prompt = st.chat_input(
+        "Message AutoTecPro AI...",
+        key="atp_chat_input_v69468",
+        submit_mode="disable",
+    )
 
     # v68844: a recoverable Graphic retry resumes as a new controlled Streamlit
     # execution. The user message was already committed on the first execution, so
@@ -105174,7 +106452,27 @@ else:
             )
 
 
+    if not prompt:
+        # A controlled rerun after a terminal/direct answer has no new prompt. Ensure
+        # any client-side guard inherited from the completed turn is released.
+        _set_chat_composer_busy_v69468(False)
+
     if prompt:
+        # For a real st.chat_input submission, Streamlit 1.61 has already entered its
+        # native submit_mode="disable" running scope in the frontend before Python starts.
+        # Do not add a second Python busy latch for that path: an unhandled Python exception
+        # could otherwise leave a stale browser-side busy flag after Streamlit correctly
+        # re-enables the widget. Keep the Python latch only for structured/tool submissions
+        # that did not originate from the native chat input.
+        native_chat_submission_v69468 = bool(chat_prompt)
+        _set_chat_composer_busy_v69468(not native_chat_submission_v69468)
+        diagnostic_log(
+            "chat_native_submit_guard_active_v69468",
+            workspace=str(assistant),
+            conversation_id=st.session_state.get("conversation_id"),
+            native_chat_submission=native_chat_submission_v69468,
+            python_fallback_busy=not native_chat_submission_v69468,
+        )
         command_preflight_started_v68864 = time.perf_counter()
         # v69355: exact-key vector-search memoization is valid for this user turn only.
         # Reset before any Sales/Marketing authority/search work so no result can carry
@@ -105289,6 +106587,8 @@ else:
             )
         except ArchiveValidationError as error:
             st.error(f"ZIP analysis was stopped: {error}")
+            _set_chat_composer_busy_v69468(False)
+            diagnostic_log("chat_native_submit_guard_released_on_archive_error_v69468")
             st.stop()
 
         technical_followup_prompt_v68879 = interaction_prompt
@@ -107081,6 +108381,8 @@ else:
             if not lease_token_v68848:
                 diagnostic_log("graphic_v68848_duplicate_execution_blocked", job_id=str(durable_job_v68844.get("job_id") or ""))
                 st.info("This image request is already processing in another session. The result will appear when it completes.")
+                _set_chat_composer_busy_v69468(False)
+                diagnostic_log("chat_native_submit_guard_released_on_graphic_duplicate_v69468")
                 st.stop()
             durable_job_v68844["lease_token_local"] = lease_token_v68848
             current_attempt_v68844 = int(durable_job_v68844.get("attempt") or 0)
@@ -112315,6 +113617,7 @@ else:
                         "assistant",
                         assistant_content_to_save,
                     )
+                    st.session_state["_chat_durable_sync_pending_v69473"] = True
                 except Exception as e:
                     st.warning(f"AI answer was not saved to history: {e}")
 
@@ -112415,7 +113718,33 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
-        st.rerun()
+        # v69468: keep the Python-side structured-tool bridge busy through final maintenance. Native
+        # Streamlit remains disabled until scriptFinished, so the draft overlay is not
+        # transferred back into the real composer until the framework itself declares the
+        # run complete.
+        _release_chat_guard_at_script_end_v69468 = True
+
+        # v69461: normal text workspaces must not immediately destroy the just-rendered
+        # answer/composer DOM. The user-observed production failure happened after the
+        # answer was correctly committed and saved, exactly when this unconditional rerun
+        # rebuilt the page. Keep the completed Sales/Technical/Marketing answer mounted;
+        # the next genuine user interaction naturally reruns Streamlit and reconstructs
+        # the saved message from session_state/history. Graphic Marketing retains its
+        # controlled rerun because its durable generation lifecycle depends on it.
+        if assistant == "🎨 Graphic Marketing":
+            diagnostic_log(
+                "ai_response_graphic_controlled_rerun_v69461",
+                conversation_id=st.session_state.get("conversation_id"),
+                message_count=len(st.session_state.get("messages", [])),
+            )
+            st.rerun()
+        else:
+            diagnostic_log(
+                "ai_response_dom_preserved_without_forced_rerun_v69461",
+                workspace=str(assistant),
+                conversation_id=st.session_state.get("conversation_id"),
+                message_count=len(st.session_state.get("messages", [])),
+            )
 
 # Process maintenance only after the completed answer has already been
 # persisted and displayed on the previous run. On the first destination render
@@ -113461,12 +114790,43 @@ def _render_final_print_authority_v69009():
 
 
 _render_final_print_authority_v69009()
+try:
+    _native_print_messages_v69473 = _durable_chat_rows_v69473(st.session_state.get("messages") or [])
+    _native_print_html_v69473 = _build_print_transcript_html_v69007(
+        _native_print_messages_v69473,
+        assistant_label=(st.session_state.get("current_assistant") or globals().get("assistant") or "Technical Support"),
+    )
+    _install_native_streamlit_print_bridge_v69473(_native_print_html_v69473)
+    diagnostic_log(
+        "native_streamlit_print_payload_ready_v69473",
+        message_count=len(_native_print_messages_v69473),
+        html_chars=len(_native_print_html_v69473 or ""),
+    )
+except Exception as _native_print_error_v69473:
+    diagnostic_log(
+        "native_streamlit_print_payload_failed_v69473",
+        error_type=type(_native_print_error_v69473).__name__,
+        error=str(_native_print_error_v69473)[:500],
+    )
 
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
 # the fixed cover until this point prevents stale login or authenticated DOM
 # from flashing during Streamlit reruns.
 _finish_auth_transition(_auth_transition_placeholder)
+
+# v69468: release only the Python-side structured-tool signal at the end of the script. Streamlit
+# submit_mode="disable" remains the authoritative lock until the frontend receives
+# scriptFinished. The isolated draft is transferred into the native composer only after
+# that native disabled state clears.
+if bool(locals().get("_release_chat_guard_at_script_end_v69468", False)):
+    _set_chat_composer_busy_v69468(False)
+    diagnostic_log(
+        "chat_native_submit_guard_released_v69468",
+        workspace=str(locals().get("assistant") or ""),
+        conversation_id=st.session_state.get("conversation_id"),
+        message_count=len(st.session_state.get("messages", [])),
+    )
 
 
 AUTOTECPRO_RELEASE_V69264 = "v69264-durable-reference-intent-and-resume-consolidation"
