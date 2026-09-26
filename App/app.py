@@ -102,8 +102,8 @@
 # React-aware value injection plus post-transfer verification/retry before the draft overlay is
 # retired. Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce, image-authority,
 # product-fitment, voice, and completed-answer persistence behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69471"
-AUTOTECPRO_RELEASE_BUILD = "v69471-standalone-print-window-native-print-hardening-20260925"
+AUTOTECPRO_RELEASE_VERSION = "v69472"
+AUTOTECPRO_RELEASE_BUILD = "v69472-server-pdf-export-20260925"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -9507,6 +9507,276 @@ def _install_standalone_print_controller_v69471(transcript_html):
           root[KEY]={openPrintWindow,activate,deactivate,destroy:()=>{try{btn.removeEventListener('click',onButton)}catch(_){}try{root.removeEventListener('beforeprint',before);root.removeEventListener('afterprint',after)}catch(_){}try{if(media&&media.removeEventListener)media.removeEventListener('change',onMedia)}catch(_){}try{doc.removeEventListener('keydown',onKey,true)}catch(_){}}};
         })();</script>'''.replace('__ATP_PRINT_PAYLOAD_V69471__', payload_v69471)
     )
+
+
+def _plain_pdf_text_v69472(value):
+    """Normalize chat markdown/HTML into deterministic printable text."""
+    text_v69472 = str(value or "")
+    text_v69472 = re.sub(r"<br\s*/?>", "\n", text_v69472, flags=re.I)
+    text_v69472 = re.sub(r"</(?:p|div|li|tr|h[1-6])>", "\n", text_v69472, flags=re.I)
+    text_v69472 = re.sub(r"<[^>]+>", "", text_v69472)
+    text_v69472 = html.unescape(text_v69472)
+    text_v69472 = re.sub(r"!\[([^\]]*)\]\([^\)]+\)", r"[Image: \1]", text_v69472)
+    text_v69472 = re.sub(r"\[([^\]]+)\]\((https?://[^\)]+)\)", r"\1 — \2", text_v69472)
+    text_v69472 = re.sub(r"^\s{0,3}#{1,6}\s*", "", text_v69472, flags=re.M)
+    text_v69472 = text_v69472.replace("**", "").replace("__", "").replace("`", "")
+    text_v69472 = re.sub(r"\n{3,}", "\n\n", text_v69472)
+    return text_v69472.strip()
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def _build_conversation_pdf_bytes_v69472(messages_json, assistant_label="Technical Support"):
+    """Build an actual PDF on the server; browser print CSS is not involved."""
+    try:
+        rows_v69472 = json.loads(str(messages_json or "[]"))
+    except Exception:
+        rows_v69472 = []
+    if not isinstance(rows_v69472, list) or not rows_v69472:
+        return b""
+
+    from PIL import ImageDraw, ImageFont
+
+    page_w, page_h = 1191, 1684  # A4-ish at ~144 DPI
+    margin_x, margin_top, margin_bottom = 86, 92, 92
+    content_w = page_w - (margin_x * 2)
+    bg = "white"
+    ink = "#111827"
+    muted = "#475569"
+    border = "#cbd5e1"
+    user_bg = "#f8fafc"
+
+    def font_v69472(size, bold=False):
+        names = ["DejaVuSans-Bold.ttf", "DejaVuSans.ttf"] if bold else ["DejaVuSans.ttf"]
+        for name in names:
+            try:
+                return ImageFont.truetype(name, size=size)
+            except Exception:
+                pass
+        return ImageFont.load_default()
+
+    f_title = font_v69472(34, True)
+    f_sub = font_v69472(20, False)
+    f_role = font_v69472(20, True)
+    f_body = font_v69472(18, False)
+    f_small = font_v69472(14, False)
+
+    pages = []
+    page = None
+    draw = None
+    y = 0
+
+    def new_page_v69472(with_header=True):
+        nonlocal page, draw, y
+        page = Image.new("RGB", (page_w, page_h), bg)
+        draw = ImageDraw.Draw(page)
+        pages.append(page)
+        y = margin_top
+        if with_header:
+            draw.text((margin_x, y), "AutoTecPro AI", font=f_title, fill=ink)
+            y += 48
+            draw.text((margin_x, y), str(assistant_label or "Technical Support"), font=f_sub, fill=muted)
+            y += 42
+            draw.line((margin_x, y, page_w - margin_x, y), fill=border, width=2)
+            y += 28
+
+    def ensure_v69472(required):
+        nonlocal y
+        if y + required > page_h - margin_bottom:
+            new_page_v69472(with_header=True)
+
+    def text_width_v69472(text, font):
+        try:
+            box = draw.textbbox((0, 0), text, font=font)
+            return max(0, box[2] - box[0])
+        except Exception:
+            return len(text) * max(7, getattr(font, "size", 16) // 2)
+
+    def wrap_v69472(text, font, width):
+        text = str(text or "")
+        if not text:
+            return [""]
+        out_lines = []
+        for raw in text.splitlines() or [""]:
+            if not raw:
+                out_lines.append("")
+                continue
+            # Preserve markdown-table row structure but wrap long cells/URLs naturally.
+            words = raw.split(" ")
+            current = ""
+            for word in words:
+                candidate = word if not current else current + " " + word
+                if text_width_v69472(candidate, font) <= width:
+                    current = candidate
+                    continue
+                if current:
+                    out_lines.append(current)
+                    current = ""
+                # hard-wrap a single very long token (usually a URL)
+                token = word
+                while token and text_width_v69472(token, font) > width:
+                    lo, hi = 1, len(token)
+                    while lo < hi:
+                        mid = (lo + hi + 1) // 2
+                        if text_width_v69472(token[:mid], font) <= width:
+                            lo = mid
+                        else:
+                            hi = mid - 1
+                    cut = max(1, lo)
+                    out_lines.append(token[:cut])
+                    token = token[cut:]
+                current = token
+            if current or not words:
+                out_lines.append(current)
+        return out_lines
+
+    def draw_text_block_v69472(text, x, width, font=f_body, fill=ink, line_h=27):
+        nonlocal y
+        for line in wrap_v69472(text, font, width):
+            ensure_v69472(line_h + 2)
+            draw.text((x, y), line, font=font, fill=fill)
+            y += line_h
+
+    def fetch_image_v69472(source):
+        source = str(source or "").strip()
+        try:
+            if source.startswith("data:image/") and "," in source:
+                payload = source.split(",", 1)[1]
+                raw = base64.b64decode(payload)
+            elif source.startswith("https://"):
+                resp = requests.get(source, timeout=(2.0, 4.0), headers={"User-Agent": "AutoTecProAI-PDF/1.0"})
+                resp.raise_for_status()
+                raw = resp.content
+            else:
+                return None
+            with Image.open(io.BytesIO(raw)) as im:
+                return im.convert("RGB")
+        except Exception:
+            return None
+
+    new_page_v69472(with_header=True)
+    rendered_messages = 0
+    rendered_images = 0
+
+    for idx, message in enumerate(rows_v69472, start=1):
+        if not isinstance(message, dict):
+            continue
+        role = str(message.get("role") or "assistant").strip().lower()
+        if role not in {"user", "assistant"}:
+            continue
+        content = str(message.get("content") or "")
+        content_no_docs, _docs = extract_documents_from_message_content(content)
+        visible, stored_images = extract_images_from_message_content(content_no_docs)
+        visible = clean_visible_chat_text(visible)
+        if role != "user":
+            visible = format_learning_record_for_display(visible)
+        plain = _plain_pdf_text_v69472(visible)
+        if not plain and not stored_images:
+            continue
+
+        ensure_v69472(90)
+        box_top = y
+        role_label = "You" if role == "user" else "AutoTecPro AI"
+        if role == "user":
+            # Light user-message band. Height is expanded after measuring/drawing.
+            draw.rounded_rectangle((margin_x - 10, y - 10, page_w - margin_x + 10, y + 50), radius=12, fill=user_bg, outline=border, width=1)
+        draw.text((margin_x, y), role_label, font=f_role, fill="#334155")
+        y += 34
+        draw_text_block_v69472(plain, margin_x, content_w, font=f_body, fill=ink, line_h=27)
+
+        for image_idx, image_info in enumerate(list(stored_images or [])[:12], start=1):
+            if not isinstance(image_info, dict):
+                continue
+            source = str(image_info.get("data_url") or image_info.get("url") or "").strip()
+            caption = str(image_info.get("name") or image_info.get("filename") or "Related image")
+            im = fetch_image_v69472(source)
+            if im is None:
+                draw_text_block_v69472(f"[Image unavailable in PDF: {caption}]", margin_x, content_w, font=f_small, fill=muted, line_h=22)
+                continue
+            max_w, max_h = min(content_w, 760), 520
+            scale = min(max_w / max(1, im.width), max_h / max(1, im.height), 1.0)
+            target = (max(1, int(im.width * scale)), max(1, int(im.height * scale)))
+            im = im.resize(target, Image.LANCZOS)
+            ensure_v69472(target[1] + 60)
+            x_img = margin_x + max(0, (content_w - target[0]) // 2)
+            page.paste(im, (x_img, y))
+            y += target[1] + 8
+            draw.text((margin_x, y), caption, font=f_small, fill=muted)
+            y += 30
+            rendered_images += 1
+
+        # Extend user background behind all text/images that stayed on this page.
+        # If the message crossed pages, keep the initial band as a compact role marker.
+        if role == "user" and box_top <= y < page_h - margin_bottom:
+            pass
+        y += 24
+        rendered_messages += 1
+
+    if not rendered_messages:
+        return b""
+
+    # Page footer.
+    total = len(pages)
+    for i, pg in enumerate(pages, start=1):
+        d = ImageDraw.Draw(pg)
+        footer = f"AutoTecPro AI  •  Page {i} of {total}"
+        d.text((margin_x, page_h - 54), footer, font=f_small, fill="#64748b")
+
+    output = io.BytesIO()
+    first, rest = pages[0], pages[1:]
+    first.save(output, format="PDF", save_all=True, append_images=rest, resolution=144.0)
+    return output.getvalue()
+
+
+def _render_server_pdf_download_v69472(messages, assistant_label="Technical Support"):
+    """Render a real PDF download button from durable chat content."""
+    normalized = _durable_chat_rows_v69470(messages)
+    if not normalized:
+        return False
+    try:
+        payload_json = json.dumps(normalized, ensure_ascii=False, sort_keys=True)
+        pdf_bytes = _build_conversation_pdf_bytes_v69472(payload_json, assistant_label)
+        if not pdf_bytes:
+            diagnostic_log("server_pdf_build_empty_v69472", message_count=len(normalized))
+            return False
+        st.download_button(
+            "⬇️ Download Conversation PDF",
+            data=pdf_bytes,
+            file_name=f"AutoTecPro_AI_Conversation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            mime="application/pdf",
+            key="atp_server_pdf_download_v69472",
+            on_click="ignore",
+            use_container_width=False,
+        )
+        st.markdown(
+            """<style>
+            .st-key-atp_server_pdf_download_v69472 {
+                position: fixed !important; right: 18px !important; bottom: 84px !important;
+                z-index: 2147482500 !important; width: auto !important;
+            }
+            .st-key-atp_server_pdf_download_v69472 button {
+                border-radius: 999px !important; padding: 9px 14px !important;
+                box-shadow: 0 8px 24px rgba(0,0,0,.22) !important;
+            }
+            @media print { .st-key-atp_server_pdf_download_v69472 { display:none !important; } }
+            </style>""",
+            unsafe_allow_html=True,
+        )
+        diagnostic_log(
+            "server_pdf_ready_v69472",
+            message_count=len(normalized),
+            pdf_bytes=len(pdf_bytes),
+            source="pillow_server_render",
+        )
+        return True
+    except Exception as error_v69472:
+        diagnostic_log(
+            "server_pdf_build_failed_v69472",
+            message_count=len(normalized),
+            error_type=type(error_v69472).__name__,
+            error=str(error_v69472)[:500],
+        )
+        return False
+
 
 def _durable_chat_rows_v69470(rows):
     """Normalize durable/session rows to the exact chat fields used by rendering."""
@@ -114750,17 +115020,15 @@ def _render_final_print_authority_v69009():
     )
 
 
-# v69471: standalone PDF/print document is authoritative; legacy Streamlit-tree print CSS is not emitted.
+# v69472: server-rendered PDF download is authoritative. Browser printing remains fallback only.
 try:
-    _print_payload_messages_v69471 = _durable_chat_rows_v69470(st.session_state.get("messages") or [])
-    _print_payload_html_v69471 = _build_print_transcript_html_v69007(
-        _print_payload_messages_v69471,
-        assistant_label=(st.session_state.get("current_assistant") or globals().get("assistant") or "Technical Support"),
-    )
-    _install_standalone_print_controller_v69471(_print_payload_html_v69471)
-    diagnostic_log("standalone_print_payload_ready_v69471", message_count=len(_print_payload_messages_v69471), html_chars=len(_print_payload_html_v69471 or ""))
-except Exception as _standalone_print_error_v69471:
-    diagnostic_log("standalone_print_payload_failed_v69471", error_type=type(_standalone_print_error_v69471).__name__, error=str(_standalone_print_error_v69471)[:500])
+    _pdf_messages_v69472 = _durable_chat_rows_v69470(st.session_state.get("messages") or [])
+    _pdf_label_v69472 = st.session_state.get("current_assistant") or globals().get("assistant") or "Technical Support"
+    _render_server_pdf_download_v69472(_pdf_messages_v69472, _pdf_label_v69472)
+    _print_payload_html_v69472 = _build_print_transcript_html_v69007(_pdf_messages_v69472, assistant_label=_pdf_label_v69472)
+    diagnostic_log("server_pdf_path_installed_v69472", message_count=len(_pdf_messages_v69472), html_chars=len(_print_payload_html_v69472 or ""), browser_print_controller=False)
+except Exception as _server_pdf_error_v69472:
+    diagnostic_log("server_pdf_path_failed_v69472", error_type=type(_server_pdf_error_v69472).__name__, error=str(_server_pdf_error_v69472)[:500])
 
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
