@@ -1,3 +1,6 @@
+# AutoTecPro AI v69478 - native top-right PDF download control + minimal Streamlit toolbar + preserved v69477 fixes
+# AutoTecPro AI v69451 - explicit Graphic engine pinning + silent-exception observability hardening
+# AutoTecPro AI v69450 - precise product labels + trim-fitment display + concise compatibility captions + Streamlit iframe migration
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
 # AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
@@ -91,8 +94,14 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69449"
-AUTOTECPRO_RELEASE_BUILD = "v69449-product-bound-compatibility-image-stability-20260924"
+# AutoTecPro AI v69479
+# Rebuilt from the known-good v69449 browser-print baseline while preserving the later
+# non-print hardening: v69457 catalog/schema/price fixes, v69460 fitment display, v69461
+# completed-answer persistence, v69468 voice/concurrency guard, v69473 durable chat recovery,
+# v69474 deterministic learned-answer recall, and v69475 compatibility-image dedupe.
+# All v69469-v69478 experimental print/download bridges are intentionally removed.
+AUTOTECPRO_RELEASE_VERSION = "v69479"
+AUTOTECPRO_RELEASE_BUILD = "v69479-v69449-native-print-baseline-postfixes-20260926"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -145,7 +154,7 @@ def _graphic_v69320_is_protected_followup_stop(error):
         if isinstance(error, _GraphicProtectedFollowupStop):
             return True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v69320_is_protected_followup_stop@L147")
     if type(error).__name__ == "_GraphicProtectedFollowupStop":
         return True
     return bool(
@@ -311,6 +320,45 @@ def diagnostic_log(event, **fields):
         pass
 
 
+# v69451: preserve every historical fail-open/fall-through exception contract while
+# making formerly silent failures observable. This helper never mutates session,
+# project, prompt, image, provider, cache, history, auth, or persistence state.
+# It records only a static source scope + exception class, once per process key.
+# Any failure inside the observer is swallowed so it can never alter application flow.
+_SILENT_EXCEPTION_OBSERVED_V69451 = set()
+_SILENT_EXCEPTION_LOCK_V69451 = threading.Lock()
+
+
+def _observe_silent_exception_v69451(scope):
+    try:
+        import sys
+        error_v69451 = sys.exc_info()[1]
+        error_type_v69451 = (
+            type(error_v69451).__name__
+            if error_v69451 is not None
+            else "UnknownException"
+        )
+        key_v69451 = (str(scope or "")[:180], error_type_v69451[:120])
+        should_log_v69451 = False
+        with _SILENT_EXCEPTION_LOCK_V69451:
+            if (
+                key_v69451 not in _SILENT_EXCEPTION_OBSERVED_V69451
+                and len(_SILENT_EXCEPTION_OBSERVED_V69451) < 512
+            ):
+                _SILENT_EXCEPTION_OBSERVED_V69451.add(key_v69451)
+                should_log_v69451 = True
+        if should_log_v69451:
+            diagnostic_log(
+                "silent_exception_observed_v69451",
+                scope=key_v69451[0],
+                error_type=key_v69451[1],
+            )
+    except BaseException:
+        # Observability must never change the legacy fail-open/fall-through behavior.
+        return None
+    return None
+
+
 OPENAI_CHAT_TIMEOUT_SECONDS_V69400 = 45.0
 
 
@@ -329,9 +377,9 @@ def _log_runtime_release_v69400():
             return
         st.session_state["_app_release_logged_v69400"] = marker
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_log_runtime_release_v69400@L331")
     diagnostic_log(
-        "app_release_v69449",
+        "app_release_v69453",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -386,6 +434,12 @@ def _openai_transient_pre_token_error_v69400(error):
 
 
 _log_runtime_release_v69400()
+diagnostic_log(
+    "v69479_print_baseline_restored",
+    baseline="v69449",
+    mode="native_browser_print_transcript",
+    post_print_bridges_removed=True,
+)
 
 
 # ============================================================
@@ -482,7 +536,7 @@ class _HeavyWorkGuardV69188:
                     }
                     self.coordinator["depth"] = 1
         except Exception:
-            pass
+            _observe_silent_exception_v69451("__enter__@L484")
 
         diagnostic_log(
             "heavy_work_admitted_v69188",
@@ -511,7 +565,7 @@ class _HeavyWorkGuardV69188:
                     if remaining_depth == 0:
                         self.coordinator["active"] = None
         except Exception:
-            pass
+            _observe_silent_exception_v69451("__exit__@L513")
 
         try:
             if self.acquired:
@@ -659,7 +713,7 @@ def _graphic_is_streamlit_stop_exception(error):
         if STREAMLIT_STOP_EXCEPTION is not None and isinstance(error, STREAMLIT_STOP_EXCEPTION):
             return True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_is_streamlit_stop_exception@L661")
     return type(error).__name__ == "StopException"
 
 
@@ -671,7 +725,7 @@ def _graphic_is_streamlit_rerun_exception(error):
         if STREAMLIT_RERUN_EXCEPTION is not None and isinstance(error, STREAMLIT_RERUN_EXCEPTION):
             return True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_is_streamlit_rerun_exception@L673")
     return type(error).__name__ == "RerunException"
 
 
@@ -1096,6 +1150,12 @@ def _effective_workspace_permissions_cached(clean_role, stored_payload):
 
     if clean_role in STRICT_EXTERNAL_ROLES:
         permissions = {key: key == "technical" for key in WORKSPACE_LABELS}
+
+    # v69452 hard boundary: the Admin Panel is role-authorized, not merely a
+    # configurable workspace bit. A stale/manually edited JSON permission can
+    # never grant Admin Panel access to a non-admin account.
+    if clean_role != "admin":
+        permissions["admin"] = False
 
     if not any(permissions.values()):
         permissions["technical"] = True
@@ -1579,7 +1639,7 @@ def _finish_auth_transition(placeholder):
         try:
             placeholder.empty()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_finish_auth_transition@L1581")
     st.session_state.pop("_auth_transition", None)
 
 
@@ -1847,7 +1907,7 @@ def _woocommerce_product_by_source_url_v69326(source_url):
                 else:
                     return {"status":"unavailable","reason":"variation_count_exceeds_verified_bound"}
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_woocommerce_product_by_source_url_v69326@L1849")
 
     def _decimal(value):
         try:
@@ -2449,7 +2509,7 @@ def _workspace_product_currency_url_v69437(source_url, currency_code):
         return ""
 
 
-@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=128, show_spinner=False)
 def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
     """Read WooCommerce's own displayed price for one exact product/currency.
 
@@ -2466,7 +2526,7 @@ def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
             "currency": currency,
         }
 
-    result = dict(_current_product_page_price_by_exact_url_v69340(target_url, timeout_seconds=3.0) or {})
+    result = dict(_current_product_page_price_by_exact_url_v69340(target_url, timeout_seconds=1.8) or {})
     if str(result.get("status") or "") != "verified":
         result["requested_currency"] = currency
         result["currency_url"] = target_url
@@ -2898,7 +2958,7 @@ def search_woocommerce_order_number(order_number, access_level="sales"):
         if str(order.get("number") or order.get("id") or "") == clean_number:
             return direct_result
     except Exception:
-        pass
+        _observe_silent_exception_v69451("search_woocommerce_order_number@L2900")
 
     orders = woocommerce_api_request(
         "orders",
@@ -3896,7 +3956,7 @@ def _workspace_sales_usd_rate_v69347(base_currency):
         try:
             st.session_state[cache_key] = dict(result)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_workspace_sales_usd_rate_v69347@L3898")
         return result
     except Exception as error_v69347:
         diagnostic_log(
@@ -5844,7 +5904,7 @@ def _optional_ui_fragment(function):
         try:
             return fragment(function)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_optional_ui_fragment@L5846")
     return function
 
 
@@ -5917,7 +5977,7 @@ def _managed_image_data_url(file_type, file_bytes):
                 return f"data:{mime_type};base64,{encoded}"
         except Exception:
             # Unsupported/corrupt images retain the previous safe fallback.
-            pass
+            _observe_silent_exception_v69451("_managed_image_data_url@L5918")
 
     encoded = base64.b64encode(raw).decode()
     return f"data:{str(file_type or 'image/png')};base64,{encoded}"
@@ -6106,6 +6166,774 @@ def _graphic_v68865_should_show_early_status(prompt_text, assistant, uploaded_fi
     return any(term in value for term in action_terms)
 
 
+def _run_invisible_trusted_browser_script_v69453(script_html):
+    """Execute an internal browser helper without creating a visible iframe row.
+
+    AutoTecPro is pinned to Streamlit 1.61, where ``st.html`` supports trusted
+    JavaScript through ``unsafe_allow_javascript=True`` and executes it directly
+    in the app document instead of inside an iframe.  The marker + scoped CSS
+    collapse only this helper's Streamlit element container so it contributes
+    no border, line, height, gap, focus target, or pointer surface to any
+    workspace.  Only source-controlled internal scripts may be passed here.
+    """
+    trusted_html = (
+        """
+        <style>
+        div[data-testid="stElementContainer"]:has(.stHtml .atp-invisible-browser-script-v69453),
+        div[data-testid="element-container"]:has(.stHtml .atp-invisible-browser-script-v69453) {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            max-width: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
+            flex: 0 0 0 !important;
+        }
+        .stHtml:has(.atp-invisible-browser-script-v69453) {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            overflow: hidden !important;
+        }
+        </style>
+        <span class="atp-invisible-browser-script-v69453" hidden></span>
+        """
+        + str(script_html or "")
+    )
+    st.html(
+        trusted_html,
+        width="content",
+        unsafe_allow_javascript=True,
+    )
+
+
+def _run_legacy_ui_runtime_without_deprecated_html_v69459(callback, *args, **kwargs):
+    """Run trusted legacy UI helpers through Streamlit's supported iframe API.
+
+    v69457/v69458 routed legacy ``components.html`` helpers through ``st.html``.
+    That transport is *not* iframe-equivalent: the imported helpers were written
+    around ``window.parent`` and require a same-origin child frame so they can mount
+    controls into the Streamlit app document. Production screenshots confirmed that
+    the direct ``st.html`` bridge did not mount the microphone/send proxy and did not
+    run the composer layout controller.
+
+    Streamlit's supported ``st.iframe`` API provides the same same-origin iframe
+    execution model as the old components helper without the deprecation warning.
+    The proxy is module-local and never monkey-patches Streamlit globally.
+    """
+    if not callable(callback):
+        return None
+    callback_globals_v69459 = getattr(callback, "__globals__", None)
+    if not isinstance(callback_globals_v69459, dict):
+        return callback(*args, **kwargs)
+    original_components_v69459 = callback_globals_v69459.get("components")
+    if original_components_v69459 is None:
+        return callback(*args, **kwargs)
+
+    if not bool(getattr(original_components_v69459, "_atp_iframe_proxy_v69459", False)):
+        class _UiRuntimeComponentsIframeProxyV69459:
+            _atp_iframe_proxy_v69459 = True
+
+            def __init__(self, delegate_v69459):
+                self._delegate_v69459 = delegate_v69459
+
+            def __getattr__(self, name_v69459):
+                return getattr(self._delegate_v69459, name_v69459)
+
+            def html(self, body_v69459, *html_args_v69459, **html_kwargs_v69459):
+                # Preserve the trusted helper source byte-for-byte. In particular,
+                # window.parent must continue to refer to the Streamlit app document.
+                trusted_body_v69459 = str(body_v69459 or "")
+                requested_height_v69459 = html_kwargs_v69459.get("height", 0)
+                requested_width_v69459 = html_kwargs_v69459.get("width", 0)
+                try:
+                    height_v69459 = max(1, int(requested_height_v69459 or 1))
+                except Exception:
+                    height_v69459 = 1
+                try:
+                    width_v69459 = max(1, int(requested_width_v69459 or 1))
+                except Exception:
+                    width_v69459 = 1
+                # st.iframe requires positive integer dimensions. Collapse the
+                # Streamlit element after the same-origin child frame starts; hiding
+                # the host does not stop the controller, observers, or event handlers.
+                collapse_host_v69459 = r"""
+                <script>
+                (() => {
+                  try {
+                    const frame = window.frameElement;
+                    if (!frame) return;
+                    frame.style.setProperty("width", "1px", "important");
+                    frame.style.setProperty("height", "1px", "important");
+                    frame.style.setProperty("border", "0", "important");
+                    const host = frame.closest(
+                      'div[data-testid="stElementContainer"], div[data-testid="element-container"]'
+                    );
+                    if (host) {
+                      host.style.setProperty("position", "absolute", "important");
+                      host.style.setProperty("width", "1px", "important");
+                      host.style.setProperty("height", "1px", "important");
+                      host.style.setProperty("min-width", "1px", "important");
+                      host.style.setProperty("min-height", "1px", "important");
+                      host.style.setProperty("max-width", "1px", "important");
+                      host.style.setProperty("max-height", "1px", "important");
+                      host.style.setProperty("margin", "0", "important");
+                      host.style.setProperty("padding", "0", "important");
+                      host.style.setProperty("overflow", "hidden", "important");
+                      host.style.setProperty("opacity", "0", "important");
+                      host.style.setProperty("pointer-events", "none", "important");
+                    }
+                  } catch (error) {}
+                })();
+                </script>
+                """
+                st.iframe(
+                    collapse_host_v69459 + trusted_body_v69459,
+                    width=width_v69459,
+                    height=height_v69459,
+                    tab_index=-1,
+                )
+                return None
+
+        callback_globals_v69459["components"] = _UiRuntimeComponentsIframeProxyV69459(
+            original_components_v69459
+        )
+    return callback(*args, **kwargs)
+
+
+def _install_composer_top_left_fallback_v69459():
+    """Force the native editable field to start at the composer's upper-left edge.
+
+    This CSS is intentionally independent of the JavaScript controller so the field
+    remains correctly aligned during the short interval before the iframe helper
+    mounts or if the browser temporarily delays a MutationObserver callback.
+    """
+    st.markdown(
+        """
+        <style>
+        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
+        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
+            align-items: flex-start !important;
+            justify-content: flex-start !important;
+        }
+        html body div[data-testid="stChatInput"] textarea {
+            text-align: left !important;
+            vertical-align: top !important;
+            padding-top: 6px !important;
+            padding-bottom: 6px !important;
+            padding-left: 4px !important;
+            padding-right: 4px !important;
+            line-height: 22px !important;
+            white-space: pre-wrap !important;
+        }
+        html body div[data-testid="stChatInput"] textarea::placeholder {
+            text-align: left !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _install_chat_turn_guard_v69468():
+    """Install the v69468 transactional composer + voice compatibility controller.
+
+    v69468 keeps the v69467 dual-slot draft/pending model and hardens every browser
+    boundary that can race with Streamlit's controlled chat widget:
+      * the editable next inquiry lives in DRAFT_KEY;
+      * the submitted-but-not-yet-acknowledged inquiry lives in PENDING_KEY;
+      * pending acknowledgement requires Streamlit's *native* disabled transition,
+        never the Python fallback busy flag;
+      * a failed submission is never discarded when a newer draft already exists;
+      * send interception is limited to actual send controls;
+      * the custom microphone is never disabled by the draft bridge and speech is
+        routed to the visible editor (overlay while busy/drafting, native input when idle).
+
+    The last item fixes the v69467 voice regression: the legacy voice controller always
+    wrote speech into Streamlit's native textarea, while v69467 could place a body-level
+    draft textarea over it and also disabled the mic during an active response.  Speech
+    therefore went into a hidden editor or the microphone became unclickable.
+    """
+    _run_invisible_trusted_browser_script_v69453(
+        r"""
+        <script>
+        (() => {
+          const root = window;
+          const doc = document;
+          const GLOBAL_KEY = "__atpChatTurnGuardV69468";
+          const PY_BUSY_KEY = "__atpChatTurnGuardPendingV69468";
+          const DRAFT_KEY = "__atpChatPreparedDraftV69468";
+          const PENDING_SUBMIT_KEY = "__atpChatPendingSubmitV69468";
+          const LEGACY_DRAFT_KEYS = [
+            "__atpChatPreparedDraftV69467",
+            "__atpChatPreparedDraftV69466",
+            "__atpChatPreparedDraftV69465",
+            "__atpChatPreparedDraftV69464",
+            "__atpChatPreparedDraftV69463"
+          ];
+          const OVERLAY_ID = "atp-next-inquiry-draft-v69468";
+          const VOICE_ID = "atp-browser-voice-dictation";
+          const SEND_PROXY_ID = "atp-send-proxy";
+          const STORAGE_TTL_MS = 30 * 60 * 1000;
+          const SUBMIT_ACK_TIMEOUT_MS = 4500;
+
+          function composer() {
+            return doc.querySelector('div[data-testid="stChatInput"]');
+          }
+
+          function nativeInput(container = composer()) {
+            if (!container) return null;
+            return (
+              container.querySelector('textarea[data-testid="stChatInputTextArea"]') ||
+              [...container.querySelectorAll("textarea")].find(
+                (node) => node.id !== OVERLAY_ID && !node.classList.contains("atp-next-inquiry-draft-v69468")
+              ) || null
+            );
+          }
+
+          function nativeSend(container = composer()) {
+            if (!container) return null;
+            return (
+              container.querySelector('button[data-testid="stChatInputSubmitButton"]') ||
+              [...container.querySelectorAll('button[type="submit"]')].find(
+                (button) => button.id !== VOICE_ID && button.id !== SEND_PROXY_ID
+              ) || null
+            );
+          }
+
+          function sendProxy() { return doc.getElementById(SEND_PROXY_ID); }
+          function voiceButton() { return doc.getElementById(VOICE_ID); }
+
+          function readRecord(key) {
+            try {
+              const raw = root.sessionStorage?.getItem(key);
+              if (!raw) return "";
+              const parsed = JSON.parse(raw);
+              const value = String(parsed?.value || "");
+              const updatedAt = Number(parsed?.updatedAt || 0);
+              if (!value || !updatedAt || Date.now() - updatedAt > STORAGE_TTL_MS) {
+                root.sessionStorage?.removeItem(key);
+                return "";
+              }
+              return value;
+            } catch (error) { return ""; }
+          }
+
+          function writeRecord(key, value) {
+            const next = String(value || "");
+            try {
+              if (!next) root.sessionStorage?.removeItem(key);
+              else root.sessionStorage?.setItem(key, JSON.stringify({value: next, updatedAt: Date.now()}));
+            } catch (error) {}
+          }
+
+          function readDraft() {
+            let value = readRecord(DRAFT_KEY);
+            if (value) return value;
+            for (const key of LEGACY_DRAFT_KEYS) {
+              value = readRecord(key);
+              if (value) {
+                writeRecord(DRAFT_KEY, value);
+                break;
+              }
+            }
+            for (const key of LEGACY_DRAFT_KEYS) {
+              try { root.sessionStorage?.removeItem(key); } catch (error) {}
+            }
+            return value || "";
+          }
+          function writeDraft(value) { writeRecord(DRAFT_KEY, value); }
+          function clearDraft() { writeRecord(DRAFT_KEY, ""); }
+          function readPending() { return readRecord(PENDING_SUBMIT_KEY); }
+          function writePending(value) { writeRecord(PENDING_SUBMIT_KEY, value); }
+          function clearPending() { writeRecord(PENDING_SUBMIT_KEY, ""); }
+
+          function overlay() { return doc.getElementById(OVERLAY_ID); }
+          function removeOverlay() { try { overlay()?.remove(); } catch (error) {} }
+
+          function nativeRunBusy(input = nativeInput()) {
+            if (!input) return false;
+            const button = nativeSend();
+            return Boolean(
+              input.disabled || input.getAttribute("aria-disabled") === "true" ||
+              input.closest('[aria-disabled="true"]') ||
+              (button && (button.disabled || button.getAttribute("aria-disabled") === "true"))
+            );
+          }
+
+          function copyTextareaVisuals(source, target) {
+            if (!source || !target) return;
+            try {
+              const style = root.getComputedStyle(source);
+              for (const prop of [
+                "font-family","font-size","font-weight","font-style","line-height",
+                "letter-spacing","text-align","color","background-color","padding-top",
+                "padding-right","padding-bottom","padding-left","border-radius","caret-color",
+                "text-rendering","-webkit-text-fill-color"
+              ]) {
+                const value = style.getPropertyValue(prop);
+                if (value) target.style.setProperty(prop, value, "important");
+              }
+            } catch (error) {}
+          }
+
+          function positionOverlay(input, draft) {
+            if (!input || !draft) return;
+            try {
+              const rect = input.getBoundingClientRect();
+              if (rect.width <= 0 || rect.height <= 0) {
+                draft.style.setProperty("visibility", "hidden", "important");
+                return;
+              }
+              draft.style.setProperty("position", "fixed", "important");
+              draft.style.setProperty("left", `${Math.round(rect.left)}px`, "important");
+              draft.style.setProperty("top", `${Math.round(rect.top)}px`, "important");
+              draft.style.setProperty("width", `${Math.round(rect.width)}px`, "important");
+              draft.style.setProperty("height", `${Math.max(44, Math.round(rect.height))}px`, "important");
+              draft.style.setProperty("min-height", "44px", "important");
+              draft.style.setProperty("max-height", "180px", "important");
+              draft.style.setProperty("visibility", "visible", "important");
+            } catch (error) {}
+          }
+
+          function forceMicUsable() {
+            const mic = voiceButton();
+            if (!mic) return;
+            try {
+              for (const key of Object.keys(mic.dataset || {})) {
+                if (key.toLowerCase().includes("draftbridgedisabled")) delete mic.dataset[key];
+              }
+              mic.disabled = false;
+              mic.removeAttribute("aria-disabled");
+              mic.style.removeProperty("pointer-events");
+              mic.style.removeProperty("opacity");
+              if (!state.voiceListening) {
+                mic.setAttribute("title", "Voice dictation");
+                mic.setAttribute("aria-label", "Start voice dictation");
+              }
+            } catch (error) {}
+          }
+
+          function setReactValue(input, value) {
+            if (!input) return false;
+            const next = String(value || "");
+            const previous = String(input.value || "");
+            try {
+              const prototype = root.HTMLTextAreaElement?.prototype || Object.getPrototypeOf(input);
+              const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+              if (setter) setter.call(input, next); else input.value = next;
+              try {
+                const tracker = input._valueTracker;
+                if (tracker && typeof tracker.setValue === "function") tracker.setValue(previous);
+              } catch (error) {}
+              let evt;
+              try { evt = new InputEvent("input", {bubbles:true, inputType:"insertText", data:null}); }
+              catch (error) { evt = new Event("input", {bubbles:true}); }
+              input.dispatchEvent(evt);
+              input.dispatchEvent(new Event("change", {bubbles:true}));
+              return String(input.value || "") === next;
+            } catch (error) { return false; }
+          }
+
+          function restoreLegacyArtifacts() {
+            for (const version of ["V69467","V69466","V69465","V69464","V69463","V69462"]) {
+              try {
+                const controller = root[`__atpChatTurnGuard${version}`];
+                if (controller && typeof controller.cleanup === "function") controller.cleanup();
+                delete root[`__atpChatTurnGuard${version}`];
+                delete root[`__atpChatTurnGuardPending${version}`];
+              } catch (error) {}
+            }
+            for (const id of [
+              "atp-next-inquiry-draft-v69467","atp-next-inquiry-draft-v69466",
+              "atp-next-inquiry-draft-v69465","atp-next-inquiry-draft-v69464"
+            ]) {
+              try { doc.getElementById(id)?.remove(); } catch (error) {}
+            }
+          }
+          restoreLegacyArtifacts();
+
+          const existing = root[GLOBAL_KEY];
+          if (existing && typeof existing.refresh === "function") {
+            try {
+              if (typeof root[PY_BUSY_KEY] === "boolean") {
+                existing.setPythonBusy(root[PY_BUSY_KEY]);
+                delete root[PY_BUSY_KEY];
+              }
+              existing.refresh();
+            } catch (error) {}
+            return;
+          }
+
+          const state = {
+            pythonBusy:false,
+            internalClick:false,
+            observer:null,
+            timer:null,
+            scheduled:false,
+            submitToken:0,
+            pendingStartedAt:0,
+            lastClickAt:0,
+            voiceRecognition:null,
+            voiceListening:false,
+            voiceIdleHtml:"",
+          };
+
+          function effectiveBusy(input = nativeInput()) {
+            return Boolean(state.pythonBusy || nativeRunBusy(input));
+          }
+
+          function ensureOverlay(input) {
+            if (!input) return null;
+            let draft = overlay();
+            if (!draft) {
+              draft = doc.createElement("textarea");
+              draft.id = OVERLAY_ID;
+              draft.className = "atp-next-inquiry-draft-v69468";
+              draft.setAttribute("aria-label", "Next inquiry draft");
+              draft.setAttribute("autocomplete", "off");
+              draft.setAttribute("spellcheck", "true");
+              draft.placeholder = "Type your next message...";
+              draft.value = readDraft();
+              for (const [k,v] of Object.entries({
+                "box-sizing":"border-box","border":"0","outline":"0","box-shadow":"none",
+                "resize":"none","overflow-y":"auto","white-space":"pre-wrap","overflow-wrap":"break-word",
+                "z-index":"2147483000","pointer-events":"auto","opacity":"1","margin":"0"
+              })) draft.style.setProperty(k,v,"important");
+              copyTextareaVisuals(input,draft);
+              const persist = () => { writeDraft(String(draft.value || "")); scheduleApply(); };
+              draft.addEventListener("input", persist);
+              draft.addEventListener("change", persist);
+              draft.addEventListener("compositionend", persist);
+              draft.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+                  event.preventDefault(); event.stopPropagation();
+                  persist(); submitPreparedDraft();
+                }
+              });
+              doc.body.appendChild(draft);
+            } else {
+              const stored = readDraft();
+              if (String(draft.value || "") !== stored && doc.activeElement !== draft) draft.value = stored;
+            }
+            copyTextareaVisuals(input,draft);
+            positionOverlay(input,draft);
+            return draft;
+          }
+
+          function acknowledgePendingIfNativeBusy(input) {
+            const pending = readPending();
+            if (!pending || !state.pendingStartedAt) return false;
+            if (!nativeRunBusy(input)) return false;
+            clearPending();
+            state.pendingStartedAt = 0;
+            state.submitToken += 1;
+            return true;
+          }
+
+          function activeVoiceEditor() {
+            const input = nativeInput();
+            if (!input) return null;
+            const draftValue = readDraft();
+            const pendingValue = readPending();
+            if (effectiveBusy(input) || draftValue || pendingValue || overlay()) return ensureOverlay(input);
+            return input;
+          }
+
+          function persistVoiceValue(editor, value) {
+            const next = String(value || "");
+            if (!editor) return;
+            if (editor.id === OVERLAY_ID) {
+              editor.value = next;
+              writeDraft(next);
+              try { editor.dispatchEvent(new Event("input", {bubbles:true})); } catch (error) {}
+            } else {
+              setReactValue(editor, next);
+            }
+          }
+
+          function resetIntegratedVoice(button = voiceButton()) {
+            state.voiceListening = false;
+            state.voiceRecognition = null;
+            if (!button) return;
+            try {
+              button.classList.remove("listening");
+              if (state.voiceIdleHtml) button.innerHTML = state.voiceIdleHtml;
+              button.setAttribute("title", "Voice dictation");
+              button.setAttribute("aria-label", "Start voice dictation");
+            } catch (error) {}
+          }
+
+          function onVoiceClickCapture(event) {
+            const target = event.target?.closest?.(`#${VOICE_ID}`);
+            if (!target) return;
+            const SpeechRecognition = root.SpeechRecognition || root.webkitSpeechRecognition;
+            if (!SpeechRecognition) return; // let the legacy controller show its unsupported message
+
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation?.();
+            forceMicUsable();
+
+            if (state.voiceListening && state.voiceRecognition) {
+              try { state.voiceRecognition.stop(); } catch (error) {}
+              return;
+            }
+
+            const editor = activeVoiceEditor();
+            if (!editor) return;
+            try {
+              const recognition = new SpeechRecognition();
+              state.voiceRecognition = recognition;
+              recognition.continuous = false;
+              recognition.interimResults = true;
+              recognition.maxAlternatives = 1;
+              recognition.lang = doc.documentElement.lang || root.navigator.language || "en-US";
+              let committed = String(editor.value || "").trim();
+              state.voiceIdleHtml = target.innerHTML || state.voiceIdleHtml;
+
+              recognition.onstart = () => {
+                state.voiceListening = true;
+                try {
+                  target.classList.add("listening");
+                  target.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>';
+                  target.setAttribute("title", "Listening — tap to stop");
+                  target.setAttribute("aria-label", "Stop voice dictation");
+                } catch (error) {}
+              };
+
+              recognition.onresult = (resultEvent) => {
+                let interim = "";
+                let finalText = "";
+                for (let i = resultEvent.resultIndex; i < resultEvent.results.length; i += 1) {
+                  const transcript = resultEvent.results[i][0].transcript;
+                  if (resultEvent.results[i].isFinal) finalText += transcript;
+                  else interim += transcript;
+                }
+                const prefix = committed ? committed + " " : "";
+                const next = (prefix + finalText + interim).trimStart();
+                persistVoiceValue(editor, next);
+                if (finalText) committed = (prefix + finalText).trim();
+                scheduleApply();
+              };
+              recognition.onerror = () => {};
+              recognition.onend = () => { resetIntegratedVoice(target); scheduleApply(); };
+              recognition.start();
+            } catch (error) {
+              resetIntegratedVoice(target);
+            }
+          }
+
+          function attemptPendingSubmit(token, n=0) {
+            if (token !== state.submitToken) return;
+            const pending = readPending();
+            if (!pending) return;
+            const currentInput = nativeInput();
+            if (!currentInput) return;
+            if (nativeRunBusy(currentInput)) {
+              acknowledgePendingIfNativeBusy(currentInput);
+              scheduleApply();
+              return;
+            }
+            if (state.pythonBusy) return;
+            setReactValue(currentInput, pending);
+            const button = nativeSend();
+            if (String(currentInput.value || "") === pending && button && !button.disabled && button.getAttribute("aria-disabled") !== "true") {
+              if (!state.lastClickAt || Date.now() - state.lastClickAt >= 700) {
+                state.lastClickAt = Date.now();
+                try { state.internalClick = true; button.click(); }
+                catch (error) {}
+                finally { state.internalClick = false; }
+              }
+            } else if (String(currentInput.value || "") === pending && !button) {
+              try { currentInput.dispatchEvent(new KeyboardEvent("keydown", {key:"Enter",code:"Enter",bubbles:true,cancelable:true})); }
+              catch (error) {}
+            }
+            if (n < 14) {
+              const delays=[16,32,60,100,160,240,360,500,700,900,1200,1500,1800,2200,2600];
+              root.setTimeout(()=>attemptPendingSubmit(token,n+1),delays[Math.min(n,delays.length-1)]);
+            }
+          }
+
+          function recoverOrRetryFailedPending() {
+            const pending = readPending();
+            if (!pending || !state.pendingStartedAt) return;
+            if (Date.now() - Number(state.pendingStartedAt || 0) < SUBMIT_ACK_TIMEOUT_MS) return;
+            if (nativeRunBusy(nativeInput()) || state.pythonBusy) return;
+            const currentDraft = readDraft();
+            if (!currentDraft) {
+              writeDraft(pending);
+              clearPending();
+              state.pendingStartedAt = 0;
+              state.submitToken += 1;
+              const d = ensureOverlay(nativeInput());
+              if (d) d.value = pending;
+              return;
+            }
+            // Never discard PENDING merely because the user already typed the following turn.
+            // Keep the immutable submitted inquiry and retry it independently of the newer draft.
+            state.pendingStartedAt = Date.now();
+            state.lastClickAt = 0;
+            const token = ++state.submitToken;
+            root.requestAnimationFrame(()=>attemptPendingSubmit(token,0));
+          }
+
+          function submitPreparedDraft() {
+            const input = nativeInput();
+            if (!input || effectiveBusy(input) || readPending()) return false;
+            const draftNode = overlay();
+            const value = String(draftNode?.value || readDraft() || "");
+            if (!value.trim()) return false;
+
+            writePending(value);
+            clearDraft();
+            if (draftNode) draftNode.value = "";
+            state.pendingStartedAt = Date.now();
+            state.lastClickAt = 0;
+            const token = ++state.submitToken;
+            root.requestAnimationFrame(()=>attemptPendingSubmit(token,0));
+            scheduleApply();
+            return true;
+          }
+
+          function isActualSendControl(target) {
+            if (!target) return false;
+            if (target.id === SEND_PROXY_ID) return true;
+            if (target.matches?.('button[data-testid="stChatInputSubmitButton"]')) return true;
+            if (target.matches?.('button[type="submit"]') && target.id !== VOICE_ID) return true;
+            return false;
+          }
+
+          function syncProxyState(busy, draftValue, pendingValue) {
+            const proxy = sendProxy();
+            if (!proxy) return;
+            const ownsDraftFlow = Boolean(overlay() || draftValue || pendingValue || busy);
+            if (!ownsDraftFlow) return; // legacy controller owns normal native-input state
+            const enabled = Boolean(!busy && !pendingValue && String(draftValue || "").trim());
+            try {
+              proxy.disabled = !enabled;
+              proxy.setAttribute("aria-disabled", enabled ? "false" : "true");
+              proxy.setAttribute("title", enabled ? "Send message" : (busy ? "Wait for the current response to finish" : "Send message"));
+            } catch (error) {}
+          }
+
+          function apply() {
+            state.scheduled=false;
+            const input=nativeInput();
+            if (!input) return;
+            const nativeBusy=nativeRunBusy(input);
+            const busy=Boolean(state.pythonBusy || nativeBusy);
+            if (nativeBusy) acknowledgePendingIfNativeBusy(input);
+            else recoverOrRetryFailedPending();
+
+            const draftValue=readDraft();
+            const pendingValue=readPending();
+            if (busy || draftValue || pendingValue) {
+              const d=ensureOverlay(input);
+              if (d && doc.activeElement !== d && String(d.value || "") !== draftValue) d.value=draftValue;
+            } else {
+              removeOverlay();
+            }
+            forceMicUsable();
+            syncProxyState(busy,draftValue,pendingValue);
+          }
+
+          function scheduleApply() {
+            if (state.scheduled) return;
+            state.scheduled=true;
+            root.requestAnimationFrame(apply);
+          }
+
+          function onComposerClickCapture(event) {
+            if (state.internalClick) return;
+            const target=event.target?.closest?.("button");
+            if (!target || target.id === VOICE_ID || !isActualSendControl(target)) return;
+            const c=composer();
+            if (!c || !c.contains(target)) return;
+            const input=nativeInput();
+            if (!input || effectiveBusy(input) || readPending()) return;
+            const value=readDraft();
+            if (!String(value || "").trim()) return;
+            event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
+            submitPreparedDraft();
+          }
+
+          function setPythonBusy(value) { state.pythonBusy=Boolean(value); scheduleApply(); }
+
+          doc.addEventListener("click",onVoiceClickCapture,true);
+          doc.addEventListener("click",onComposerClickCapture,true);
+          root.addEventListener("resize",scheduleApply,true);
+          root.addEventListener("scroll",scheduleApply,true);
+          if (root.visualViewport) {
+            root.visualViewport.addEventListener("resize",scheduleApply);
+            root.visualViewport.addEventListener("scroll",scheduleApply);
+          }
+          const observeRoot=doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+          state.observer=new MutationObserver(scheduleApply);
+          if (observeRoot) state.observer.observe(observeRoot,{childList:true,subtree:true,attributes:true,attributeFilter:["disabled","aria-disabled","style","class"]});
+          state.timer=root.setInterval(scheduleApply,60);
+
+          function cleanup() {
+            try { state.observer?.disconnect(); } catch (error) {}
+            try { root.clearInterval(state.timer); } catch (error) {}
+            try { state.voiceRecognition?.stop?.(); } catch (error) {}
+            try { doc.removeEventListener("click",onVoiceClickCapture,true); } catch (error) {}
+            try { doc.removeEventListener("click",onComposerClickCapture,true); } catch (error) {}
+            try { root.removeEventListener("resize",scheduleApply,true); } catch (error) {}
+            try { root.removeEventListener("scroll",scheduleApply,true); } catch (error) {}
+            try { root.visualViewport?.removeEventListener("resize",scheduleApply); } catch (error) {}
+            try { root.visualViewport?.removeEventListener("scroll",scheduleApply); } catch (error) {}
+            forceMicUsable(); removeOverlay();
+          }
+
+          root[GLOBAL_KEY]={
+            setPythonBusy,refresh:scheduleApply,cleanup,
+            hasDraft:()=>Boolean(readDraft()),
+            draftValue:()=>String(readDraft() || ""),
+            pendingValue:()=>String(readPending() || ""),
+            submitDraft:submitPreparedDraft,
+          };
+          if (typeof root[PY_BUSY_KEY] === "boolean") {
+            setPythonBusy(root[PY_BUSY_KEY]); delete root[PY_BUSY_KEY];
+          }
+          scheduleApply();
+        })();
+        </script>
+        """
+    )
+
+
+def _set_chat_composer_busy_v69468(is_busy):
+    """Mirror structured-tool Python lifecycle into the v69468 browser controller."""
+    busy_js_v69468 = "true" if bool(is_busy) else "false"
+    _run_invisible_trusted_browser_script_v69453(
+        f"""
+        <script>
+        (() => {{
+          try {{
+            const root = window;
+            const controller = root.__atpChatTurnGuardV69468;
+            if (controller && typeof controller.setPythonBusy === "function") {{
+              controller.setPythonBusy({busy_js_v69468});
+            }} else {{
+              root.__atpChatTurnGuardPendingV69468 = {busy_js_v69468};
+            }}
+          }} catch (error) {{}}
+        }})();
+        </script>
+        """
+    )
+
 def _sync_native_chat_send_arrow_for_attachments(has_attachments):
     """Enable the existing native chat send arrow for attachment-only turns.
 
@@ -6116,11 +6944,11 @@ def _sync_native_chat_send_arrow_for_attachments(has_attachments):
     """
     enabled = "true" if bool(has_attachments) else "false"
     sentinel_json = json.dumps(ATTACHMENT_ONLY_CHAT_SENTINEL)
-    components.html(
+    _run_invisible_trusted_browser_script_v69453(
         f"""
         <script>
         (() => {{
-          const parentWindow = window.parent;
+          const parentWindow = window;
           const doc = parentWindow.document;
           const sentinel = {sentinel_json};
           const hasAttachments = {enabled};
@@ -6164,8 +6992,6 @@ def _sync_native_chat_send_arrow_for_attachments(has_attachments):
         }})();
         </script>
         """,
-        height=0,
-        width=0,
     )
 
 
@@ -7400,16 +8226,25 @@ def get_table_columns(table_name):
         if result.data:
             return [row["column_name"] for row in result.data if row.get("column_name")]
     except Exception:
-        pass
+        _observe_silent_exception_v69451("get_table_columns@L7403")
 
     # Safe minimum fallback only. These are columns used by the original app and are
     # usually present even in older schemas. Optional learning fields are filtered out
     # unless Supabase confirms they exist.
     fallback = {
+        # v69454: this table is a production-owned schema, not an arbitrary external
+        # table. If information_schema RPC is unavailable, preserve the complete
+        # known learning contract instead of silently stripping authoritative fields
+        # such as assistant/vehicle/solution/source_type. Supabase remains the final
+        # schema validator and will fail closed if an installation is genuinely older.
         "learned_knowledge": [
-            "id", "question", "approved_answer", "keywords",
-            "source_conversation_id", "openai_file_id", "vector_store_id",
-            "synced", "created_at"
+            "id", "username", "record_type", "department", "category",
+            "assistant", "vehicle", "issue", "solution", "approved_answer",
+            "question", "keywords", "source_question", "source_answer",
+            "source_conversation_id", "confidence_score", "completeness_score",
+            "times_seen", "times_used", "search_count", "openai_file_id",
+            "vector_store_id", "synced", "embedding_status", "source_type",
+            "staff_confirmed", "approved", "created_by", "created_at", "updated_at"
         ],
         "ai_analytics": [
             "id", "username", "assistant", "vehicle", "issue", "product",
@@ -7434,11 +8269,71 @@ def get_table_columns(table_name):
 
 
 
+_LEARNING_CORE_SCHEMA_FIELDS_V69456 = {
+    "assistant", "vehicle", "issue", "solution", "approved_answer",
+    "question", "keywords", "source_question", "source_answer",
+    "source_conversation_id", "confidence_score", "times_seen",
+    "openai_file_id", "vector_store_id", "synced",
+}
+
+# Optional metadata may legitimately be absent on older production schemas. These
+# fields must never make an otherwise authoritative learning transaction fail.
+_LEARNING_OPTIONAL_SCHEMA_FIELDS_V69456 = {
+    "username", "record_type", "department", "category", "source_type",
+    "staff_confirmed", "embedding_status", "completeness_score", "times_used",
+    "search_count", "approved", "created_by", "updated_at", "created_at",
+}
+_LEARNING_SCHEMA_MISSING_OPTIONAL_V69456 = set()
+_LEARNING_SCHEMA_MISSING_OPTIONAL_LOCK_V69456 = threading.Lock()
+
+
+def _learning_missing_column_from_error_v69456(error):
+    text_v69456 = str(error or "")
+    patterns_v69456 = (
+        r"Could not find the ['\"]([^'\"]+)['\"] column",
+        r"column ['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]? of .* does not exist",
+        r"['\"]column['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+    )
+    for pattern_v69456 in patterns_v69456:
+        match_v69456 = re.search(pattern_v69456, text_v69456, flags=re.I)
+        if match_v69456:
+            return str(match_v69456.group(1) or "").strip()
+    return ""
+
+
+def _learning_known_missing_optional_v69456():
+    with _LEARNING_SCHEMA_MISSING_OPTIONAL_LOCK_V69456:
+        return set(_LEARNING_SCHEMA_MISSING_OPTIONAL_V69456)
+
+
+def _learning_mark_missing_optional_v69456(column_v69456):
+    column_v69456 = str(column_v69456 or "").strip()
+    if not column_v69456:
+        return
+    with _LEARNING_SCHEMA_MISSING_OPTIONAL_LOCK_V69456:
+        _LEARNING_SCHEMA_MISSING_OPTIONAL_V69456.add(column_v69456)
+
+
 def filter_payload_for_table(table_name, payload):
-    """Remove fields that do not exist in Supabase table to prevent PGRST204 errors."""
+    """Remove optional unknown fields, but never silently strip core learning authority."""
     columns = set(get_table_columns(table_name))
     if not columns:
         return payload
+    if str(table_name) == "learned_knowledge":
+        protected_v69454 = set(_LEARNING_CORE_SCHEMA_FIELDS_V69456)
+        missing_v69454 = sorted(
+            key for key in protected_v69454
+            if key in dict(payload or {}) and key not in columns
+        )
+        if missing_v69454:
+            diagnostic_log(
+                "learning_schema_contract_blocked_v69454",
+                missing=",".join(missing_v69454),
+            )
+            raise RuntimeError(
+                "Learning schema verification failed for required fields: "
+                + ", ".join(missing_v69454)
+            )
     return {k: v for k, v in payload.items() if k in columns}
 
 
@@ -7474,12 +8369,55 @@ def safe_select_rows(table_name, order_columns=None, limit=500):
         raise
 
 
+def _safe_learning_write_v69456(operation_v69456, payload_v69456, row_id_v69456=None):
+    clean_v69456 = dict(filter_payload_for_table("learned_knowledge", payload_v69456) or {})
+    known_missing_v69456 = _learning_known_missing_optional_v69456()
+    clean_v69456 = {
+        key_v69456: value_v69456
+        for key_v69456, value_v69456 in clean_v69456.items()
+        if key_v69456 not in known_missing_v69456
+    }
+
+    for _attempt_v69456 in range(1, 9):
+        try:
+            if operation_v69456 == "insert":
+                return supabase.table("learned_knowledge").insert(clean_v69456).execute()
+            return (
+                supabase.table("learned_knowledge")
+                .update(clean_v69456)
+                .eq("id", row_id_v69456)
+                .execute()
+            )
+        except Exception as error_v69456:
+            missing_v69456 = _learning_missing_column_from_error_v69456(error_v69456)
+            if (
+                missing_v69456
+                and missing_v69456 in _LEARNING_OPTIONAL_SCHEMA_FIELDS_V69456
+                and missing_v69456 in clean_v69456
+            ):
+                clean_v69456.pop(missing_v69456, None)
+                _learning_mark_missing_optional_v69456(missing_v69456)
+                diagnostic_log(
+                    "learning_optional_schema_field_omitted_v69456",
+                    operation=operation_v69456,
+                    field=missing_v69456,
+                    error_type=type(error_v69456).__name__,
+                )
+                continue
+            raise
+    raise RuntimeError("Learning schema compatibility retries were exhausted.")
+
+
 def safe_insert_row(table_name, payload):
+    if str(table_name) == "learned_knowledge":
+        return _safe_learning_write_v69456("insert", payload)
     clean_payload = filter_payload_for_table(table_name, payload)
     return supabase.table(table_name).insert(clean_payload).execute()
 
 
 def safe_update_row(table_name, payload, row_id):
+    if str(table_name) == "learned_knowledge":
+        return _safe_learning_write_v69456("update", payload, row_id_v69456=row_id)
     clean_payload = filter_payload_for_table(table_name, payload)
     return supabase.table(table_name).update(clean_payload).eq("id", row_id).execute()
 
@@ -8477,6 +9415,210 @@ def render_print_transcript_v69007(messages, assistant_label="Technical Support"
 
 REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
 REMEMBER_CREDENTIAL_DAYS = 30
+def _durable_chat_rows_v69473(rows):
+    """Normalize durable/session rows to the exact chat fields used by rendering."""
+    normalized_v69473 = []
+    for row_v69473 in list(rows or []):
+        if not isinstance(row_v69473, dict):
+            continue
+        role_v69473 = str(row_v69473.get("role") or "").strip().lower()
+        if role_v69473 not in {"user", "assistant"}:
+            continue
+        normalized_v69473.append({
+            "role": role_v69473,
+            "content": str(row_v69473.get("content") or ""),
+        })
+    return normalized_v69473
+
+
+def _reconcile_live_chat_with_durable_history_v69473():
+    """Repair completed-turn UI from durable history before rendering."""
+    if not bool(st.session_state.pop("_chat_durable_sync_pending_v69473", False)):
+        return False
+    conversation_v69473 = str(st.session_state.get("conversation_id") or "").strip()
+    username_v69473 = str(st.session_state.get("username") or "").strip()
+    if not conversation_v69473 or not username_v69473 or not history_is_enabled():
+        return False
+    try:
+        durable_v69473 = _durable_chat_rows_v69473(load_messages(conversation_v69473))
+        session_v69473 = _durable_chat_rows_v69473(st.session_state.get("messages") or [])
+        if not durable_v69473:
+            diagnostic_log(
+                "chat_durable_render_sync_empty_v69473",
+                conversation_id=conversation_v69473,
+                session_count=len(session_v69473),
+            )
+            return False
+        if durable_v69473 != session_v69473:
+            st.session_state.messages = durable_v69473
+            diagnostic_log(
+                "chat_durable_render_recovered_v69473",
+                conversation_id=conversation_v69473,
+                before_count=len(session_v69473),
+                durable_count=len(durable_v69473),
+            )
+            return True
+        diagnostic_log(
+            "chat_durable_render_verified_v69473",
+            conversation_id=conversation_v69473,
+            message_count=len(durable_v69473),
+        )
+        return False
+    except Exception as error_v69473:
+        diagnostic_log(
+            "chat_durable_render_sync_failed_v69473",
+            conversation_id=conversation_v69473,
+            error_type=type(error_v69473).__name__,
+            error=str(error_v69473)[:500],
+        )
+        return False
+
+
+def _normalize_learned_question_v69474(value):
+    """Normalize stable staff-taught questions for exact cross-conversation recall."""
+    value_v69474 = html.unescape(str(value or "")).casefold()
+    value_v69474 = re.sub(r"https?://\S+", " ", value_v69474)
+    value_v69474 = re.sub(r"[^a-z0-9]+", " ", value_v69474)
+    return re.sub(r"\s+", " ", value_v69474).strip()
+
+
+def _learned_recall_is_volatile_v69474(question, detected_live_request=None):
+    """Fail closed for facts that should be re-checked rather than frozen from memory."""
+    live_v69474 = detected_live_request if isinstance(detected_live_request, dict) else {}
+    live_type_v69474 = str(live_v69474.get("type") or "none").strip().casefold()
+    if live_type_v69474 not in {"", "none"}:
+        return True
+    value_v69474 = _normalize_learned_question_v69474(question)
+    if not value_v69474:
+        return True
+    volatile_patterns_v69474 = (
+        r"\bprice\b", r"\bhow much\b", r"\bcost\b", r"\bdiscount\b", r"\bpromotion\b",
+        r"\bpromo\b", r"\bsale price\b", r"\bin stock\b", r"\bstock\b", r"\binventory\b",
+        r"\bavailable now\b", r"\bavailability\b", r"\border status\b", r"\btracking\b",
+        r"\bshipment\b", r"\bdelivery status\b", r"\bexchange rate\b", r"\bcurrency\b",
+        r"\bweather\b", r"\btoday\b", r"\bright now\b", r"\bcurrent price\b",
+        r"\blatest price\b", r"\bwhat do you have\b", r"\bwhat do you carry\b",
+        r"\bwhat products\b", r"\bwhich products\b", r"\bwhat models do you have\b",
+        r"\bwhat models do you carry\b",
+    )
+    return any(re.search(pattern_v69474, value_v69474) for pattern_v69474 in volatile_patterns_v69474)
+
+
+def _cross_conversation_exact_learned_answer_v69474(
+    question,
+    selected_assistant,
+    *,
+    detected_live_request=None,
+):
+    """Return a trusted approved answer for the same stable question across cases.
+
+    Only exact normalized question matches from strong staff-authority records are
+    terminal. Semantic/paraphrased questions continue through the normal vector/model
+    path. Live/current requests are deliberately excluded.
+    """
+    if not str(question or "").strip():
+        return None
+    if str(selected_assistant or "") in {"🎨 Graphic Marketing", "⚙️ Admin Panel"}:
+        return None
+    try:
+        if detect_explicit_learning_command(
+            str(question or ""),
+            has_recent_context=bool(st.session_state.get("messages")),
+            has_attachments=False,
+        ):
+            return None
+    except Exception:
+        pass
+    if _learned_recall_is_volatile_v69474(question, detected_live_request):
+        return None
+
+    normalized_v69474 = _normalize_learned_question_v69474(question)
+    if not normalized_v69474:
+        return None
+    assistant_v69474 = clean_assistant_label(selected_assistant).strip()
+    if not assistant_v69474:
+        return None
+
+    try:
+        response_v69474 = (
+            supabase.table("learned_knowledge")
+            .select("*")
+            .eq("assistant", assistant_v69474)
+            .order("updated_at", desc=True)
+            .limit(250)
+            .execute()
+        )
+        rows_v69474 = [dict(row or {}) for row in list(response_v69474.data or [])]
+    except Exception as error_v69474:
+        diagnostic_log(
+            "cross_case_learned_recall_query_failed_v69474",
+            workspace=assistant_v69474,
+            error_type=type(error_v69474).__name__,
+        )
+        return None
+
+    matches_v69474 = []
+    for row_v69474 in rows_v69474:
+        try:
+            if is_pending_knowledge_row(row_v69474):
+                continue
+        except Exception:
+            pass
+        solution_v69474 = str(
+            row_v69474.get("approved_answer")
+            or row_v69474.get("solution")
+            or ""
+        ).strip()
+        if not solution_v69474:
+            continue
+        try:
+            confidence_v69474 = int(row_v69474.get("confidence_score") or 0)
+        except Exception:
+            confidence_v69474 = 0
+        source_type_v69474 = str(row_v69474.get("source_type") or "").strip().casefold()
+        staff_confirmed_v69474 = bool(row_v69474.get("staff_confirmed"))
+        strong_v69474 = bool(
+            confidence_v69474 >= 95
+            or staff_confirmed_v69474
+            or source_type_v69474 in {
+                "explicit_staff_instruction",
+                "staff_confirmed_solution",
+                "staff_authored_correction",
+            }
+        )
+        if not strong_v69474:
+            continue
+        question_candidates_v69474 = {
+            _normalize_learned_question_v69474(row_v69474.get("source_question")),
+            _normalize_learned_question_v69474(row_v69474.get("question")),
+        }
+        question_candidates_v69474.discard("")
+        if normalized_v69474 not in question_candidates_v69474:
+            continue
+        matches_v69474.append((confidence_v69474, row_v69474))
+
+    if not matches_v69474:
+        return None
+    matches_v69474.sort(key=lambda item_v69474: item_v69474[0], reverse=True)
+    row_v69474 = matches_v69474[0][1]
+    result_v69474 = {
+        "record_id": str(row_v69474.get("id") or ""),
+        "answer": str(row_v69474.get("approved_answer") or row_v69474.get("solution") or "").strip(),
+        "confidence": int(row_v69474.get("confidence_score") or 0),
+        "vehicle": str(row_v69474.get("vehicle") or "").strip(),
+        "issue": str(row_v69474.get("issue") or "").strip(),
+        "source_type": str(row_v69474.get("source_type") or "").strip(),
+    }
+    diagnostic_log(
+        "cross_case_exact_learned_recall_v69474",
+        workspace=assistant_v69474,
+        record_id=result_v69474["record_id"],
+        confidence=result_v69474["confidence"],
+        vehicle=result_v69474["vehicle"][:120],
+    )
+    return result_v69474
+
+
 def _password_hash(password):
     """Compatibility wrapper around the isolated security module."""
     return security_hash_password(password)
@@ -8567,7 +9709,7 @@ def get_saved_login_credentials():
             try:
                 save_login_credentials(username)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("get_saved_login_credentials@L8570")
         return {"remember": True, "username": username, "password": ""}
     except Exception:
         return empty
@@ -8605,17 +9747,17 @@ def remove_saved_login_credentials():
             same_site="strict",
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("remove_saved_login_credentials@L8608")
 
 
 def clear_legacy_browser_login_data():
     """Remove storage values left by earlier experimental Remember Me versions."""
-    components.html(
+    _run_invisible_trusted_browser_script_v69453(
         """
         <script>
         (() => {
           try {
-            const storage = window.parent.localStorage;
+            const storage = window.localStorage;
             storage.removeItem("atp_remembered_credentials_v1");
             storage.removeItem("atp_login_profile");
             storage.removeItem("atp_remember_session");
@@ -8625,8 +9767,6 @@ def clear_legacy_browser_login_data():
         })();
         </script>
         """,
-        height=0,
-        width=0,
     )
 
 
@@ -8768,7 +9908,7 @@ def _auth_http_session_v69226():
         session.mount("https://", adapter)
         session.mount("http://", adapter)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_auth_http_session_v69226@L8772")
     return session
 
 
@@ -8835,6 +9975,78 @@ def _login_user_lookup_v69186(username, timeout_seconds=6.0):
 
 def _load_active_user_record(username):
     return _login_user_lookup_v69186(username, timeout_seconds=6.0)
+
+
+def _learning_admin_authorized_v69452(*, revalidate=True):
+    """Fail closed unless the active authenticated account is a current admin.
+
+    Explicit learning mutates shared durable knowledge, so a UI/session role alone
+    is not sufficient authority. Admin requests are revalidated against the active
+    server-side user record and the credential fingerprint captured at login.
+    No password, secret, learning payload, or customer content is logged here.
+    """
+    username = str(st.session_state.get("username") or "").strip()
+    session_role = str(st.session_state.get("role") or "").strip().lower()
+    logged_in = bool(st.session_state.get("logged_in"))
+
+    if not logged_in or not username or session_role != "admin":
+        diagnostic_log(
+            "learning_admin_authority_denied_v69452",
+            reason="session_not_admin",
+            role=session_role or "none",
+        )
+        return False
+
+    if not revalidate:
+        return True
+
+    try:
+        active_user = _load_active_user_record(username)
+    except Exception as error:
+        diagnostic_log(
+            "learning_admin_authority_denied_v69452",
+            reason="server_revalidation_failed",
+            role=session_role,
+            error_type=type(error).__name__,
+        )
+        return False
+
+    active_username = str((active_user or {}).get("username") or "").strip()
+    active_role = str((active_user or {}).get("role") or "").strip().lower()
+    if (
+        not active_user
+        or active_role != "admin"
+        or active_username.casefold() != username.casefold()
+    ):
+        diagnostic_log(
+            "learning_admin_authority_denied_v69452",
+            reason="server_record_not_admin",
+            role=active_role or "none",
+        )
+        return False
+
+    session_fingerprint = str(
+        st.session_state.get("_auth_credential_fingerprint_v69186") or ""
+    ).strip()
+    current_fingerprint = _auth_credential_fingerprint(
+        (active_user or {}).get("password")
+    )
+    if (
+        not session_fingerprint
+        or not hmac.compare_digest(session_fingerprint, current_fingerprint)
+    ):
+        diagnostic_log(
+            "learning_admin_authority_denied_v69452",
+            reason="credential_fingerprint_mismatch",
+            role=active_role,
+        )
+        return False
+
+    diagnostic_log(
+        "learning_admin_authority_verified_v69452",
+        role=active_role,
+    )
+    return True
 
 
 def save_authenticated_session(username, remember=False, workspace=None, conversation_id=None, credential_fingerprint=None, admin_section=None):
@@ -8945,7 +10157,7 @@ def remove_authenticated_session():
             same_site="strict",
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("remove_authenticated_session@L8949")
 
 
 def _load_authenticated_user(username, expected_credential_fingerprint=None):
@@ -9127,7 +10339,7 @@ def logout_user():
     try:
         st.query_params.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("logout_user@L9131")
 
     diagnostic_log(
         "logout_requested",
@@ -9147,7 +10359,7 @@ def logout_user():
             try:
                 del st.session_state[key]
             except Exception:
-                pass
+                _observe_silent_exception_v69451("logout_user@L9151")
 
     st.session_state["logged_in"] = False
     st.session_state["messages"] = []
@@ -9166,11 +10378,11 @@ def logout_user():
 
 def _install_login_interaction_fastpath_v69044():
     """Event-driven login form polish with no auth, cookie, or submit authority."""
-    components.html(
+    _run_invisible_trusted_browser_script_v69453(
         """
         <script>
         (() => {
-          const root = window.parent;
+          const root = window;
           const doc = root.document;
           const KEY = "__atpLoginInteractionFastpathV69044";
           try { root[KEY]?.cleanup?.(); } catch (error) {}
@@ -9226,8 +10438,6 @@ def _install_login_interaction_fastpath_v69044():
         })();
         </script>
         """,
-        height=0,
-        width=0,
     )
 
 
@@ -9376,7 +10586,7 @@ def login_screen():
                 try:
                     st.query_params.clear()
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("login_screen@L9381")
 
                 st.rerun()
             else:
@@ -9385,7 +10595,7 @@ def login_screen():
                 try:
                     st.query_params.clear()
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("login_screen@L9390")
                 st.error("Invalid username or password.")
 
         except Exception as error:
@@ -9443,7 +10653,7 @@ if not bool(st.session_state.get("logged_in")):
         try:
             _auth_transition_placeholder.empty()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("<module>@L9448")
     login_screen()
     # The destination login UI is now complete; remove the transition cover
     # before stopping execution so authenticated content cannot render below it.
@@ -10621,17 +11831,15 @@ _current_workspace_slug = next(
 # This is intentionally not a temporary transition flag: recent Streamlit builds
 # can retain keyed nodes from a previous conditional branch after reconciliation.
 # A permanent marker lets workspace-scoped CSS keep those stale nodes hidden.
-components.html(
+_run_invisible_trusted_browser_script_v69453(
     f"""
     <script>
     (() => {{
-        const body = window.parent.document.body;
+        const body = document.body;
         body.dataset.atpCurrentWorkspace = {json.dumps(_current_workspace_slug)};
     }})();
     </script>
     """,
-    height=0,
-    width=0,
 )
 
 
@@ -10644,11 +11852,11 @@ _workspace_mobile_collapse_nonce_v68882 = st.session_state.pop(
     None,
 )
 if _workspace_mobile_collapse_nonce_v68882:
-    components.html(
+    _run_invisible_trusted_browser_script_v69453(
         f"""
         <script>
         (() => {{
-            const parentWindow = window.parent;
+            const parentWindow = window;
             const doc = parentWindow.document;
             const nonce = {json.dumps(str(_workspace_mobile_collapse_nonce_v68882))};
             const isMobile = parentWindow.matchMedia("(max-width: 768px)").matches;
@@ -10774,8 +11982,6 @@ if _workspace_mobile_collapse_nonce_v68882:
         }})();
         </script>
         """,
-        height=0,
-        width=0,
     )
 
 _workspace_nav_started_v68880 = st.session_state.pop(
@@ -10793,7 +11999,7 @@ if _workspace_nav_started_v68880 is not None:
             ),
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("<module>@L10800")
 
 # Persistent workspace DOM isolation.
 #
@@ -12228,7 +13434,7 @@ def _graphic_verified_upload_digest_v68983(uploaded_file, raw=None):
         uploaded_file.graphic_asset_id = digest
         uploaded_file._atp_graphic_asset_id_verified_v68983 = True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_verified_upload_digest_v68983@L12235")
     return digest
 
 def normalized_image_data_url(uploaded_file):
@@ -12451,7 +13657,7 @@ def clean_visible_chat_text(text):
             flags=re.DOTALL,
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("clean_visible_chat_text@L12458")
 
     value = (
         value.replace("&lt;", "<")
@@ -12525,7 +13731,7 @@ def _make_image_preview_data_url_cached(
 
             raw = output.getvalue()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_make_image_preview_data_url_cached@L12532")
 
     encoded = base64.b64encode(raw).decode()
     return f"data:{mime_type};base64,{encoded}"
@@ -13267,7 +14473,7 @@ def save_generated_document_to_knowledge(
         try:
             client.files.delete(file_id)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("save_generated_document_to_knowledge@L13274")
         raise
 
     return {
@@ -13408,7 +14614,7 @@ def _document_icon_data_uri(format_name):
             ).decode("ascii")
             return f"data:image/png;base64,{encoded}"
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_document_icon_data_uri@L13415")
 
     icon_specs = {
         "csv": ("▦", "#64748B", "#475569", "CSV"),
@@ -14129,7 +15335,7 @@ def _workspace_product_page_identity_v69396(raw_url):
         if host in {"autotecpro.com"} and "/product/" in path.casefold():
             return f"product:{host}{path.casefold()}"
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_workspace_product_page_identity_v69396@L14136")
     try:
         return canonical_website_url_identity(value)
     except Exception:
@@ -14199,7 +15405,7 @@ def _workspace_product_image_identity_v69346(image):
             if host and "/product/" in path.casefold():
                 return f"product:{host}{path.casefold()}"
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_workspace_product_image_identity_v69346@L14206")
     # v69347: suppress repeats only when exact product-page identity is proven.
     # Image SHA/URL can legitimately be reused by a different product/model.
     return ""
@@ -15581,7 +16787,7 @@ def _graphic_role_data_url(item):
             try:
                 cache.pop(next(iter(cache)))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_role_data_url@L15588")
         cache[asset_id] = value
     return value
 
@@ -17814,12 +19020,12 @@ def _graphic_cleanup_spooled_uploads_v68847(records):
         try:
             path.unlink(missing_ok=True)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_cleanup_spooled_uploads_v68847@L17821")
     for directory in directories:
         try:
             directory.rmdir()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_cleanup_spooled_uploads_v68847@L17826")
 
 
 def _graphic_spool_upload_records_v68847(files, job_id):
@@ -21086,7 +22292,7 @@ def _graphic_uploaded_file_bytes(uploaded_file):
             try:
                 uploaded_file.seek(position)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_uploaded_file_bytes@L21093")
 
 
 def _graphic_product_fingerprint(role_items):
@@ -21734,7 +22940,7 @@ def _graphic_reference_palette(role_items):
             with Image.open(io.BytesIO(raw)) as im:
                 q=ImageOps.exif_transpose(im).convert("RGB").resize((64,64)).quantize(colors=12).convert("RGB")
                 colors.extend(q.getdata())
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_graphic_reference_palette@L21742")
     if not colors: return {"accent":(236,52,45),"panel":(6,9,14),"text":(255,255,255)}
     # Prefer saturated, moderately bright colors as accent.
     def score(c):
@@ -21893,7 +23099,7 @@ def _graphic_open_product_layer(uploaded_file):
             if cutout.width > 8 and cutout.height > 8:
                 return cutout, True
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_open_product_layer@L21900")
     raw = _graphic_uploaded_file_bytes(uploaded_file)
     if not raw:
         return None, False
@@ -21955,7 +23161,7 @@ def _graphic_collect_result_bytes(result):
         try:
             candidates.extend(list(data))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_collect_result_bytes@L21962")
     # Some SDK surfaces expose the completed image directly.
     if getattr(result, "b64_json", None) or getattr(result, "url", None):
         candidates.append(result)
@@ -22066,7 +23272,7 @@ def compose_graphic_layered_ad(background_bytes, product_file, prompt_text, refe
             _ImageDraw.Draw(card_mask).rounded_rectangle((0, 0, card.width - 1, card.height - 1), radius=max(20, card_pad), fill=255)
             card.putalpha(card_mask)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("compose_graphic_layered_ad@L22073")
         card.alpha_composite(product, (card_pad, card_pad))
         product = card
 
@@ -22622,7 +23828,7 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
                     hashlib.sha256(_graphic_uploaded_file_bytes(file_obj)).hexdigest()
                 )
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_project_role_items@L22629")
         candidate = next(
             (
                 item for item in role_items
@@ -24040,7 +25246,7 @@ def _graphic_v68874_bound_session_cache(cache):
             cache.pop(oldest, None)
             sizes.pop(oldest, None)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68874_bound_session_cache@L24047")
 
     return cache
 
@@ -24072,7 +25278,7 @@ def _graphic_v68874_process_memory_snapshot():
         snapshot["rss_mb"] = round(rss_kb / 1024.0, 2) if rss_kb is not None else None
         snapshot["peak_rss_mb"] = round(peak_kb / 1024.0, 2) if peak_kb is not None else None
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68874_process_memory_snapshot@L24079")
 
     try:
         available_kb = None
@@ -24088,7 +25294,7 @@ def _graphic_v68874_process_memory_snapshot():
             else None
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68874_process_memory_snapshot@L24095")
 
     return snapshot
 
@@ -24115,7 +25321,7 @@ def _graphic_v68874_release_transient_memory(stage=""):
         if callable(clear_cache):
             clear_cache()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68874_release_transient_memory@L24122")
 
     # On Linux/glibc, return free heap arenas to the container where possible.
     try:
@@ -24126,7 +25332,7 @@ def _graphic_v68874_release_transient_memory(stage=""):
             if callable(malloc_trim):
                 malloc_trim(0)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68874_release_transient_memory@L24133")
 
     snapshot = _graphic_v68874_process_memory_snapshot()
     diagnostic_log(
@@ -24942,7 +26148,7 @@ def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template
             box = list(defaults[box_key]); box[index] = value
             defaults[box_key] = clean_box(box, defaults[box_key])
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_reference_layout_blueprint_v9000@L24949")
 
     # Commercial guardrails: the reference product must remain dominant and the
     # information zones must stay substantial. These limits prevent sparse slide-like output.
@@ -24997,7 +26203,7 @@ def _graphic_product_source_signature_v9000(product_item):
             with Image.open(io.BytesIO(raw)) as im:
                 im=ImageOps.exif_transpose(im)
                 result.update({"width":im.width,"height":im.height,"aspect_ratio":round(im.width/max(1,im.height),6)})
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_graphic_product_source_signature_v9000@L25005")
     return result
 
 
@@ -26296,7 +27502,7 @@ def _graphic_lightweight_upload_identity_v22000(file):
                 result["width"], result["height"] = image.size
                 result["mode"] = str(image.mode)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_lightweight_upload_identity_v22000@L26303")
     return result
 
 
@@ -28383,7 +29589,7 @@ def _graphic_v68976_finish_variant_from_exact_source(product, prompt_text=""):
                 try:
                     protected |= np.asarray(mask.convert("L"), dtype=np.uint8) >= 8
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_graphic_v68976_finish_variant_from_exact_source@L28390")
         # Conservative fallback protection for portrait infotainment units if automatic
         # aperture/control masks are unavailable.
         if not protected.any():
@@ -31085,7 +32291,7 @@ def _graphic_progress_update_v3300(status, label, state="running"):
         try:
             status.update(label=label, state=state if state in {"running", "complete", "error"} else "running")
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_progress_update_v3300@L31092")
 
 
 def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
@@ -31569,7 +32775,7 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         del composed
         del background
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_build_hybrid_campaign_result_v3300@L31576")
     _graphic_v68874_release_transient_memory("reference_composite_ready")
 
     scorecard = _graphic_qa_scorecard_v42000(result["layered_metadata"])
@@ -32471,7 +33677,7 @@ def _graphic_ui_source_item_v44000(role_items):
             if item.get("role") == "style_reference":
                 score += 0.25
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_ui_source_item_v44000@L32478")
         scored.append((score, item))
     scored.sort(key=lambda x: x[0], reverse=True)
     return scored[0][1] if scored else None
@@ -33211,7 +34417,7 @@ def _graphic_role_fingerprint_v8200(role_items, roles=None):
                 try:
                     item["_data_url_digest_v68983"] = digest
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_graphic_role_fingerprint_v8200@L33218")
         selected.append({
             "role": role,
             "name": str(item.get("name") or ""),
@@ -33574,7 +34780,7 @@ def _graphic_v69301_localized_cleanup_qa(result, current_canvas, edit_directive=
             with Image.open(io.BytesIO(base_raw)) as im:
                 base_size = [int(im.width), int(im.height)]
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v69301_localized_cleanup_qa@L33581")
     directive = dict(edit_directive or {})
     checks = {
         "image_valid": bool(result_raw),
@@ -33638,7 +34844,7 @@ def _graphic_v69315_background_followup_qa(result, current_canvas, edit_directiv
             with Image.open(io.BytesIO(base_raw)) as im:
                 base_size = [int(im.width), int(im.height)]
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v69315_background_followup_qa@L33645")
     directive = dict(edit_directive or {})
     checks = {
         "image_valid": bool(result_raw),
@@ -34041,7 +35247,7 @@ def _graphic_v69318_followup_transport_qa(result, current_canvas, edit_directive
             with Image.open(io.BytesIO(base_raw)) as im:
                 base_size = [int(im.width), int(im.height)]
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v69318_followup_transport_qa@L34048")
     checks = {
         "image_valid": bool(result_raw),
         "edit_base_present": bool(base_raw),
@@ -38722,7 +39928,7 @@ def _graphic_v68200_font(size, bold=False, italic=False):
         try:
             return ImageFont.truetype(path, max(10,int(size)))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_v68200_font@L38729")
     return ImageFont.load_default()
 
 
@@ -39450,7 +40656,7 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
         try:
             position = uploaded_file.tell()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_v68826_uploaded_file_digest@L39457")
         try:
             raw = bytes(uploaded_file.read() or b"")
         except Exception:
@@ -39459,7 +40665,7 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
             try:
                 uploaded_file.seek(position)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_v68826_uploaded_file_digest@L39466")
     result = {
         "name": Path(str(getattr(uploaded_file, "name", "") or "")).name,
         "type": str(getattr(uploaded_file, "type", "") or "").lower(),
@@ -39469,7 +40675,7 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
     try:
         setattr(uploaded_file, "_atp_graphic_digest_v69255", dict(result))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68826_uploaded_file_digest@L39476")
     return result
 
 
@@ -39552,7 +40758,7 @@ def _graphic_v68826_storage_bucket():
         if admin_client is not None:
             clients.append(admin_client)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68826_storage_bucket@L39559")
     clients.append(supabase)
     for client_obj in clients:
         try:
@@ -40832,7 +42038,7 @@ def _graphic_v68829_release_audit(image):
             if value is not None and float(value) < minimum:
                 explicit_failures.append(key)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_v68829_release_audit@L40839")
     return {
         "engine": GRAPHIC_V68829_INSTALLED_ENGINE,
         "available": any(v is not None for v in checks.values()),
@@ -41037,7 +42243,7 @@ def _graphic_v68988_is_reference_request(prompt_text, uploaded_files=None, force
         if _graphic_v68827_is_reference_mode(prompt_text, uploaded_files, forced_upload_role):
             return True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68988_is_reference_request@L41044")
     state = _graphic_v68988_safe_project_state()
     return bool(
         str(state.get("active_reference_id") or "").strip()
@@ -41332,7 +42538,7 @@ def _graphic_v67200_upload_bytes(item):
         try:
             return bytes(file_obj.getvalue() or b"")
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_v67200_upload_bytes@L41339")
     data_url = str(item.get("data_url") or "")
     if data_url:
         return data_url.encode("utf-8", "ignore")
@@ -41558,7 +42764,7 @@ def _graphic_v67200_prepare_locked_facts(role_items, prompt_text, style_strength
                 if current_ctx is not None:
                     executor_kwargs["initializer"] = lambda: add_script_run_ctx(threading.current_thread(), current_ctx)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_v67200_prepare_locked_facts@L41565")
             with ThreadPoolExecutor(**executor_kwargs) as pool:
                 futures = {name: (pool.submit(func), time.perf_counter()) for name, func in tasks}
                 for name, (future, task_started) in futures.items():
@@ -43034,7 +44240,7 @@ def _uploaded_file_bytes(uploaded_file):
             try:
                 uploaded_file.seek(original_position)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_uploaded_file_bytes@L43041")
 
     return bytes(payload or b"")
 
@@ -43681,7 +44887,7 @@ def _learned_knowledge_schema_remember_missing_v69360(column):
             state["missing_columns"] = missing
             state["learned_at"] = time.monotonic()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_learned_knowledge_schema_remember_missing_v69360@L43688")
 
 
 def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
@@ -45234,7 +46440,7 @@ def _technical_section_package_candidate_v69142(prompt_text, row):
             if full:
                 package_text = full
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_section_package_candidate_v69142@L45241")
     if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text:
         return None
     if _technical_package_header_value_v69113(package_text, "Destination") != "Technical Support Database":
@@ -45286,7 +46492,7 @@ def _technical_section_package_candidate_v69142(prompt_text, row):
     if prompt_families and source_families:
         score += max(0.0, 30.0 - (5.0 * len(source_families)))
     try: score += float(row.get("score") or 0.0) * 10.0
-    except Exception: pass
+    except Exception: _observe_silent_exception_v69451("_technical_section_package_candidate_v69142@L45294")
 
     return {
         "file_id": file_id,
@@ -46389,7 +47595,7 @@ def _technical_source_identity_candidate_v69150(prompt_text, row, *, hydrate=Tru
             if full:
                 text_value = full
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_source_identity_candidate_v69150@L46396")
     if not text_value:
         return None
 
@@ -47565,7 +48771,7 @@ def _workspace_exact_retrieval_cache_clear_v69365():
         with state["lock"]:
             state["entries"].clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_workspace_exact_retrieval_cache_clear_v69365@L47572")
 
 
 def _website_request_vector_search_rows_v69047(request, max_results=12):
@@ -48023,7 +49229,7 @@ def ask_ai_stream(
 
     except _StreamingNotSupportedError:
         # Compatibility with an older OpenAI SDK that does not support stream.
-        pass
+        _observe_silent_exception_v69451("ask_ai_stream@L48029")
 
     # Non-streaming compatibility fallback with the same bounded continuation.
     request = original_request
@@ -48613,15 +49819,15 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("upload_to_vector_store@L48620")
     try:
         vector_store_has_filename.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("upload_to_vector_store@L48624")
     try:
         _vector_store_file_catalog_v69040.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("upload_to_vector_store@L48628")
     return openai_file.id
 
 
@@ -48631,13 +49837,23 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
 # ============================================================
 
 def get_learning_vector_store_id(selected_assistant):
+    """Resolve a learning destination fail-closed; never default unknown workspaces to Technical."""
     if is_sales_workspace(selected_assistant):
-        return SALES_VECTOR_STORE_ID
-    if is_marketing_workspace(selected_assistant):
-        return MARKETING_VECTOR_STORE_ID
-    if is_graphic_workspace(selected_assistant):
-        return GRAPHIC_VECTOR_STORE_ID
-    return TECHNICAL_VECTOR_STORE_ID
+        vector_store_id = SALES_VECTOR_STORE_ID
+    elif is_marketing_workspace(selected_assistant):
+        vector_store_id = MARKETING_VECTOR_STORE_ID
+    elif is_graphic_workspace(selected_assistant):
+        vector_store_id = GRAPHIC_VECTOR_STORE_ID
+    elif _normalized_workspace_name(selected_assistant) == "technical support":
+        vector_store_id = TECHNICAL_VECTOR_STORE_ID
+    else:
+        raise RuntimeError(
+            f"Unsupported learning workspace: {clean_assistant_label(selected_assistant) or selected_assistant!s}"
+        )
+    vector_store_id = str(vector_store_id or "").strip()
+    if not vector_store_id.startswith("vs_"):
+        raise RuntimeError("The learning vector store is not configured for this workspace.")
+    return vector_store_id
 
 
 def normalize_text_for_match(value):
@@ -48658,7 +49874,7 @@ def extract_json_object(raw_text):
     try:
         return json.loads(text)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("extract_json_object@L48665")
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
         try:
@@ -49143,11 +50359,18 @@ def detect_explicit_learning_command(
     if not normalized:
         return False
 
-    # Never mistake deletion/forgetting instructions for a save command.
+    # v69454: never mistake deletion/forgetting instructions for a save command,
+    # while preserving the intentional positive command "don't forget this".
+    deletion_probe_v69454 = re.sub(
+        r"\bdon['’]?t\s+forget\s+(?:this|it)\b",
+        "",
+        normalized,
+        flags=re.IGNORECASE,
+    )
     if re.search(
         r"\b(?:forget|delete|remove|erase)\b.*"
         r"\b(?:knowledge|memory|record|this|it)\b",
-        normalized,
+        deletion_probe_v69454,
     ):
         return False
 
@@ -49263,9 +50486,16 @@ def extract_explicit_learning_payload(prompt_text):
     if not value:
         return ""
     patterns = (
-        r"^\s*(?:please\s+)?learn\s+(?:and\s+save\s+)?this\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?save\s+this\s+(?:to|in)\s+(?:memory|knowledge)\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?remember\s+this\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?learn\s+(?:and\s+save\s+)?(?:this|it)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?teach\s+(?:(?:the\s+ai|autotecpro\s+ai)\s+)?(?:this|it)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?save\s+(?:this|it)(?:\s+permanently|\s+(?:for|to)\s+future\s+(?:reference|use|cases?)|\s+(?:to|in)\s+(?:the\s+)?(?:memory|knowledge(?:\s+base)?|database))?\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?remember\s+(?:this|it)(?:\s+for\s+future\s+(?:reference|use|cases?))?\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?add\s+(?:this|it)\s+to\s+(?:the\s+)?(?:knowledge\s+base|memory|database)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?store\s+(?:this|it)(?:\s+as\s+(?:permanent\s+)?knowledge)?\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?keep\s+(?:this|it)\s+for\s+(?:later|future\s+(?:reference|use|cases?))\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?don['’]?t\s+forget\s+(?:this|it)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?use\s+(?:this|it)\s+for\s+future\s+(?:cases?|reference|support)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?make\s+(?:this|it)\s+(?:permanent|part\s+of\s+(?:the\s+)?knowledge\s+base)\s*[:\-]?\s*",
     )
     cleaned = value
     for pattern in patterns:
@@ -49410,6 +50640,7 @@ def extract_learning_candidate(
     staff_teaching=False,
     conversation_context="",
     explicit_requested=False,
+    learning_attachments=None,
 ):
     """Extract a department-specific professional record without DB schema changes."""
     safe_question = redact_learning_private_data(question)
@@ -49503,10 +50734,36 @@ RECENT CONTEXT:
 {safe_context}
 """
     try:
+        learning_attachment_parts_v69454 = []
+        for attachment_v69454 in (learning_attachments or []):
+            if not isinstance(attachment_v69454, dict):
+                continue
+            image_url_v69454 = str(attachment_v69454.get("image_url") or "").strip()
+            file_id_v69454 = str(attachment_v69454.get("file_id") or "").strip()
+            if image_url_v69454.startswith("data:image/"):
+                learning_attachment_parts_v69454.append({
+                    "type": "input_image",
+                    "image_url": image_url_v69454,
+                })
+            elif file_id_v69454:
+                learning_attachment_parts_v69454.append({
+                    "type": "input_file",
+                    "file_id": file_id_v69454,
+                })
+        if learning_attachment_parts_v69454:
+            response_input_v69454 = [{
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": extraction_prompt},
+                    *learning_attachment_parts_v69454,
+                ],
+            }]
+        else:
+            response_input_v69454 = extraction_prompt
         response = client.responses.create(
             model="gpt-5.5",
             instructions="Return only valid JSON. No markdown.",
-            input=extraction_prompt,
+            input=response_input_v69454,
         )
         data = extract_json_object(response.output_text)
     except Exception:
@@ -49578,7 +50835,21 @@ RECENT CONTEXT:
     minimum_solution_length = 50 if explicit_requested else (
         30 if (staff_confirmed or staff_teaching) else 100
     )
-    if len(solution) < minimum_solution_length or len(safe_question) < 5:
+    # v69454: a body-less explicit command ("save this" / "learn and save this")
+    # intentionally derives authority from the immediately preceding redacted
+    # context or staged attachment. Do not reject it merely because the stripped
+    # command body is empty. Non-explicit learning still requires a real message.
+    explicit_source_present_v69454 = bool(
+        str(safe_question or "").strip()
+        or str(safe_context or "").strip()
+        or list(learning_attachments or [])
+    )
+    if len(solution) < minimum_solution_length:
+        should_learn = False
+    if explicit_requested:
+        if not explicit_source_present_v69454:
+            should_learn = False
+    elif len(safe_question) < 5:
         should_learn = False
     # Ordinary AI-generated drafts are not authoritative enough for permanent
     # learning. Auto Learn is intentionally staff-driven, like a durable company
@@ -49665,7 +50936,7 @@ Source Question:
 {safe_record.get("source_question", "")}
 
 Source Answer:
-{safe_record.get("source_answer", "")}
+{_learning_visible_source_answer_v69454(safe_record.get("source_answer", ""))}
 
 Retrieval Instruction:
 Prefer this approved record when its exact model number, product/SKU, vehicle/year,
@@ -49732,7 +51003,7 @@ def upload_learned_record_to_vector_store(
         try:
             _workspace_exact_retrieval_cache_clear_v69365()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49739")
         ready, ingestion_status = wait_for_learned_vector_file_ready(
             vector_store_id,
             openai_file_id,
@@ -49759,17 +51030,17 @@ def upload_learned_record_to_vector_store(
                     file_id=openai_file_id,
                 )
             except Exception:
-                pass
+                _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49766")
             try:
                 client.files.delete(openai_file_id)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49770")
         raise
     finally:
         try:
             os.remove(tmp_path)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49776")
 
 
 def remove_old_learned_vector_file(vector_store_id, file_id):
@@ -49788,41 +51059,278 @@ def remove_old_learned_vector_file(vector_store_id, file_id):
     try:
         client.files.delete(file_id)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("remove_old_learned_vector_file@L49795")
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("remove_old_learned_vector_file@L49799")
     return True
 
 
-def find_duplicate_learned_knowledge(candidate, selected_assistant):
+
+LEARNING_SUPPORTING_FILES_PREFIX_V69454 = "[ATP_SUPPORTING_OPENAI_FILES_V69454]"
+_LEARNING_WRITE_LOCK_V69454 = threading.RLock()
+
+
+def _learning_supporting_file_ids_v69454(row):
+    """Recover internal supporting-file IDs without exposing them in retrieval text."""
+    raw = str((row or {}).get("source_answer") or "")
+    match = re.search(
+        re.escape(LEARNING_SUPPORTING_FILES_PREFIX_V69454) + r"(\[[^\n]*\])",
+        raw,
+    )
+    if not match:
+        return []
     try:
-        all_rows = safe_select_rows(
-            "learned_knowledge",
-            order_columns=["updated_at", "created_at"],
-            limit=200,
+        values = json.loads(match.group(1))
+    except Exception:
+        return []
+    return [str(value).strip() for value in values if str(value).strip()]
+
+
+def _learning_visible_source_answer_v69454(value):
+    """Strip internal supporting-file registry metadata from vector documents."""
+    return re.sub(
+        re.escape(LEARNING_SUPPORTING_FILES_PREFIX_V69454) + r"\[[^\n]*\]",
+        "",
+        str(value or ""),
+    ).strip()
+
+
+def _learning_supporting_marker_v69454(file_ids):
+    clean = list(dict.fromkeys(
+        str(value).strip() for value in (file_ids or []) if str(value).strip()
+    ))
+    return (
+        LEARNING_SUPPORTING_FILES_PREFIX_V69454
+        + json.dumps(clean, ensure_ascii=False, separators=(",", ":"))
+        if clean else ""
+    )
+
+
+def _detach_learning_supporting_files_v69454(vector_store_id, file_ids):
+    for file_id in list(dict.fromkeys(str(x).strip() for x in (file_ids or []) if str(x).strip())):
+        try:
+            client.vector_stores.files.delete(
+                vector_store_id=str(vector_store_id or ""),
+                file_id=file_id,
+            )
+        except Exception as error:
+            text_v69454 = str(error or "").lower()
+            if not any(token in text_v69454 for token in ("404", "not found", "does not exist")):
+                diagnostic_log(
+                    "learning_supporting_detach_failed_v69454",
+                    file_id=file_id,
+                    error_type=type(error).__name__,
+                )
+
+
+def remove_learned_vector_file_strict_v69454(vector_store_id, file_id, *, attempts=3):
+    """Detach and delete a learned file with bounded retries; fail closed on uncertainty."""
+    vector_store_id = str(vector_store_id or "").strip()
+    file_id = str(file_id or "").strip()
+    if not file_id:
+        return True
+    if not vector_store_id.startswith("vs_"):
+        raise RuntimeError("A valid vector store is required to remove learned knowledge.")
+
+    last_error = None
+    detached = False
+    for attempt in range(max(1, int(attempts or 1))):
+        try:
+            client.vector_stores.files.delete(
+                vector_store_id=vector_store_id,
+                file_id=file_id,
+            )
+            detached = True
+            break
+        except Exception as error:
+            text_v69454 = str(error or "").lower()
+            if any(token in text_v69454 for token in ("404", "not found", "does not exist")):
+                detached = True
+                break
+            last_error = error
+            if attempt + 1 < max(1, int(attempts or 1)):
+                time.sleep(0.25 * (attempt + 1))
+    if not detached:
+        raise RuntimeError(
+            f"Could not detach stale learned vector file {file_id}: {type(last_error).__name__ if last_error else 'unknown error'}"
         )
 
-        approved_rows = [
-            row for row in all_rows
-            if not is_pending_knowledge_row(row)
-        ]
+    # Deleting the underlying OpenAI file is desirable but a successfully detached
+    # file is already non-searchable. Retry deletion and log any residual file.
+    file_deleted = False
+    for attempt in range(max(1, int(attempts or 1))):
+        try:
+            client.files.delete(file_id)
+            file_deleted = True
+            break
+        except Exception as error:
+            text_v69454 = str(error or "").lower()
+            if any(token in text_v69454 for token in ("404", "not found", "does not exist")):
+                file_deleted = True
+                break
+            last_error = error
+            if attempt + 1 < max(1, int(attempts or 1)):
+                time.sleep(0.25 * (attempt + 1))
+    if not file_deleted:
+        diagnostic_log(
+            "learned_file_delete_residual_v69454",
+            file_id=file_id,
+            error_type=type(last_error).__name__ if last_error else "Unknown",
+        )
 
-        clean_assistant = clean_assistant_label(
-            selected_assistant
-        ).strip().lower()
-
-        # Duplicate merging is strictly department-scoped. Retrieval may be
-        # one-way across departments, but durable records must never be merged
-        # into or overwrite another department's knowledge.
-        rows = [
-            row for row in approved_rows
-            if str(row.get("assistant") or "").strip().lower()
-            == clean_assistant
-        ]
+    try:
+        _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
-        return None, 0
+        _observe_silent_exception_v69451("remove_learned_vector_file_strict_v69454")
+    return True
+
+
+def _delete_learned_row_transaction_v69454(row, *, admin_client=None):
+    """Delete vector authority first; never hide a DB row while its vector remains searchable."""
+    row = dict(row or {})
+    row_id = row.get("id")
+    if row_id is None:
+        raise RuntimeError("The learned record has no database ID.")
+    vector_store_id = str(row.get("vector_store_id") or "").strip()
+    main_file_id = str(row.get("openai_file_id") or "").strip()
+    supporting_ids = _learning_supporting_file_ids_v69454(row)
+    if (main_file_id or supporting_ids) and not vector_store_id.startswith("vs_"):
+        vector_store_id = get_learning_vector_store_id(row.get("assistant") or "")
+
+    if main_file_id:
+        remove_learned_vector_file_strict_v69454(vector_store_id, main_file_id)
+    for supporting_id in supporting_ids:
+        remove_learned_vector_file_strict_v69454(vector_store_id, supporting_id)
+
+    db = admin_client or supabase
+    result = db.table("learned_knowledge").delete().eq("id", row_id).execute()
+    diagnostic_log(
+        "learned_record_deleted_transactionally_v69454",
+        record_id=str(row_id),
+        supporting_files=len(supporting_ids),
+    )
+    try:
+        invalidate_admin_read_caches()
+    except Exception:
+        pass
+    return result
+
+
+def _reconcile_processing_learned_vectors_v69454(limit=8):
+    """Periodically repair rows whose vector ingestion completed after the original timeout."""
+    now_mono = time.monotonic()
+    last = float(st.session_state.get("_learning_vector_reconcile_at_v69454", 0.0) or 0.0)
+    if now_mono - last < 300.0:
+        return 0
+    st.session_state["_learning_vector_reconcile_at_v69454"] = now_mono
+    repaired = 0
+    try:
+        rows = (
+            supabase.table("learned_knowledge")
+            .select("id,openai_file_id,vector_store_id,synced,embedding_status")
+            .eq("synced", False)
+            .limit(max(1, int(limit or 8)))
+            .execute().data or []
+        )
+    except Exception as error:
+        diagnostic_log(
+            "learned_vector_reconcile_read_failed_v69454",
+            error_type=type(error).__name__,
+        )
+        return 0
+    for row in rows:
+        file_id = str(row.get("openai_file_id") or "").strip()
+        vector_store_id = str(row.get("vector_store_id") or "").strip()
+        if not file_id or not vector_store_id.startswith("vs_"):
+            continue
+        try:
+            vector_file = client.vector_stores.files.retrieve(
+                vector_store_id=vector_store_id,
+                file_id=file_id,
+            )
+            status = str(getattr(vector_file, "status", "") or "").lower()
+            if status == "completed":
+                safe_update_row(
+                    "learned_knowledge",
+                    {"synced": True, "embedding_status": "synced", "updated_at": now_iso()},
+                    row.get("id"),
+                )
+                repaired += 1
+            elif status in {"failed", "cancelled"}:
+                safe_update_row(
+                    "learned_knowledge",
+                    {"synced": False, "embedding_status": status, "updated_at": now_iso()},
+                    row.get("id"),
+                )
+        except Exception as error:
+            diagnostic_log(
+                "learned_vector_reconcile_item_failed_v69454",
+                record_id=str(row.get("id") or ""),
+                error_type=type(error).__name__,
+            )
+    if repaired:
+        diagnostic_log("learned_vector_reconciled_v69454", repaired=repaired)
+    return repaired
+
+
+def find_duplicate_learned_knowledge(candidate, selected_assistant):
+    """Find duplicates across the full current department and fail closed on read errors."""
+    clean_assistant_label_v69454 = clean_assistant_label(selected_assistant).strip()
+    clean_assistant = clean_assistant_label_v69454.lower()
+    if not clean_assistant:
+        raise RuntimeError("A valid learning workspace is required for duplicate detection.")
+
+    query_error_v69454 = None
+    all_rows = []
+    try:
+        # Query the department first so a busy global table cannot push older
+        # same-department knowledge outside an arbitrary newest-200 window.
+        query_v69454 = (
+            supabase.table("learned_knowledge")
+            .select("*")
+            .eq("assistant", clean_assistant_label_v69454)
+            .limit(2000)
+        )
+        try:
+            query_v69454 = query_v69454.order("updated_at", desc=True)
+        except Exception:
+            pass
+        all_rows = list(query_v69454.execute().data or [])
+    except Exception as error_v69454:
+        query_error_v69454 = error_v69454
+        try:
+            all_rows = safe_select_rows(
+                "learned_knowledge",
+                order_columns=["updated_at", "created_at"],
+                limit=2000,
+            )
+        except Exception as fallback_error_v69454:
+            diagnostic_log(
+                "learned_duplicate_read_failed_v69454",
+                workspace=clean_assistant_label_v69454,
+                error_type=type(fallback_error_v69454).__name__,
+            )
+            raise RuntimeError(
+                "Duplicate safety check is unavailable; learning was not changed."
+            ) from fallback_error_v69454
+
+    approved_rows = [
+        row for row in all_rows
+        if not is_pending_knowledge_row(row)
+    ]
+    rows = [
+        row for row in approved_rows
+        if str(row.get("assistant") or "").strip().lower() == clean_assistant
+    ]
+    if query_error_v69454 is not None:
+        diagnostic_log(
+            "learned_duplicate_department_query_fallback_v69454",
+            workspace=clean_assistant_label_v69454,
+            rows=len(rows),
+            error_type=type(query_error_v69454).__name__,
+        )
 
     best_row = None
     best_score = 0
@@ -50048,6 +51556,97 @@ def build_local_analytics_payload(question, answer, selected_assistant):
 
 
 
+def _stage_explicit_learning_attachments_v69454(uploaded_files):
+    """Stage explicit-learning attachments across the answer->postprocess rerun."""
+    staged = []
+    for uploaded_file in list(uploaded_files or [])[:8]:
+        name = str(getattr(uploaded_file, "name", "attachment") or "attachment")
+        mime = str(getattr(uploaded_file, "type", "") or "").lower()
+        try:
+            payload = _uploaded_file_bytes(uploaded_file)
+        except Exception as error:
+            diagnostic_log(
+                "learning_attachment_read_failed_v69454",
+                name=name[:160],
+                error_type=type(error).__name__,
+            )
+            raise RuntimeError(f"Could not read learning attachment: {name}") from error
+        if not payload:
+            continue
+        if len(payload) > 20 * 1024 * 1024:
+            raise RuntimeError(f"Learning attachment is too large: {name}")
+        if mime.startswith("image/"):
+            try:
+                image_url = normalized_image_data_url(uploaded_file)
+            except Exception:
+                image_url = ""
+            if not str(image_url or "").startswith("data:image/"):
+                encoded = base64.b64encode(payload).decode("ascii")
+                safe_mime = mime if mime.startswith("image/") else "image/png"
+                image_url = f"data:{safe_mime};base64,{encoded}"
+            staged.append({
+                "name": name,
+                "mime": mime,
+                "image_url": image_url,
+            })
+            continue
+        try:
+            try:
+                created = client.files.create(
+                    file=(name, payload),
+                    purpose="user_data",
+                )
+            except Exception:
+                created = client.files.create(
+                    file=(name, payload),
+                    purpose="assistants",
+                )
+        except Exception as error:
+            diagnostic_log(
+                "learning_attachment_stage_failed_v69454",
+                name=name[:160],
+                error_type=type(error).__name__,
+            )
+            raise RuntimeError(f"Could not stage learning attachment: {name}") from error
+        staged.append({
+            "name": name,
+            "mime": mime,
+            "file_id": str(getattr(created, "id", "") or ""),
+            "temporary": True,
+        })
+    diagnostic_log(
+        "learning_attachments_staged_v69454",
+        count=len(staged),
+        file_count=sum(bool(item.get("file_id")) for item in staged),
+        image_count=sum(bool(item.get("image_url")) for item in staged),
+    )
+    return staged
+
+
+def _cleanup_staged_learning_attachments_v69454(staged):
+    for item in staged or []:
+        file_id = str((item or {}).get("file_id") or "").strip()
+        if not file_id or not bool((item or {}).get("temporary")):
+            continue
+        try:
+            client.files.delete(file_id)
+        except Exception as error:
+            diagnostic_log(
+                "learning_attachment_cleanup_failed_v69454",
+                file_id=file_id,
+                error_type=type(error).__name__,
+            )
+
+
+def _sync_pending_postprocess_compat_v69454():
+    queue = st.session_state.get("_pending_ai_postprocess_queue_v69454")
+    if not isinstance(queue, list):
+        queue = []
+        st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
+    st.session_state["pending_ai_postprocess"] = queue[0] if queue else None
+    return queue
+
+
 def queue_ai_postprocess(
     question,
     answer,
@@ -50060,8 +51659,9 @@ def queue_ai_postprocess(
     is_structured_graphic_tool=False,
     explicit_learning=False,
     learning_context="",
+    learning_attachments=None,
 ):
-    """Queue non-visible learning and analytics for the next Streamlit run."""
+    """Queue learning/analytics FIFO so a later turn cannot overwrite an earlier job."""
     live_type = str(
         (
             detected_live_request
@@ -50080,11 +51680,18 @@ def queue_ai_postprocess(
             + "\n" + str(answer or "")
         ).encode("utf-8", errors="ignore")
     ).hexdigest()
-    if st.session_state.get("last_queued_postprocess_fingerprint") == postprocess_fingerprint:
-        return
-    st.session_state["last_queued_postprocess_fingerprint"] = postprocess_fingerprint
 
-    st.session_state["pending_ai_postprocess"] = {
+    queue = _sync_pending_postprocess_compat_v69454()
+    known = {
+        str(item.get("fingerprint") or "")
+        for item in queue if isinstance(item, dict)
+    }
+    if postprocess_fingerprint in known:
+        return
+    if st.session_state.get("last_processed_postprocess_fingerprint") == postprocess_fingerprint:
+        return
+
+    job = {
         "fingerprint": postprocess_fingerprint,
         "question": str(question or ""),
         "answer": str(answer or ""),
@@ -50097,17 +51704,33 @@ def queue_ai_postprocess(
         "response_time": response_time,
         "tokens_used": tokens_used,
         "is_graphic_generation": bool(is_graphic_generation),
-        "is_structured_marketing_tool": bool(
-            is_structured_marketing_tool
-        ),
-        "is_structured_graphic_tool": bool(
-            is_structured_graphic_tool
-        ),
+        "is_structured_marketing_tool": bool(is_structured_marketing_tool),
+        "is_structured_graphic_tool": bool(is_structured_graphic_tool),
         "explicit_learning": bool(explicit_learning),
         "learning_context": str(learning_context or ""),
+        "learning_attachments": list(learning_attachments or []),
+        "attempts": 0,
+        "queued_at": now_iso(),
     }
-
-
+    queue.append(job)
+    # Bound ordinary maintenance without ever discarding an explicit learning job.
+    if len(queue) > 32:
+        removable = next(
+            (i for i, item in enumerate(queue) if not bool((item or {}).get("explicit_learning"))),
+            None,
+        )
+        if removable is not None:
+            queue.pop(removable)
+        elif len(queue) > 64:
+            raise RuntimeError("The learning queue is full; please allow pending saves to finish.")
+    st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
+    _sync_pending_postprocess_compat_v69454()
+    diagnostic_log(
+        "ai_postprocess_queued_v69454",
+        fingerprint=postprocess_fingerprint[:12],
+        queue_depth=len(queue),
+        explicit_learning=bool(explicit_learning),
+    )
 
 def process_pending_history_trim_v68864():
     """Run per-workspace conversation-limit housekeeping after visible output.
@@ -50164,25 +51787,33 @@ def process_pending_history_trim_v68864():
 
 
 def process_pending_ai_postprocess():
-    """
-    Process one queued maintenance job after the answer has already been saved
-    and displayed. Failures remain non-blocking.
-    """
-    job = st.session_state.pop("pending_ai_postprocess", None)
+    """Process the oldest queued job; explicit learning retries instead of disappearing."""
+    queue = _sync_pending_postprocess_compat_v69454()
+    if not queue:
+        return
+    job = queue[0]
     if not isinstance(job, dict):
+        queue.pop(0)
+        _sync_pending_postprocess_compat_v69454()
         return
 
     fingerprint = str(job.get("fingerprint") or "")
     if fingerprint and st.session_state.get("last_processed_postprocess_fingerprint") == fingerprint:
+        queue.pop(0)
+        _cleanup_staged_learning_attachments_v69454(job.get("learning_attachments"))
+        _sync_pending_postprocess_compat_v69454()
         return
-    if fingerprint:
-        st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
 
     postprocess_started_at = time.perf_counter()
-    # Keep diagnostics compact. Detailed failures are still logged below; normal
-    # maintenance runs only emit the final timing record.
-
     learning_result = None
+    learning_failed = False
+    learning_error = None
+
+    try:
+        _reconcile_processing_learned_vectors_v69454(limit=8)
+    except Exception:
+        pass
+
     if (
         not job.get("is_graphic_generation")
         and not job.get("is_structured_marketing_tool")
@@ -50196,16 +51827,22 @@ def process_pending_ai_postprocess():
                 detected_live_request=job.get("detected_live_request"),
                 explicit_learning=bool(job.get("explicit_learning")),
                 learning_context=job.get("learning_context"),
+                learning_attachments=job.get("learning_attachments"),
             )
             if learning_result and learning_result.get("learned"):
                 st.session_state["_case_learning_context_revision_v68864"] = (
-                    int(st.session_state.get("_case_learning_context_revision_v68864", 0) or 0)
-                    + 1
+                    int(st.session_state.get("_case_learning_context_revision_v68864", 0) or 0) + 1
                 )
                 st.session_state.pop("_case_learning_context_cache_v68864", None)
                 mode = learning_result.get("mode", "saved")
                 if learning_result.get("explicit_learning"):
                     message = f"Knowledge saved permanently ({mode})."
+                    diagnostic_log(
+                        "explicit_learning_persisted_v69452",
+                        workspace=str(job.get("selected_assistant") or ""),
+                        mode=str(mode),
+                        record_id=str(learning_result.get("record_id") or ""),
+                    )
                 elif learning_result.get("staff_confirmed"):
                     message = f"Confirmed staff solution learned ({mode})."
                 elif learning_result.get("unlabeled_final_reply"):
@@ -50215,8 +51852,18 @@ def process_pending_ai_postprocess():
                 else:
                     message = f"Knowledge learned from this case ({mode})."
                 st.toast(message, icon="🧠")
+            elif (
+                learning_result
+                and learning_result.get("authorization_denied")
+                and job.get("explicit_learning")
+            ):
+                st.toast(
+                    "Knowledge was not saved because administrator authorization could not be revalidated.",
+                    icon="🔒",
+                )
         except Exception as error:
-            learning_result = None
+            learning_failed = True
+            learning_error = error
             diagnostic_log(
                 "ai_postprocess_learning_failed",
                 error_type=type(error).__name__,
@@ -50224,6 +51871,8 @@ def process_pending_ai_postprocess():
                 fingerprint=fingerprint[:12],
             )
 
+    # Analytics is independent and should not make an authoritative learning retry
+    # repeat a successful write. It is therefore attempted after learning.
     try:
         log_ai_analytics(
             job.get("question"),
@@ -50241,14 +51890,51 @@ def process_pending_ai_postprocess():
             fingerprint=fingerprint[:12],
         )
 
+    if learning_failed and bool(job.get("explicit_learning")):
+        attempts = int(job.get("attempts") or 0) + 1
+        job["attempts"] = attempts
+        if attempts < 3:
+            queue[0] = job
+            st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
+            _sync_pending_postprocess_compat_v69454()
+            diagnostic_log(
+                "explicit_learning_retry_pending_v69454",
+                fingerprint=fingerprint[:12],
+                attempt=attempts,
+                error_type=type(learning_error).__name__ if learning_error else "Unknown",
+            )
+            st.toast(
+                "Knowledge save hit a temporary error and is queued to retry safely.",
+                icon="🧠",
+            )
+            return
+        st.toast(
+            "Knowledge was not saved after three safe attempts. Existing knowledge was left unchanged.",
+            icon="⚠️",
+        )
+        diagnostic_log(
+            "explicit_learning_retry_exhausted_v69454",
+            fingerprint=fingerprint[:12],
+            attempts=attempts,
+        )
+
+    # Consume only after success, a non-learning maintenance attempt, or exhausted
+    # retries. Marking processed happens here—not before the durable work.
+    queue.pop(0)
+    _cleanup_staged_learning_attachments_v69454(job.get("learning_attachments"))
+    if fingerprint:
+        st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
+    st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
+    _sync_pending_postprocess_compat_v69454()
+
     diagnostic_log(
         "ai_postprocess_finished",
         fingerprint=fingerprint[:12],
         elapsed_seconds=round(time.perf_counter() - postprocess_started_at, 3),
         logged_in=st.session_state.get("logged_in"),
+        queue_depth=len(queue),
+        learning_failed=bool(learning_failed),
     )
-
-
 
 def _auto_learning_is_eligible(question, selected_assistant, explicit_learning=False):
     """Return True only when a message can produce authoritative durable knowledge.
@@ -50275,9 +51961,33 @@ def auto_learn_from_latest_answer(
     detected_live_request=None,
     explicit_learning=False,
     learning_context="",
+    learning_attachments=None,
 ):
     if selected_assistant == "⚙️ Admin Panel":
         return None
+
+    # v69452 defense in depth: even if a future routing regression accidentally
+    # queues an explicit learning job, the durable writer itself fails closed
+    # unless the active account revalidates as admin at write time.
+    if bool(explicit_learning) and not _learning_admin_authorized_v69452(
+        revalidate=True
+    ):
+        diagnostic_log(
+            "explicit_learning_persistence_blocked_v69452",
+            workspace=str(selected_assistant),
+            role=str(st.session_state.get("role") or "").strip().lower() or "none",
+        )
+        return {
+            "learned": False,
+            "explicit_learning": True,
+            "authorization_denied": True,
+            "reason": "Admin authorization could not be verified.",
+            "analytics_payload": build_local_analytics_payload(
+                question,
+                answer,
+                selected_assistant,
+            ),
+        }
 
     # Ordinary Graphic Marketing generations are not auto-learned. Explicit
     # staff commands such as "learn this style" may save reusable design guidance.
@@ -50383,6 +52093,7 @@ def auto_learn_from_latest_answer(
         staff_teaching=staff_teaching,
         conversation_context=conversation_context,
         explicit_requested=explicit_learning,
+        learning_attachments=learning_attachments,
     )
     if candidate.get("should_learn"):
         candidate["confidence_score"] = max(
@@ -50412,6 +52123,15 @@ def auto_learn_from_latest_answer(
 
     if duplicate_row:
         improved = improve_existing_solution(duplicate_row, candidate)
+        if not bool(improved.get("merge_succeeded")):
+            diagnostic_log(
+                "learned_knowledge_merge_aborted_v69454",
+                record_id=str(duplicate_row.get("id") or ""),
+                workspace=str(selected_assistant or ""),
+            )
+            raise RuntimeError(
+                "The existing knowledge could not be safely merged. Nothing was changed."
+            )
 
         record_for_file = {
             "assistant": clean_assistant_label(selected_assistant),
@@ -50444,7 +52164,12 @@ def auto_learn_from_latest_answer(
             "question": safe_question,
             "keywords": improved["keywords"],
             "source_question": safe_question,
-            "source_answer": safe_answer,
+            "source_answer": "\n".join(filter(None, [
+                safe_answer,
+                _learning_supporting_marker_v69454(
+                    _learning_supporting_file_ids_v69454(duplicate_row)
+                ),
+            ])),
             "source_conversation_id": st.session_state.get("conversation_id"),
             "confidence_score": improved["confidence_score"],
             "times_seen": improved["times_seen"],
@@ -50476,14 +52201,42 @@ def auto_learn_from_latest_answer(
             remove_old_learned_vector_file(vector_store_id, openai_file_id)
             raise
 
-        # Only remove the superseded vector after the replacement has uploaded
-        # and the Supabase master record has been updated successfully.
+        # v69454 transactional supersession: a successful DB update is not enough
+        # if the stale vector remains searchable. If strict old-vector cleanup fails,
+        # restore the previous DB authority and remove the new vector.
         old_file_id = duplicate_row.get("openai_file_id")
         if old_file_id and old_file_id != openai_file_id:
-            remove_old_learned_vector_file(
-                duplicate_row.get("vector_store_id") or vector_store_id,
-                old_file_id,
-            )
+            try:
+                remove_learned_vector_file_strict_v69454(
+                    duplicate_row.get("vector_store_id") or vector_store_id,
+                    old_file_id,
+                )
+            except Exception as cleanup_error_v69454:
+                rollback_payload_v69454 = {
+                    key: value for key, value in dict(duplicate_row).items()
+                    if key != "id"
+                }
+                try:
+                    safe_update_row(
+                        "learned_knowledge",
+                        rollback_payload_v69454,
+                        duplicate_row["id"],
+                    )
+                finally:
+                    try:
+                        remove_learned_vector_file_strict_v69454(
+                            vector_store_id, openai_file_id
+                        )
+                    except Exception:
+                        remove_old_learned_vector_file(vector_store_id, openai_file_id)
+                diagnostic_log(
+                    "learned_supersession_rolled_back_v69454",
+                    record_id=str(duplicate_row.get("id") or ""),
+                    error_type=type(cleanup_error_v69454).__name__,
+                )
+                raise RuntimeError(
+                    "The old knowledge vector could not be removed, so the update was rolled back."
+                ) from cleanup_error_v69454
 
         return {
             "learned": True,
@@ -50568,6 +52321,18 @@ def auto_learn_from_latest_answer(
         "file_id": openai_file_id,
         "analytics_payload": candidate.get("analytics_payload"),
     }
+
+
+# v69454 process-local serialization closes the common multi-session race between
+# duplicate detection and insert/update. Database/vector rollback logic below remains
+# authoritative if an external worker or future multi-process deployment races it.
+_AUTO_LEARN_FROM_LATEST_ANSWER_V69454_BASE = auto_learn_from_latest_answer
+
+def _auto_learn_from_latest_answer_serialized_v69454(*args, **kwargs):
+    with _LEARNING_WRITE_LOCK_V69454:
+        return _AUTO_LEARN_FROM_LATEST_ANSWER_V69454_BASE(*args, **kwargs)
+
+auto_learn_from_latest_answer = _auto_learn_from_latest_answer_serialized_v69454
 
 
 # ============================================================
@@ -50779,7 +52544,7 @@ def safe_avg(rows, field):
             if row.get(field) is not None:
                 values.append(float(row.get(field)))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("safe_avg@L50786")
     if not values:
         return 0
     return round(sum(values) / len(values), 2)
@@ -50805,7 +52570,7 @@ def total_numeric(rows, field):
         try:
             total += int(row.get(field) or 0)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("total_numeric@L50812")
     return total
 
 
@@ -50985,7 +52750,7 @@ def generate_ai_conversation_title(
             words = title.split()[:5]
             return " ".join(words)[:36].rstrip()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("generate_ai_conversation_title@L50992")
 
     return conversation_title_from_text(user_text)
 
@@ -51115,7 +52880,7 @@ def _history_http_session_v69322():
         session_v69322.mount("https://", adapter_v69322)
         session_v69322.mount("http://", adapter_v69322)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_history_http_session_v69322@L51122")
     return session_v69322
 
 
@@ -51154,7 +52919,7 @@ def _history_content_range_total_v69322(response):
             if total_v69322.isdigit():
                 return int(total_v69322)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_history_content_range_total_v69322@L51161")
     return None
 
 
@@ -51709,33 +53474,33 @@ def invalidate_history_cache(
         try:
             _load_conversations_cached.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51716")
         try:
             _conversation_summary_index_cached.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51720")
         try:
             _active_conversation_count_cached.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51724")
         try:
             _history_sidebar_snapshot_cached_v69322.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51728")
 
     if messages:
         try:
             _load_messages_cached.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51734")
         try:
             _conversation_owned_by_user_cached.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51738")
         try:
             _history_messages_after_workspace_proof_cached_v69322.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_history_cache@L51742")
 
 
 def load_messages(conversation_id):
@@ -51798,7 +53563,7 @@ def delete_conversation(conversation_id):
             str(conversation_id)
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("delete_conversation@L51805")
     invalidate_history_cache(
         conversations=True,
         messages=True,
@@ -51851,7 +53616,7 @@ def _cached_conversation_row(conversation_id):
             history_limit,
         ).get(str(conversation_id))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_cached_conversation_row@L51858")
 
     return None
 
@@ -51898,7 +53663,7 @@ def get_current_conversation_title():
             session_titles[conversation_key] = title
             return title
     except Exception:
-        pass
+        _observe_silent_exception_v69451("get_current_conversation_title@L51905")
     return "New Case"
 
 
@@ -52003,7 +53768,7 @@ def get_conversation_title_by_id(conversation_id):
             session_titles[conversation_key] = title
             return title
     except Exception:
-        pass
+        _observe_silent_exception_v69451("get_conversation_title_by_id@L52010")
     return "New Case"
 
 
@@ -56082,7 +57847,7 @@ def _graphic_v68993_authority_manifest(prompt_text, uploaded_files, forced_uploa
     try:
         roles = set(_graphic_project_role_set(project or {}))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68993_authority_manifest@L56089")
     has_reference = bool(active_reference_id or ({"reference", "style_reference"} & roles))
     has_product = bool(active_product_id or ({"product", "product_photo"} & roles))
 
@@ -56300,7 +58065,7 @@ def _graphic_v68994_role_fingerprint(role_items, roles=None):
                 try:
                     item["_data_url_digest_v68983"] = digest
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_graphic_v68994_role_fingerprint@L56307")
         selected.append({
             "role": role,
             "name": str(item.get("name") or ""),
@@ -56754,7 +58519,7 @@ def _graphic_v68995_commit_slot_manifest(manifest):
     try:
         _graphic_v66100_cache_put(_graphic_v68995_manifest_cache_key(style_key), dict(manifest))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v68995_commit_slot_manifest@L56761")
     return True
 
 def _graphic_v68995_normalize_label(label):
@@ -56995,7 +58760,7 @@ def _graphic_v69272_protected_mode(prompt_text, uploaded_files=None, forced_uplo
         if bool(ns_v69272["_graphic_v68829_is_installed_request"](text_v69272)):
             return "installed", ns_v69272
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_graphic_v69272_protected_mode@L57002")
     try:
         if bool(ns_v69272["_graphic_v68827_is_reference_mode"](text_v69272, uploaded_files, forced_upload_role)):
             return "reference", ns_v69272
@@ -57009,7 +58774,7 @@ def _graphic_v69272_protected_mode(prompt_text, uploaded_files=None, forced_uplo
             if str(project_v69272.get("active_reference_id") or "") and str(project_v69272.get("active_product_id") or ""):
                 return "reference", ns_v69272
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_graphic_v69272_protected_mode@L57016")
     return "other", ns_v69272
 
 
@@ -57250,7 +59015,7 @@ def process_pending_graphic_regeneration():
         st.session_state.pop("_graphic_v68994_durable_authority_hint", None); return False
     try:
         with st.spinner("Creating another image version..."):
-            images = generate_graphic_marketing_images(prompt_text, generation_files)
+            images = _GRAPHIC_V69451_FINAL_ENGINE(prompt_text, generation_files)
             answer_text = generated_image_answer_text(images, regenerated=True)
             stored_content = answer_text + serialize_images_marker(images)
             st.session_state.messages.append({"role": "assistant", "content": stored_content})
@@ -57260,6 +59025,97 @@ def process_pending_graphic_regeneration():
             return True
     except Exception as error:
         st.error(f"Could not regenerate image: {error}"); return False
+
+
+# ============================================================
+# v69451 — Explicit final Graphic runtime pinning
+# ============================================================
+# Historical Graphic releases intentionally wrap earlier authorities. Their captured
+# base functions are part of the production behavior and must NOT be flattened.
+# Pin the final public entry points only after the complete wrapper stack is defined,
+# then route live call sites through these immutable aliases. This removes dependence
+# on later same-name rebinding while preserving the exact current function objects.
+_GRAPHIC_V69451_FINAL_ENGINE = generate_graphic_marketing_images
+_GRAPHIC_V69451_FINAL_PROCESS_PENDING = process_pending_graphic_regeneration
+_GRAPHIC_V69451_FINAL_RESEARCH_VEHICLE = research_graphic_vehicle_profile
+_GRAPHIC_V69451_FINAL_SAVE_STYLE_MEMORY = save_graphic_style_memory
+_GRAPHIC_V69451_FINAL_PUBLICATION_REPORT = _graphic_v68978_reference_publication_report
+_GRAPHIC_V69451_FINAL_QUEUE_DURABLE_JOB = _graphic_queue_durable_job_v68844
+_GRAPHIC_V69451_FINAL_PENDING_DURABLE_JOB = _graphic_pending_durable_job_v68844
+_GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_GET = _graphic_v69258_background_resume_get
+_GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_PUT = _graphic_v69258_background_resume_put
+_GRAPHIC_V69451_FINAL_AUX_CACHE_GET = _graphic_v69263_aux_cache_get
+_GRAPHIC_V69451_FINAL_AUX_CACHE_PUT = _graphic_v69263_aux_cache_put
+_GRAPHIC_V69451_FINAL_PRODUCT_STRUCTURE = _graphic_product_structure_profile_cached_v4300
+
+
+def _graphic_v69451_assert_wrapper_integrity():
+    """Fail closed only if the established Graphic wrapper topology is corrupted."""
+    final_bindings_v69451 = {
+        "engine": _GRAPHIC_V69451_FINAL_ENGINE,
+        "process_pending": _GRAPHIC_V69451_FINAL_PROCESS_PENDING,
+        "research_vehicle": _GRAPHIC_V69451_FINAL_RESEARCH_VEHICLE,
+        "save_style_memory": _GRAPHIC_V69451_FINAL_SAVE_STYLE_MEMORY,
+        "publication_report": _GRAPHIC_V69451_FINAL_PUBLICATION_REPORT,
+        "queue_durable_job": _GRAPHIC_V69451_FINAL_QUEUE_DURABLE_JOB,
+        "pending_durable_job": _GRAPHIC_V69451_FINAL_PENDING_DURABLE_JOB,
+        "background_resume_get": _GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_GET,
+        "background_resume_put": _GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_PUT,
+        "aux_cache_get": _GRAPHIC_V69451_FINAL_AUX_CACHE_GET,
+        "aux_cache_put": _GRAPHIC_V69451_FINAL_AUX_CACHE_PUT,
+        "product_structure": _GRAPHIC_V69451_FINAL_PRODUCT_STRUCTURE,
+    }
+    missing_v69451 = sorted(
+        name_v69451
+        for name_v69451, value_v69451 in final_bindings_v69451.items()
+        if not callable(value_v69451)
+    )
+    if missing_v69451:
+        raise RuntimeError(
+            "Graphic final runtime binding integrity failure: "
+            + ", ".join(missing_v69451)
+        )
+
+    # These are intentionally captured predecessor engines. Equality with the final
+    # public wrapper would create recursion or bypass the protected release chain.
+    predecessor_checks_v69451 = (
+        ("v69272-current-engine", _GRAPHIC_V69272_CURRENT_ENGINE),
+        ("v68995-base-generator", _GRAPHIC_V68995_BASE_GENERATOR),
+        ("v68994-base-queue", _GRAPHIC_V68994_BASE_QUEUE_DURABLE_JOB),
+        ("v68994-base-pending", _GRAPHIC_V68994_BASE_PENDING_DURABLE_JOB),
+        ("v69264-base-resume-get", _GRAPHIC_V69264_BASE_BACKGROUND_RESUME_GET),
+        ("v69264-base-resume-put", _GRAPHIC_V69264_BASE_BACKGROUND_RESUME_PUT),
+        ("v69265-session-aux-get", _GRAPHIC_V69265_SESSION_AUX_GET),
+        ("v69265-session-aux-put", _GRAPHIC_V69265_SESSION_AUX_PUT),
+        ("v69265-original-research", _GRAPHIC_V69265_ORIGINAL_VEHICLE_RESEARCH),
+        ("v68987-base-publication", _GRAPHIC_V68987_BASE_PUBLICATION_REPORT),
+        ("v68827-base-style-memory", _GRAPHIC_V68827_BASE_SAVE_STYLE_MEMORY),
+    )
+    invalid_v69451 = sorted(
+        name_v69451
+        for name_v69451, value_v69451 in predecessor_checks_v69451
+        if (
+            not callable(value_v69451)
+            or value_v69451 is _GRAPHIC_V69451_FINAL_ENGINE
+            or value_v69451 is _GRAPHIC_V69451_FINAL_PROCESS_PENDING
+        )
+    )
+    if invalid_v69451:
+        raise RuntimeError(
+            "Graphic predecessor wrapper integrity failure: "
+            + ", ".join(invalid_v69451)
+        )
+
+    diagnostic_log(
+        "graphic_v69451_wrapper_integrity_verified",
+        final_bindings=len(final_bindings_v69451),
+        predecessor_bindings=len(predecessor_checks_v69451),
+        protected_source_sha=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16],
+    )
+    return True
+
+
+_GRAPHIC_V69451_WRAPPER_INTEGRITY_OK = _graphic_v69451_assert_wrapper_integrity()
 
 
 # Chat History Sidebar
@@ -57448,7 +59304,7 @@ def _website_extract_atp_semantics_v69178(page_html, page_url=""):
         attr_parser.feed(value)
         attr_parser.close()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_extract_atp_semantics_v69178@L57455")
 
     if (
         not scripts
@@ -58204,7 +60060,7 @@ def canonical_website_url_identity(raw_url):
     try:
         hostname = hostname.encode("idna").decode("ascii")
     except Exception:
-        pass
+        _observe_silent_exception_v69451("canonical_website_url_identity@L58211")
 
     port = parsed.port
     if port in {80, 443}:
@@ -58979,7 +60835,7 @@ def _download_public_website_image(image_url, context_score=0, technical_context
         except ValueError:
             raise
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_download_public_website_image@L58986")
 
     return {
         "source_url": final_url,
@@ -59077,7 +60933,7 @@ def _website_preview_visual_metrics_v68998(image_bytes):
             "border_background_difference_ratio": round(foreground_ratio, 6),
         })
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_preview_visual_metrics_v68998@L59084")
     return metrics
 
 
@@ -60087,42 +61943,105 @@ def _website_image_schema_profile_reset_v69176():
 
 
 def _website_image_index_schema_profile_v69129():
-    """Detect usable modern/legacy/hybrid image-index schema from actual live columns."""
+    """Detect the *actual* live image-index schema without trusting fallback columns.
+
+    v69457: ``get_table_columns`` intentionally has a broad production fallback for
+    learning durability. That fallback is not proof that an optional column exists
+    in an older Supabase schema. The image index therefore validates its own base
+    schema and optional columns with bounded read-only probes before selecting or
+    filtering on them. This prevents a missing optional field such as ``source_type``
+    from disabling exact product-image recovery.
+    """
     now_value = time.monotonic()
     cached = dict(_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176.get("profile") or {})
     cached_at = float(_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176.get("at") or 0.0)
-    if cached.get("ready") and (now_value - cached_at) < 60.0:
+    if cached.get("ready") and (now_value - cached_at) < 300.0:
         return cached
-    actual_columns = set()
+
+    hinted_columns_v69457 = set()
     try:
-        actual_columns = set(get_table_columns("learned_knowledge") or [])
+        hinted_columns_v69457 = set(get_table_columns("learned_knowledge") or [])
     except Exception as error:
-        diagnostic_log("website_image_index_column_introspection_failed_v69176", error_type=type(error).__name__, error=str(error)[:400])
-    def build_profile(columns):
-        cols=set(columns or [])
-        if "id" not in cols:
-            return None
-        if "issue" in cols and ("solution" in cols or "approved_answer" in cols):
-            return {"ready":True,"mode":"modern","columns":sorted(cols)}
-        if "question" in cols and "approved_answer" in cols:
-            return {"ready":True,"mode":"legacy","columns":sorted(cols)}
-        return None
-    profile=build_profile(actual_columns)
-    if profile:
-        _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"]=dict(profile)
-        _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"]=now_value
-        return profile
-    probes=(("modern",["id","issue","solution"]),("modern",["id","issue","approved_answer"]),("legacy",["id","question","approved_answer"]))
-    for mode, columns in probes:
+        diagnostic_log(
+            "website_image_index_column_introspection_failed_v69176",
+            error_type=type(error).__name__, error=str(error)[:400],
+        )
+
+    base_candidates_v69457 = (
+        ("modern", ["id", "issue", "solution"]),
+        ("modern", ["id", "issue", "approved_answer"]),
+        ("legacy", ["id", "question", "approved_answer"]),
+    )
+    selected_mode_v69457 = ""
+    actual_columns_v69457 = set()
+    base_probe_errors_v69457 = []
+    for mode_v69457, columns_v69457 in base_candidates_v69457:
         try:
-            supabase.table("learned_knowledge").select(",".join(columns)).limit(1).execute()
-            profile={"ready":True,"mode":mode,"columns":list(columns)}
-            _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"]=dict(profile)
-            _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"]=now_value
-            return profile
+            supabase.table("learned_knowledge").select(
+                ",".join(columns_v69457)
+            ).limit(1).execute()
+            selected_mode_v69457 = mode_v69457
+            actual_columns_v69457.update(columns_v69457)
+            break
         except Exception as error:
-            diagnostic_log("website_image_index_schema_probe_failed_v69176", mode=mode, columns=",".join(columns), error_type=type(error).__name__, error=str(error)[:300])
-    return {"ready":False,"mode":"unavailable","columns":sorted(actual_columns)}
+            base_probe_errors_v69457.append({
+                "mode": mode_v69457,
+                "columns": ",".join(columns_v69457),
+                "error_type": type(error).__name__,
+                "error": str(error)[:240],
+            })
+
+    if not selected_mode_v69457:
+        diagnostic_log(
+            "website_image_index_schema_unavailable_v69457",
+            probes=base_probe_errors_v69457[:3],
+        )
+        return {
+            "ready": False,
+            "mode": "unavailable",
+            "columns": sorted(actual_columns_v69457),
+        }
+
+    optional_candidates_v69457 = (
+        ("solution", "approved_answer", "source_type", "updated_at", "created_at", "keywords")
+        if selected_mode_v69457 == "modern"
+        else ("issue", "solution", "source_type", "updated_at", "created_at", "keywords")
+    )
+    # Probe only columns that are useful to this subsystem. A one-column miss is
+    # isolated and cannot poison the entire schema profile.
+    for column_v69457 in optional_candidates_v69457:
+        if column_v69457 in actual_columns_v69457:
+            continue
+        # If introspection succeeded and definitively omitted the column, skip the
+        # network probe. If it returned the broad fallback, the probe below is the
+        # source of truth.
+        try:
+            supabase.table("learned_knowledge").select(
+                f"id,{column_v69457}"
+            ).limit(1).execute()
+            actual_columns_v69457.add(column_v69457)
+        except Exception as error:
+            diagnostic_log(
+                "website_image_index_optional_column_absent_v69457",
+                column=column_v69457,
+                error_type=type(error).__name__,
+            )
+
+    profile = {
+        "ready": True,
+        "mode": selected_mode_v69457,
+        "columns": sorted(actual_columns_v69457),
+    }
+    _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"] = dict(profile)
+    _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"] = now_value
+    diagnostic_log(
+        "website_image_index_schema_verified_v69457",
+        mode=selected_mode_v69457,
+        columns=sorted(actual_columns_v69457),
+        source_type_available="source_type" in actual_columns_v69457,
+        hinted_source_type="source_type" in hinted_columns_v69457,
+    )
+    return profile
 
 
 
@@ -60208,7 +62127,7 @@ def _website_image_index_upsert_v68883(payload):
     except Exception as error:
         _website_image_schema_profile_reset_v69176(); diagnostic_log("website_image_index_save_failed_v69176",mode=mode,issue=issue[:120],error_type=type(error).__name__,error=str(error)[:500]); return False
     try: _workspace_durable_image_payloads_v69041.clear()
-    except Exception: pass
+    except Exception: _observe_silent_exception_v69451("_website_image_index_upsert_v68883@L60216")
     return True
 
 
@@ -60555,11 +62474,11 @@ def _website_sync_page_image_index_v69003(
     try:
         _website_image_index_rows_v68883.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_sync_page_image_index_v69003@L60562")
     try:
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_sync_page_image_index_v69003@L60566")
     return stats
 
 
@@ -60658,11 +62577,11 @@ def _website_image_transaction_rollback_v69177(
     try:
         _website_image_index_rows_v68883.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_image_transaction_rollback_v69177@L60665")
     try:
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_image_transaction_rollback_v69177@L60669")
 
     cleanup_candidates = set(transaction_archive_paths or []) - prior_archive_paths
     archive_cleanup = _website_cleanup_unreferenced_archives_v69177(cleanup_candidates)
@@ -60758,7 +62677,7 @@ def _website_archive_and_index_images_v68883(
     try:
         _website_image_index_rows_v68883.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_archive_and_index_images_v68883@L60765")
 
     return {
         "indexed": indexed,
@@ -61609,7 +63528,7 @@ def _website_image_atp_semantic_metadata_v69363(payload):
             if isinstance(parsed, dict):
                 return {str(k): str(v) for k, v in parsed.items() if str(k).startswith("data-atp-")}
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_website_image_atp_semantic_metadata_v69363@L61616")
     return {}
 
 
@@ -61832,6 +63751,91 @@ def _website_identity_vehicle_families_v69022(value):
         return set()
     peak = max(positive.values())
     return {k for k, v in positive.items() if v >= max(1.0, peak - 1.0)}
+
+def _workspace_source_identity_vehicle_families_v69456(value):
+    """Preserve all families declared by a trusted product title/permalink.
+
+    The legacy parser intentionally applies frequency suppression to noisy prose.
+    That can be too aggressive when a trusted identity combines a title and URL:
+    models repeated in both can suppress a sibling model present only in one source.
+
+    v69456 does not introduce any vehicle/product lookup table. Instead it runs the
+    existing conservative parser independently over identity components and bounded
+    token windows, then unions only what that same parser already recognizes. This
+    removes cross-component frequency bias without broadening the parser vocabulary
+    or inspecting arbitrary page body prose.
+    """
+    text_v69456 = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text_v69456:
+        return set()
+
+    components_v69456 = [text_v69456]
+    # Titles, URLs, slugs and metadata fields are commonly joined with whitespace.
+    # Parse each bounded component independently so repetition in one component
+    # cannot suppress a valid family in another.
+    components_v69456.extend(
+        piece_v69456
+        for piece_v69456 in re.split(r"(?:https?://\S+|[|;])", text_v69456)
+        if str(piece_v69456 or "").strip()
+    )
+    for url_v69456 in re.findall(r"https?://\S+", text_v69456, flags=re.I):
+        try:
+            parsed_v69456 = urllib.parse.urlsplit(url_v69456)
+            components_v69456.extend([
+                str(parsed_v69456.path or ""),
+                str(parsed_v69456.query or ""),
+            ])
+        except Exception:
+            components_v69456.append(url_v69456)
+
+    # Also parse bounded token windows. The existing parser remains the only family
+    # recognizer; windows merely prevent unrelated repeated identity tokens from
+    # changing its frequency threshold.
+    normalized_v69456 = re.sub(r"[^A-Za-z0-9]+", " ", text_v69456).strip()
+    tokens_v69456 = normalized_v69456.split()
+    for index_v69456 in range(len(tokens_v69456)):
+        window_v69456 = " ".join(tokens_v69456[index_v69456:index_v69456 + 6])
+        if window_v69456:
+            components_v69456.append(window_v69456)
+
+    families_v69456 = set()
+    seen_components_v69456 = set()
+    for component_v69456 in components_v69456:
+        clean_v69456 = re.sub(r"\s+", " ", str(component_v69456 or "")).strip()
+        key_v69456 = clean_v69456.casefold()
+        if not clean_v69456 or key_v69456 in seen_components_v69456:
+            continue
+        seen_components_v69456.add(key_v69456)
+        families_v69456.update(
+            _website_identity_vehicle_families_v69022(clean_v69456) or set()
+        )
+
+    # Windows are recall-only. Re-apply polarity against the original trusted
+    # identity so a phrase such as "not for <model>" cannot become positive merely
+    # because a smaller window lost its negative prefix. This is vocabulary-free:
+    # it evaluates only families already recognized by the existing parser.
+    lowered_v69456 = text_v69456.casefold()
+    for family_v69456 in list(families_v69456):
+        chunks_v69456 = re.findall(r"[a-z]+|\d+", str(family_v69456).casefold())
+        if not chunks_v69456:
+            continue
+        family_pattern_v69456 = r"\b" + r"[-_\s]*".join(
+            re.escape(chunk_v69456) for chunk_v69456 in chunks_v69456
+        ) + r"\b"
+        score_v69456 = 0.0
+        for match_v69456 in re.finditer(family_pattern_v69456, lowered_v69456):
+            before_v69456 = lowered_v69456[max(0, match_v69456.start() - 100):match_v69456.start()]
+            negative_v69456 = bool(re.search(
+                r"(?:do\s+not\s+use|don't\s+use|not\s+for|not\s+the|wrong|avoid|"
+                r"instead\s+of|rather\s+than|do\s+not\s+apply|exclude(?:s|d)?|"
+                r"unsupported)[^.;:]{0,80}$",
+                before_v69456,
+            ))
+            score_v69456 += -5.0 if negative_v69456 else 2.0
+        if score_v69456 <= 0:
+            families_v69456.discard(family_v69456)
+    return families_v69456
+
 
 def _website_identity_years_v69022(value):
     text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
@@ -62070,7 +64074,7 @@ def _technical_configuration_query_v69361(prompt_text):
         if _website_image_query_role_v68884(prompt_text) in {"car_model_ac", "protocol"}:
             return True
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_configuration_query_v69361@L62077")
     return any(term in prompt for term in (
         "car model", "car-model", "a/c setting", "ac setting", "a/c type",
         "ac type", "protocol setting", "canbus setting", "can bus setting",
@@ -62372,7 +64376,7 @@ def _website_image_atp_semantic_metadata_v69364(payload):
                         if str(k).startswith("data-atp-") and str(v).strip()
                     }
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_image_atp_semantic_metadata_v69364@L62379")
     return {}
 
 
@@ -62562,7 +64566,7 @@ def _technical_sales_product_image_bridge_v69364(prompt_text, answer_text, max_i
         try:
             score += min(float(meta.get("data-atp-ai-priority") or payload.get("atp_priority_v69178") or 0), 1000.0) / 100.0
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_sales_product_image_bridge_v69364@L62569")
         ranked.append((score, record, role))
 
     ranked.sort(key=lambda item: item[0], reverse=True)
@@ -63301,7 +65305,7 @@ def _technical_image_prefetch_cache_set_v69016(prompt_text, rows):
             cache = dict(ordered[:12])
         st.session_state["_technical_image_prefetch_cache_v69016"] = cache
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_image_prefetch_cache_set_v69016@L63308")
 
 
 def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text=""):
@@ -64958,7 +66962,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
             continue
         grouped.setdefault(file_id, {"rows":[], "score":0.0, "filename":str(row.get("filename") or "")})["rows"].append(dict(row))
         try: grouped[file_id]["score"] = max(float(grouped[file_id]["score"]), float(row.get("score") or 0.0))
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_workspace_atp_recovery_packages_from_rows_v69338@L64966")
 
     candidates=[]
     for file_id, info in grouped.items():
@@ -64986,7 +66990,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         # Retrieved package bodies may contain related-product links/snippets for other vehicles;
         # those must never grant the declared Final source URL authority for a different family.
         source_identity_text_v69358 = " ".join((title, source))
-        source_families_v69358 = set(_website_identity_vehicle_families_v69022(source_identity_text_v69358))
+        source_families_v69358 = set(_workspace_source_identity_vehicle_families_v69456(source_identity_text_v69358))
         source_years_v69358 = set(_website_identity_years_v69022(source_identity_text_v69358))
         body_families_v69358 = set(_website_identity_vehicle_families_v69022(text[:24000]))
         body_years_v69358 = set(_website_identity_years_v69022(text[:24000]))
@@ -65013,7 +67017,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         # This blocks cross-product leakage such as Colorado/Audi pages whose retrieved
         # body happened to mention a Dodge RAM related product.
         source_identity_text_v69358 = " ".join((str(c.get("title") or ""), str(c.get("source_url") or "")))
-        source_families_v69358 = set(_website_identity_vehicle_families_v69022(source_identity_text_v69358))
+        source_families_v69358 = set(_workspace_source_identity_vehicle_families_v69456(source_identity_text_v69358))
         source_years_v69358 = set(_website_identity_years_v69022(source_identity_text_v69358))
 
         # v69448: exact-current semantic product identity can safely expand a
@@ -65365,7 +67369,7 @@ def _workspace_atp_package_from_text_v69180(file_id, filename, package_text, des
     years = set()
     for raw in page_identity.get("years") or []:
         try: years.add(int(raw))
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_workspace_atp_package_from_text_v69180@L65373")
     if not years:
         years = set(_website_identity_years_v69022(identity_text))
     systems = {str(x) for x in (page_identity.get("systems") or []) if str(x)} or set(_website_identity_systems_v69022(identity_text))
@@ -65477,7 +67481,7 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
         old_executor = bucket.get("executor")
         if old_executor is not None:
             try: old_executor.shutdown(wait=False, cancel_futures=True)
-            except Exception: pass
+            except Exception: _observe_silent_exception_v69451("_workspace_atp_package_prewarm_start_v69180@L65485")
         last_good = [dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]
         from concurrent.futures import ThreadPoolExecutor
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="atp-workspace-metadata-v69180")
@@ -65631,7 +67635,7 @@ def _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.25):
         )
     if not packages and future is not None and float(wait_seconds or 0)>0:
         try: future.result(timeout=max(0.05,float(wait_seconds)))
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_workspace_atp_package_snapshot_v69180@L65639")
         with state["lock"]:
             bucket=state["destinations"].get(target) or {}
             status=str(bucket.get("status") or "idle")
@@ -65800,7 +67804,7 @@ def _workspace_atp_product_contract_v69205(package):
                 try:
                     contract[dest] = int(str(row.get(key) or "").strip())
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65807")
         for item in split_values(row.get("data-atp-facts")):
             if item not in contract["facts"]:
                 contract["facts"].append(item)
@@ -65815,13 +67819,13 @@ def _workspace_atp_product_contract_v69205(package):
                 try:
                     years.append(int(raw))
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65822")
             excluded = []
             for raw in split_values(row.get("data-atp-excluded-years")):
                 try:
                     excluded.append(int(raw))
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65828")
             if not years:
                 try:
                     ys = int(str(row.get("data-atp-year-start") or "").strip())
@@ -65829,7 +67833,7 @@ def _workspace_atp_product_contract_v69205(package):
                     if ys <= ye and (ye - ys) <= 30:
                         years = list(range(ys, ye + 1))
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65836")
             branch = {
                 "branch_id": branch_id,
                 "make": str(row.get("data-atp-make") or contract.get("make") or "").strip(),
@@ -66095,6 +68099,159 @@ def _workspace_sales_select_reference_authority_v69434(
     return result
 
 
+def _workspace_sales_customer_product_title_v69450(raw_title, contract=None, fallback=""):
+    """Return a concise exact product label without losing variant identity.
+
+    ATP SEO titles legitimately use ``|`` both between vehicle siblings (for
+    example F250 | F350 | F450) and before feature suffixes. Historical display
+    code split at the first pipe, which could erase Android 13/14 and could also
+    corrupt sibling-model names. This helper keeps identity segments intact,
+    stops only when a known feature/platform suffix begins, and carries the exact
+    platform from the already-authoritative product contract when available.
+    It is display-only and performs no I/O.
+    """
+    contract = dict(contract or {})
+    raw = html.unescape(re.sub(r"\s+", " ", str(raw_title or ""))).strip()
+    if not raw:
+        return re.sub(r"\s+", " ", str(fallback or "")).strip()
+
+    segments = [
+        re.sub(r"\s+", " ", segment).strip()
+        for segment in raw.split("|")
+        if re.sub(r"\s+", " ", segment).strip()
+    ]
+    if not segments:
+        return raw
+
+    suffix_pattern = re.compile(
+        r"^(?:"
+        r"android\s*\d{1,2}(?:\s*(?:/|or|&|and)\s*\d{1,2})?"
+        r"|gps(?:\s+navigation)?"
+        r"|bt|bluetooth"
+        r"|wi[\s-]?fi"
+        r"|wireless\s+(?:apple\s+)?carplay|(?:apple\s+)?carplay"
+        r"|wireless\s+android\s+auto|android\s+auto"
+        r"|4g(?:\s+lte)?|lte"
+        r"|sync(?:\s*\d+)?"
+        r"|camera|backup\s+camera|reverse\s+camera"
+        r")\b",
+        flags=re.I,
+    )
+
+    identity_segments = []
+    platform_from_title = ""
+    for segment in segments:
+        if suffix_pattern.search(segment):
+            if not platform_from_title:
+                platform_match = re.search(
+                    r"\bAndroid\s*\d{1,2}(?:\s*(?:/|or|&|and)\s*\d{1,2})?\b",
+                    segment,
+                    flags=re.I,
+                )
+                if platform_match:
+                    platform_from_title = re.sub(
+                        r"\s+", " ", platform_match.group(0)
+                    ).strip()
+            break
+        identity_segments.append(segment)
+
+    base = " | ".join(identity_segments).strip() or segments[0]
+    platform = re.sub(
+        r"\s+",
+        " ",
+        str(contract.get("platform") or platform_from_title or ""),
+    ).strip()
+    if platform and platform.casefold() not in base.casefold():
+        base = f"{base} — {platform}"
+    return base
+
+
+def _workspace_sales_fitment_branch_rows_v69450(contract, requested_years=None):
+    """Normalize display-only fitment branches while preserving source authority.
+
+    A broad fallback/index branch can overlap a more specific trim-authored branch
+    after exact catalog reconciliation. Showing both produced labels such as
+    ``2019; 2019 — Classic Trim only``. For display, overlapping years are removed
+    from an untrimmed branch only when a trim-specific branch has the same model
+    scope. Exact trim branches are never removed or broadened.
+    """
+    contract = dict(contract or {})
+    requested = {int(y) for y in (requested_years or []) if str(y).isdigit()}
+    raw_rows = []
+    for branch in (contract.get("compatibility_branches") or []):
+        if not isinstance(branch, dict):
+            continue
+        years = {
+            int(y) for y in (branch.get("years") or [])
+            if str(y).isdigit()
+        }
+        excluded = {
+            int(y) for y in (branch.get("excluded_years") or [])
+            if str(y).isdigit()
+        }
+        years -= excluded
+        if requested:
+            years &= requested
+        if not years:
+            continue
+        models = {
+            re.sub(r"[\s_-]+", "", str(x or "")).casefold()
+            for x in (branch.get("models") or [])
+            if str(x or "").strip()
+        }
+        raw_rows.append({
+            "branch": dict(branch),
+            "years": set(years),
+            "trim": re.sub(r"\s+", " ", str(branch.get("trim") or "")).strip(),
+            "models": models,
+        })
+
+    for row in raw_rows:
+        if row["trim"]:
+            continue
+        covered = set()
+        for specific in raw_rows:
+            if not specific["trim"]:
+                continue
+            if row["models"] and specific["models"] and row["models"].isdisjoint(specific["models"]):
+                continue
+            covered |= (row["years"] & specific["years"])
+        row["years"] -= covered
+
+    output = []
+    seen = set()
+    for row in raw_rows:
+        years = sorted(row["years"])
+        if not years:
+            continue
+        key = (tuple(years), row["trim"].casefold(), tuple(sorted(row["models"])))
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append({
+            "years": years,
+            "trim": row["trim"],
+            "models": sorted(row["models"]),
+            "branch": row["branch"],
+        })
+    return output
+
+
+def _workspace_sales_bounded_label_v69450(value, max_chars=180):
+    """Word-bound a display label so captions never end in a chopped token."""
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    try:
+        limit = max(24, int(max_chars))
+    except Exception:
+        limit = 180
+    if len(text) <= limit:
+        return text
+    candidate = text[: limit + 1].rsplit(" ", 1)[0].rstrip(" ,;:|-–—")
+    if len(candidate) < max(16, limit // 2):
+        candidate = text[:limit].rstrip(" ,;:|-–—")
+    return candidate + "…"
+
+
 def _workspace_sales_safe_exact_authority_answer_v69434(authority):
     """Minimal exact-authority answer used only if richer deterministic formatting fails."""
     authority = dict(authority or {})
@@ -66119,11 +68276,12 @@ def _workspace_sales_safe_exact_authority_answer_v69434(authority):
         if not identity or identity in seen:
             continue
         seen.add(identity)
-        title = re.sub(
-            r"\s+", " ",
-            str(pkg.get("page_title") or pkg.get("title") or "AutoTecPro product").split("|", 1)[0],
-        ).strip()
         contract = _workspace_atp_product_contract_v69205(pkg)
+        title = _workspace_sales_customer_product_title_v69450(
+            pkg.get("page_title") or pkg.get("title") or "",
+            contract,
+            fallback="AutoTecPro product",
+        )
         fitment = _workspace_atp_first_response_fitment_v69348(contract, None) or "See exact product page"
         out.append((title, fitment, source))
     if not out:
@@ -66574,17 +68732,20 @@ def _workspace_atp_first_response_fitment_v69348(contract, requested_years=None)
     contract = dict(contract or {})
     requested = {int(y) for y in (requested_years or []) if str(y).isdigit()}
     parts = []
-    for branch in (contract.get("compatibility_branches") or []):
-        if not isinstance(branch, dict):
-            continue
-        years = sorted({int(y) for y in (branch.get("years") or []) if str(y).isdigit()})
-        if requested:
-            years = sorted(requested & set(years))
+    for row_v69450 in _workspace_sales_fitment_branch_rows_v69450(
+        contract,
+        requested_years,
+    ):
+        years = list(row_v69450.get("years") or [])
         if not years:
             continue
         span = str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}"
-        trim = re.sub(r"\s+", " ", str(branch.get("trim") or "")).strip()
-        label = span + (f" — {trim} only" if trim else "")
+        trim = re.sub(r"\s+", " ", str(row_v69450.get("trim") or "")).strip()
+        if trim:
+            suffix = trim if re.search(r"\bonly\s*$", trim, flags=re.I) else f"{trim} only"
+            label = f"{span} — {suffix}"
+        else:
+            label = span
         if label not in parts:
             parts.append(label)
     if parts:
@@ -66732,6 +68893,19 @@ def _workspace_sales_feature_intro_v69426(package, contract=None):
     return "Key confirmed features include " + ", ".join(parts) + "."
 
 
+def _workspace_sales_family_display_label_v69457(family):
+    """Display one already-authoritative internal family token without changing fitment."""
+    value_v69457 = re.sub(r"\s+", " ", str(family or "")).strip().casefold()
+    if re.fullmatch(r"[fe]\d{3}", value_v69457):
+        return value_v69457.upper()
+    ram_v69457 = re.fullmatch(r"ram(1500|2500|3500)", value_v69457)
+    if ram_v69457:
+        return f"RAM {ram_v69457.group(1)}"
+    if value_v69457 == "ram":
+        return "RAM"
+    return value_v69457.replace("_", " ").title()
+
+
 def _workspace_sales_first_turn_fitment_direct_answer_v69405(
     workspace_label,
     prompt_text,
@@ -66803,38 +68977,42 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
             continue
 
         contract = _workspace_atp_product_contract_v69205(pkg)
+        # v69460: the customer's requested year is an eligibility filter, not the
+        # display range. Once this exact product is proven compatible, show its
+        # complete authoritative fitment span (for example 2009–2016), rather
+        # than collapsing the Fitment cell to only the queried year (2014).
         fitment = _workspace_atp_first_response_fitment_v69348(
             contract,
-            prompt_years,
+            None,
         )
         if prompt_years and not fitment:
             continue
 
-        title = re.sub(
-            r"\s+",
-            " ",
-            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
-        ).strip()
+        title = _workspace_sales_customer_product_title_v69450(
+            pkg.get("page_title") or pkg.get("title") or "",
+            contract,
+        )
         if not title:
             try:
-                title = re.sub(
-                    r"\s+",
-                    " ",
-                    str(
-                        _technical_package_header_value_v69113(
-                            str(pkg.get("package_text") or ""),
-                            "Page title",
-                        )
-                        or ""
-                    ).split("|", 1)[0],
-                ).strip()
+                title = _workspace_sales_customer_product_title_v69450(
+                    _technical_package_header_value_v69113(
+                        str(pkg.get("package_text") or ""),
+                        "Page title",
+                    ),
+                    contract,
+                )
             except Exception:
                 title = ""
         if not title:
             title = "AutoTecPro infotainment system"
 
+        # v69460: keep the Fitment column semantically pure: it displays the
+        # complete authoritative product year/trim range. Vehicle-model matching
+        # remains enforced by the existing family gates and product authority.
+        fitment_display_v69457 = fitment or "Compatible"
+
         seen_pages.add(page_id)
-        rows.append((title, fitment or "Compatible", source, contract, pkg))
+        rows.append((title, fitment_display_v69457, source, contract, pkg))
 
     if not rows:
         return ""
@@ -67171,24 +69349,19 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
         seen.add(page_id)
 
         contract = _workspace_sales_followup_contract_v69417(pkg)
-        title = re.sub(
-            r"\s+",
-            " ",
-            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
-        ).strip()
+        title = _workspace_sales_customer_product_title_v69450(
+            pkg.get("page_title") or pkg.get("title") or "",
+            contract,
+        )
         if not title:
             try:
-                title = re.sub(
-                    r"\s+",
-                    " ",
-                    str(
-                        _technical_package_header_value_v69113(
-                            str(pkg.get("package_text") or ""),
-                            "Page title",
-                        )
-                        or ""
-                    ).split("|", 1)[0],
-                ).strip()
+                title = _workspace_sales_customer_product_title_v69450(
+                    _technical_package_header_value_v69113(
+                        str(pkg.get("package_text") or ""),
+                        "Page title",
+                    ),
+                    contract,
+                )
             except Exception:
                 title = ""
         if not title:
@@ -67470,24 +69643,19 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
         seen.add(page_id)
 
         contract = _workspace_atp_product_contract_cached_v69227(pkg)
-        title = re.sub(
-            r"\s+",
-            " ",
-            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
-        ).strip()
+        title = _workspace_sales_customer_product_title_v69450(
+            pkg.get("page_title") or pkg.get("title") or "",
+            contract,
+        )
         if not title:
             try:
-                title = re.sub(
-                    r"\s+",
-                    " ",
-                    str(
-                        _technical_package_header_value_v69113(
-                            str(pkg.get("package_text") or ""),
-                            "Page title",
-                        )
-                        or ""
-                    ).split("|", 1)[0],
-                ).strip()
+                title = _workspace_sales_customer_product_title_v69450(
+                    _technical_package_header_value_v69113(
+                        str(pkg.get("package_text") or ""),
+                        "Page title",
+                    ),
+                    contract,
+                )
             except Exception:
                 title = ""
         if not title:
@@ -67539,22 +69707,35 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
         )
         for row_v69436 in rows:
             source_v69436 = str(row_v69436.get("source") or "").strip()
-            woo_lookup_v69436 = _woocommerce_product_by_source_url_v69326(
-                source_v69436
+            recent_snapshot_v69457 = _workspace_sales_recent_catalog_price_v69457(
+                row_v69436.get("package") or {}
             )
-            price_label_v69436 = _woocommerce_price_label_v69326(
-                woo_lookup_v69436
-            )
-            price_source_v69436 = "WooCommerce"
+            woo_lookup_v69436 = {}
             page_lookup_v69436 = {}
-            if not price_label_v69436:
-                page_lookup_v69436 = _current_product_page_price_by_exact_url_v69340(
+            if recent_snapshot_v69457:
+                price_label_v69436 = str(recent_snapshot_v69457.get("price_label") or "")
+                price_source_v69436 = "Current WooCommerce catalog snapshot"
+                diagnostic_log(
+                    "workspace_sales_same_case_price_snapshot_reused_v69457",
+                    source_url=source_v69436[:700],
+                    price=price_label_v69436[:120],
+                )
+            else:
+                woo_lookup_v69436 = _woocommerce_product_by_source_url_v69326(
                     source_v69436
                 )
-                price_label_v69436 = _current_product_page_price_label_v69340(
-                    page_lookup_v69436
+                price_label_v69436 = _woocommerce_price_label_v69326(
+                    woo_lookup_v69436
                 )
-                price_source_v69436 = "Current product page"
+                price_source_v69436 = "WooCommerce"
+                if not price_label_v69436:
+                    page_lookup_v69436 = _current_product_page_price_by_exact_url_v69340(
+                        source_v69436
+                    )
+                    price_label_v69436 = _current_product_page_price_label_v69340(
+                        page_lookup_v69436
+                    )
+                    price_source_v69436 = "Current product page"
 
             if price_label_v69436:
                 verified_v69436 += 1
@@ -68322,7 +70503,11 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 except Exception:
                     title = ""
             if title:
-                return re.sub(r"\s+", " ", title).strip()
+                return _workspace_sales_customer_product_title_v69450(
+                    title,
+                    contract,
+                    fallback="Current product",
+                )
             source = str(pkg.get("source_url") or "").strip()
             try:
                 slug = urllib.parse.urlsplit(source).path.rstrip("/").split("/")[-1]
@@ -68348,31 +70533,12 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 continue
             seen_sources_v69325.add(source_identity)
             contract = _workspace_atp_product_contract_v69205(pkg)
-            branches = list(contract.get("compatibility_branches") or [])
-            if requested_years_v69325:
-                requested_set = set(requested_years_v69325)
-                matching = [b for b in branches if requested_set & set(b.get("years") or [])]
-                if not matching:
-                    continue
-                fit_parts = []
-                for branch in matching:
-                    years = sorted(requested_set & set(branch.get("years") or []))
-                    if not years:
-                        continue
-                    year_label = ", ".join(str(y) for y in years)
-                    trim = str(branch.get("trim") or "").strip()
-                    fit_parts.append(year_label + (f" — {trim} only" if trim else ""))
-                fit_label = "; ".join(dict.fromkeys(fit_parts)) or ", ".join(map(str, requested_years_v69325))
-            else:
-                fit_parts = []
-                for branch in branches:
-                    years = sorted(set(branch.get("years") or []))
-                    if not years:
-                        continue
-                    span = str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}"
-                    trim = str(branch.get("trim") or "").strip()
-                    fit_parts.append(span + (f" — {trim} only" if trim else ""))
-                fit_label = "; ".join(dict.fromkeys(fit_parts))
+            fit_label = _workspace_atp_first_response_fitment_v69348(
+                contract,
+                requested_years_v69325 or None,
+            )
+            if requested_years_v69325 and not fit_label:
+                continue
             if bool(pkg.get("workspace_atp_turn_local_recovery_v69338")) and str(contract.get("platform") or "").strip():
                 fit_label = str(contract.get("platform") or "").strip()
             rows_v69325.append((_multi_title_v69325(pkg, contract), fit_label, source))
@@ -68643,11 +70809,9 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 live_rows_v69326,
             ):
                 raw_store_price_v69437 = original_row_v69437[2]
-                table_title_v69437 = re.sub(
-                    r"\s+",
-                    " ",
-                    str(title_v69437 or "").split("|", 1)[0],
-                ).strip()
+                table_title_v69437 = _workspace_sales_customer_product_title_v69450(
+                    title_v69437,
+                )
                 lines_v69326.append(
                     "| "
                     + " | ".join([
@@ -69657,7 +71821,7 @@ def _workspace_sales_woocommerce_store_api_page_v69414(search_term, page=1):
     return safe_json_response(response)
 
 
-@st.cache_data(ttl=90, max_entries=8, show_spinner=False)
+@st.cache_data(ttl=300, max_entries=8, show_spinner=False)
 def _workspace_sales_woocommerce_store_api_full_scan_v69415():
     """Read storefront-visible Woo products without relying on search-token behavior."""
     if not WOOCOMMERCE_STORE_URL:
@@ -69952,6 +72116,134 @@ def _workspace_sales_woocommerce_search_v69413(search_term):
     }
 
 
+def _workspace_sales_trusted_identity_generic_families_v69457(value):
+    """Extract brand-adjacent model tokens from trusted product identity, exactly.
+
+    This is deliberately *not* a typo corrector. It preserves support for catalog
+    families outside the legacy parser vocabulary (for example NX, Q5 or 3 Series)
+    while preventing SequenceMatcher repairs such as E280 -> E250 from being applied
+    to authoritative Woo product metadata. Customer-query typo repair remains
+    unchanged in ``_workspace_sales_fuzzy_vehicle_families_v69416``.
+    """
+    text_v69457 = html.unescape(re.sub(r"\s+", " ", str(value or ""))).strip().casefold()
+    if not text_v69457:
+        return set()
+    tokens_v69457 = re.findall(r"[a-z0-9]+", text_v69457)
+    brands_v69457 = {
+        "chevy", "chevrolet", "gmc", "ford", "dodge", "ram", "jeep",
+        "toyota", "honda", "nissan", "infiniti", "lexus", "acura",
+        "bmw", "audi", "mercedes", "porsche", "cadillac", "buick",
+        "chrysler", "hyundai", "kia", "lincoln", "mazda", "subaru",
+        "tesla", "volkswagen", "volvo",
+    }
+    skip_v69457 = {
+        "autotecpro", "product", "products", "screen", "radio", "stereo",
+        "navigation", "infotainment", "android", "touch", "touchscreen",
+        "system", "unit", "head", "style", "tesla", "hd", "ips", "qhd",
+        "gps", "wifi", "carplay", "camera", "cluster", "cockpit", "digital",
+        "oem", "fit", "inch", "inches", "benz",
+    }
+    out_v69457 = set()
+    for index_v69457, token_v69457 in enumerate(tokens_v69457):
+        if token_v69457 not in brands_v69457:
+            continue
+        nearby_v69457 = []
+        for candidate_v69457 in tokens_v69457[index_v69457 + 1:index_v69457 + 7]:
+            if re.fullmatch(r"(?:19|20)\d{2}", candidate_v69457):
+                continue
+            if candidate_v69457 in brands_v69457 or candidate_v69457 in skip_v69457:
+                continue
+            nearby_v69457.append(candidate_v69457)
+            if len(nearby_v69457) >= 2:
+                break
+        if not nearby_v69457:
+            continue
+        first_v69457 = nearby_v69457[0]
+        family_v69457 = first_v69457
+        if len(nearby_v69457) >= 2:
+            second_v69457 = nearby_v69457[1]
+            if first_v69457.isdigit() and second_v69457 == "series":
+                family_v69457 = f"{first_v69457} series"
+            elif len(first_v69457) == 1 and second_v69457 == "class":
+                family_v69457 = f"{first_v69457} class"
+            elif first_v69457 in {"land", "range"} and second_v69457 in {"cruiser", "rover"}:
+                family_v69457 = f"{first_v69457} {second_v69457}"
+            elif re.fullmatch(r"[a-z]{1,3}", first_v69457) and re.fullmatch(r"\d{1,3}", second_v69457):
+                family_v69457 = first_v69457 + second_v69457
+        compact_v69457 = re.sub(r"[^a-z0-9]", "", family_v69457)
+        if len(compact_v69457) < 2:
+            continue
+        family_pattern_v69457 = r"\b" + r"[-_\s]*".join(
+            re.escape(piece_v69457)
+            for piece_v69457 in re.findall(r"[a-z]+|\d+", family_v69457)
+        ) + r"\b"
+        positive_v69457 = False
+        for match_v69457 in re.finditer(family_pattern_v69457, text_v69457):
+            before_v69457 = text_v69457[max(0, match_v69457.start() - 90):match_v69457.start()]
+            after_v69457 = text_v69457[match_v69457.end():match_v69457.end() + 70]
+            negative_v69457 = bool(re.search(
+                r"(?:do\s+not\s+use|don't\s+use|not\s+for|wrong|avoid|"
+                r"instead\s+of|rather\s+than|exclude(?:s|d)?|unsupported)"
+                r"[^.;:]{0,70}$",
+                before_v69457,
+            )) or bool(re.search(
+                r"^\s*(?:is\s+)?(?:not\s+supported|unsupported|excluded)",
+                after_v69457,
+            ))
+            if not negative_v69457:
+                positive_v69457 = True
+                break
+        if positive_v69457:
+            out_v69457.add(family_v69457.replace(" ", "_"))
+    return out_v69457
+
+
+def _workspace_sales_exact_factory_system_v69457(description_html):
+    """Return a factory-system label only from exact-current ATP product semantics."""
+    raw_v69457 = str(description_html or "")
+    if not raw_v69457:
+        return ""
+    current_tags_v69457 = re.findall(
+        r"<[^>]+data-atp-current-source\s*=\s*[\"'](?:true|1|yes)[\"'][^>]*>",
+        raw_v69457,
+        flags=re.I | re.S,
+    )
+    evidence_v69457 = " ".join(current_tags_v69457)
+    for attr_v69457 in (
+        "data-atp-factory-system",
+        "data-atp-retained-factory-system",
+        "data-atp-factory-system-scope",
+    ):
+        match_v69457 = re.search(
+            rf"{re.escape(attr_v69457)}\s*=\s*[\"']([^\"']+)[\"']",
+            evidence_v69457,
+            flags=re.I,
+        )
+        if match_v69457:
+            return re.sub(r"\s+", " ", html.unescape(match_v69457.group(1))).strip()
+
+    feature_values_v69457 = " ".join(re.findall(
+        r"data-atp-feature\s*=\s*[\"']([^\"']+)[\"']",
+        evidence_v69457,
+        flags=re.I,
+    )).casefold()
+    negative_v69457 = re.search(
+        r"(?:non|no|without)[-_\s]*sync[-_\s]*([1-4])",
+        feature_values_v69457,
+        flags=re.I,
+    )
+    if negative_v69457:
+        return f"Without Original Microsoft SYNC {negative_v69457.group(1)}"
+    positive_v69457 = re.search(
+        r"(?:original[-_\s]*)?sync[-_\s]*([1-4])",
+        feature_values_v69457,
+        flags=re.I,
+    )
+    if positive_v69457:
+        return f"Original Microsoft SYNC {positive_v69457.group(1)}"
+    return ""
+
+
 def _workspace_sales_woocommerce_contract_v69413(product):
     """Build deterministic fitment/display facts from one published WooCommerce product."""
     product = dict(product or {})
@@ -69981,7 +72273,11 @@ def _workspace_sales_woocommerce_contract_v69413(product):
     ])
     families = sorted({
         str(x or "").casefold().strip()
-        for x in (_workspace_sales_fuzzy_vehicle_families_v69416(identity_text) or [])
+        for x in (
+            set(_website_identity_vehicle_families_v69022(identity_text) or set())
+            | set(_workspace_source_identity_vehicle_families_v69456(identity_text) or set())
+            | set(_workspace_sales_trusted_identity_generic_families_v69457(identity_text) or set())
+        )
         if str(x or "").strip()
     })
 
@@ -70292,10 +72588,93 @@ def _workspace_sales_woocommerce_contract_v69413(product):
         "facts": facts,
         "features": list(facts),
         "feature_summary": exact_feature_summary_v69426,
+        "factory_system": _workspace_sales_exact_factory_system_v69457(
+            description_html_v69421
+        ),
         "compatibility_branches": branches,
         "related_products": [],
         "primary_images": primary_images[:1],
     }
+
+
+def _workspace_sales_woocommerce_price_snapshot_v69457(product):
+    """Capture a verified storefront price already present in the catalog response.
+
+    The public Woo Store API includes both currency metadata and integer minor-unit
+    prices. Reusing that fresh same-request value makes an immediate price follow-up
+    deterministic and avoids re-querying the same product. Authenticated wc/v3 rows
+    without explicit currency metadata are intentionally not guessed.
+    """
+    product_v69457 = dict(product or {})
+    prices_v69457 = product_v69457.get("prices")
+    if not isinstance(prices_v69457, dict):
+        return {}
+    currency_v69457 = str(prices_v69457.get("currency_code") or "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{3}", currency_v69457):
+        return {}
+    try:
+        minor_v69457 = int(prices_v69457.get("currency_minor_unit"))
+        if minor_v69457 < 0 or minor_v69457 > 6:
+            return {}
+    except Exception:
+        return {}
+    scale_v69457 = float(10 ** minor_v69457)
+    raw_values_v69457 = []
+    price_range_v69457 = prices_v69457.get("price_range")
+    if isinstance(price_range_v69457, dict):
+        for key_v69457 in ("min_amount", "max_amount"):
+            if str(price_range_v69457.get(key_v69457) or "").strip():
+                raw_values_v69457.append(price_range_v69457.get(key_v69457))
+    if not raw_values_v69457:
+        for key_v69457 in ("price", "sale_price", "regular_price"):
+            value_v69457 = prices_v69457.get(key_v69457)
+            if str(value_v69457 or "").strip():
+                raw_values_v69457.append(value_v69457)
+                if key_v69457 == "price":
+                    break
+    numeric_v69457 = []
+    for value_v69457 in raw_values_v69457:
+        try:
+            numeric_v69457.append(float(str(value_v69457).replace(",", "")) / scale_v69457)
+        except Exception:
+            continue
+    if not numeric_v69457:
+        return {}
+    low_v69457 = min(numeric_v69457)
+    high_v69457 = max(numeric_v69457)
+    label_v69457 = (
+        f"{currency_v69457} {low_v69457:,.2f}"
+        if abs(high_v69457 - low_v69457) < 0.005
+        else f"{currency_v69457} {low_v69457:,.2f}–{high_v69457:,.2f}"
+    )
+    return {
+        "status": "verified",
+        "currency": currency_v69457,
+        "min_price": low_v69457,
+        "max_price": high_v69457,
+        "price_label": label_v69457,
+        "captured_at_epoch": time.time(),
+        "source": "woocommerce_store_catalog_snapshot_v69457",
+    }
+
+
+def _workspace_sales_recent_catalog_price_v69457(package, max_age_seconds=180.0):
+    package_v69457 = dict(package or {})
+    snapshot_v69457 = package_v69457.get("workspace_sales_woocommerce_price_snapshot_v69457")
+    if not isinstance(snapshot_v69457, dict):
+        return {}
+    if str(snapshot_v69457.get("status") or "") != "verified":
+        return {}
+    try:
+        age_v69457 = max(0.0, time.time() - float(snapshot_v69457.get("captured_at_epoch") or 0.0))
+    except Exception:
+        return {}
+    if age_v69457 > float(max_age_seconds):
+        return {}
+    label_v69457 = str(snapshot_v69457.get("price_label") or "").strip()
+    if not label_v69457:
+        return {}
+    return dict(snapshot_v69457)
 
 
 def _workspace_sales_woocommerce_package_v69413(product):
@@ -70316,8 +72695,17 @@ def _workspace_sales_woocommerce_package_v69413(product):
     })
     years = sorted({
         int(x)
-        for x in _workspace_sales_woocommerce_years_v69413(
-            " ".join([name, str(product.get("slug") or ""), permalink])
+        for x in (
+            list(_workspace_sales_woocommerce_years_v69413(
+                " ".join([name, str(product.get("slug") or ""), permalink])
+            ) or [])
+            + [
+                year_v69456
+                for branch_v69456 in (contract.get("compatibility_branches") or [])
+                if isinstance(branch_v69456, dict)
+                and bool(branch_v69456.get("current_source", True))
+                for year_v69456 in (branch_v69456.get("years") or [])
+            ]
         )
         if str(x).isdigit()
     })
@@ -70387,7 +72775,159 @@ def _workspace_sales_woocommerce_package_v69413(product):
         "workspace_sales_woocommerce_catalog_v69415": True,
         "workspace_sales_woocommerce_product_id_v69413": product.get("id"),
         "workspace_sales_woocommerce_primary_v69413": hero,
+        "workspace_sales_woocommerce_price_snapshot_v69457": (
+            _workspace_sales_woocommerce_price_snapshot_v69457(product)
+        ),
     }
+
+
+@st.cache_data(ttl=300, max_entries=8, show_spinner=False)
+def _workspace_sales_woocommerce_authenticated_full_scan_v69456():
+    """Read the published Woo catalog without search-token filtering.
+
+    This is a generic completeness source for installations where the public Store
+    API is unavailable or incomplete. It is bounded exactly like the public scan and
+    uses the already-configured authenticated Woo client; no product-specific query
+    is introduced.
+    """
+    if not woocommerce_is_configured():
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_credentials_not_configured",
+            "products": [],
+        }
+    products_v69456 = {}
+    try:
+        for page_v69456 in range(1, 21):
+            batch_v69456 = woocommerce_api_request(
+                "products",
+                params={
+                    "status": "publish",
+                    "per_page": 100,
+                    "page": page_v69456,
+                },
+            )
+            if not isinstance(batch_v69456, list):
+                raise RuntimeError("Unexpected authenticated Woo full-catalog response.")
+            for item_v69456 in batch_v69456:
+                if not isinstance(item_v69456, dict):
+                    continue
+                key_v69456 = str(
+                    item_v69456.get("id")
+                    or item_v69456.get("permalink")
+                    or item_v69456.get("slug")
+                    or ""
+                ).strip()
+                if key_v69456:
+                    products_v69456[key_v69456] = dict(item_v69456)
+            if len(batch_v69456) < 100:
+                return {
+                    "status": "ok",
+                    "provider": "wc_v3_full_scan",
+                    "products": list(products_v69456.values()),
+                    "pages": page_v69456,
+                }
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_authenticated_catalog_exceeds_verified_bound",
+            "products": [],
+        }
+    except Exception as error_v69456:
+        return {
+            "status": "unavailable",
+            "reason": "woocommerce_authenticated_full_scan_failed",
+            "error_type": type(error_v69456).__name__,
+            "error": str(error_v69456)[:500],
+            "products": [],
+        }
+
+
+def _workspace_sales_woocommerce_complete_full_scan_v69456():
+    """Return one complete published catalog with the storefront path first.
+
+    v69457: the public Store API is the exact customer-visible published catalog and
+    was healthy in the v69456 production trace, while authenticated wc/v3 repeatedly
+    timed out. Try the complete public catalog first; use authenticated wc/v3 only as
+    a failover. Completeness authority is unchanged and no search-token result is
+    treated as exhaustive.
+    """
+    public_v69457 = _workspace_sales_woocommerce_store_api_full_scan_v69415()
+    if str(public_v69457.get("status") or "") == "ok":
+        return dict(public_v69457)
+    authenticated_v69457 = _workspace_sales_woocommerce_authenticated_full_scan_v69456()
+    if str(authenticated_v69457.get("status") or "") == "ok":
+        return dict(authenticated_v69457)
+    diagnostic_log(
+        "workspace_sales_woo_complete_scan_unavailable_v69456",
+        public_reason=str(public_v69457.get("reason") or "")[:240],
+        authenticated_reason=str(authenticated_v69457.get("reason") or "")[:240],
+    )
+    return {
+        "status": "unavailable",
+        "reason": "woocommerce_complete_catalog_unavailable",
+        "authenticated": dict(authenticated_v69457 or {}),
+        "public": dict(public_v69457 or {}),
+        "products": [],
+    }
+
+
+def _workspace_sales_merge_full_scan_completeness_v69455(
+    products_by_id,
+    requested_years,
+):
+    """Supplement search results with the complete published catalog generically.
+
+    v69456 removes the last discovery-time assumption that title/permalink years are
+    sufficient to decide whether a product deserves validation. The full scan is
+    already bounded and cached, so every published product can safely reach the
+    existing product-kind, exact-current semantic family, and year gates. Those gates
+    remain authoritative; this helper changes candidate recall only.
+    """
+    merged_v69456 = {
+        str(key_v69456): dict(value_v69456)
+        for key_v69456, value_v69456 in dict(products_by_id or {}).items()
+        if str(key_v69456).strip() and isinstance(value_v69456, dict)
+    }
+    full_scan_v69456 = _workspace_sales_woocommerce_complete_full_scan_v69456()
+    if str(full_scan_v69456.get("status") or "") != "ok":
+        diagnostic_log(
+            "workspace_sales_woo_completeness_scan_unavailable_v69455",
+            reason=str(full_scan_v69456.get("reason") or "")[:240],
+            existing_products=len(merged_v69456),
+        )
+        return merged_v69456
+
+    scanned_v69456 = 0
+    added_v69456 = 0
+    for product_v69456 in full_scan_v69456.get("products") or []:
+        if not isinstance(product_v69456, dict):
+            continue
+        scanned_v69456 += 1
+        product_id_v69456 = str(
+            product_v69456.get("id")
+            or product_v69456.get("permalink")
+            or product_v69456.get("slug")
+            or ""
+        ).strip()
+        if not product_id_v69456 or product_id_v69456 in merged_v69456:
+            continue
+        merged_v69456[product_id_v69456] = dict(product_v69456)
+        added_v69456 += 1
+
+    diagnostic_log(
+        "workspace_sales_woo_completeness_scan_v69455",
+        requested_years=sorted({
+            int(x_v69456) for x_v69456 in (requested_years or [])
+            if str(x_v69456).isdigit()
+        }),
+        provider=str(full_scan_v69456.get("provider") or "unknown"),
+        scanned_products=scanned_v69456,
+        added_products=added_v69456,
+        merged_products=len(merged_v69456),
+        pages=int(full_scan_v69456.get("pages") or 0),
+        validation="existing_exact_family_year_kind_gates",
+    )
+    return merged_v69456
 
 
 @st.cache_data(ttl=90, max_entries=128, show_spinner=False)
@@ -70412,23 +72952,66 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
 
     products_by_id = {}
     failures = []
-    for family in families:
-        result = _workspace_sales_woocommerce_search_v69413(family)
-        if str(result.get("status") or "") != "ok":
-            failures.append(dict(result))
-            continue
-        diagnostic_log(
-            "workspace_sales_woocommerce_family_search_v69415",
-            family=family,
-            provider=str(result.get("provider") or "unknown"),
-            products=len(result.get("products") or []),
-        )
-        for product in result.get("products") or []:
-            if not isinstance(product, dict):
+
+    # v69457: broad discovery requires a complete catalog anyway. Fetch that bounded
+    # catalog once and avoid the redundant family-search network wave that previously
+    # ran before the same full scan. If the complete provider is unavailable, retain
+    # the existing family-search path as a fail-closed fallback.
+    complete_scan_v69457 = _workspace_sales_woocommerce_complete_full_scan_v69456()
+    if str(complete_scan_v69457.get("status") or "") == "ok":
+        for product_v69457 in complete_scan_v69457.get("products") or []:
+            if not isinstance(product_v69457, dict):
                 continue
-            product_id = str(product.get("id") or product.get("permalink") or product.get("slug") or "")
-            if product_id:
-                products_by_id[product_id] = dict(product)
+            product_id_v69457 = str(
+                product_v69457.get("id")
+                or product_v69457.get("permalink")
+                or product_v69457.get("slug")
+                or ""
+            ).strip()
+            if product_id_v69457:
+                products_by_id[product_id_v69457] = dict(product_v69457)
+        diagnostic_log(
+            "workspace_sales_complete_catalog_direct_v69457",
+            provider=str(complete_scan_v69457.get("provider") or "unknown"),
+            products=len(products_by_id),
+            pages=int(complete_scan_v69457.get("pages") or 0),
+        )
+        # Preserve the established completeness diagnostic used by production
+        # observability/audits even though v69457 no longer performs a redundant
+        # search-first network wave before the same full catalog.
+        diagnostic_log(
+            "workspace_sales_woo_completeness_scan_v69455",
+            requested_years=list(years),
+            provider=str(complete_scan_v69457.get("provider") or "unknown"),
+            scanned_products=len(products_by_id),
+            added_products=len(products_by_id),
+            merged_products=len(products_by_id),
+            pages=int(complete_scan_v69457.get("pages") or 0),
+            validation="existing_exact_family_year_kind_gates",
+        )
+    else:
+        failures.append(dict(complete_scan_v69457 or {}))
+        for family in families:
+            result = _workspace_sales_woocommerce_search_v69413(family)
+            if str(result.get("status") or "") != "ok":
+                failures.append(dict(result))
+                continue
+            diagnostic_log(
+                "workspace_sales_woocommerce_family_search_v69415",
+                family=family,
+                provider=str(result.get("provider") or "unknown"),
+                products=len(result.get("products") or []),
+            )
+            for product in result.get("products") or []:
+                if not isinstance(product, dict):
+                    continue
+                product_id = str(product.get("id") or product.get("permalink") or product.get("slug") or "")
+                if product_id:
+                    products_by_id[product_id] = dict(product)
+        products_by_id = _workspace_sales_merge_full_scan_completeness_v69455(
+            products_by_id,
+            years,
+        )
 
     if failures and not products_by_id:
         reason = str((failures[0] or {}).get("reason") or "woocommerce_catalog_unavailable")
@@ -70941,7 +73524,7 @@ def _workspace_sales_manifest_metadata_v69411(payload):
     try:
         meta.update(_website_image_atp_semantic_metadata_v69364(payload) or {})
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_workspace_sales_manifest_metadata_v69411@L71073")
 
     raw = payload.get("image_structured_metadata_v69017")
     if isinstance(raw, str) and raw.strip():
@@ -71193,7 +73776,7 @@ def _workspace_sales_broad_product_manifest_v69411(prompt_text):
         ])
         row_families = {
             str(x or "").casefold().strip()
-            for x in (_website_identity_vehicle_families_v69022(identity_blob) or [])
+            for x in (_workspace_source_identity_vehicle_families_v69456(identity_blob) or [])
             if str(x or "").strip()
         }
         if not row_families or not pf.issubset(row_families):
@@ -71207,11 +73790,11 @@ def _workspace_sales_broad_product_manifest_v69411(prompt_text):
         if not page_id:
             continue
 
-        title = re.sub(
+        title = html.unescape(re.sub(
             r"\s+",
             " ",
-            str(payload.get("page_title") or payload.get("title") or "").split("|", 1)[0],
-        ).strip()
+            str(payload.get("page_title") or payload.get("title") or ""),
+        )).strip()
         image_url = str(payload.get("image_url") or "").strip()
         meta_row = dict(meta)
         if image_url:
@@ -71622,11 +74205,11 @@ def _workspace_sales_broad_product_manifest_v69410(prompt_text):
         if not page_id:
             continue
 
-        title = re.sub(
+        title = html.unescape(re.sub(
             r"\s+",
             " ",
-            str(payload.get("page_title") or payload.get("title") or "").split("|", 1)[0],
-        ).strip()
+            str(payload.get("page_title") or payload.get("title") or ""),
+        )).strip()
         image_url = str(payload.get("image_url") or "").strip()
         meta_row = dict(meta)
         if image_url:
@@ -73826,6 +76409,108 @@ def _workspace_sales_product_aware_image_dedupe_v69419(images):
 
 
 
+def _workspace_sales_unique_topical_visuals_v69475(images):
+    """Collapse the same authored topical visual to one visible image.
+
+    Exact Sales/Marketing product bindings remain preserved as metadata, but when
+    multiple exact products point to the same compatibility/reference image,
+    customers should see that visual once rather than duplicate cards. Distinct
+    authored topical images remain separate. Ordinary product/hero images are
+    intentionally untouched.
+    """
+    output_v69475 = []
+    visual_index_v69475 = {}
+    suppressed_v69475 = 0
+
+    for record_v69475 in images or []:
+        if not isinstance(record_v69475, dict):
+            continue
+        item_v69475 = dict(record_v69475)
+        exact_topical_v69475 = bool(
+            item_v69475.get("website_sales_exact_topic_visual_lock_v69399")
+            or item_v69475.get("website_sales_exact_topic_semantic_fallback_v69401")
+            or item_v69475.get("website_sales_fast_manifest_mode_v69420") == "topical"
+        )
+        sha_v69475 = str(item_v69475.get("website_image_sha256") or "").strip().casefold()
+        raw_image_v69475 = str(
+            item_v69475.get("archive_web_url")
+            or item_v69475.get("data_url")
+            or ""
+        ).strip()
+        if sha_v69475:
+            visual_key_v69475 = "sha256:" + sha_v69475
+        elif raw_image_v69475.startswith(("http://", "https://")):
+            try:
+                parsed_v69475 = urlparse(raw_image_v69475)
+                visual_key_v69475 = (
+                    "url:"
+                    + str(parsed_v69475.netloc or "").casefold()
+                    + str(parsed_v69475.path or "").casefold()
+                )
+            except Exception:
+                visual_key_v69475 = "url:" + raw_image_v69475.split("?", 1)[0].split("#", 1)[0].casefold()
+        elif raw_image_v69475:
+            visual_key_v69475 = "data:" + hashlib.sha256(
+                raw_image_v69475.encode("utf-8", errors="ignore")
+            ).hexdigest()
+        else:
+            visual_key_v69475 = ""
+        if not exact_topical_v69475 or not visual_key_v69475:
+            output_v69475.append(item_v69475)
+            continue
+        product_identity_v69475 = str(
+            item_v69475.get("website_sales_exact_product_identity_v69399")
+            or item_v69475.get("website_sales_exact_product_identity_v69401")
+            or ""
+        ).strip()
+        display_name_v69475 = str(
+            item_v69475.get("website_sales_exact_product_caption_v69450")
+            or item_v69475.get("website_sales_exact_product_display_name_v69449")
+            or item_v69475.get("name")
+            or ""
+        ).strip()
+
+        if visual_key_v69475 not in visual_index_v69475:
+            bindings_v69475 = [product_identity_v69475] if product_identity_v69475 else []
+            labels_v69475 = [display_name_v69475] if display_name_v69475 else []
+            item_v69475["website_sales_shared_visual_product_bindings_v69475"] = bindings_v69475
+            item_v69475["website_sales_shared_visual_labels_v69475"] = labels_v69475
+            visual_index_v69475[visual_key_v69475] = len(output_v69475)
+            output_v69475.append(item_v69475)
+            continue
+
+        suppressed_v69475 += 1
+        index_v69475 = visual_index_v69475[visual_key_v69475]
+        kept_v69475 = output_v69475[index_v69475]
+        bindings_v69475 = list(kept_v69475.get("website_sales_shared_visual_product_bindings_v69475") or [])
+        if product_identity_v69475 and product_identity_v69475 not in bindings_v69475:
+            bindings_v69475.append(product_identity_v69475)
+        labels_v69475 = list(kept_v69475.get("website_sales_shared_visual_labels_v69475") or [])
+        if display_name_v69475 and display_name_v69475 not in labels_v69475:
+            labels_v69475.append(display_name_v69475)
+        kept_v69475["website_sales_shared_visual_product_bindings_v69475"] = bindings_v69475
+        kept_v69475["website_sales_shared_visual_labels_v69475"] = labels_v69475
+        if len(labels_v69475) > 1:
+            concise_v69475 = []
+            for label_v69475 in labels_v69475:
+                clean_v69475 = re.sub(r"^Compatibility\s*[—-]\s*", "", str(label_v69475), flags=re.I).strip()
+                if clean_v69475 and clean_v69475.casefold() not in {x.casefold() for x in concise_v69475}:
+                    concise_v69475.append(clean_v69475)
+            if concise_v69475:
+                kept_v69475["name"] = _workspace_sales_bounded_label_v69450(
+                    "Compatibility — " + " / ".join(concise_v69475),
+                    220,
+                )
+
+    diagnostic_log(
+        "workspace_sales_duplicate_topical_visuals_collapsed_v69475",
+        input_count=len([x for x in (images or []) if isinstance(x, dict)]),
+        published=len(output_v69475),
+        suppressed=suppressed_v69475,
+    )
+    return output_v69475
+
+
 def _workspace_sales_shared_topical_image_dedupe_v69440(images):
     """Preserve exact topical image bindings per product identity.
 
@@ -73860,30 +76545,59 @@ def _workspace_sales_shared_topical_image_dedupe_v69440(images):
 
 
 def _workspace_sales_bind_topical_product_caption_v69449(record, package):
-    """Attach exact product identity to a topical image caption without changing selection."""
+    """Attach a concise exact-product caption without changing image selection.
+
+    v69449 correctly preserved one compatibility image per exact product, but the
+    full SEO title made PDF/mobile captions wrap excessively and the 180-character
+    slice could end mid-word. v69450 keeps the exact product identity in metadata
+    and builds the visible caption only from already-authoritative screen/platform/
+    fitment facts, falling back to the concise exact title when those facts are
+    sparse. No image selection, dedupe, provenance, or I/O behavior changes.
+    """
     if not isinstance(record, dict):
         return record
     item = dict(record)
     package = dict(package or {})
-    product_name = html.unescape(re.sub(
+    raw_product_name = html.unescape(re.sub(
         r"\s+",
         " ",
         str(package.get("page_title") or package.get("title") or ""),
     )).strip()
-    if not product_name:
+    if not raw_product_name:
         return item
-    # Keep the exact product identity visible. Some ATP product names use | between
-    # vehicle siblings (for example F250 | F350 | F450), so splitting on the first
-    # pipe would corrupt the product name. The renderer already caps the final label.
-    concise_name = product_name
+
+    contract = _workspace_atp_product_contract_v69205(package)
+    concise_title = _workspace_sales_customer_product_title_v69450(
+        raw_product_name,
+        contract,
+        fallback=raw_product_name,
+    )
+    screen = re.sub(r"\s+", " ", str(contract.get("screen_size") or "")).strip()
+    platform = re.sub(r"\s+", " ", str(contract.get("platform") or "")).strip()
+    fitment = _workspace_atp_first_response_fitment_v69348(contract, None)
+
+    identity_bits = []
+    for value in (screen, platform, fitment):
+        value = re.sub(r"\s+", " ", str(value or "")).strip()
+        if value and value.casefold() not in {x.casefold() for x in identity_bits}:
+            identity_bits.append(value)
+    product_label = " · ".join(identity_bits)
+    if len(identity_bits) < 2:
+        product_label = concise_title
+
     base_name = re.sub(r"\s+", " ", str(item.get("name") or "Compatibility")).strip()
     if "compat" in (
         str(item.get("website_atp_topic_v69399") or "") + " "
         + str(item.get("website_atp_image_role_v69399") or "")
     ).casefold():
         base_name = "Compatibility"
-    item["name"] = f"{base_name} — {concise_name}"[:180]
-    item["website_sales_exact_product_display_name_v69449"] = product_name[:500]
+
+    item["name"] = _workspace_sales_bounded_label_v69450(
+        f"{base_name} — {product_label}",
+        180,
+    )
+    item["website_sales_exact_product_display_name_v69449"] = raw_product_name[:500]
+    item["website_sales_exact_product_caption_v69450"] = item["name"]
     return item
 
 
@@ -74679,7 +77393,7 @@ def _website_image_self_heal_index_v69047(prompt_text, payload):
     try:
         st.session_state["_website_image_self_heal_attempts_v69047"] = list(attempted)[-64:]
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_image_self_heal_index_v69047@L74840")
 
     durable = {
         key: value for key, value in dict(payload).items()
@@ -74708,7 +77422,7 @@ def _website_image_self_heal_index_v69047(prompt_text, payload):
             try:
                 _website_image_index_rows_v68883.clear()
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_image_self_heal_index_v69047@L74869")
         diagnostic_log(
             "website_image_index_self_heal_v69047",
             saved=saved,
@@ -75236,7 +77950,7 @@ def _website_learning_canonical_identity_v69175(raw_url):
     try:
         hostname = hostname.encode("idna").decode("ascii")
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_learning_canonical_identity_v69175@L75397")
     port = parsed.port
     if port in {80, 443}:
         port = None
@@ -75278,7 +77992,7 @@ def _website_learning_url_identities_v69175(extraction):
         try:
             identities.add(_website_learning_canonical_identity_v69175(raw))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_website_learning_url_identities_v69175@L75439")
     return identities
 
 
@@ -75291,7 +78005,7 @@ def _website_package_learning_url_identities_v69175(package_text):
             try:
                 identities.add(_website_learning_canonical_identity_v69175(raw))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_package_learning_url_identities_v69175@L75452")
     return identities
 
 
@@ -75392,7 +78106,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69175(
     try:
         _vector_store_file_catalog_v69040.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69175@L75553")
     catalog = list(_vector_store_file_catalog_v69040(vector_store_id) or [])
     matched = 0
     retired_ids = []
@@ -75447,7 +78161,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69175(
                 _vector_store_file_catalog_v69040.clear()
                 vector_store_has_filename.clear()
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69175@L75608")
         if ok:
             retired_ids.append(file_id)
             if candidate.get("source_url"):
@@ -75630,7 +78344,7 @@ def _website_retire_conflicting_image_rows_v69174(source_urls):
     try:
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_retire_conflicting_image_rows_v69174@L75791")
     return {"matched": matched, "retired": retired, "failed": failed}
 
 
@@ -75665,7 +78379,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69174(
     try:
         _vector_store_file_catalog_v69040.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69174@L75826")
     try:
         catalog = list(_vector_store_file_catalog_v69040(vector_store_id) or [])
     except Exception as error:
@@ -75743,7 +78457,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69174(
         _vector_store_file_catalog_v69040.clear()
         vector_store_has_filename.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69174@L75904")
     diagnostic_log(
         "technical_conflicting_website_supersession_v69174",
         matched=matched, retired=retired, failed=failed,
@@ -75882,7 +78596,7 @@ def _website_supersede_conflicting_technical_learned_records_v69123(
                     row_id,
                 )
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_supersede_conflicting_technical_learned_records_v69123@L76043")
 
     diagnostic_log(
         "technical_learned_supersession_v69123",
@@ -77367,7 +80081,7 @@ def _technical_exact_package_image_evidence_v69155(package_text, selected_image_
             )
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_exact_package_image_evidence_v69155@L77528")
     try:
         payloads.extend(
             _website_legacy_html_payloads_from_file_v69012(
@@ -77375,7 +80089,7 @@ def _technical_exact_package_image_evidence_v69155(package_text, selected_image_
             )
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_exact_package_image_evidence_v69155@L77536")
 
     out, seen = [], set()
     for item in payloads:
@@ -78432,7 +81146,7 @@ def _technical_package_candidate_score_v69157(prompt_text, package):
     years = set()
     for raw in (package.get('years') or []):
         try: years.add(int(raw))
-        except Exception: pass
+        except Exception: _observe_silent_exception_v69451("_technical_package_candidate_score_v69157@L78594")
     systems = set(str(x) for x in (package.get('systems') or []) if str(x))
     codes = set(str(x).casefold() for x in (package.get('product_codes') or []) if str(x))
     prompt_codes_cf = set(str(x).casefold() for x in prompt_codes)
@@ -78735,7 +81449,7 @@ def _technical_vector_store_generation_v69161(store, *, max_age_seconds=0.75):
                 try:
                     counts[key] = getattr(file_counts, key)
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_technical_vector_store_generation_v69161@L78896")
         fallback = {
             "id": clean_store,
             "status": str(getattr(vector_store, "status", "") or ""),
@@ -79175,7 +81889,7 @@ def _technical_registry_upsert_package_v69162(package, vector_store_id=""):
         try:
             _technical_registry_rows_v69162.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_registry_upsert_package_v69162@L79336")
         return True
     except Exception as error:
         diagnostic_log(
@@ -79767,7 +82481,7 @@ def _technical_current_package_authority_v69157(prompt_text):
             store,
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_current_package_authority_v69157@L79928")
 
     return {
         "status": "recovered",
@@ -80651,7 +83365,7 @@ def _technical_exact_source_auto_repair_v69172(prompt_text, current_payload, vec
     try:
         _technical_package_prewarm_inject_v69121(file_id, filename, package_text)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_exact_source_auto_repair_v69172@L80812")
     diagnostic_log(
         "technical_exact_source_auto_repair_verified_v69172",
         source_url=source_url[:700],
@@ -80883,7 +83597,7 @@ def _technical_durable_snapshot_commit_verified_v69171(package, vector_store_id=
     try:
         _technical_durable_snapshot_row_v69171.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_durable_snapshot_commit_verified_v69171@L81044")
     diagnostic_log(
         "technical_durable_snapshot_commit_verified_v69171",
         file_id=str(package.get("file_id") or "")[:160],
@@ -81002,18 +83716,18 @@ def _technical_scope_from_package_and_source_v69236(package, payload=None):
             if str(x).strip()
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81163")
 
     years = set()
     for raw_year in package.get("years") or []:
         try:
             years.add(int(raw_year))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81170")
     try:
         years.update(int(x) for x in (_website_identity_years_v69022(source_identity_text) or set()))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81174")
 
     systems = {str(x) for x in (package.get("systems") or []) if str(x).strip()}
     system_tokens = set(_technical_factory_system_tokens_v69231(source_identity_text, systems) or [])
@@ -81021,7 +83735,7 @@ def _technical_scope_from_package_and_source_v69236(package, payload=None):
     try:
         identity_systems.update(_website_identity_systems_v69022(source_identity_text) or set())
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81182")
     return {
         "families": families,
         "years": years,
@@ -81181,7 +83895,7 @@ def _technical_registry_verify_exact_package_v69233(package, vector_store_id="")
     try:
         _technical_registry_rows_v69162.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_registry_verify_exact_package_v69233@L81342")
     try:
         rows = list(_technical_registry_rows_v69162(vector_store_id) or [])
     except Exception:
@@ -81416,7 +84130,7 @@ def _technical_active_authority_upsert_package_v69164(
                 try:
                     _technical_active_authority_row_v69164.clear()
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_technical_active_authority_upsert_package_v69164@L81577")
             except Exception as error:
                 stats["failed"] += 1
                 diagnostic_log(
@@ -81510,7 +84224,7 @@ def _technical_active_authority_commit_verified_v69167(
     try:
         _technical_active_authority_row_v69164.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_active_authority_commit_verified_v69167@L81671")
 
     verified = []
     for family in families:
@@ -81637,7 +84351,7 @@ def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
             )
             return ""
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_exact_file_text_v69182@L81798")
 
     capability_state_v69324 = _technical_file_content_capability_state_v69324()
     unsupported_v69324 = bool(
@@ -81785,7 +84499,7 @@ def _technical_active_authority_bootstrap_v69164(prompt_text, vector_store_id):
             try:
                 py.add(int(raw))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_active_authority_bootstrap_v69164@L81946")
         if pf and family not in pf:
             continue
         if py and year not in py:
@@ -82488,7 +85202,7 @@ def _technical_bound_image_urls_v69169(prompt_text, authority, max_images=8):
             str(authority.get("file_id") or ""),
         ))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_bound_image_urls_v69169@L82649")
     try:
         payloads.extend(_website_legacy_html_payloads_from_file_v69012(
             package_text,
@@ -82496,7 +85210,7 @@ def _technical_bound_image_urls_v69169(prompt_text, authority, max_images=8):
             str(authority.get("file_id") or ""),
         ))
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_bound_image_urls_v69169@L82657")
     if not payloads:
         return []
 
@@ -82724,14 +85438,14 @@ def _technical_exact_authority_chat_images_v69170(prompt_text, authority, max_im
             ) or []:
                 add_payload(raw, "exact_package")
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_exact_authority_chat_images_v69170@L82885")
         try:
             for raw in _website_legacy_html_payloads_from_file_v69012(
                 package_text, filename, file_id
             ) or []:
                 add_payload(raw, "exact_package")
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_exact_authority_chat_images_v69170@L82892")
 
     # Durable-index fallback is still exact-source-bound: no semantic search, no
     # another page, and no different file when the durable row carries file identity.
@@ -84079,7 +86793,7 @@ def _website_openai_file_text_v68892(file_id):
             if isinstance(value, str):
                 return value
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_website_openai_file_text_v68892@L84240")
 
     return ""
 
@@ -84277,7 +86991,7 @@ def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_re
             try:
                 years.add(int(value))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_admin_website_package_catalog_v69113@L84438")
         if not years:
             years = set(_website_identity_years_v69022(identity_text))
         systems = set(str(x) for x in (page_identity.get("systems") or []) if str(x))
@@ -84366,7 +87080,7 @@ def _technical_package_prewarm_start_v69119(store, revision):
             try:
                 stale_executor.shutdown(wait=False, cancel_futures=True)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_package_prewarm_start_v69119@L84527")
 
         last_good = [
             dict(item) for item in (state.get("packages") or [])
@@ -84558,7 +87272,7 @@ def _technical_package_prewarm_snapshot_v69119(
         try:
             future.result(timeout=max(0.05, float(wait_seconds)))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_package_prewarm_snapshot_v69119@L84719")
 
     with state["lock"]:
         packages = [
@@ -84578,7 +87292,7 @@ def _technical_package_prewarm_invalidate_v69119():
             try:
                 executor.shutdown(wait=False, cancel_futures=True)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_package_prewarm_invalidate_v69119@L84739")
         has_packages = bool(state.get("packages"))
         state.update({
             "key": "",
@@ -85768,7 +88482,7 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
         try:
             years.add(int(raw_year))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_package_from_text_v69121@L85929")
     if not years:
         years = set(_website_identity_years_v69022(identity_text))
 
@@ -85953,7 +88667,7 @@ def _technical_compile_one_package_v69199(package):
         try:
             runtime_years.append(int(raw_year))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_compile_one_package_v69199@L86114")
     runtime_systems = [str(x) for x in (package.get("systems") or []) if str(x).strip()]
     runtime_codes = [str(x) for x in (package.get("product_codes") or []) if str(x).strip()]
     if not runtime_families or not runtime_years:
@@ -86152,7 +88866,7 @@ def _technical_resolve_family_year_v69199(prompt_text, store="", allow_registry=
             try:
                 row_years.add(int(raw_year))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_resolve_family_year_v69199@L86313")
         if year not in row_years:
             continue
         for raw_family in row.get("vehicle_families") or []:
@@ -86519,7 +89233,7 @@ def _technical_package_model_year_eligible_v69242(package, family, year):
         try:
             years.add(int(raw))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_package_model_year_eligible_v69242@L86680")
     if years:
         return clean_year in years
     # Last exact-package fallback: root year-start/end is permitted only when no
@@ -87919,7 +90633,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             try:
                 row_years_v69228.add(int(raw_year_v69228))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_compiled_on_demand_hydrate_v69199@L88080")
         if family not in row_families_v69228 or int(year) not in row_years_v69228:
             continue
         row_systems_v69228 = {
@@ -88159,7 +90873,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             try:
                 package_years_v69228.add(int(raw_year_v69228))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_compiled_on_demand_hydrate_v69199@L88320")
         if family not in package_families_v69228 or int(year) not in package_years_v69228:
             rejected_v69228 += 1
             diagnostic_log(
@@ -88604,7 +91318,7 @@ def _technical_compile_one_package_v69198(package):
         try:
             years.append(int(raw_year))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_compile_one_package_v69198@L88765")
     if not families or not years:
         return []
 
@@ -90008,13 +92722,13 @@ def _website_remove_vector_file_v68892(vector_store_id, file_id):
         client.files.delete(file_id)
     except Exception:
         # Vector-store detachment is authoritative. OpenAI file cleanup is best-effort.
-        pass
+        _observe_silent_exception_v69451("_website_remove_vector_file_v68892@L90168")
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
         _vector_store_file_catalog_v69040.clear()
         vector_store_has_filename.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_remove_vector_file_v68892@L90175")
     return True
 
 
@@ -90093,11 +92807,11 @@ def _website_invalidate_learning_caches_v69109(database_choices):
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90254")
     try:
         _technical_package_prewarm_invalidate_v69119()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90258")
     destinations = [
         str(x or "").strip() for x in (database_choices or [])
         if str(x or "").strip() in _WEBSITE_LEARNING_REVISIONS_V69109
@@ -90117,7 +92831,7 @@ def _website_invalidate_learning_caches_v69109(database_choices):
             if callable(clear):
                 clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90278")
     try:
         for key in (
             "_technical_image_prefetch_cache_v69016",
@@ -90127,7 +92841,7 @@ def _website_invalidate_learning_caches_v69109(database_choices):
         ):
             st.session_state.pop(key, None)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90288")
     bumped_revisions_v69119 = {
         d: _website_bump_destination_revision_v69109(d)
         for d in destinations
@@ -90249,7 +92963,7 @@ def _website_remove_superseded_vectors_v69109(vector_store_id, rows):
                 _vector_store_file_catalog_v69040.clear()
                 vector_store_has_filename.clear()
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_website_remove_superseded_vectors_v69109@L90410")
         if ok:
             removed += 1
         else:
@@ -90646,7 +93360,7 @@ def render_learn_from_website(database_choice):
             or extraction.get("source_url")
         )
     except Exception:
-        pass
+        _observe_silent_exception_v69451("render_learn_from_website@L90807")
 
     if (
         current_url_identity
@@ -91163,7 +93877,7 @@ def invalidate_admin_read_caches():
         try:
             cached_function.clear()
         except Exception:
-            pass
+            _observe_silent_exception_v69451("invalidate_admin_read_caches@L91324")
 
 
 @_admin_upload_fragment_decorator
@@ -91305,7 +94019,7 @@ def _document_visual_events_docx_v69017(file_bytes):
                 if rid and target:
                     rels[rid] = target
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_document_visual_events_docx_v69017@L91466")
         events = []
         body = document_xml.find("w:body", ns)
         current_heading = ""
@@ -91732,7 +94446,7 @@ def _upload_knowledge_transaction_v69040(
                 try:
                     _product_library_storage_remove([archive_path])
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_upload_knowledge_transaction_v69040@L91893")
         raise
     old_rows = [
         row for row in _vector_store_file_catalog_v69040(vector_store_id)
@@ -91984,7 +94698,7 @@ def _create_pending_openai_file(uploaded_file):
     try:
         uploaded_file.seek(0)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_create_pending_openai_file@L92145")
     created = client.files.create(file=uploaded_file, purpose="assistants")
     return {
         "file_id": created.id,
@@ -92295,7 +95009,7 @@ def _delete_pending_openai_files(attachments):
         try:
             client.files.delete(file_id)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_delete_pending_openai_files@L92456")
 
 
 
@@ -92468,6 +95182,10 @@ def approve_pending_knowledge(row, edited_solution=None):
                 duplicate_row,
                 candidate,
             )
+            if not bool(improved.get("merge_succeeded")):
+                raise RuntimeError(
+                    "The existing knowledge could not be safely merged. Nothing was changed."
+                )
 
             record_for_file = {
                 "assistant": str(
@@ -92512,7 +95230,9 @@ def approve_pending_knowledge(row, edited_solution=None):
                     or row.get("question")
                     or ""
                 ),
-                "source_answer": "",
+                "source_answer": _learning_supporting_marker_v69454(
+                    _learning_supporting_file_ids_v69454(duplicate_row) + attached_file_ids
+                ),
                 "confidence_score": (
                     record_for_file["confidence_score"]
                 ),
@@ -92543,10 +95263,28 @@ def approve_pending_knowledge(row, edited_solution=None):
 
             old_file_id = duplicate_row.get("openai_file_id")
             if old_file_id and old_file_id != learned_file_id:
-                remove_old_learned_vector_file(
-                    duplicate_row.get("vector_store_id") or vector_store_id,
-                    old_file_id,
-                )
+                try:
+                    remove_learned_vector_file_strict_v69454(
+                        duplicate_row.get("vector_store_id") or vector_store_id,
+                        old_file_id,
+                    )
+                except Exception as cleanup_error_v69454:
+                    rollback_payload_v69454 = {
+                        key: value for key, value in dict(duplicate_row).items()
+                        if key != "id"
+                    }
+                    try:
+                        admin_update_pending_row(duplicate_row["id"], rollback_payload_v69454)
+                    finally:
+                        try:
+                            remove_learned_vector_file_strict_v69454(
+                                vector_store_id, learned_file_id
+                            )
+                        except Exception:
+                            remove_old_learned_vector_file(vector_store_id, learned_file_id)
+                    raise RuntimeError(
+                        "The old knowledge vector could not be removed, so approval was rolled back."
+                    ) from cleanup_error_v69454
             admin_delete_pending_row(row.get("id"))
 
             return {
@@ -92572,7 +95310,7 @@ def approve_pending_knowledge(row, edited_solution=None):
                 or row.get("question")
                 or ""
             ),
-            "source_answer": "",
+            "source_answer": _learning_supporting_marker_v69454(attached_file_ids),
             "confidence_score": candidate["confidence_score"],
             "times_seen": int(row.get("times_seen") or 1),
             "times_used": int(row.get("times_used") or 0),
@@ -92624,9 +95362,25 @@ def approve_pending_knowledge(row, edited_solution=None):
         }
 
     except Exception as error:
+        try:
+            _detach_learning_supporting_files_v69454(
+                locals().get("vector_store_id", ""),
+                locals().get("attached_file_ids", []),
+            )
+        except Exception:
+            pass
         raise RuntimeError(
             f"Approval failed while {approval_stage}: {error}"
         ) from error
+
+_APPROVE_PENDING_KNOWLEDGE_V69454_BASE = approve_pending_knowledge
+
+def _approve_pending_knowledge_serialized_v69454(*args, **kwargs):
+    with _LEARNING_WRITE_LOCK_V69454:
+        return _APPROVE_PENDING_KNOWLEDGE_V69454_BASE(*args, **kwargs)
+
+approve_pending_knowledge = _approve_pending_knowledge_serialized_v69454
+
 
 def reject_pending_knowledge(row):
     """Reject one pending submission and remove its temporary attachments."""
@@ -95921,7 +98675,7 @@ def _technical_registry_overlap_options_v69379(store, family, year):
                     ):
                         continue
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("_technical_registry_overlap_options_v69379@L96082")
             packages.append(dict(row))
 
     options = []
@@ -96363,19 +99117,19 @@ def _technical_package_option_v69377(package, family=""):
             if 1980 <= lo <= hi <= 2100:
                 years.update(range(lo, hi + 1))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_package_option_v69377@L96524")
     if not years:
         try:
             mapping = _technical_model_year_scope_map_v69242(package)
             years.update(int(x) for x in (mapping.get(clean_family) or set()))
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_package_option_v69377@L96530")
     if not years:
         for raw in package.get("years") or []:
             try:
                 years.add(int(raw))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_technical_package_option_v69377@L96536")
     year_label = ""
     if years:
         lo, hi = min(years), max(years)
@@ -96454,7 +99208,7 @@ def _technical_package_overlap_ambiguity_v69377(prompt_text):
         if _technical_explicit_factory_system_v69228(prompt):
             return {}
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_package_overlap_ambiguity_v69377@L96615")
     if re.search(r"\b(?:19|20)\d{2}\s*[-–—]\s*(?:19|20)\d{2}\b", prompt):
         return {}
     if re.search(r"\b(?:old|new|newer|legacy)[\s-]*body(?:\s+style)?\b", prompt, flags=re.I):
@@ -97003,7 +99757,7 @@ def _technical_confirmed_payload_scope_match_v69384(payload, state):
             if target_page and _website_image_page_identity_v69003(payload) == target_page:
                 return True
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_confirmed_payload_scope_match_v69384@L97164")
 
     meta = _website_image_atp_semantic_metadata_v69363(payload)
     workspace = str(meta.get("data-atp-workspace") or "").casefold().strip()
@@ -97117,7 +99871,7 @@ def _technical_confirmed_snapshot_v69387(state):
             if cached:
                 cache_state["entries"].pop(cache_key, None)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_confirmed_snapshot_v69387@L97278")
 
     started = time.perf_counter()
     try:
@@ -97151,7 +99905,7 @@ def _technical_confirmed_snapshot_v69387(state):
                 )
                 entries.pop(oldest, None)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_confirmed_snapshot_v69387@L97312")
     diagnostic_log(
         "technical_confirmed_snapshot_cache_store_v69392",
         key=cache_key[:16],
@@ -97579,7 +100333,7 @@ def _technical_confirmed_topic_index_v69395(state):
                 if cached:
                     cache_state["entries"].pop(cache_key, None)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_confirmed_topic_index_v69395@L97740")
 
     started = time.perf_counter()
     snapshot = _technical_confirmed_snapshot_v69387(state)
@@ -97718,7 +100472,7 @@ def _technical_confirmed_topic_index_v69395(state):
                 )
                 entries.pop(oldest, None)
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_technical_confirmed_topic_index_v69395@L97879")
     diagnostic_log(
         "technical_topic_index_built_v69395",
         key=cache_key[:16],
@@ -98759,11 +101513,11 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
         try:
             score += int(meta.get("data-atp-first-response-priority") or 0)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_confirmed_package_exact_images_v69382@L98920")
         try:
             score += int(meta.get("data-atp-priority") or payload.get("atp_priority_v69178") or 0)
         except Exception:
-            pass
+            _observe_silent_exception_v69451("_technical_confirmed_package_exact_images_v69382@L98924")
         # For audio, the two installation/routing images are the intended first response.
         # Secondary replacement/amp diagnostics cannot outrank them.
         ranked.append((score, role, payload))
@@ -99473,7 +102227,7 @@ def _product_library_clear_read_caches():
     try:
         _product_library_asset_data_url.clear()
     except Exception:
-        pass
+        _observe_silent_exception_v69451("_product_library_clear_read_caches@L99634")
 
 
 def _product_library_fact_lookup(prompt):
@@ -101756,7 +104510,8 @@ def render_admin_latest_learned_fragment():
                 st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
 
                 if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
-                    supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+                    with _LEARNING_WRITE_LOCK_V69454:
+                        _delete_learned_row_transaction_v69454(row)
                     remaining_records = max(0, learned_total_records - 1)
                     remaining_pages = max(
                         1,
@@ -101771,7 +104526,7 @@ def render_admin_latest_learned_fragment():
                     try:
                         _admin_learned_records_view_cached.clear()
                     except Exception:
-                        pass
+                        _observe_silent_exception_v69451("render_admin_latest_learned_fragment@L101932")
                     st.session_state[learned_page_key] = min(
                         current_learned_page, remaining_pages,
                     )
@@ -102516,7 +105271,7 @@ def _graphic_style_row_profile(row):
                 if isinstance(parsed, list):
                     paths.extend(str(x).strip() for x in parsed if str(x).strip())
             except Exception:
-                pass
+                _observe_silent_exception_v69451("_graphic_style_row_profile@L102677")
     if not paths:
         match = re.search(r"Image Storage Path:\s*([^\n]+)", solution, flags=re.I)
         if match and match.group(1).strip():
@@ -102586,6 +105341,7 @@ def _graphic_style_rebuild_solution(row, *, name=None, tags=None, extra_note="")
 
 
 def _graphic_style_update_record(row, *, name=None, tags=None, source_type=None, note=""):
+    """Update Graphic style DB + vector authority as one rollback-safe transaction."""
     _graphic_style_version_snapshot(row, action="update")
     solution, clean_name, clean_tags = _graphic_style_rebuild_solution(
         row, name=name, tags=tags, extra_note=note
@@ -102600,20 +105356,68 @@ def _graphic_style_update_record(row, *, name=None, tags=None, source_type=None,
     }
     if source_type is not None:
         payload["source_type"] = source_type
-    return safe_update_row("learned_knowledge", payload, row.get("id"))
+
+    updated_record_v69454 = dict(row or {})
+    updated_record_v69454.update(payload)
+    updated_record_v69454["assistant"] = "Graphic Marketing"
+    updated_record_v69454["vector_store_id"] = GRAPHIC_VECTOR_STORE_ID
+    new_file_id_v69454, vector_ready_v69454, status_v69454 = (
+        upload_learned_record_to_vector_store(
+            updated_record_v69454,
+            GRAPHIC_VECTOR_STORE_ID,
+            return_status=True,
+        )
+    )
+    payload.update({
+        "openai_file_id": new_file_id_v69454,
+        "vector_store_id": GRAPHIC_VECTOR_STORE_ID,
+        "synced": bool(vector_ready_v69454),
+        "embedding_status": "synced" if vector_ready_v69454 else (status_v69454 or "processing"),
+    })
+    try:
+        result = safe_update_row("learned_knowledge", payload, row.get("id"))
+        if not getattr(result, "data", None):
+            raise RuntimeError("Graphic style update returned no saved row.")
+    except Exception:
+        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, new_file_id_v69454)
+        raise
+
+    old_file_id_v69454 = str((row or {}).get("openai_file_id") or "").strip()
+    if old_file_id_v69454 and old_file_id_v69454 != new_file_id_v69454:
+        try:
+            remove_learned_vector_file_strict_v69454(
+                str((row or {}).get("vector_store_id") or GRAPHIC_VECTOR_STORE_ID),
+                old_file_id_v69454,
+            )
+        except Exception as cleanup_error_v69454:
+            rollback_payload_v69454 = {
+                key: value for key, value in dict(row or {}).items() if key != "id"
+            }
+            try:
+                safe_update_row("learned_knowledge", rollback_payload_v69454, row.get("id"))
+            finally:
+                try:
+                    remove_learned_vector_file_strict_v69454(
+                        GRAPHIC_VECTOR_STORE_ID, new_file_id_v69454
+                    )
+                except Exception:
+                    remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, new_file_id_v69454)
+            raise RuntimeError(
+                "Graphic style vector replacement failed; the previous style was restored."
+            ) from cleanup_error_v69454
+    diagnostic_log(
+        "graphic_style_vector_resynced_v69454",
+        record_id=str((row or {}).get("id") or ""),
+        vector_ready=bool(vector_ready_v69454),
+    )
+    return result
 
 
 def _graphic_style_delete_record(row):
-    """Permanently delete one style and remove its vector file when possible."""
+    """Permanently delete one style only after its searchable vector authority is gone."""
     _graphic_style_version_snapshot(row, action="delete")
-    openai_file_id = str(row.get("openai_file_id") or "").strip()
-    try:
-        result = supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
-    except Exception as error:
-        raise RuntimeError(f"Supabase deletion failed: {error}") from error
-    if openai_file_id:
-        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, openai_file_id)
-    return result
+    with _LEARNING_WRITE_LOCK_V69454:
+        return _delete_learned_row_transaction_v69454(row)
 
 
 def _graphic_style_set_default(rows, selected_id):
@@ -102893,7 +105697,7 @@ def render_graphic_intelligence_center():
             try:
                 quality_scores.append(float(review.get("product_accuracy_score")))
             except Exception:
-                pass
+                _observe_silent_exception_v69451("render_graphic_intelligence_center@L103054")
         st.write(f"**Workflow usage:** Standard {workflow_counts['standard']} · Cleanup {workflow_counts['cleanup']} · Comparison {workflow_counts['comparison']}")
         if quality_scores:
             st.write(f"**Average product-accuracy score:** {round(sum(quality_scores)/len(quality_scores), 1)} / 100")
@@ -102914,6 +105718,7 @@ def render_graphic_intelligence_center():
 
 if (
     assistant == "⚙️ Admin Panel"
+    and str(st.session_state.get("role") or "").strip().lower() == "admin"
     and user_can_access_workspace("admin")
 ):
 
@@ -103579,7 +106384,11 @@ else:
     )
     st.session_state["chat_submission_upload_count_v68620"] = len(uploaded_files)
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
-    install_global_chat_file_dropzone()
+    _run_legacy_ui_runtime_without_deprecated_html_v69459(install_global_chat_file_dropzone)
+
+    # v69473: preserve every completed middle turn from durable history before
+    # the next Streamlit render can replace the live DOM.
+    _reconcile_live_chat_with_durable_history_v69473()
 
     # v69026: bound the live DOM on long conversations. Persistent history is
     # unchanged; only the newest messages are mounted into the active browser DOM.
@@ -103596,11 +106405,15 @@ else:
         _chat_messages_all_v69026[_chat_render_start_v69026:],
         start=_chat_render_start_v69026,
     ):
-        render_chat_message(
-            msg["role"],
-            msg["content"],
-            message_index=message_index,
+        _message_owner_key_v69473 = (
+            f"chat_message_v69473_{st.session_state.get('conversation_id') or 'local'}_{message_index}"
         )
+        with st.container(key=_message_owner_key_v69473):
+            render_chat_message(
+                msg["role"],
+                msg["content"],
+                message_index=message_index,
+            )
 
     # v69018: create the browser-print transcript during the normal chat render,
     # not at the very end of the Streamlit run.  The same placeholder is updated
@@ -103631,20 +106444,36 @@ else:
             st.session_state.pop("pending_graphic_regeneration", None)
             diagnostic_log("graphic_v69022_stale_regeneration_blocked_on_manual_entry")
         else:
-            process_pending_graphic_regeneration()
+            _GRAPHIC_V69451_FINAL_PROCESS_PENDING()
 
     st.markdown('<div id="chat-bottom-anchor"></div>', unsafe_allow_html=True)
     if st.session_state.get("scroll_to_bottom"):
-        auto_scroll_to_latest()
+        _run_legacy_ui_runtime_without_deprecated_html_v69459(auto_scroll_to_latest)
         st.session_state.scroll_to_bottom = False
 
-    install_email_safe_assistant_copy_v69359()
+    _run_legacy_ui_runtime_without_deprecated_html_v69459(install_email_safe_assistant_copy_v69359)
+    # v69460: restore the proven v69456 transport for the two controllers that
+    # mutate the live st.chat_input DOM. The v69459 iframe lifecycle can be torn
+    # down after a Streamlit result rerun, which removes the microphone/send
+    # controls and can leave the composer owner with stale inline layout. Direct
+    # components.html is intentionally retained only for these two trusted local
+    # controllers until they are migrated to a native component.
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
+    _install_composer_top_left_fallback_v69459()
+    # v69468: Streamlit 1.61 natively serializes chat submissions with submit_mode="disable".
+    # The browser bridge overlays a body-level draft textarea only while the native widget
+    # is disabled. The draft stays outside Streamlit/React's managed chat subtree, so staff
+    # can prepare the next inquiry without exposing that text to widget reconciliation.
+    _install_chat_turn_guard_v69468()
     # Keep the original stable composer. Attachments remain in the proven managed
     # uploader above, while the normal bottom-right send arrow submits the turn.
-    chat_prompt = st.chat_input("Message AutoTecPro AI...")
+    chat_prompt = st.chat_input(
+        "Message AutoTecPro AI...",
+        key="atp_chat_input_v69468",
+        submit_mode="disable",
+    )
 
     # v68844: a recoverable Graphic retry resumes as a new controlled Streamlit
     # execution. The user message was already committed on the first execution, so
@@ -103757,7 +106586,27 @@ else:
             )
 
 
+    if not prompt:
+        # A controlled rerun after a terminal/direct answer has no new prompt. Ensure
+        # any client-side guard inherited from the completed turn is released.
+        _set_chat_composer_busy_v69468(False)
+
     if prompt:
+        # For a real st.chat_input submission, Streamlit 1.61 has already entered its
+        # native submit_mode="disable" running scope in the frontend before Python starts.
+        # Do not add a second Python busy latch for that path: an unhandled Python exception
+        # could otherwise leave a stale browser-side busy flag after Streamlit correctly
+        # re-enables the widget. Keep the Python latch only for structured/tool submissions
+        # that did not originate from the native chat input.
+        native_chat_submission_v69468 = bool(chat_prompt)
+        _set_chat_composer_busy_v69468(not native_chat_submission_v69468)
+        diagnostic_log(
+            "chat_native_submit_guard_active_v69468",
+            workspace=str(assistant),
+            conversation_id=st.session_state.get("conversation_id"),
+            native_chat_submission=native_chat_submission_v69468,
+            python_fallback_busy=not native_chat_submission_v69468,
+        )
         command_preflight_started_v68864 = time.perf_counter()
         # v69355: exact-key vector-search memoization is valid for this user turn only.
         # Reset before any Sales/Marketing authority/search work so no result can carry
@@ -103765,7 +106614,7 @@ else:
         try:
             st.session_state["_workspace_vector_search_turn_cache_v69355"] = {}
         except Exception:
-            pass
+            _observe_silent_exception_v69451("<module>@L103926")
         graphic_early_status_v68865 = None
         if _graphic_v68865_should_show_early_status(
             prompt,
@@ -103872,6 +106721,8 @@ else:
             )
         except ArchiveValidationError as error:
             st.error(f"ZIP analysis was stopped: {error}")
+            _set_chat_composer_busy_v69468(False)
+            diagnostic_log("chat_native_submit_guard_released_on_archive_error_v69468")
             st.stop()
 
         technical_followup_prompt_v68879 = interaction_prompt
@@ -103953,7 +106804,7 @@ else:
                         expanded=False,
                     )
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L104114")
             _graphic_v68854_rehydrate_project_if_needed()
 
         if assistant == "🎨 Graphic Marketing" and not is_graphic_resume_v68844:
@@ -103968,7 +106819,7 @@ else:
                     try:
                         current_edit_upload_v69319.graphic_role = "supporting"
                     except Exception:
-                        pass
+                        _observe_silent_exception_v69451("<module>@L104129")
                 diagnostic_log("graphic_v69319_current_turn_assets_protected_from_product_authority", upload_count=sum(1 for x in (effective_uploaded_files or []) if str(getattr(x,"type","") or "").casefold().startswith("image/")))
             added_assets_v69319 = remember_graphic_project_assets(
                 effective_uploaded_files,
@@ -104099,31 +106950,68 @@ else:
                 assistant,
             )
         )
-        technical_website_learning_requested_v68870 = bool(
+        technical_website_learning_detected_v69452 = bool(
             technical_website_learning_url_v68870
         )
-
-        explicit_learning_requested = (
+        explicit_learning_detected_v69452 = (
             False
-            if technical_website_learning_requested_v68870
+            if technical_website_learning_detected_v69452
             else detect_explicit_learning_command(
                 interaction_prompt,
                 has_recent_context=bool(st.session_state.get("messages")),
                 has_attachments=bool(effective_uploaded_files),
             )
         )
+        learning_command_detected_v69452 = bool(
+            technical_website_learning_detected_v69452
+            or explicit_learning_detected_v69452
+        )
+        learning_admin_authorized_v69452 = (
+            _learning_admin_authorized_v69452(revalidate=True)
+            if learning_command_detected_v69452
+            else False
+        )
+        explicit_learning_access_denied_v69452 = bool(
+            learning_command_detected_v69452
+            and not learning_admin_authorized_v69452
+        )
+        technical_website_learning_requested_v68870 = bool(
+            technical_website_learning_detected_v69452
+            and learning_admin_authorized_v69452
+        )
+        explicit_learning_requested = bool(
+            explicit_learning_detected_v69452
+            and learning_admin_authorized_v69452
+        )
         learning_context_snapshot = (
             recent_learning_conversation_context(max_messages=8)
             if explicit_learning_requested
             else ""
         )
+        learning_attachments_v69454 = []
+        learning_attachment_stage_error_v69454 = ""
+        if (
+            explicit_learning_requested
+            and effective_uploaded_files
+            and not is_graphic_workspace(assistant)
+        ):
+            try:
+                learning_attachments_v69454 = _stage_explicit_learning_attachments_v69454(
+                    effective_uploaded_files
+                )
+            except Exception as attachment_error_v69454:
+                learning_attachment_stage_error_v69454 = str(attachment_error_v69454)[:500]
+                diagnostic_log(
+                    "learning_attachment_stage_aborted_v69454",
+                    workspace=str(assistant),
+                    error_type=type(attachment_error_v69454).__name__,
+                )
 
-        # Explicit learning is a storage workflow, not a product-library lookup.
-        # A long pasted knowledge block may contain model numbers that would
-        # otherwise trigger unrelated product photos and attach them to the AI
-        # acknowledgement. Keep the uploaded evidence, but suppress automatic
-        # Product Library enrichment for this turn.
-        if explicit_learning_requested:
+        # v69452: every explicit durable-learning command is routed as a storage
+        # workflow even when authorization is denied. This prevents a denied
+        # "learn and save" message from falling through into product lookup,
+        # provider generation, Graphic style saving, or another learning path.
+        if learning_command_detected_v69452:
             product_library_lookup = None
             product_library_images = []
 
@@ -104170,7 +107058,7 @@ else:
                 try:
                     st.session_state.messages[-1]["content"] = user_content_to_save
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L104331")
 
             # v69226: immediate acknowledgement. Presentation-only. For v69381
             # text-only turns the placeholder is already on-screen; other paths use
@@ -104346,7 +107234,7 @@ else:
                 if early_loading_status_placeholder_v69226 is not None:
                     early_loading_status_placeholder_v69226.empty()
             except Exception:
-                pass
+                _observe_silent_exception_v69451("<module>@L104507")
 
             direct_content_v69388 = (
                 direct_answer_v69388
@@ -104485,7 +107373,7 @@ else:
                     if early_loading_status_placeholder_v69226 is not None:
                         early_loading_status_placeholder_v69226.empty()
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L104646")
 
                 visual_content_v69393 = (
                     visual_answer_v69393
@@ -104559,7 +107447,7 @@ else:
                 if early_loading_status_placeholder_v69226 is not None:
                     early_loading_status_placeholder_v69226.empty()
             except Exception:
-                pass
+                _observe_silent_exception_v69451("<module>@L104720")
 
             assistant_content_v69380 = terminal_answer_v69380
             st.session_state.messages.append({
@@ -104612,7 +107500,7 @@ else:
                     "Checking generation intent and project readiness..."
                 )
             except Exception:
-                pass
+                _observe_silent_exception_v69451("<module>@L104773")
         diagnostic_log(
             "command_preflight_ready_v68864",
             workspace=str(assistant),
@@ -104624,13 +107512,10 @@ else:
             upload_count=len(effective_uploaded_files or []),
         )
 
-        # A staff command such as "learn this and save this" must take
-        # precedence over every content detector. The pasted material can
-        # legitimately mention PDF, document, weather, order numbers, product
-        # models, compatibility, or other trigger words; none of those should
-        # launch a document export, live integration, workspace tool, vector
-        # search, or product-library enrichment during the learning turn.
-        if explicit_learning_requested:
+        # v69452: an explicit learning command takes precedence over every
+        # content detector whether it is authorized or denied. A denied command
+        # must fail closed instead of falling through to another tool/provider.
+        if learning_command_detected_v69452:
             execution_plan = {
                 **execution_plan,
                 "document": None,
@@ -104639,7 +107524,11 @@ else:
                 "workspace": {"type": "none"},
                 "response_mode": {
                     "type": "complete_standard",
-                    "label": "Learning Confirmation",
+                    "label": (
+                        "Learning Confirmation"
+                        if learning_admin_authorized_v69452
+                        else "Admin Authorization Required"
+                    ),
                 },
                 "use_file_search": False,
             }
@@ -105146,7 +108035,7 @@ else:
                         expanded=False,
                     )
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L105307")
             graphic_early_status_v68865 = None
         is_graphic_project_ready_ack = bool(
             assistant == "🎨 Graphic Marketing"
@@ -105335,7 +108224,26 @@ else:
         previous_response_export_requested = False
         direct_document_export_requested = False
 
-        if is_graphic_reference_learning:
+        if explicit_learning_access_denied_v69452:
+            response_start_time = time.time()
+            answer = (
+                "Learn and save is restricted to administrator accounts. "
+                "No shared knowledge was saved or changed."
+            )
+            diagnostic_log(
+                "learning_command_blocked_non_admin_v69452",
+                role=str(st.session_state.get("role") or "").strip().lower() or "none",
+                workspace=str(assistant),
+                website_learning=bool(technical_website_learning_detected_v69452),
+            )
+            response_time = round(time.time() - response_start_time, 2)
+            tokens_used = None
+            render_chat_message(
+                "assistant",
+                answer,
+                message_index=len(st.session_state.messages),
+            )
+        elif is_graphic_reference_learning:
             response_start_time = time.time()
             try:
                 with st.spinner("Analyzing and saving reference style..."):
@@ -105407,11 +108315,11 @@ else:
         ):
             response_start_time = time.time()
             website_chat_images_v68870 = []
-            if str(st.session_state.get("role") or "").strip().lower() != "admin":
+            if not learning_admin_authorized_v69452:
                 answer = (
                     "Website learning changes the shared Technical Support knowledge base, "
-                    "so this command is restricted to admin accounts. Please use an admin "
-                    "account or submit the page through Admin Panel → Upload Knowledge."
+                    "so this command is restricted to administrator accounts. "
+                    "No shared knowledge was saved or changed."
                 )
             else:
                 try:
@@ -105489,7 +108397,12 @@ else:
         elif explicit_learning_requested and not is_graphic_generation:
             response_start_time = time.time()
             inline_learning_payload = extract_explicit_learning_payload(interaction_prompt)
-            if inline_learning_payload:
+            if learning_attachment_stage_error_v69454:
+                answer = (
+                    "I could not stage the attached learning source safely, so nothing was queued or saved. "
+                    f"Details: {learning_attachment_stage_error_v69454}"
+                )
+            elif inline_learning_payload:
                 answer = (
                     "Knowledge received. I will extract only the new or changed reusable "
                     "facts, merge them with matching approved knowledge, and avoid saving "
@@ -105544,7 +108457,7 @@ else:
                         ).hexdigest()
                     )
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L105705")
             project_before_generation_v68837 = get_graphic_project_state()
             switch_v68837 = dict(
                 project_before_generation_v68837.get(
@@ -105602,6 +108515,8 @@ else:
             if not lease_token_v68848:
                 diagnostic_log("graphic_v68848_duplicate_execution_blocked", job_id=str(durable_job_v68844.get("job_id") or ""))
                 st.info("This image request is already processing in another session. The result will appear when it completes.")
+                _set_chat_composer_busy_v69468(False)
+                diagnostic_log("chat_native_submit_guard_released_on_graphic_duplicate_v69468")
                 st.stop()
             durable_job_v68844["lease_token_local"] = lease_token_v68848
             current_attempt_v68844 = int(durable_job_v68844.get("attempt") or 0)
@@ -105637,7 +108552,7 @@ else:
                 try:
                     graphic_early_status_v68865.empty()
                 except Exception:
-                    pass
+                    _observe_silent_exception_v69451("<module>@L105798")
                 graphic_early_status_v68865 = None
 
             _graphic_v68874_release_transient_memory("before_graphic_generation")
@@ -105676,7 +108591,7 @@ else:
             followup_interruption_retry_exhausted_v69317 = False
             try:
                 with _heavy_work_guard_v69188("graphic-generation"):
-                    generated_images = generate_graphic_marketing_images(
+                    generated_images = _GRAPHIC_V69451_FINAL_ENGINE(
                         prompt,
                         graphic_generation_files,
                         use_approved_style=graphic_options.get("use_approved_style", True),
@@ -106327,7 +109242,30 @@ else:
                                 detected_request,
                             )
                         )
-                        if direct_order_lookup_v69370:
+                        exact_learned_recall_v69474 = None
+                        if (
+                            not direct_order_lookup_v69370
+                            and not explicit_learning_requested
+                            and not graphic_generation_files
+                            and active_structured_tool is None
+                        ):
+                            exact_learned_recall_v69474 = _cross_conversation_exact_learned_answer_v69474(
+                                interaction_prompt,
+                                assistant,
+                                detected_live_request=detected_request,
+                            )
+                        if exact_learned_recall_v69474:
+                            stream_source_v69370 = (
+                                str(exact_learned_recall_v69474.get("answer") or ""),
+                            )
+                            use_file_search = False
+                            diagnostic_log(
+                                "cross_case_exact_learned_answer_committed_v69474",
+                                workspace=str(assistant),
+                                record_id=str(exact_learned_recall_v69474.get("record_id") or ""),
+                                confidence=int(exact_learned_recall_v69474.get("confidence") or 0),
+                            )
+                        elif direct_order_lookup_v69370:
                             # v69371: A simple WooCommerce order lookup is already a complete,
                             # deterministic app-owned answer.  v69370 only *logged* that the
                             # result was committed, then continued through the normal image /
@@ -106707,7 +109645,7 @@ else:
                                     unsafe_allow_html=True,
                                 )
                             except Exception:
-                                pass
+                                _observe_silent_exception_v69451("<module>@L106868")
 
                             # Record a safe diagnostic in Streamlit Cloud logs without
                             # exposing request contents, uploaded-file data, or secrets.
@@ -107102,7 +110040,7 @@ else:
                                         product_context_v69156, ""
                                     )
                             except Exception:
-                                pass
+                                _observe_silent_exception_v69451("<module>@L107263")
 
                             # Remove any earlier v69124 sibling context from this request.
                             # v69155 has now hydrated the full exact package and is the
@@ -107119,7 +110057,7 @@ else:
                                         "\n\n" + prior_variant_context_v69124, ""
                                     ).replace(prior_variant_context_v69124, "")
                             except Exception:
-                                pass
+                                _observe_silent_exception_v69451("<module>@L107280")
 
                             # Persist exact structural provenance for rerun/history.
                             st.session_state["_technical_last_section_authority_v69142"] = {
@@ -108953,7 +111891,7 @@ else:
                                     unsafe_allow_html=True,
                                 )
                             except Exception:
-                                pass
+                                _observe_silent_exception_v69451("<module>@L109114")
 
                             # Record a safe diagnostic in Streamlit Cloud logs without
                             # exposing request contents, uploaded-file data, or secrets.
@@ -109060,6 +111998,10 @@ else:
                         if isinstance(x, dict)
                     ]
                     if fast_images_v69420:
+                        if str(fast_manifest_v69420.get("mode") or "") == "topical":
+                            fast_images_v69420 = _workspace_sales_unique_topical_visuals_v69475(
+                                fast_images_v69420
+                            )
                         generated_images.extend(
                             fast_images_v69420
                         )
@@ -110343,6 +113285,14 @@ else:
                 diagnostic_event="technical_v69050_late_image_publication_restored_v69363",
             )
 
+        # v69475: identical exact topical compatibility/reference visuals can be
+        # shared by multiple exact products. Show the authored image once while
+        # retaining every exact product binding in metadata/caption.
+        if generated_images and (is_sales_workspace(assistant) or is_marketing_workspace(assistant)):
+            generated_images = _workspace_sales_unique_topical_visuals_v69475(
+                generated_images
+            )
+
         # v69346: once a Sales/Marketing product image has already been displayed
         # earlier in this same case, do not repeat it on follow-up questions about
         # that same product. A different exact /product/.../ identity remains
@@ -110407,7 +113357,7 @@ else:
             try:
                 technical_image_prefetch_executor_active_v69015.shutdown(wait=False)
             except Exception:
-                pass
+                _observe_silent_exception_v69451("<module>@L110568")
 
         # Product Library photos are stored with the assistant message just like
         # uploaded/generated images. This keeps them visible after Streamlit
@@ -110836,6 +113786,7 @@ else:
                         "assistant",
                         assistant_content_to_save,
                     )
+                    st.session_state["_chat_durable_sync_pending_v69473"] = True
                 except Exception as e:
                     st.warning(f"AI answer was not saved to history: {e}")
 
@@ -110878,6 +113829,8 @@ else:
             not is_woocommerce_request
             and not is_graphic_reference_learning
             and not technical_website_learning_requested_v68870
+            and not explicit_learning_access_denied_v69452
+            and not learning_attachment_stage_error_v69454
         ):
             queue_ai_postprocess(
                 interaction_prompt,
@@ -110891,6 +113844,7 @@ else:
                 is_structured_graphic_tool=is_structured_graphic_tool,
                 explicit_learning=explicit_learning_requested,
                 learning_context=learning_context_snapshot,
+                learning_attachments=learning_attachments_v69454,
             )
 
         # Complete the idempotent submission lifecycle before clearing uploads.
@@ -110918,7 +113872,7 @@ else:
                     cancel_futures=False,
                 )
             except Exception:
-                pass
+                _observe_silent_exception_v69451("<module>@L111079")
 
         st.session_state.scroll_to_bottom = True
         diagnostic_log(
@@ -110933,7 +113887,33 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
-        st.rerun()
+        # v69468: keep the Python-side structured-tool bridge busy through final maintenance. Native
+        # Streamlit remains disabled until scriptFinished, so the draft overlay is not
+        # transferred back into the real composer until the framework itself declares the
+        # run complete.
+        _release_chat_guard_at_script_end_v69468 = True
+
+        # v69461: normal text workspaces must not immediately destroy the just-rendered
+        # answer/composer DOM. The user-observed production failure happened after the
+        # answer was correctly committed and saved, exactly when this unconditional rerun
+        # rebuilt the page. Keep the completed Sales/Technical/Marketing answer mounted;
+        # the next genuine user interaction naturally reruns Streamlit and reconstructs
+        # the saved message from session_state/history. Graphic Marketing retains its
+        # controlled rerun because its durable generation lifecycle depends on it.
+        if assistant == "🎨 Graphic Marketing":
+            diagnostic_log(
+                "ai_response_graphic_controlled_rerun_v69461",
+                conversation_id=st.session_state.get("conversation_id"),
+                message_count=len(st.session_state.get("messages", [])),
+            )
+            st.rerun()
+        else:
+            diagnostic_log(
+                "ai_response_dom_preserved_without_forced_rerun_v69461",
+                workspace=str(assistant),
+                conversation_id=st.session_state.get("conversation_id"),
+                message_count=len(st.session_state.get("messages", [])),
+            )
 
 # Process maintenance only after the completed answer has already been
 # persisted and displayed on the previous run. On the first destination render
