@@ -100,8 +100,8 @@
 # completed-answer persistence, v69468 voice/concurrency guard, v69473 durable chat recovery,
 # v69474 deterministic learned-answer recall, and v69475 compatibility-image dedupe.
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
-AUTOTECPRO_RELEASE_VERSION = "v69479"
-AUTOTECPRO_RELEASE_BUILD = "v69479-v69449-native-print-baseline-postfixes-20260926"
+AUTOTECPRO_RELEASE_VERSION = "v69480"
+AUTOTECPRO_RELEASE_BUILD = "v69480-v69449-print-ancestor-marker-hardening-20260926"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -435,9 +435,9 @@ def _openai_transient_pre_token_error_v69400(error):
 
 _log_runtime_release_v69400()
 diagnostic_log(
-    "v69479_print_baseline_restored",
+    "v69480_print_baseline_hardened",
     baseline="v69449",
-    mode="native_browser_print_transcript",
+    mode="native_browser_print_explicit_ancestor_marker",
     post_print_bridges_removed=True,
 )
 
@@ -9411,6 +9411,73 @@ def render_print_transcript_v69007(messages, assistant_label="Technical Support"
             renderer(transcript_html, unsafe_allow_html=True)
         else:
             st.markdown(transcript_html, unsafe_allow_html=True)
+
+def _install_print_ancestor_marker_v69480():
+    """Mark the real transcript ancestry in the parent Streamlit document.
+
+    v69449's print CSS relies on :has() to re-open anonymous Streamlit wrappers.
+    On the current hosted Streamlit/Chromium path the normal app is hidden but that
+    ancestry restoration can fail during print snapshotting. Keep native browser
+    Print, but mark the actual transcript ancestors explicitly so final print CSS
+    no longer depends on :has() for correctness.
+    """
+    marker_script_v69480 = r'''
+    <script>
+    (() => {
+      const root = window.parent;
+      const doc = root && root.document ? root.document : document;
+      const KEEP = 'atp-print-keep-v69480';
+
+      function clearOld() {
+        try {
+          doc.querySelectorAll('.' + KEEP).forEach((el) => el.classList.remove(KEEP));
+        } catch (_) {}
+      }
+
+      function mark() {
+        try {
+          clearOld();
+          const transcript = doc.querySelector('.atp-print-transcript-v69007');
+          const keyedRoot = doc.querySelector('.st-key-atp_print_transcript_root_v69480');
+          let node = keyedRoot || transcript;
+          if (!node) return false;
+          while (node && node !== doc.documentElement) {
+            if (node.classList) node.classList.add(KEEP);
+            node = node.parentElement;
+          }
+          if (doc.body && doc.body.classList) doc.body.classList.add(KEEP);
+          if (doc.documentElement && doc.documentElement.classList) doc.documentElement.classList.add(KEEP);
+          return true;
+        } catch (_) { return false; }
+      }
+
+      mark();
+      try {
+        if (!root.__atpPrintAncestorObserverV69480) {
+          const observer = new root.MutationObserver(() => { mark(); });
+          observer.observe(doc.documentElement || doc.body, {childList:true, subtree:true});
+          root.__atpPrintAncestorObserverV69480 = observer;
+        }
+      } catch (_) {}
+      try {
+        if (!root.__atpPrintAncestorBeforePrintV69480) {
+          root.addEventListener('beforeprint', mark, true);
+          root.__atpPrintAncestorBeforePrintV69480 = true;
+        }
+      } catch (_) {}
+      try { root.__atpPrintAncestorMarkV69480 = mark; } catch (_) {}
+    })();
+    </script>
+    '''
+    try:
+        components.html(marker_script_v69480, height=0, width=0)
+    except Exception as error_v69480:
+        diagnostic_log(
+            "print_ancestor_marker_install_failed_v69480",
+            error_type=type(error_v69480).__name__,
+            error=str(error_v69480)[:500],
+        )
+
 
 
 REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
@@ -106419,12 +106486,19 @@ else:
     # not at the very end of the Streamlit run.  The same placeholder is updated
     # again immediately after a new assistant message is committed, so native
     # browser Print/Ctrl+P never needs a second attempt to see the full transcript.
-    _print_transcript_placeholder_v69018 = st.empty()
+    _print_transcript_root_v69480 = st.container(key="atp_print_transcript_root_v69480")
+    _print_transcript_placeholder_v69018 = _print_transcript_root_v69480.empty()
     try:
         render_print_transcript_v69007(
             list(st.session_state.get("messages") or []),
             assistant_label=assistant,
             target=_print_transcript_placeholder_v69018,
+        )
+        _install_print_ancestor_marker_v69480()
+        diagnostic_log(
+            "print_transcript_ancestor_marker_ready_v69480",
+            message_count=len(list(st.session_state.get("messages") or [])),
+            workspace=str(assistant),
         )
     except Exception as _early_print_error_v69018:
         diagnostic_log(
@@ -114959,6 +115033,88 @@ def _render_final_print_authority_v69009():
 
 
 _render_final_print_authority_v69009()
+
+
+def _render_print_ancestor_authority_v69480():
+    """Final native-print fallback using explicit DOM ancestry markers.
+
+    This intentionally comes after the untouched v69449 print authority. It only
+    changes print-time visibility/layout for the transcript branch and does not
+    modify the normal application UI or any Graphic/Technical/Sales logic.
+    """
+    st.markdown(
+        r"""
+        <style>
+        @media print {
+            /* Current Streamlit 1.61 can snapshot the page after the v69449
+               display:none rule but before :has() restores the transcript branch.
+               Explicit classes stamped on the real ancestry remove that race. */
+            html body .atp-print-keep-v69480.atp-print-keep-v69480.atp-print-keep-v69480 {
+                display: block !important;
+                visibility: visible !important;
+                float: none !important;
+                flex: none !important;
+                width: auto !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                overflow: visible !important;
+                overflow-x: visible !important;
+                overflow-y: visible !important;
+                position: static !important;
+                inset: auto !important;
+                transform: none !important;
+                contain: none !important;
+                clip: auto !important;
+                clip-path: none !important;
+                background: #ffffff !important;
+                color-scheme: light !important;
+            }
+
+            [data-testid="stMainBlockContainer"]
+            div[data-testid="stElementContainer"].atp-print-keep-v69480 {
+                display: block !important;
+                visibility: visible !important;
+                width: auto !important;
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+                position: static !important;
+                contain: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+            }
+
+            html body .st-key-atp_print_transcript_root_v69480,
+            html body .st-key-atp_print_transcript_root_v69480 *,
+            html body .atp-print-transcript-v69007,
+            html body .atp-print-transcript-v69007 * {
+                visibility: visible !important;
+                opacity: 1 !important;
+            }
+
+            html body .st-key-atp_print_transcript_root_v69480 {
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+                position: static !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+            }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+_render_print_ancestor_authority_v69480()
 
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
