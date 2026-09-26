@@ -100,8 +100,9 @@
 # completed-answer persistence, v69468 voice/concurrency guard, v69473 durable chat recovery,
 # v69474 deterministic learned-answer recall, and v69475 compatibility-image dedupe.
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
-AUTOTECPRO_RELEASE_VERSION = "v69480"
-AUTOTECPRO_RELEASE_BUILD = "v69480-v69449-print-ancestor-marker-hardening-20260926"
+# AutoTecPro AI v69481 - exact live Woo feature/short-description/custom-tab authority + typo-safe price routing
+AUTOTECPRO_RELEASE_VERSION = "v69481"
+AUTOTECPRO_RELEASE_BUILD = "v69481-sales-live-feature-commerce-authority-20260926"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -434,6 +435,14 @@ def _openai_transient_pre_token_error_v69400(error):
 
 
 _log_runtime_release_v69400()
+
+diagnostic_log(
+    "v69481_sales_live_authority_ready",
+    price_typo_routing=True,
+    generic_feature_queries=True,
+    short_description_authority=True,
+    custom_tab_authority=True,
+)
 diagnostic_log(
     "v69480_print_baseline_hardened",
     baseline="v69449",
@@ -2478,6 +2487,115 @@ def _current_product_page_price_by_exact_url_v69340(source_url, timeout_seconds=
     }
 
 
+
+
+@st.cache_data(ttl=120, max_entries=128, show_spinner=False)
+def _workspace_sales_exact_product_page_facts_v69481(source_url, timeout_seconds=3.5):
+    """Return exact current product-page factual text, including Woo custom tabs.
+
+    This is a read-only, same-product, identity-verified fallback for Sales factual
+    follow-ups. It deliberately captures the visible Woo short description, the
+    Description/Main Features/Specification tab panels, and ATP semantic attributes.
+    Related-product links are not treated as authority because the final URL must
+    canonicalize to the exact requested /product/ identity.
+    """
+    source_v69481 = str(source_url or "").strip()
+    if not source_v69481:
+        return {"status": "unavailable", "reason": "missing_source_url"}
+    try:
+        source_identity_v69481 = _exact_product_page_identity_v69342(source_v69481)
+    except Exception:
+        source_identity_v69481 = source_v69481.rstrip("/").casefold()
+    try:
+        timeout_v69481 = max(1.0, float(timeout_seconds or 3.5))
+        response_v69481 = http_session.get(
+            source_v69481,
+            headers={"Accept": "text/html,application/xhtml+xml", "User-Agent": "AutoTecPro-AI/1.0"},
+            timeout=(min(2.5, timeout_v69481), timeout_v69481),
+            allow_redirects=True,
+        )
+        response_v69481.raise_for_status()
+    except Exception as error_v69481:
+        return {
+            "status": "unavailable", "reason": "exact_product_page_fetch_failed",
+            "error_type": type(error_v69481).__name__, "error": str(error_v69481)[:400],
+        }
+    final_url_v69481 = str(getattr(response_v69481, "url", "") or source_v69481).strip()
+    try:
+        final_identity_v69481 = _exact_product_page_identity_v69342(final_url_v69481)
+    except Exception:
+        final_identity_v69481 = final_url_v69481.rstrip("/").casefold()
+    if final_identity_v69481 != source_identity_v69481:
+        return {
+            "status": "unavailable", "reason": "exact_product_page_redirect_identity_mismatch",
+            "final_url": final_url_v69481,
+        }
+    html_v69481 = str(getattr(response_v69481, "text", "") or "")
+    if not html_v69481:
+        return {"status": "unavailable", "reason": "empty_product_page"}
+
+    def plain_v69481(value):
+        value = re.sub(r"<script\\b[^>]*>.*?</script>", " ", str(value or ""), flags=re.I | re.S)
+        value = re.sub(r"<style\\b[^>]*>.*?</style>", " ", value, flags=re.I | re.S)
+        value = re.sub(r"<[^>]+>", " ", value)
+        return re.sub(r"\\s+", " ", html.unescape(value)).strip()
+
+    short_html_v69481 = ""
+    short_match_v69481 = re.search(
+        r"<div[^>]+class=[\"\'][^\"\']*woocommerce-product-details__short-description[^\"\']*[\"\'][^>]*>(.*?)</div>",
+        html_v69481, flags=re.I | re.S,
+    )
+    if short_match_v69481:
+        short_html_v69481 = str(short_match_v69481.group(1) or "")
+
+    tab_chunks_v69481 = []
+    for tab_match_v69481 in re.finditer(
+        r"<(?:div|section)[^>]+(?:class=[\"\'][^\"\']*woocommerce-Tabs-panel[^\"\']*[\"\']|id=[\"\']tab-[^\"\']+[\"\'])[^>]*>(.*?)</(?:div|section)>",
+        html_v69481, flags=re.I | re.S,
+    ):
+        chunk_v69481 = plain_v69481(tab_match_v69481.group(1))
+        if chunk_v69481 and chunk_v69481 not in tab_chunks_v69481:
+            tab_chunks_v69481.append(chunk_v69481)
+
+    semantic_values_v69481 = []
+    for attr_v69481 in (
+        "data-atp-feature", "data-atp-facts", "data-atp-factory-feature-support",
+        "data-atp-connectivity", "data-atp-original-cd-player-support",
+        "data-atp-siriusxm-support", "data-atp-topic",
+    ):
+        for value_match_v69481 in re.finditer(
+            rf"{re.escape(attr_v69481)}\s*=\s*[\"\']([^\"\']+)[\"\']",
+            html_v69481, flags=re.I,
+        ):
+            value_v69481 = plain_v69481(value_match_v69481.group(1))
+            if value_v69481 and value_v69481 not in semantic_values_v69481:
+                semantic_values_v69481.append(value_v69481)
+
+    full_text_v69481 = plain_v69481(html_v69481)
+    short_text_v69481 = plain_v69481(short_html_v69481)
+    tabs_text_v69481 = " | ".join(tab_chunks_v69481)
+    semantic_text_v69481 = " | ".join(semantic_values_v69481)
+    factual_text_v69481 = " | ".join(
+        x for x in (short_text_v69481, tabs_text_v69481, semantic_text_v69481, full_text_v69481)
+        if x
+    )
+    diagnostic_log(
+        "workspace_sales_exact_live_product_facts_v69481",
+        source_url=source_v69481[:500],
+        short_chars=len(short_text_v69481),
+        tab_chars=len(tabs_text_v69481),
+        semantic_chars=len(semantic_text_v69481),
+        full_chars=len(full_text_v69481),
+    )
+    return {
+        "status": "verified",
+        "source_url": source_v69481,
+        "final_url": final_url_v69481,
+        "short_description_text": short_text_v69481[:12000],
+        "custom_tabs_text": tabs_text_v69481[:30000],
+        "semantic_attribute_text": semantic_text_v69481[:16000],
+        "factual_text": factual_text_v69481[:60000],
+    }
 
 def _workspace_product_currency_url_v69437(source_url, currency_code):
     """Return the same exact product URL in a WooCommerce currency presentation.
@@ -68411,6 +68529,9 @@ def _workspace_sales_normalize_language_v69433(prompt_text):
         (r"\bshow\s+(?:me\s+)?(?:a\s+)?pic(?:ture)?\b", "show me photo"),
         (r"\bother\s+modles?\b", "other models"),
         (r"\bother\s+optons?\b", "other options"),
+        (r"\bhwo\s+much\b", "how much"),
+        (r"\bhow\s+muhc\b", "how much"),
+        (r"\bhow\s+mutch\b", "how much"),
     )
     for pattern, replacement in phrase_aliases:
         raw = re.sub(pattern, replacement, raw, flags=re.I)
@@ -68484,7 +68605,11 @@ def _workspace_sales_intent_v69433(prompt_text):
         r"what do (?:they|these|those)(?:\s+[a-z0-9][a-z0-9 ./'-]{0,50})? have|"
         r"what can [a-z0-9][a-z0-9 ./'-]{0,60} do|"
         r"what comes with|what features come with|capability|capabilities|"
-        r"key feature|key features|main feature|main features)\b", p
+        r"key feature|key features|main feature|main features|"
+        r"does (?:it|this|that|the unit|the system|this unit|this system) (?:support|retain|keep|have)|"
+        r"do (?:they|these|those) (?:support|retain|keep|have)|"
+        r"can (?:it|this|that|the unit|the system|this unit|this system) (?:support|retain|keep)|"
+        r"is .{1,70} supported|are .{1,70} supported)\b", p
     ))
     sibling_request = bool(re.search(
         r"\b(other|others|the rest|rest of|remaining|remainder|"
@@ -68498,6 +68623,8 @@ def _workspace_sales_intent_v69433(prompt_text):
     ))
     price_request = bool(re.search(
         r"\b(price|pricing|cost|costs|quote|how much|dealer price|wholesale)\b", p
+    )) and not bool(re.search(
+        r"\bhow much\s+(?:ram|storage|memory)\b", p
     ))
     link_request = bool(re.search(
         r"\b(product link|product links|link|links|url|urls|product page|page)\b", p
@@ -68528,6 +68655,26 @@ def _workspace_sales_intent_v69433(prompt_text):
         if re.search(pattern, p):
             specific_feature = topic
             break
+
+    # v69481: generic source-driven feature questions must not depend on a small
+    # hard-coded feature vocabulary. Extract the requested feature phrase while
+    # leaving factual support/retention authority to the exact current product page.
+    if not specific_feature and feature_request:
+        generic_patterns_v69481 = (
+            r"\b(?:does|do)\s+(?:it|this|that|they|these|those|the\s+unit|the\s+system|this\s+unit|this\s+system)\s+(?:support|retain|keep|have)\s+(.{2,80}?)(?:[?.!]|$)",
+            r"\bcan\s+(?:it|this|that|the\s+unit|the\s+system|this\s+unit|this\s+system)\s+(?:support|retain|keep)\s+(.{2,80}?)(?:[?.!]|$)",
+            r"\bis\s+(.{2,80}?)\s+(?:supported|retained|compatible)(?:[?.!]|$)",
+            r"\bare\s+(.{2,80}?)\s+(?:supported|retained|compatible)(?:[?.!]|$)",
+        )
+        for pattern_v69481 in generic_patterns_v69481:
+            match_v69481 = re.search(pattern_v69481, p, flags=re.I)
+            if not match_v69481:
+                continue
+            phrase_v69481 = re.sub(r"\s+", " ", str(match_v69481.group(1) or "")).strip(" ?.!,:;-_")
+            phrase_v69481 = re.sub(r"^(?:the|a|an)\s+", "", phrase_v69481, flags=re.I)
+            if phrase_v69481 and phrase_v69481 not in {"feature", "features", "it", "this", "that"}:
+                specific_feature = "free:" + phrase_v69481[:80]
+                break
 
     return {
         "normalized": p,
@@ -70060,9 +70207,38 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             "premium_audio": r"premium\s+(?:sound|audio)|bose|alpine|harman",
             "installation_video": r"installation\s+video|install\s+video",
         }
-        label = label_map.get(topic, "")
+        free_feature_v69481 = str(topic or "").startswith("free:")
+        free_phrase_v69481 = (str(topic or "")[5:].strip() if free_feature_v69481 else "")
+        label = label_map.get(topic, "") or free_phrase_v69481
         evidence_term_v69436 = evidence_terms_v69436.get(topic, "")
+        if free_feature_v69481 and free_phrase_v69481:
+            evidence_term_v69436 = re.escape(free_phrase_v69481).replace(r"\ ", r"\s+")
         if label:
+            # v69481: fetch exact live page facts concurrently. This recovers current
+            # short-description/custom-tab/semantic-attribute content that the public
+            # Woo Store catalog does not always expose in its product JSON.
+            live_facts_v69481 = {}
+            try:
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                unique_sources_v69481 = list(dict.fromkeys(
+                    str(row_v69481.get("source") or "").strip()
+                    for row_v69481 in rows
+                    if str(row_v69481.get("source") or "").strip()
+                ))
+                with ThreadPoolExecutor(max_workers=min(4, max(1, len(unique_sources_v69481))), thread_name_prefix="atp-live-facts-v69481") as pool_v69481:
+                    futures_v69481 = {
+                        pool_v69481.submit(_workspace_sales_exact_product_page_facts_v69481, source_v69481, 3.5): source_v69481
+                        for source_v69481 in unique_sources_v69481
+                    }
+                    for future_v69481 in as_completed(futures_v69481):
+                        source_v69481 = futures_v69481[future_v69481]
+                        try:
+                            live_facts_v69481[source_v69481] = dict(future_v69481.result() or {})
+                        except Exception as error_v69481:
+                            live_facts_v69481[source_v69481] = {"status": "unavailable", "error_type": type(error_v69481).__name__}
+            except Exception as error_v69481:
+                diagnostic_log("workspace_sales_exact_live_product_facts_batch_failed_v69481", error_type=type(error_v69481).__name__)
+
             data_v69436 = []
             positive_v69436 = 0
             negative_v69436 = 0
@@ -70081,14 +70257,21 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
                             pkg_v69436.get("package_text"),
                             pkg_v69436.get("page_text"),
                             pkg_v69436.get("content"),
+                            pkg_v69436.get("webpage_text"),
                             contract_v69436.get("feature_summary"),
+                            dict(live_facts_v69481.get(str(row_v69436.get("source") or "")) or {}).get("factual_text"),
                         )
                     )
                     exact_text_v69436 = re.sub(
                         r"\s+", " ", exact_text_v69436
                     ).strip().casefold()
+                    # v69481 semantic attributes often encode tokens with hyphens
+                    # (for example exhaust-brake-supported). Normalize separators
+                    # only for evidence matching; the source text itself is unchanged.
+                    evidence_blob_v69481 = re.sub(r"[-_]+", " ", exact_text_v69436)
 
                     explicit_negative_v69436 = False
+                    explicit_positive_v69481 = False
                     if evidence_term_v69436 and exact_text_v69436:
                         neg_patterns_v69436 = (
                             rf"\b(?:does\s+not|doesn't|not|without|no)\b.{{0,55}}\b(?:{evidence_term_v69436})\b",
@@ -70097,15 +70280,27 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
                         explicit_negative_v69436 = any(
                             re.search(
                                 pattern_v69436,
-                                exact_text_v69436,
+                                evidence_blob_v69481,
                                 flags=re.I,
                             )
                             for pattern_v69436 in neg_patterns_v69436
+                        )
+                        positive_patterns_v69481 = (
+                            rf"\b(?:support(?:s|ed)?|retain(?:s|ed)?|keep(?:s|ing)?|include(?:s|d)?|built[-\s]?in|compatible\s+with)\b.{{0,100}}\b(?:{evidence_term_v69436})\b",
+                            rf"\b(?:{evidence_term_v69436})\b.{{0,100}}\b(?:support(?:s|ed)?|retain(?:s|ed)?|available|included|compatible)\b",
+                            rf"data-atp-(?:feature|factory-feature-support)[^>]*\b(?:{evidence_term_v69436})\b",
+                        )
+                        explicit_positive_v69481 = any(
+                            re.search(pattern_v69481, evidence_blob_v69481, flags=re.I)
+                            for pattern_v69481 in positive_patterns_v69481
                         )
 
                     if explicit_negative_v69436:
                         status_v69436 = "Explicitly not supported"
                         negative_v69436 += 1
+                    elif explicit_positive_v69481:
+                        status_v69436 = "Listed / supported"
+                        positive_v69436 += 1
                     else:
                         status_v69436 = "Not stated on the current product page"
 
