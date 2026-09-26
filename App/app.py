@@ -1,4 +1,4 @@
-# AutoTecPro AI v69475 - deterministic learned recall + reliable upper-right PDF export + unique compatibility visuals
+# AutoTecPro AI v69476 - native-menu print takeover hardening + unique compatibility visuals
 # AutoTecPro AI v69451 - explicit Graphic engine pinning + silent-exception observability hardening
 # AutoTecPro AI v69450 - precise product labels + trim-fitment display + concise compatibility captions + Streamlit iframe migration
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
@@ -103,8 +103,8 @@
 # React-aware value injection plus post-transfer verification/retry before the draft overlay is
 # retired. Sales, Technical, Marketing, Graphic, Auth, learning, WooCommerce, image-authority,
 # product-fitment, voice, and completed-answer persistence behavior remain unchanged.
-AUTOTECPRO_RELEASE_VERSION = "v69475"
-AUTOTECPRO_RELEASE_BUILD = "v69475-upper-print-blob-unique-compatibility-visuals-20260926"
+AUTOTECPRO_RELEASE_VERSION = "v69476"
+AUTOTECPRO_RELEASE_BUILD = "v69476-native-menu-print-takeover-verified-20260926"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -9935,39 +9935,60 @@ def _build_conversation_pdf_bytes_v69474(messages_json, assistant_label="Technic
     return output_v69474.getvalue()
 
 
-def _install_upper_right_print_pdf_v69475(messages, assistant_label="Technical Support"):
-    """Route Streamlit's existing upper-right Print action to a verified server PDF.
+def _install_upper_right_print_pdf_v69476(messages, assistant_label="Technical Support"):
+    """Replace Streamlit's native upper-right Print command with server-PDF export.
 
-    The PDF bytes are generated server-side, then embedded into the trusted app
-    document as a Blob payload. This removes the fragile hidden st.download_button
-    dependency and completely bypasses Chrome/Streamlit DOM printing.
+    v69475 relied on a document-level click interceptor. Production evidence showed
+    Streamlit could still execute its native print handler before/without that
+    interceptor winning the event race. v69476 takes ownership of the actual visible
+    Print menu item: whenever Streamlit opens its menu, the matching Print control is
+    replaced with a visually identical DOM clone that has no React/native print
+    listener, then bound directly to the verified server-generated PDF Blob download.
+    Capture-phase pointer/mouse/click guards and window/parent/top print overrides stay
+    installed as independent fallbacks.
     """
-    normalized_v69475 = _durable_chat_rows_v69473(messages)
-    if not normalized_v69475:
+    normalized_v69476 = _durable_chat_rows_v69473(messages)
+    if not normalized_v69476:
         return False
-    payload_v69475 = json.dumps(normalized_v69475, ensure_ascii=False, sort_keys=True)
-    pdf_bytes_v69475 = _build_conversation_pdf_bytes_v69474(payload_v69475, assistant_label)
-    if not pdf_bytes_v69475:
-        diagnostic_log("upper_print_pdf_build_empty_v69475", message_count=len(normalized_v69475))
+    payload_v69476 = json.dumps(normalized_v69476, ensure_ascii=False, sort_keys=True)
+    pdf_bytes_v69476 = _build_conversation_pdf_bytes_v69474(payload_v69476, assistant_label)
+    if not pdf_bytes_v69476:
+        diagnostic_log("upper_print_pdf_build_empty_v69476", message_count=len(normalized_v69476))
         return False
 
-    file_name_v69475 = f"AutoTecPro_AI_Conversation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-    pdf_b64_v69475 = base64.b64encode(pdf_bytes_v69475).decode("ascii")
-    safe_name_v69475 = json.dumps(file_name_v69475, ensure_ascii=False)
-    safe_b64_v69475 = json.dumps(pdf_b64_v69475)
+    file_name_v69476 = f"AutoTecPro_AI_Conversation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    pdf_b64_v69476 = base64.b64encode(pdf_bytes_v69476).decode("ascii")
+    safe_name_v69476 = json.dumps(file_name_v69476, ensure_ascii=False)
+    safe_b64_v69476 = json.dumps(pdf_b64_v69476)
 
-    script_v69475 = r'''<script>
+    script_v69476 = r'''<script>
     (()=>{
-      const root=window,doc=root.document,KEY='__atpUpperRightPrintPdfV69475';
+      const local=window;
+      let root=local;
+      try{
+        if(local.parent && local.parent!==local && local.parent.document) root=local.parent;
+        if(root.top && root.top.document) root=root.top;
+      }catch(_){root=local;}
+      const doc=root.document;
+      const KEY='__atpUpperRightPrintPdfV69476';
+      const OLD_KEYS=['__atpUpperRightPrintPdfV69475','__atpUpperRightPrintPdfV69474','__atpNativePrintControllerV69473'];
+      for(const k of OLD_KEYS){
+        try{const old=root[k];if(old&&typeof old.destroy==='function')old.destroy();delete root[k];}catch(_){}
+      }
       const prior=root[KEY];
-      if(prior&&typeof prior.destroy==='function'){try{prior.destroy()}catch(_){}}
+      if(prior&&typeof prior.destroy==='function'){try{prior.destroy()}catch(_){} }
+
       const PDF_B64=__ATP_PDF_B64__;
       const FILE_NAME=__ATP_FILE_NAME__;
       const normalize=t=>String(t||'').replace(/\s+/g,' ').trim().toLowerCase();
       let lastTriggerAt=0;
+      let observer=null;
+      const boundNodes=new Set();
+      const originalPrints=[];
+
       const downloadPdf=()=>{
         const now=Date.now();
-        if(now-lastTriggerAt<700)return true;
+        if(now-lastTriggerAt<900)return true;
         lastTriggerAt=now;
         try{
           const binary=atob(PDF_B64);
@@ -9984,60 +10005,125 @@ def _install_upper_right_print_pdf_v69475(messages, assistant_label="Technical S
           return true;
         }catch(_){return false}
       };
-      const printTarget=target=>{
-        if(!target||!target.closest)return false;
-        const candidates=[
-          target.closest('[role="menuitem"]'),
-          target.closest('[role="menuitemradio"]'),
-          target.closest('button'),
-          target.closest('[role="button"]'),
-          target.closest('li')
-        ].filter(Boolean);
-        for(const el of candidates){
-          const label=normalize(el.textContent||el.getAttribute('aria-label')||'');
-          if(label==='print'||label.startsWith('print ')){
-            const inMenu=el.closest('[role="menu"],[data-baseweb="popover"],[data-testid*="MainMenu" i],[data-testid*="menu" i],[data-testid*="popover" i]');
-            if(inMenu)return true;
-            try{const r=el.getBoundingClientRect();if(r.top<420&&r.right>(root.innerWidth*.5))return true}catch(_){}
-          }
+
+      const isVisible=el=>{
+        try{const r=el.getBoundingClientRect();const st=root.getComputedStyle(el);return r.width>2&&r.height>2&&st.display!=='none'&&st.visibility!=='hidden'}catch(_){return false}
+      };
+      const isMenuContext=el=>{
+        if(!el||!el.closest)return false;
+        if(el.closest('[role="menu"],[data-baseweb="popover"],[data-testid*="MainMenu" i],[data-testid*="menu" i],[data-testid*="popover" i]'))return true;
+        try{const r=el.getBoundingClientRect();return r.top<480&&r.right>(root.innerWidth*.52)}catch(_){return false}
+      };
+      const exactPrintControl=node=>{
+        if(!node||node.nodeType!==1)return null;
+        const chain=[];
+        let cur=node;
+        for(let i=0;i<6&&cur&&cur!==doc.body;i++,cur=cur.parentElement){chain.push(cur)}
+        for(const el of chain){
+          if(!el.matches?.('button,[role="menuitem"],[role="menuitemradio"],[role="button"],li'))continue;
+          const label=normalize(el.getAttribute?.('aria-label')||el.textContent||'');
+          if(label==='print' && isVisible(el) && isMenuContext(el))return el;
         }
+        return null;
+      };
+      const hardStop=e=>{
+        try{e.preventDefault()}catch(_){}
+        try{e.stopPropagation()}catch(_){}
+        try{e.stopImmediatePropagation()}catch(_){}
+        downloadPdf();
+        try{doc.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',bubbles:true}))}catch(_){}
         return false;
       };
-      const intercept=e=>{
-        if(!printTarget(e.target))return;
-        e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-        downloadPdf();
+      const bindOwnedPrint=el=>{
+        if(!el||boundNodes.has(el))return el;
+        let owned=el;
+        try{
+          const clone=el.cloneNode(true);
+          clone.setAttribute('data-atp-print-owned-v69476','1');
+          el.replaceWith(clone);
+          owned=clone;
+        }catch(_){try{el.setAttribute('data-atp-print-owned-v69476','1')}catch(_){} }
+        boundNodes.add(owned);
+        for(const ev of ['pointerdown','mousedown','mouseup','click']){
+          try{owned.addEventListener(ev,hardStop,true)}catch(_){}
+          try{owned.addEventListener(ev,hardStop,false)}catch(_){}
+        }
+        try{owned.onclick=hardStop}catch(_){}
+        return owned;
+      };
+      const scanPrintItems=()=>{
+        const selectors='[role="menuitem"],[role="menuitemradio"],button,[role="button"],li';
+        let nodes=[];
+        try{
+          for(const menu of doc.querySelectorAll('[role="menu"],[data-baseweb="popover"],[data-testid*="MainMenu" i],[data-testid*="menu" i],[data-testid*="popover" i]')){
+            nodes.push(...menu.querySelectorAll(selectors));
+          }
+        }catch(_){}
+        if(!nodes.length){
+          try{nodes=[...doc.querySelectorAll('[role="menuitem"],[role="menuitemradio"],button,[role="button"],li')]}catch(_){}
+        }
+        for(const node of nodes){
+          const label=normalize(node.getAttribute?.('aria-label')||node.textContent||'');
+          if(label!=='print')continue;
+          if(!isVisible(node)||!isMenuContext(node))continue;
+          bindOwnedPrint(node);
+        }
+      };
+
+      const capture=e=>{
+        const el=exactPrintControl(e.target);
+        if(!el)return;
+        if(el.getAttribute?.('data-atp-print-owned-v69476')!=='1')bindOwnedPrint(el);
+        hardStop(e);
       };
       const keydown=e=>{
         if(!(e.ctrlKey||e.metaKey)||String(e.key||'').toLowerCase()!=='p')return;
-        e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-        downloadPdf();
+        hardStop(e);
       };
-      doc.addEventListener('click',intercept,true);
+      for(const ev of ['pointerdown','mousedown','mouseup','click'])doc.addEventListener(ev,capture,true);
       doc.addEventListener('keydown',keydown,true);
-      const originalPrint=(typeof root.print==='function')?root.print.bind(root):null;
-      try{root.print=()=>{downloadPdf();}}catch(_){}
+
+      try{
+        observer=new MutationObserver(()=>{queueMicrotask(scanPrintItems)});
+        observer.observe(doc.documentElement||doc.body,{subtree:true,childList:true,attributes:false});
+      }catch(_){}
+      scanPrintItems();
+      const scanTimer=root.setInterval(scanPrintItems,350);
+
+      const patchPrint=obj=>{
+        if(!obj)return;
+        try{
+          const original=(typeof obj.print==='function')?obj.print.bind(obj):null;
+          originalPrints.push([obj,original]);
+          obj.print=()=>{downloadPdf();return undefined};
+        }catch(_){}
+      };
+      patchPrint(root);
+      try{if(root.parent&&root.parent!==root)patchPrint(root.parent)}catch(_){}
+      try{if(root.top&&root.top!==root&&root.top!==root.parent)patchPrint(root.top)}catch(_){}
+
       root[KEY]={
-        downloadPdf,
+        downloadPdf,scanPrintItems,
         destroy:()=>{
-          try{doc.removeEventListener('click',intercept,true)}catch(_){}
+          try{observer&&observer.disconnect()}catch(_){}
+          try{root.clearInterval(scanTimer)}catch(_){}
+          for(const ev of ['pointerdown','mousedown','mouseup','click']){try{doc.removeEventListener(ev,capture,true)}catch(_){}}
           try{doc.removeEventListener('keydown',keydown,true)}catch(_){}
-          try{if(originalPrint)root.print=originalPrint}catch(_){}
+          for(const pair of originalPrints){try{if(pair[1])pair[0].print=pair[1]}catch(_){}}
         }
       };
     })();
     </script>'''
-    script_v69475 = script_v69475.replace('__ATP_PDF_B64__', safe_b64_v69475).replace('__ATP_FILE_NAME__', safe_name_v69475)
-    _run_invisible_trusted_browser_script_v69453(script_v69475)
+    script_v69476 = script_v69476.replace('__ATP_PDF_B64__', safe_b64_v69476).replace('__ATP_FILE_NAME__', safe_name_v69476)
+    _run_invisible_trusted_browser_script_v69453(script_v69476)
     diagnostic_log(
-        "upper_print_pdf_ready_v69475",
-        message_count=len(normalized_v69475),
-        pdf_bytes=len(pdf_bytes_v69475),
-        pdf_b64_chars=len(pdf_b64_v69475),
-        source="server_pdf_blob_native_menu",
+        "upper_print_pdf_ready_v69476",
+        message_count=len(normalized_v69476),
+        pdf_bytes=len(pdf_bytes_v69476),
+        pdf_b64_chars=len(pdf_b64_v69476),
+        source="server_pdf_blob_owned_native_menu",
     )
     return True
-
 
 REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
 REMEMBER_CREDENTIAL_DAYS = 30
@@ -115380,19 +115466,19 @@ def _render_final_print_authority_v69009():
     )
 
 
-# v69475: do not activate the legacy @media-print DOM path. The upper-right
-# Streamlit Print command is intercepted and served a verified server PDF Blob.
+# v69476: take ownership of Streamlit's transient upper-right Print menu item and
+# route it to the verified server-generated PDF. Legacy DOM printing remains inactive.
 try:
-    _upper_print_messages_v69475 = _durable_chat_rows_v69473(st.session_state.get("messages") or [])
-    _install_upper_right_print_pdf_v69475(
-        _upper_print_messages_v69475,
+    _upper_print_messages_v69476 = _durable_chat_rows_v69473(st.session_state.get("messages") or [])
+    _install_upper_right_print_pdf_v69476(
+        _upper_print_messages_v69476,
         assistant_label=(st.session_state.get("current_assistant") or globals().get("assistant") or "Technical Support"),
     )
-except Exception as _upper_print_error_v69475:
+except Exception as _upper_print_error_v69476:
     diagnostic_log(
-        "upper_print_pdf_failed_v69475",
-        error_type=type(_upper_print_error_v69475).__name__,
-        error=str(_upper_print_error_v69475)[:500],
+        "upper_print_pdf_failed_v69476",
+        error_type=type(_upper_print_error_v69476).__name__,
+        error=str(_upper_print_error_v69476)[:500],
     )
 
 
