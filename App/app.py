@@ -1,5 +1,5 @@
-# AutoTecPro AI v69491 - climate-panel identification activates exact topical visuals
-# Preserves v69490 bounded catalog lookup and eager Sales result images.
+# AutoTecPro AI v69492 - exact SYNC exclusion polarity, truthful climate-panel images, and bounded Sales fact lookups
+# Preserves v69491 climate-panel routing and v69490 fast catalog lookup / eager primary images.
 # Preserves v69489 clarification and SYNC routing fixes.
 # AutoTecPro AI v69489 - expire unrelated Product Library clarifications + classify screen-specific factory-feature questions
 # AutoTecPro AI v69478 - native top-right PDF download control + minimal Streamlit toolbar + preserved v69477 fixes
@@ -106,8 +106,8 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-AUTOTECPRO_RELEASE_VERSION = "v69491"
-AUTOTECPRO_RELEASE_BUILD = "v69491-climate-panel-visual-routing-20260927"
+AUTOTECPRO_RELEASE_VERSION = "v69492"
+AUTOTECPRO_RELEASE_BUILD = "v69492-factory-sync-exclusion-polarity-20260927"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -495,6 +495,16 @@ diagnostic_log(
     explicit_unsure_keeps_photo_clarification=True,
     size_qualified_feature_questions_detected=True,
     unknown_factory_sync_support_fails_closed=True,
+)
+diagnostic_log(
+    "v69492_sales_followup_regressions_fixed_ready",
+    without_original_sync_is_not_retained=True,
+    configuration_scoped_negative_evidence_precedes_generic_feature_flags=True,
+    implicit_compatibility_visual_has_exact_primary_fallback=True,
+    missing_visuals_never_claimed_as_shown=True,
+    answer_text_never_promises_unpublished_product_photos=True,
+    live_feature_fact_fetch_timeout_seconds=1.75,
+    live_feature_fact_parallel_limit=8,
 )
 diagnostic_log(
     "v69484_login_fastpath_ready",
@@ -3698,7 +3708,16 @@ def _workspace_sales_feature_evidence_v69487(label, topic, evidence_sources, sel
             clean_v69487 = re.sub(r"\s+", " ", segment_v69487).strip(); low_v69487 = clean_v69487.casefold()
             if not clean_v69487: continue
             if not any(group and all(re.search(rf"\b{re.escape(tok)}\b", low_v69487) for tok in group) for group in groups_v69487): continue
-            neg_v69487 = bool(negative_v69487.search(low_v69487)); pos_v69487 = bool(positive_v69487.search(low_v69487))
+            sync_exclusion_v69492 = bool(
+                str(topic or "").strip().casefold() == "factory_sync"
+                and re.search(
+                    r"\bwithout\s+(?:the\s+)?(?:(?:original|factory|oem)\s+)?(?:(?:microsoft|ford)\s+)?sync\s*(?:version\s*)?[123]\b",
+                    low_v69487,
+                    flags=re.I,
+                )
+            )
+            neg_v69487 = bool(negative_v69487.search(low_v69487)) or sync_exclusion_v69492
+            pos_v69487 = bool(positive_v69487.search(low_v69487))
             source_low_v69487 = str(source_name_v69487 or "").casefold()
             # Retrieval/SEO/media metadata is discoverability context, never factual
             # support/negative authority even when its keywords contain words such as
@@ -3710,7 +3729,7 @@ def _workspace_sales_feature_evidence_v69487(label, topic, evidence_sources, sel
             elif any(k in source_low_v69487 for k in ("retained","support","compatibility","feature","facts","short","tab","summary")) and not any(k in source_low_v69487 for k in ("search-terms","keyword","seo","video","image","link-exclusions")): pos_v69487 = True
             if not (neg_v69487 or pos_v69487): continue
             conditions_v69487 = _workspace_sales_segment_conditions_v69487(clean_v69487, available_v69487, source_name_v69487)
-            direct_v69487 = bool(conditions_v69487 and (re.search(r"\b(?:on|for|with|when|only|equipped)\b", low_v69487) or any(k in source_low_v69487 for k in ("branch","retained","scope","conditional"))))
+            direct_v69487 = bool(conditions_v69487 and (sync_exclusion_v69492 or re.search(r"\b(?:on|for|with|when|only|equipped)\b", low_v69487) or any(k in source_low_v69487 for k in ("branch","retained","scope","conditional"))))
             score_v69487 = (30 if any(k in source_low_v69487 for k in ("retained","not-supported","unsupported")) else 0) + (22 if "data-atp-feature" in source_low_v69487 else 0) + (12 if "semantic" in source_low_v69487 else 0) + (8 if "short" in source_low_v69487 or "tab" in source_low_v69487 else 0) + (20 if direct_v69487 else 0)
             matched_v69487.append({"source":source_name_v69487,"text":clean_v69487[:900],"positive":pos_v69487,"negative":neg_v69487,"conditions":conditions_v69487 if direct_v69487 else {},"score":score_v69487})
 
@@ -70808,7 +70827,7 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
             ),
         ])
 
-    lines.extend(["", "The main product photo for each matching product is shown below."])
+    # Image publication happens later in the runtime; do not promise photos here.
 
     diagnostic_log(
         "workspace_sales_first_turn_fitment_provider_bypass_v69405",
@@ -71889,9 +71908,9 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
                 try:
                     from concurrent.futures import ThreadPoolExecutor, as_completed
                     unique_sources_v69481 = list(dict.fromkeys(x for x in unresolved_sources_v69485 if x))
-                    with ThreadPoolExecutor(max_workers=min(4, max(1, len(unique_sources_v69481))), thread_name_prefix="atp-live-facts-v69485") as pool_v69481:
+                    with ThreadPoolExecutor(max_workers=min(8, max(1, len(unique_sources_v69481))), thread_name_prefix="atp-live-facts-v69492") as pool_v69481:
                         futures_v69481 = {
-                            pool_v69481.submit(_workspace_sales_exact_product_page_facts_v69481, source_v69481, 3.0): source_v69481
+                            pool_v69481.submit(_workspace_sales_exact_product_page_facts_v69481, source_v69481, 1.75): source_v69481
                             for source_v69481 in unique_sources_v69481
                         }
                         for future_v69481 in as_completed(futures_v69481):
@@ -72888,7 +72907,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
             ])
             for note_v69348 in list(dict.fromkeys(all_notes_v69348))[:4]:
                 lines.append(f"- {note_v69348}")
-            lines.append("- The main product photo for each option is shown below.")
+            # Exact image publication is finalized after this answer is built.
             diagnostic_log(
                 "workspace_sales_first_response_table_v69350",
                 product_count=len(rows_v69325),
@@ -73086,7 +73105,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     if notes_v69348:
                         lines_v69350.extend(["", "### Compatibility notes", ""])
                         lines_v69350.extend(f"- {note}" for note in notes_v69348)
-                    lines_v69350.append("\nThe main product photo is shown below.")
+                    # Exact image publication is finalized after this answer is built.
                     diagnostic_log(
                         "workspace_sales_first_response_table_v69350",
                         product_count=1,
@@ -115700,34 +115719,96 @@ else:
                     topical_visual_request_v69403
                     and not sales_exact_topic_visuals_v69399
                 ):
-                    # Explicit topical visual requests fail closed. Never replace
-                    # a missing compatibility/reference image with a general hero.
-                    generated_images = [
-                        image
-                        for image in (generated_images or [])
-                        if not (
-                            isinstance(image, dict)
-                            and str(image.get("source") or "") == "website_knowledge"
+                    # An implicit compatibility-identification follow-up may use
+                    # exact product primary photos as a clearly labeled fallback
+                    # when no exact dashboard/reference image exists. Explicit
+                    # topical-photo requests still fail closed.
+                    implicit_compatibility_visual_v69492 = bool(
+                        is_sales_workspace(assistant)
+                        and _workspace_sales_auto_compatibility_visual_intent_v69418(
+                            interaction_prompt
                         )
-                    ]
-                    topical_product_count_v69405 = (
-                        len(workspace_atp_authority_v69180.get("packages") or [])
-                        if str(workspace_atp_authority_v69180.get("status") or "")
-                        == "recovered_multi"
-                        else 1
+                        and not _website_image_explicit_visual_request_v68888(
+                            interaction_prompt
+                        )
                     )
-                    diagnostic_log(
-                        "workspace_topical_visual_fail_closed_v69405",
-                        workspace=str(assistant),
-                        prompt_tokens=sorted(topical_tokens_v69403)[:20],
-                        products=topical_product_count_v69405,
-                    )
-                    if is_sales_workspace(assistant):
+                    if implicit_compatibility_visual_v69492:
+                        sales_exact_primaries_v69398 = (
+                            _workspace_sales_exact_primary_final_lock_v69398(
+                                assistant,
+                                interaction_prompt,
+                                workspace_atp_authority_v69180,
+                                max_images=6,
+                            )
+                        )
+                        if sales_exact_primaries_v69398:
+                            fallback_note_v69492 = (
+                                "The product photos below show the replacement units, not a reference image of your original dashboard setup. "
+                                "Upload a clear dashboard/radio photo and I can help identify your exact configuration."
+                            )
+                            answer = str(answer or "")
+                            replaced_claim_v69492 = False
+                            for stale_claim_v69492 in (
+                                "The main product photo for each matching product is shown below.",
+                                "The main product photo for each option is shown below.",
+                                "The main product photo is shown below.",
+                            ):
+                                if stale_claim_v69492 in answer:
+                                    answer = answer.replace(stale_claim_v69492, fallback_note_v69492)
+                                    replaced_claim_v69492 = True
+                            if not replaced_claim_v69492:
+                                answer = (answer.rstrip() + "\n\n" + fallback_note_v69492).strip()
+                            diagnostic_log(
+                                "workspace_sales_compatibility_visual_primary_fallback_v69492",
+                                products=len(sales_exact_primaries_v69398),
+                                prompt_tokens=sorted(topical_tokens_v69403)[:20],
+                            )
+                        else:
+                            no_image_note_v69492 = (
+                                "I couldn't find an exact dashboard-reference image in the current product sources. "
+                                "Upload a clear dashboard/radio photo and I can help identify your exact configuration."
+                            )
+                            answer = str(answer or "")
+                            for stale_claim_v69492 in (
+                                "The main product photo for each matching product is shown below.",
+                                "The main product photo for each option is shown below.",
+                                "The main product photo is shown below.",
+                            ):
+                                answer = answer.replace(stale_claim_v69492, no_image_note_v69492)
+                            generated_images = [
+                                image for image in (generated_images or [])
+                                if not (isinstance(image, dict) and str(image.get("source") or "") == "website_knowledge")
+                            ]
+                            diagnostic_log(
+                                "workspace_sales_compatibility_visual_no_exact_images_v69492",
+                                products=len(workspace_atp_authority_v69180.get("packages") or []),
+                                prompt_tokens=sorted(topical_tokens_v69403)[:20],
+                            )
+                    else:
+                        # Explicit topical visual requests fail closed. Never replace
+                        # a missing compatibility/reference image with a general hero.
+                        generated_images = [
+                            image for image in (generated_images or [])
+                            if not (isinstance(image, dict) and str(image.get("source") or "") == "website_knowledge")
+                        ]
+                        topical_product_count_v69405 = (
+                            len(workspace_atp_authority_v69180.get("packages") or [])
+                            if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi"
+                            else 1
+                        )
                         diagnostic_log(
-                            "workspace_sales_topical_visual_fail_closed_v69403",
+                            "workspace_topical_visual_fail_closed_v69405",
+                            workspace=str(assistant),
                             prompt_tokens=sorted(topical_tokens_v69403)[:20],
                             products=topical_product_count_v69405,
                         )
+                        if is_sales_workspace(assistant):
+                            diagnostic_log(
+                                "workspace_sales_topical_visual_fail_closed_v69403",
+                                prompt_tokens=sorted(topical_tokens_v69403)[:20],
+                                products=topical_product_count_v69405,
+                            )
+
 
                 sales_final_exact_images_v69399 = (
                     list(sales_exact_topic_visuals_v69399)
@@ -115735,6 +115816,16 @@ else:
                     else list(sales_exact_primaries_v69398)
                 )
                 if sales_final_exact_images_v69399:
+                    if sales_exact_topic_visuals_v69399:
+                        for stale_claim_v69492 in (
+                            "The main product photo for each matching product is shown below.",
+                            "The main product photo for each option is shown below.",
+                            "The main product photo is shown below.",
+                        ):
+                            answer = str(answer or "").replace(
+                                stale_claim_v69492,
+                                "A relevant image from the exact product page is shown below.",
+                            )
                     non_web_v69398 = [
                         image
                         for image in (generated_images or [])
