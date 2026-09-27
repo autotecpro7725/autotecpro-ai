@@ -1,3 +1,6 @@
+# AutoTecPro AI v69491 - climate-panel identification activates exact topical visuals
+# Preserves v69490 bounded catalog lookup and eager Sales result images.
+# Preserves v69489 clarification and SYNC routing fixes.
 # AutoTecPro AI v69489 - expire unrelated Product Library clarifications + classify screen-specific factory-feature questions
 # AutoTecPro AI v69478 - native top-right PDF download control + minimal Streamlit toolbar + preserved v69477 fixes
 # AutoTecPro AI v69451 - explicit Graphic engine pinning + silent-exception observability hardening
@@ -103,8 +106,8 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-AUTOTECPRO_RELEASE_VERSION = "v69489"
-AUTOTECPRO_RELEASE_BUILD = "v69489-live-audit-stale-context-and-sync-feature-fix-20260927"
+AUTOTECPRO_RELEASE_VERSION = "v69491"
+AUTOTECPRO_RELEASE_BUILD = "v69491-climate-panel-visual-routing-20260927"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -17029,8 +17032,8 @@ def extract_images_from_message_content(content):
     return visible_text, clean_images
 
 
-@st.cache_data(ttl=180, max_entries=16, show_spinner=False)
-def _render_image_previews_cached(images_json):
+@st.cache_data(ttl=180, max_entries=32, show_spinner=False)
+def _render_image_previews_cached(images_json, loading_mode="lazy"):
     """Build deterministic image-preview HTML with click-to-enlarge lightboxes."""
     try:
         images = json.loads(images_json)
@@ -17041,6 +17044,7 @@ def _render_image_previews_cached(images_json):
         return ""
 
     cards = []
+    image_loading_v69490 = "eager" if str(loading_mode or "").casefold() == "eager" else "lazy"
 
     for image_index, image in enumerate(images):
         name = html.escape(
@@ -17068,18 +17072,21 @@ def _render_image_previews_cached(images_json):
             if image.get("generated")
             else "chat-image-card"
         )
+        fetch_priority_v69490 = (
+            "high" if image_loading_v69490 == "eager" and image_index == 0 else "auto"
+        )
         cards.append(
             f'<div class="{card_class}">'
             f'<label class="atp-enlarge-label" for="{lightbox_id}" '
             f'title="Click to enlarge image">'
-            f'<img src="{safe_data_url}" alt="{name}" loading="lazy">'
+            f'<img src="{safe_data_url}" alt="{name}" loading="{image_loading_v69490}" decoding="async" fetchpriority="{fetch_priority_v69490}">'
             f'</label>'
             f'<input class="atp-lightbox-toggle" type="checkbox" '
             f'id="{lightbox_id}" aria-hidden="true">'
             f'<label class="atp-lightbox-overlay" for="{lightbox_id}" '
             f'aria-label="Close enlarged image">'
             f'<span class="atp-lightbox-frame">'
-            f'<img src="{safe_data_url}" alt="{name} — enlarged">'
+            f'<img src="{safe_data_url}" alt="{name} — enlarged" loading="lazy" decoding="async">'
             f'<span class="atp-lightbox-close" aria-hidden="true">×</span>'
             f'</span>'
             f'</label>'
@@ -17094,15 +17101,18 @@ def _render_image_previews_cached(images_json):
 
 
 
-def render_image_previews(images):
-    """Render uploaded chat images using cached deterministic markup."""
+def render_image_previews(images, loading_mode="lazy"):
+    """Render chat images; keep history lazy and allow priority for fresh results."""
     if not images:
         return ""
     try:
         images_json = json.dumps(images, ensure_ascii=False, sort_keys=True, default=str)
     except Exception:
         images_json = "[]"
-    return _render_image_previews_cached(images_json)
+    normalized_loading_v69490 = (
+        "eager" if str(loading_mode or "").casefold() == "eager" else "lazy"
+    )
+    return _render_image_previews_cached(images_json, normalized_loading_v69490)
 
 
 def render_selectable_website_preview_grid_v69002(preview_records, preview_urls, state_key):
@@ -74908,8 +74918,18 @@ def _workspace_sales_fast_public_family_catalog_v69483(search_term):
     variants_v69483 = _workspace_sales_woocommerce_search_terms_v69414(term_v69483)[:2]
     products_v69483 = {}
     errors_v69483 = []
-    started_v69483 = time.time()
+    started_v69483 = time.monotonic()
+    # Bound the fast lookup as a whole (not once per spelling variant). If it
+    # cannot verify results within this budget, the existing complete-catalog
+    # fallback remains authoritative and preserves recall.
+    fast_budget_v69490 = 1.85
+    deadline_v69490 = started_v69483 + fast_budget_v69490
+    attempts_v69490 = 0
     for variant_v69483 in variants_v69483:
+        remaining_v69490 = deadline_v69490 - time.monotonic()
+        if remaining_v69490 <= 0.05:
+            break
+        attempts_v69490 += 1
         try:
             response_v69483 = http_session.get(
                 f"{WOOCOMMERCE_STORE_URL}/wp-json/wc/store/v1/products",
@@ -74923,7 +74943,10 @@ def _workspace_sales_fast_public_family_catalog_v69483(search_term):
                     "Accept": "application/json",
                     "User-Agent": "AutoTecPro-AI/1.0",
                 },
-                timeout=min(float(LIVE_HTTP_TIMEOUT or 15.0), 2.4),
+                timeout=min(
+                    float(LIVE_HTTP_TIMEOUT or 15.0),
+                    max(0.05, remaining_v69490),
+                ),
             )
             batch_v69483 = safe_json_response(response_v69483)
             if not isinstance(batch_v69483, list):
@@ -74950,12 +74973,17 @@ def _workspace_sales_fast_public_family_catalog_v69483(search_term):
                 "error": str(error_v69483)[:300],
             })
 
+    elapsed_v69490 = time.monotonic() - started_v69483
     diagnostic_log(
         "workspace_sales_fast_public_family_catalog_v69483",
         search_term=term_v69483[:120],
         products=len(products_v69483),
-        elapsed_seconds=round(time.time() - started_v69483, 3),
+        elapsed_seconds=round(elapsed_v69490, 3),
         errors=len(errors_v69483),
+        error_types=sorted({str(row.get("error_type") or "") for row in errors_v69483 if isinstance(row, dict)}),
+        attempts=attempts_v69490,
+        fast_budget_seconds=fast_budget_v69490,
+        budget_exhausted=bool(elapsed_v69490 >= fast_budget_v69490),
     )
     if products_v69483:
         return {
@@ -77718,6 +77746,7 @@ def _workspace_sales_auto_compatibility_visual_intent_v69418(prompt_text):
 
     compatibility_subject = bool(re.search(
         r"\b(compatib(?:le|ility)|factory setup|factory radio|factory dashboard|"
+        r"factory climate|(?:original\s+)?climate[-\s]*control(?:\s+(?:panel|controls?|setup|configuration))?|"
         r"correct version|right version|correct model|right model)\b",
         value,
     ))
@@ -114507,7 +114536,8 @@ else:
                             )
                         )
                         preview_html_v69420 = render_image_previews(
-                            fast_images_v69420
+                            fast_images_v69420,
+                            loading_mode="eager",
                         )
                         if preview_html_v69420:
                             st.markdown(
