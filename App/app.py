@@ -101,8 +101,8 @@
 # v69474 deterministic learned-answer recall, and v69475 compatibility-image dedupe.
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
-AUTOTECPRO_RELEASE_VERSION = "v69482"
-AUTOTECPRO_RELEASE_BUILD = "v69482-technical-image-learning-exact-authority-20260926"
+AUTOTECPRO_RELEASE_VERSION = "v69483"
+AUTOTECPRO_RELEASE_BUILD = "v69483-sales-fast-canonical-catalog-instant-images-20260927"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -449,6 +449,14 @@ diagnostic_log(
     strict_camera_harness_routing=True,
     wrong_generic_image_fail_closed=True,
     prior_sales_authority_preserved=True,
+)
+diagnostic_log(
+    "v69483_sales_fast_catalog_ready",
+    fast_public_family_search=True,
+    broad_vector_bypass=True,
+    canonical_catalog_gate=True,
+    instant_primary_images=True,
+    prior_learning_and_technical_authority_preserved=True,
 )
 diagnostic_log(
     "v69480_print_baseline_hardened",
@@ -73265,6 +73273,160 @@ def _workspace_sales_merge_full_scan_completeness_v69455(
     return merged_v69456
 
 
+
+@st.cache_data(ttl=180, max_entries=128, show_spinner=False)
+def _workspace_sales_fast_public_family_catalog_v69483(search_term):
+    """Fast public Store-API family lookup for broad Sales discovery.
+
+    Broad vehicle/year discovery does not need authenticated wc/v3, vector search,
+    or a complete 137-product scan before it can answer.  Query the public current
+    storefront directly with a tight timeout; the existing complete-catalog path
+    remains the fail-closed fallback when this fast path cannot verify a result.
+    """
+    term_v69483 = re.sub(r"\s+", " ", str(search_term or "")).strip()
+    if not term_v69483 or not WOOCOMMERCE_STORE_URL:
+        return {"status": "unavailable", "reason": "missing_search_term", "products": []}
+
+    variants_v69483 = _workspace_sales_woocommerce_search_terms_v69414(term_v69483)[:2]
+    products_v69483 = {}
+    errors_v69483 = []
+    started_v69483 = time.time()
+    for variant_v69483 in variants_v69483:
+        try:
+            response_v69483 = http_session.get(
+                f"{WOOCOMMERCE_STORE_URL}/wp-json/wc/store/v1/products",
+                params={
+                    "search": variant_v69483,
+                    "status": "publish",
+                    "per_page": 100,
+                    "page": 1,
+                },
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "AutoTecPro-AI/1.0",
+                },
+                timeout=min(float(LIVE_HTTP_TIMEOUT or 15.0), 2.4),
+            )
+            batch_v69483 = safe_json_response(response_v69483)
+            if not isinstance(batch_v69483, list):
+                raise RuntimeError("Unexpected Woo Store API fast-search response.")
+            for item_v69483 in batch_v69483:
+                if not isinstance(item_v69483, dict):
+                    continue
+                key_v69483 = str(
+                    item_v69483.get("id")
+                    or item_v69483.get("permalink")
+                    or item_v69483.get("slug")
+                    or ""
+                ).strip()
+                if key_v69483:
+                    products_v69483[key_v69483] = dict(item_v69483)
+            # A current family search that returned products is sufficient; do not
+            # spend another network round trip on spelling variants.
+            if products_v69483:
+                break
+        except Exception as error_v69483:
+            errors_v69483.append({
+                "term": variant_v69483,
+                "error_type": type(error_v69483).__name__,
+                "error": str(error_v69483)[:300],
+            })
+
+    diagnostic_log(
+        "workspace_sales_fast_public_family_catalog_v69483",
+        search_term=term_v69483[:120],
+        products=len(products_v69483),
+        elapsed_seconds=round(time.time() - started_v69483, 3),
+        errors=len(errors_v69483),
+    )
+    if products_v69483:
+        return {
+            "status": "ok",
+            "provider": "wc_store_v1_fast_family_v69483",
+            "products": list(products_v69483.values()),
+            "errors": errors_v69483,
+        }
+    return {
+        "status": "unavailable",
+        "reason": "fast_public_family_search_empty_or_unavailable",
+        "products": [],
+        "errors": errors_v69483,
+    }
+
+
+def _workspace_sales_canonical_catalog_member_v69483(prompt_text, product, package):
+    """Fail closed on promotional/mis-scoped broad-catalog rows.
+
+    Current Woo descriptions can contain related vehicles, tags, marketing copy and
+    cross-links.  Those are useful for facts, but they must not make an unrelated
+    product appear in a broad vehicle/year result.  Membership therefore requires
+    the requested family in either the canonical product identity (title/slug/URL)
+    or an exact-current authored ATP compatibility branch.
+    """
+    prompt_v69483 = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    requested_v69483 = {
+        str(x or "").casefold().strip()
+        for x in (_workspace_sales_fuzzy_vehicle_families_v69416(prompt_v69483) or [])
+        if str(x or "").strip()
+    }
+    if not requested_v69483:
+        return True, "no_requested_family"
+
+    product_v69483 = dict(product or {})
+    identity_text_v69483 = " ".join([
+        str(product_v69483.get("name") or ""),
+        str(product_v69483.get("slug") or ""),
+        str(product_v69483.get("permalink") or ""),
+    ])
+    identity_families_v69483 = {
+        str(x or "").casefold().strip()
+        for x in (
+            set(_website_identity_vehicle_families_v69022(identity_text_v69483) or set())
+            | set(_workspace_source_identity_vehicle_families_v69456(identity_text_v69483) or set())
+            | set(_workspace_sales_trusted_identity_generic_families_v69457(identity_text_v69483) or set())
+        )
+        if str(x or "").strip()
+    }
+    semantic_families_v69483 = {
+        str(x or "").casefold().strip()
+        for x in _workspace_exact_current_semantic_families_v69448(
+            str(product_v69483.get("description") or "")
+        )
+        if str(x or "").strip()
+    }
+
+    identity_lower_v69483 = identity_text_v69483.casefold()
+    promotional_v69483 = bool(re.search(
+        r"(?:end[-_\s]*of[-_\s]*year|members?[-_\s]*only|"
+        r"exclusive[-_\s]*members?|holiday[-_\s]*special|"
+        r"clearance[-_\s]*special|special[-_\s]*sale)",
+        identity_lower_v69483,
+    ))
+    promo_requested_v69483 = bool(re.search(
+        r"\b(special|sale|deal|promotion|promo|clearance|member(?:s)? only)\b",
+        prompt_v69483.casefold(),
+    ))
+    if promotional_v69483 and not promo_requested_v69483:
+        return False, "promotional_landing_page_not_requested"
+
+    if identity_families_v69483:
+        if _workspace_sales_family_sets_match_v69416(
+            requested_v69483, identity_families_v69483
+        ):
+            return True, "canonical_identity"
+        # When the canonical title/slug/URL names vehicle families, those explicit
+        # identity fields control broad catalog membership.  Description metadata
+        # may contain related/cross-sell families and cannot broaden this list.
+        return False, "canonical_identity_names_different_family"
+
+    if semantic_families_v69483 and _workspace_sales_family_sets_match_v69416(
+        requested_v69483, semantic_families_v69483
+    ):
+        return True, "exact_current_semantic_branch_without_identity_family"
+
+    return False, "requested_family_absent_from_canonical_identity"
+
+
 @st.cache_data(ttl=90, max_entries=128, show_spinner=False)
 def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
     """Authoritative broad Sales catalog from current published WooCommerce products."""
@@ -73288,65 +73450,60 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
     products_by_id = {}
     failures = []
 
-    # v69457: broad discovery requires a complete catalog anyway. Fetch that bounded
-    # catalog once and avoid the redundant family-search network wave that previously
-    # ran before the same full scan. If the complete provider is unavailable, retain
-    # the existing family-search path as a fail-closed fallback.
-    complete_scan_v69457 = _workspace_sales_woocommerce_complete_full_scan_v69456()
-    if str(complete_scan_v69457.get("status") or "") == "ok":
-        for product_v69457 in complete_scan_v69457.get("products") or []:
-            if not isinstance(product_v69457, dict):
+    # v69483: broad vehicle/year discovery is a current-catalog lookup, not a
+    # semantic-retrieval problem.  Use the public Store API family search first so
+    # cold-path response time is bounded by one small storefront request.  The full
+    # verified catalog scan remains the fail-closed fallback only when the fast
+    # family lookup cannot verify any current product.
+    for family_v69483 in families:
+        fast_result_v69483 = _workspace_sales_fast_public_family_catalog_v69483(
+            family_v69483
+        )
+        if str(fast_result_v69483.get("status") or "") != "ok":
+            failures.append(dict(fast_result_v69483 or {}))
+            continue
+        for product_v69483 in fast_result_v69483.get("products") or []:
+            if not isinstance(product_v69483, dict):
                 continue
-            product_id_v69457 = str(
-                product_v69457.get("id")
-                or product_v69457.get("permalink")
-                or product_v69457.get("slug")
+            product_id_v69483 = str(
+                product_v69483.get("id")
+                or product_v69483.get("permalink")
+                or product_v69483.get("slug")
                 or ""
             ).strip()
-            if product_id_v69457:
-                products_by_id[product_id_v69457] = dict(product_v69457)
+            if product_id_v69483:
+                products_by_id[product_id_v69483] = dict(product_v69483)
+
+    if products_by_id:
         diagnostic_log(
-            "workspace_sales_complete_catalog_direct_v69457",
-            provider=str(complete_scan_v69457.get("provider") or "unknown"),
+            "workspace_sales_fast_family_catalog_authority_v69483",
+            families=list(families),
+            years=list(years),
             products=len(products_by_id),
-            pages=int(complete_scan_v69457.get("pages") or 0),
-        )
-        # Preserve the established completeness diagnostic used by production
-        # observability/audits even though v69457 no longer performs a redundant
-        # search-first network wave before the same full catalog.
-        diagnostic_log(
-            "workspace_sales_woo_completeness_scan_v69455",
-            requested_years=list(years),
-            provider=str(complete_scan_v69457.get("provider") or "unknown"),
-            scanned_products=len(products_by_id),
-            added_products=len(products_by_id),
-            merged_products=len(products_by_id),
-            pages=int(complete_scan_v69457.get("pages") or 0),
-            validation="existing_exact_family_year_kind_gates",
+            provider="wc_store_v1_fast_family_v69483",
         )
     else:
-        failures.append(dict(complete_scan_v69457 or {}))
-        for family in families:
-            result = _workspace_sales_woocommerce_search_v69413(family)
-            if str(result.get("status") or "") != "ok":
-                failures.append(dict(result))
-                continue
-            diagnostic_log(
-                "workspace_sales_woocommerce_family_search_v69415",
-                family=family,
-                provider=str(result.get("provider") or "unknown"),
-                products=len(result.get("products") or []),
-            )
-            for product in result.get("products") or []:
-                if not isinstance(product, dict):
+        complete_scan_v69457 = _workspace_sales_woocommerce_complete_full_scan_v69456()
+        if str(complete_scan_v69457.get("status") or "") == "ok":
+            for product_v69457 in complete_scan_v69457.get("products") or []:
+                if not isinstance(product_v69457, dict):
                     continue
-                product_id = str(product.get("id") or product.get("permalink") or product.get("slug") or "")
-                if product_id:
-                    products_by_id[product_id] = dict(product)
-        products_by_id = _workspace_sales_merge_full_scan_completeness_v69455(
-            products_by_id,
-            years,
-        )
+                product_id_v69457 = str(
+                    product_v69457.get("id")
+                    or product_v69457.get("permalink")
+                    or product_v69457.get("slug")
+                    or ""
+                ).strip()
+                if product_id_v69457:
+                    products_by_id[product_id_v69457] = dict(product_v69457)
+            diagnostic_log(
+                "workspace_sales_complete_catalog_direct_v69457",
+                provider=str(complete_scan_v69457.get("provider") or "unknown"),
+                products=len(products_by_id),
+                pages=int(complete_scan_v69457.get("pages") or 0),
+            )
+        else:
+            failures.append(dict(complete_scan_v69457 or {}))
 
     if failures and not products_by_id:
         reason = str((failures[0] or {}).get("reason") or "woocommerce_catalog_unavailable")
@@ -73362,6 +73519,7 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
     rejected = {
         "status": 0,
         "kind": 0,
+        "identity": 0,
         "family": 0,
         "year": 0,
         "package": 0,
@@ -73385,6 +73543,25 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
         package = _workspace_sales_woocommerce_package_v69413(product)
         if not package:
             rejected["package"] += 1
+            continue
+        canonical_ok_v69483, canonical_reason_v69483 = (
+            _workspace_sales_canonical_catalog_member_v69483(
+                prompt,
+                product,
+                package,
+            )
+        )
+        if not canonical_ok_v69483:
+            rejected["identity"] += 1
+            diagnostic_log(
+                "workspace_sales_noncanonical_catalog_item_suppressed_v69483",
+                reason=str(canonical_reason_v69483),
+                product_name=re.sub(
+                    r"\s+", " ", str(product.get("name") or "")
+                ).strip()[:220],
+                product_slug=str(product.get("slug") or "")[:180],
+                requested_families=sorted(requested_families),
+            )
             continue
         product_families = set(package.get("vehicle_families") or [])
         product_years = {
@@ -73667,6 +73844,34 @@ def _workspace_sales_parallel_discovery_inputs_v69445(destination, prompt_text):
     started_v69445 = time.time()
     recovered_v69445 = []
     woo_catalog_v69445 = {"status": "unavailable", "reason": "parallel_not_started", "packages": []}
+
+    # v69483: a broad vehicle/year question is answered by the current Woo catalog.
+    # Do not run four vector-recovery queries before showing storefront products.
+    # Vector/learned authority remains available for non-broad and follow-up facts.
+    if _workspace_sales_broad_discovery_prompt_v69411(prompt):
+        try:
+            woo_catalog_v69445 = dict(
+                _workspace_sales_broad_woocommerce_catalog_v69413(prompt) or {}
+            )
+        except Exception as woo_fast_error_v69483:
+            woo_catalog_v69445 = {
+                "status": "unavailable",
+                "reason": "fast_broad_woocommerce_exception",
+                "packages": [],
+            }
+            diagnostic_log(
+                "workspace_sales_fast_broad_catalog_failed_v69483",
+                error_type=type(woo_fast_error_v69483).__name__,
+                error=str(woo_fast_error_v69483)[:300],
+            )
+        if str(woo_catalog_v69445.get("status") or "") == "ok":
+            diagnostic_log(
+                "workspace_sales_broad_vector_bypassed_v69483",
+                woo_products=len(woo_catalog_v69445.get("packages") or []),
+                elapsed_seconds=round(time.time() - started_v69445, 3),
+            )
+            return [], woo_catalog_v69445
+
     try:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(
@@ -76481,13 +76686,13 @@ def _workspace_sales_fast_primary_manifest_v69420(
     for pkg in packages:
         source = str(pkg.get("source_url") or "").strip()
         if not source:
-            return []
+            continue
         try:
             page_id = _workspace_product_page_identity_v69396(source)
         except Exception:
-            return []
+            continue
         if not page_id:
-            return []
+            continue
         if page_id not in expected_pages:
             expected_pages.append(page_id)
         if page_id in seen_pages:
@@ -76498,14 +76703,14 @@ def _workspace_sales_fast_primary_manifest_v69420(
             prompt_text,
         )
         if not isinstance(record, dict):
-            return []
+            continue
         image_url = str(
             record.get("archive_web_url")
             or record.get("data_url")
             or ""
         ).strip()
         if not image_url.startswith("https://"):
-            return []
+            continue
 
         record = dict(record)
         record["website_sales_exact_primary_final_lock_v69398"] = True
@@ -76515,7 +76720,7 @@ def _workspace_sales_fast_primary_manifest_v69420(
         output.append(record)
         seen_pages.add(page_id)
 
-    if len(output) != len(expected_pages):
+    if not output:
         return []
 
     output = output[: max(1, int(max_images or 1))]
@@ -76523,6 +76728,8 @@ def _workspace_sales_fast_primary_manifest_v69420(
         "workspace_sales_fast_primary_manifest_v69420",
         products=len(expected_pages),
         published=len(output),
+        missing=max(0, len(expected_pages) - len(output)),
+        instant_partial_allowed_v69483=True,
     )
     return output
 
@@ -111516,46 +111723,78 @@ else:
                                     ),
                                 )
                             elif workspace_sales_manifest_key_v69420:
-                                from concurrent.futures import ThreadPoolExecutor
-                                workspace_sales_image_prefetch_executor_v69420 = (
-                                    ThreadPoolExecutor(
-                                        max_workers=1,
-                                        thread_name_prefix="atp-sales-image-prefetch",
+                                # v69483: current Woo packages already contain the primary
+                                # storefront images. Build that manifest synchronously from
+                                # memory so it is ready the instant the text finishes. Only
+                                # topical/missing-image cases need the legacy async recovery.
+                                instant_primary_v69483 = []
+                                if (
+                                    is_sales_workspace(assistant)
+                                    and _workspace_sales_broad_discovery_prompt_v69411(
+                                        interaction_prompt
                                     )
-                                )
-                                workspace_sales_image_prefetch_future_v69420 = (
-                                    workspace_sales_image_prefetch_executor_v69420.submit(
-                                        _workspace_sales_exact_image_manifest_v69420,
-                                        assistant,
-                                        interaction_prompt,
-                                        workspace_atp_authority_v69180,
-                                        12,
-                                    )
-                                )
-                                diagnostic_log(
-                                    "workspace_sales_exact_image_prefetch_started_v69420",
-                                    workspace=str(assistant),
-                                    authority_status=str(
-                                        workspace_atp_authority_v69180.get("status")
-                                        or ""
-                                    ),
-                                    products=(
-                                        len(
-                                            workspace_atp_authority_v69180.get(
-                                                "packages"
-                                            )
-                                            or []
+                                ):
+                                    instant_primary_v69483 = (
+                                        _workspace_sales_fast_primary_manifest_v69420(
+                                            assistant,
+                                            interaction_prompt,
+                                            workspace_atp_authority_v69180,
+                                            12,
                                         )
-                                        if str(
-                                            workspace_atp_authority_v69180.get(
-                                                "status"
-                                            )
+                                    )
+                                if instant_primary_v69483:
+                                    workspace_sales_prefetched_manifest_v69420 = {
+                                        "mode": "primary",
+                                        "images": [
+                                            dict(x) for x in instant_primary_v69483
+                                            if isinstance(x, dict)
+                                        ],
+                                    }
+                                    diagnostic_log(
+                                        "workspace_sales_primary_manifest_instant_ready_v69483",
+                                        published=len(instant_primary_v69483),
+                                    )
+                                else:
+                                    from concurrent.futures import ThreadPoolExecutor
+                                    workspace_sales_image_prefetch_executor_v69420 = (
+                                        ThreadPoolExecutor(
+                                            max_workers=1,
+                                            thread_name_prefix="atp-sales-image-prefetch",
+                                        )
+                                    )
+                                    workspace_sales_image_prefetch_future_v69420 = (
+                                        workspace_sales_image_prefetch_executor_v69420.submit(
+                                            _workspace_sales_exact_image_manifest_v69420,
+                                            assistant,
+                                            interaction_prompt,
+                                            workspace_atp_authority_v69180,
+                                            12,
+                                        )
+                                    )
+                                    diagnostic_log(
+                                        "workspace_sales_exact_image_prefetch_started_v69420",
+                                        workspace=str(assistant),
+                                        authority_status=str(
+                                            workspace_atp_authority_v69180.get("status")
                                             or ""
-                                        )
-                                        == "recovered_multi"
-                                        else 1
-                                    ),
-                                )
+                                        ),
+                                        products=(
+                                            len(
+                                                workspace_atp_authority_v69180.get(
+                                                    "packages"
+                                                )
+                                                or []
+                                            )
+                                            if str(
+                                                workspace_atp_authority_v69180.get(
+                                                    "status"
+                                                )
+                                                or ""
+                                            )
+                                            == "recovered_multi"
+                                            else 1
+                                        ),
+                                    )
                         except Exception as prefetch_error_v69420:
                             workspace_sales_image_prefetch_executor_v69420 = None
                             workspace_sales_image_prefetch_future_v69420 = None
