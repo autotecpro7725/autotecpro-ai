@@ -1,3 +1,4 @@
+# AutoTecPro AI v69489 - expire unrelated Product Library clarifications + classify screen-specific factory-feature questions
 # AutoTecPro AI v69478 - native top-right PDF download control + minimal Streamlit toolbar + preserved v69477 fixes
 # AutoTecPro AI v69451 - explicit Graphic engine pinning + silent-exception observability hardening
 # AutoTecPro AI v69450 - precise product labels + trim-fitment display + concise compatibility captions + Streamlit iframe migration
@@ -102,8 +103,8 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-AUTOTECPRO_RELEASE_VERSION = "v69488"
-AUTOTECPRO_RELEASE_BUILD = "v69488-cross-workspace-adaptive-verification-hardening-20260927"
+AUTOTECPRO_RELEASE_VERSION = "v69489"
+AUTOTECPRO_RELEASE_BUILD = "v69489-live-audit-stale-context-and-sync-feature-fix-20260927"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -484,6 +485,13 @@ diagnostic_log(
     technical_dynamic_product_discriminators=True,
     technical_ambiguous_fact_clarification=True,
     arbitrary_authored_option_enumerations=True,
+)
+diagnostic_log(
+    "v69489_live_audit_regressions_fixed_ready",
+    unrelated_turn_expires_pending_product_clarification=True,
+    explicit_unsure_keeps_photo_clarification=True,
+    size_qualified_feature_questions_detected=True,
+    unknown_factory_sync_support_fails_closed=True,
 )
 diagnostic_log(
     "v69484_login_fastpath_ready",
@@ -2761,6 +2769,7 @@ def _workspace_sales_feature_label_v69486(topic):
         "reverse_camera": "Original reverse-camera retention",
         "cargo_camera": "Cargo-camera retention",
         "premium_audio": "Premium-sound-system support",
+        "factory_sync": "Original factory SYNC retention",
         "installation_video": "Installation video available",
     }
     topic_v69486 = str(topic or "").strip()
@@ -2783,6 +2792,7 @@ def _workspace_sales_feature_token_groups_v69486(label, topic):
         "reverse_camera": [("reverse", "camera"), ("backup", "camera"), ("factory", "camera")],
         "cargo_camera": [("cargo", "camera")],
         "premium_audio": [("premium", "sound"), ("premium", "audio"), ("bose",), ("alpine",), ("harman",), ("sony",), ("b", "o")],
+        "factory_sync": [("original", "sync"), ("factory", "sync"), ("microsoft", "sync"), ("ford", "sync")],
         "installation_video": [("installation", "video"), ("install", "video")],
     }
     if topic_v69486 in fixed_v69486:
@@ -70018,8 +70028,10 @@ def _workspace_sales_intent_v69433(prompt_text):
         r"what comes with|what features come with|capability|capabilities|"
         r"key feature|key features|main feature|main features|"
         r"does (?:it|this|that|the unit|the system|this unit|this system) (?:support|retain|keep|have)|"
+        r"does\s+.{1,90}?\s+(?:support|retain|keep|have)|"
         r"do (?:they|these|those) (?:support|retain|keep|have)|"
         r"can (?:it|this|that|the unit|the system|this unit|this system) (?:support|retain|keep)|"
+        r"can\s+.{1,90}?\s+(?:support|retain|keep)|"
         r"is .{1,70} supported|are .{1,70} supported)\b", p
     ))
     sibling_request = bool(re.search(
@@ -70060,6 +70072,7 @@ def _workspace_sales_intent_v69433(prompt_text):
         ("reverse_camera", r"\b(reverse camera|backup camera|factory camera)\b"),
         ("cargo_camera", r"\b(cargo camera)\b"),
         ("premium_audio", r"\b(premium sound|premium audio|bose|alpine|harman)\b"),
+        ("factory_sync", r"\b(?:original|factory|oem|microsoft|ford)\s+(?:ford\s+)?sync(?:\s*[1234])?\b"),
         ("installation_video", r"\b(installation video|install video)\b"),
     )
     for topic, pattern in feature_topics:
@@ -70073,6 +70086,8 @@ def _workspace_sales_intent_v69433(prompt_text):
     if not specific_feature and feature_request:
         generic_patterns_v69481 = (
             r"\b(?:does|do)\s+(?:it|this|that|they|these|those|the\s+unit|the\s+system|this\s+unit|this\s+system)\s+(?:support|retain|keep|have)\s+(.{2,80}?)(?:[?.!]|$)",
+            r"\bdoes\s+.{1,90}?\s+(?:support|retain|keep|have)\s+(.{2,80}?)(?:[?.!]|$)",
+            r"\bcan\s+.{1,90}?\s+(?:support|retain|keep)\s+(.{2,80}?)(?:[?.!]|$)",
             r"\bcan\s+(?:it|this|that|the\s+unit|the\s+system|this\s+unit|this\s+system)\s+(?:support|retain|keep)\s+(.{2,80}?)(?:[?.!]|$)",
             r"\bis\s+(.{2,80}?)\s+(?:supported|retained|compatible)(?:[?.!]|$)",
             r"\bare\s+(.{2,80}?)\s+(?:supported|retained|compatible)(?:[?.!]|$)",
@@ -70706,6 +70721,25 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
         if str(resolved_feature_answer_v69487 or "").strip():
             diagnostic_log("workspace_sales_first_turn_feature_answer_v69487", topic=specific_topic_v69487, products=len(rows))
             return resolved_feature_answer_v69487
+
+        feature_label_v69489 = _workspace_sales_feature_label_v69486(specific_topic_v69487)
+        requested_sync_v69489 = re.search(r"\bsync\s*([123])\b", p, flags=re.I)
+        if requested_sync_v69489:
+            feature_scope_v69489 = f"You indicated factory SYNC {requested_sync_v69489.group(1)}, but the exact product information did not verify whether **{feature_label_v69489}** is retained for that setup."
+            feature_followup_v69489 = "Please send a clear photo of the original radio/dashboard and climate-control panel so I can check the exact configuration before recommending a unit."
+        else:
+            feature_scope_v69489 = f"The exact product information did not verify whether **{feature_label_v69489}** is retained for the configuration you described."
+            feature_followup_v69489 = "Please confirm the factory SYNC version (SYNC 1, SYNC 2, or SYNC 3) and send a clear photo of the original radio/dashboard and climate-control panel so I can check the exact configuration before recommending a unit."
+        diagnostic_log(
+            "workspace_sales_first_turn_feature_fail_closed_v69489",
+            topic=specific_topic_v69487,
+            products=len(rows),
+        )
+        return (
+            f"## {feature_label_v69489} — Requires Verification\n\n"
+            f"I found matching products for the vehicle. {feature_scope_v69489} I won’t infer support from the screen size or model year.\n\n"
+            f"{feature_followup_v69489}"
+        )
 
     plural = "product" if len(rows) == 1 else "products"
     lines = [
@@ -71775,6 +71809,7 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             "reverse_camera": "Original reverse-camera retention",
             "cargo_camera": "Cargo-camera retention",
             "premium_audio": "Premium-sound-system support",
+            "factory_sync": "Original factory SYNC retention",
             "installation_video": "Installation video available",
         }
         evidence_terms_v69436 = {
@@ -71788,6 +71823,7 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             "reverse_camera": r"(?:reverse|backup|factory)\s+camera",
             "cargo_camera": r"cargo\s+camera",
             "premium_audio": r"premium\s+(?:sound|audio)|bose|alpine|harman",
+            "factory_sync": r"(?:original|factory|oem|microsoft|ford)\s+(?:ford\s+)?sync(?:\s*(?:version\s*)?[1234])?",
             "installation_video": r"installation\s+video|install\s+video",
         }
         free_feature_v69481 = str(topic or "").startswith("free:")
@@ -104400,11 +104436,29 @@ def _product_library_resolve_pending_selection(prompt):
         st.session_state["product_library_pending_filters"] = {"generic": dict(cumulative_v69488)}
         return {"clarification": True, "candidates": filtered, "narrowed": True}
 
-    if len(value) <= 60:
+    if len(value) <= 60 and re.fullmatch(
+        r"(?:i(?:'m| am)\s+not\s+sure|unsure|i\s+don't\s+know|i\s+do\s+not\s+know|"
+        r"no\s+idea|can't\s+tell|cannot\s+tell)",
+        lowered,
+        flags=re.I,
+    ):
+        return {"clarification": True, "candidates": candidates, "images": [], "unsure": True}
+
+    # Unrelated short questions must expire a pending candidate choice. Keeping
+    # it alive lets a later "I'm not sure" revive an older product topic.
+    selection_shaped_v69489 = bool(re.search(
+        r"\b(?:option|product|model|code|sync|screen|climate|manual|automatic|auto\s*a/?c|"
+        r"audio|camera|radio|factory|version|inch|inches|first|second|third|one|other|"
+        r"neither|none|cancel|start\s+over)\b",
+        lowered,
+        flags=re.I,
+    ))
+    if len(value) <= 60 and selection_shaped_v69489:
         return {"clarification": True, "candidates": candidates, "invalid_selection": True}
 
     st.session_state.pop("product_library_pending_candidates", None)
     st.session_state.pop("product_library_pending_filters", None)
+    diagnostic_log("product_library_pending_clarification_expired_unrelated_turn_v69489", prompt_chars=len(value), candidate_count=len(candidates))
     return None
 
 
@@ -105042,6 +105096,12 @@ def _product_library_chat_context(lookup):
 
     if lookup.get("clarification"):
         candidates = lookup.get("candidates") or []
+        if lookup.get("unsure"):
+            return (
+                "\n\nPRODUCT LIBRARY CLARIFICATION RESPONSE:\n"
+                "The user does not know the requested discriminator. Do not choose a product or infer a configuration. "
+                "Ask for a clear photo of the original factory dashboard/radio and climate-control panel, then offer to identify the correct option."
+            )
         candidate_lines = [f"{index}. {_product_library_candidate_label(product)}" for index, product in enumerate(candidates, start=1)]
         invalid_note = "The user's last selection was not valid. " if lookup.get("invalid_selection") else ""
         resolver_v69488 = _product_library_best_discriminator_v69488(candidates)
