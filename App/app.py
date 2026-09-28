@@ -1,4 +1,4 @@
-# AutoTecPro AI v69497 - honor image opt-outs, accept website-link learning submissions, and trim routine Technical latency
+# AutoTecPro AI v69498 - repair Technical learning schema writes, link-only submissions, View Link display, and compact durable image history
 # Based on the user-requested v69496 rollback baseline.
 # Preserves v69491 climate-panel routing and v69490 fast catalog lookup / eager primary images.
 # Preserves v69489 clarification and SYNC routing fixes.
@@ -107,8 +107,8 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-AUTOTECPRO_RELEASE_VERSION = "v69497"
-AUTOTECPRO_RELEASE_BUILD = "v69497-visual-optout-link-learning-fast-tech-troubleshooting-20260928"
+AUTOTECPRO_RELEASE_VERSION = "v69498"
+AUTOTECPRO_RELEASE_BUILD = "v69498-technical-learning-schema-link-display-compact-images-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -9852,6 +9852,26 @@ def safe_select_rows(table_name, order_columns=None, limit=500):
 
 def _safe_learning_write_v69456(operation_v69456, payload_v69456, row_id_v69456=None):
     clean_v69456 = dict(filter_payload_for_table("learned_knowledge", payload_v69456) or {})
+    available_columns_v69498 = set(get_table_columns("learned_knowledge") or [])
+    if "question" in available_columns_v69498 and not str(clean_v69456.get("question") or "").strip():
+        # Production schema has a NOT NULL `question` even on modern rows keyed by
+        # `issue`. Use the exact deterministic issue/source identity, never generated prose.
+        question_fallback_v69498 = (
+            clean_v69456.get("source_question")
+            or clean_v69456.get("issue")
+            or clean_v69456.get("vehicle")
+        )
+        if question_fallback_v69498:
+            clean_v69456["question"] = str(question_fallback_v69498).strip()[:12000]
+            diagnostic_log(
+                "learning_required_question_compatibility_filled_v69498",
+                operation=operation_v69456,
+                source="source_question_issue_or_vehicle",
+            )
+        else:
+            raise RuntimeError(
+                "The live learned_knowledge schema requires a non-empty question field."
+            )
     known_missing_v69456 = _learning_known_missing_optional_v69456()
     clean_v69456 = {
         key_v69456: value_v69456
@@ -9903,7 +9923,7 @@ def safe_update_row(table_name, payload, row_id):
     return supabase.table(table_name).update(clean_payload).eq("id", row_id).execute()
 
 def inline_format(text):
-    """Escape text, render bold, and label AutoTecPro product URLs as links."""
+    """Escape text, render bold, and label AutoTecPro URLs as View Link anchors."""
     safe = html.escape(str(text or ""))
     parts = safe.split("**")
     if len(parts) > 1:
@@ -9911,13 +9931,14 @@ def inline_format(text):
         for i, part in enumerate(parts):
             rebuilt += f"<strong>{part}</strong>" if i % 2 else part
         safe = rebuilt
-    product_url_pattern_v69496 = re.compile(
-        r"https?://(?:www\.)?autotecpro\.com/product/[^\s<>\"']+",
+    autotecpro_url_pattern_v69498 = re.compile(
+        r"(?:View\s+Link\s*:\s*)?https?://(?:www\.)?autotecpro\.com/[^\s<>\"']+",
         flags=re.IGNORECASE,
     )
 
-    def product_link_v69496(match):
+    def autotecpro_link_v69498(match):
         raw_url = match.group(0)
+        raw_url = re.sub(r"^View\s+Link\s*:\s*", "", raw_url, flags=re.IGNORECASE)
         trailing = ""
         while raw_url and raw_url[-1] in ".,;!?":
             trailing = raw_url[-1] + trailing
@@ -9929,7 +9950,7 @@ def inline_format(text):
             f'rel="noopener noreferrer">View Link</a>{trailing}'
         )
 
-    safe = product_url_pattern_v69496.sub(product_link_v69496, safe)
+    safe = autotecpro_url_pattern_v69498.sub(autotecpro_link_v69498, safe)
     return safe
 
 
@@ -16839,8 +16860,35 @@ def serialize_images_marker(images):
     # auxiliary QA/runtime metadata is not JSON serializable.
     primary_error_type_v69297 = ""
     primary_error_text_v69297 = ""
+    compact_images_v69498 = []
+    compacted_image_count_v69498 = 0
+    compacted_data_url_chars_v69498 = 0
+    for image_v69498 in images or []:
+        if not isinstance(image_v69498, dict):
+            compact_images_v69498.append(image_v69498)
+            continue
+        stored_image_v69498 = dict(image_v69498)
+        if (
+            str(stored_image_v69498.get("source") or "") == "website_knowledge"
+            and str(
+                stored_image_v69498.get("archive_storage_path")
+                or stored_image_v69498.get("storage_path")
+                or ""
+            ).strip()
+        ):
+            compacted_data_url_chars_v69498 += len(str(stored_image_v69498.get("data_url") or ""))
+            stored_image_v69498["data_url"] = ""
+            compacted_image_count_v69498 += 1
+        compact_images_v69498.append(stored_image_v69498)
     try:
-        return "\n\n" + IMAGE_MARKER_PREFIX + json.dumps(images, ensure_ascii=False) + IMAGE_MARKER_SUFFIX
+        serialized_v69498 = json.dumps(compact_images_v69498, ensure_ascii=False)
+        if compacted_image_count_v69498:
+            diagnostic_log(
+                "website_image_history_payload_compacted_v69498",
+                images=compacted_image_count_v69498,
+                data_url_chars_removed=compacted_data_url_chars_v69498,
+            )
+        return "\n\n" + IMAGE_MARKER_PREFIX + serialized_v69498 + IMAGE_MARKER_SUFFIX
     except Exception as primary_error_v69297:
         primary_error_type_v69297 = type(primary_error_v69297).__name__
         primary_error_text_v69297 = str(primary_error_v69297)[:300]
@@ -17061,12 +17109,53 @@ def extract_images_from_message_content(content):
 
     clean_images = []
     for image in images:
-        if not isinstance(image, dict) or not image.get("data_url"):
+        if not isinstance(image, dict):
+            continue
+        image_data_v69498 = str(image.get("data_url") or "").strip()
+        image_source_v69498 = str(image.get("source") or "")
+        if not image_data_v69498 and image_source_v69498 == "website_knowledge":
+            archive_path_v69498 = str(
+                image.get("archive_storage_path") or image.get("storage_path") or ""
+            ).strip()
+            if archive_path_v69498:
+                signed_cache_v69498 = st.session_state.setdefault(
+                    "_website_image_signed_url_cache_v69498", {}
+                )
+                cache_entry_v69498 = signed_cache_v69498.get(archive_path_v69498)
+                if isinstance(cache_entry_v69498, dict) and float(
+                    cache_entry_v69498.get("expires_at") or 0
+                ) > time.time() + 300:
+                    image_data_v69498 = str(cache_entry_v69498.get("url") or "")
+                if not image_data_v69498:
+                    image_data_v69498 = _product_library_signed_url(
+                        archive_path_v69498,
+                        expires=86400,
+                    )
+                    if image_data_v69498:
+                        signed_cache_v69498[archive_path_v69498] = {
+                            "url": image_data_v69498,
+                            "expires_at": time.time() + 23 * 60 * 60,
+                        }
+                if not image_data_v69498:
+                    raw_archive_v69498 = _website_storage_bytes_v68883(archive_path_v69498)
+                    if raw_archive_v69498:
+                        mime_v69498 = str(
+                            image.get("content_type") or image.get("mime_type") or "image/jpeg"
+                        ).strip()
+                        image_data_v69498 = (
+                            f"data:{mime_v69498};base64,"
+                            + base64.b64encode(raw_archive_v69498).decode("ascii")
+                        )
+            if not image_data_v69498:
+                fallback_url_v69498 = str(image.get("archive_web_url") or "").strip()
+                if fallback_url_v69498.startswith("https://"):
+                    image_data_v69498 = fallback_url_v69498
+        if not image_data_v69498:
             continue
 
         clean_image = {
             "name": str(image.get("name") or "uploaded image"),
-            "data_url": str(image.get("data_url")),
+            "data_url": image_data_v69498,
         }
 
         # Preserve optional generated-image metadata while remaining fully
@@ -17083,6 +17172,7 @@ def extract_images_from_message_content(content):
             "source",
             "asset_type",
             "storage_path",
+            "archive_storage_path",
             "content_type",
             "archive_web_url",
             "graphic_display_storage_path_v69271",
@@ -67855,12 +67945,16 @@ def _website_image_record_for_chat_v68883(payload):
     ).strip()
     data_url = ""
     if archive_path:
-        raw = _website_storage_bytes_v68883(archive_path)
-        if raw:
-            data_url = (
-                f"data:{mime};base64,"
-                + base64.b64encode(raw).decode("ascii")
-            )
+        # Prefer a short lived private URL: this avoids downloading and
+        # base64-encoding full-resolution photos during answer generation.
+        data_url = _product_library_signed_url(archive_path, expires=86400)
+        if not data_url:
+            raw = _website_storage_bytes_v68883(archive_path)
+            if raw:
+                data_url = (
+                    f"data:{mime};base64,"
+                    + base64.b64encode(raw).decode("ascii")
+                )
     if not data_url:
         data_url = str(payload.get("image_url") or "").strip()
     if not data_url:
@@ -67876,6 +67970,9 @@ def _website_image_record_for_chat_v68883(payload):
         "data_url": data_url,
         "source": "website_knowledge",
         "asset_type": "website_instruction_image",
+        "storage_path": archive_path,
+        "archive_storage_path": archive_path,
+        "content_type": mime,
         "archive_web_url": str(payload.get("image_url") or "").strip(),
         "generated": False,
         "website_image_index_v68883": True,
@@ -97322,19 +97419,21 @@ def save_knowledge_submission(
     safe_issue = redact_learning_private_data(issue)
     safe_solution = redact_learning_private_data(solution)
     clean_source_url = ""
+    source_only_submission_v69498 = bool(str(source_url or "").strip()) and not any(
+        str(value or "").strip() for value in (subject, issue, solution)
+    )
 
-    if not safe_subject:
-        raise ValueError("Please enter a subject, product, or vehicle.")
-
-    if len(safe_issue) < 10:
-        raise ValueError(
-            "Please provide a little more detail about the issue or situation."
-        )
-
-    if len(safe_solution) < 20:
-        raise ValueError(
-            "Please provide a little more detail about the confirmed solution."
-        )
+    if not source_only_submission_v69498:
+        if not safe_subject:
+            raise ValueError("Please enter a subject, product, or vehicle.")
+        if len(safe_issue) < 10:
+            raise ValueError(
+                "Please provide a little more detail about the issue or situation."
+            )
+        if len(safe_solution) < 20:
+            raise ValueError(
+                "Please provide a little more detail about the confirmed solution."
+            )
 
     if str(source_url or "").strip():
         # Reuse the validated public-page extractor from Admin > Learn from
@@ -97370,6 +97469,18 @@ def save_knowledge_submission(
                 "The website link could not be extracted. "
                 f"{str(source_error_v69497)[:500]}"
             ) from source_error_v69497
+        if source_only_submission_v69498:
+            safe_subject = (source_title_v69497 or "Website source")[:240]
+            safe_issue = (
+                "Website reference submitted for administrator review: "
+                + (source_title_v69497 or "Website source")
+            )[:2000]
+            safe_solution = (
+                "Unverified website content submitted for administrator review. "
+                "This text is reference material only and must not be treated as "
+                "staff-confirmed until an administrator reviews and approves it.\n\n"
+                + safe_solution.split("\n\nSource webpage", 1)[-1]
+            )
 
     combined_description = (
         f"Subject / Product / Vehicle:\n{safe_subject}\n\n"
@@ -97391,10 +97502,17 @@ def save_knowledge_submission(
     )
 
     if not candidate.get("should_learn"):
-        reason = candidate.get("reason") or (
-            "The submission does not yet contain clear, reusable knowledge."
-        )
-        raise ValueError(reason)
+        if source_only_submission_v69498 and clean_source_url:
+            candidate = {
+                "should_learn": True,
+                "confidence_score": 0,
+                "keywords": "website source, administrator review, unverified",
+            }
+        else:
+            reason = candidate.get("reason") or (
+                "The submission does not yet contain clear, reusable knowledge."
+            )
+            raise ValueError(reason)
 
     # Preserve the staff's structured fields exactly. This keeps the existing
     # Admin review page, approve/merge logic, reject logic, and vector sync
@@ -98142,19 +98260,30 @@ def render_knowledge_submission_workspace():
                 or ""
             ).strip()
 
+            clean_source_url = str(
+                st.session_state.get(
+                    f"knowledge_submission_source_url_{generation}",
+                    source_url,
+                )
+                or ""
+            ).strip()
+            source_only_submission_v69498 = bool(clean_source_url) and not any(
+                (clean_subject, clean_issue, clean_solution)
+            )
             validation_errors = []
-            if not clean_subject:
-                validation_errors.append(
-                    f"{field_config['subject_label']} is required."
-                )
-            if len(clean_issue) < 5:
-                validation_errors.append(
-                    f"{field_config['issue_label']} must contain at least 5 characters."
-                )
-            if len(clean_solution) < 5:
-                validation_errors.append(
-                    f"{field_config['solution_label']} must contain at least 5 characters."
-                )
+            if not source_only_submission_v69498:
+                if not clean_subject:
+                    validation_errors.append(
+                        f"{field_config['subject_label']} is required."
+                    )
+                if len(clean_issue) < 5:
+                    validation_errors.append(
+                        f"{field_config['issue_label']} must contain at least 5 characters."
+                    )
+                if len(clean_solution) < 5:
+                    validation_errors.append(
+                        f"{field_config['solution_label']} must contain at least 5 characters."
+                    )
 
             if validation_errors:
                 st.warning(" ".join(validation_errors))

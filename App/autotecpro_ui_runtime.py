@@ -28,6 +28,18 @@ def inject_base_css():
             color: var(--atp-text);
         }
 
+        /* Streamlit's fixed composer/footer is outside .stApp's main canvas
+           on mobile. Match it to the dark chat background to remove the white
+           strip visible below the conversation. */
+        [data-testid="stBottom"],
+        section[data-testid="stBottom"],
+        .stChatFloatingInputContainer,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"] {
+            background: #050b16 !important;
+            background-color: #050b16 !important;
+        }
+
         header[data-testid="stHeader"] { background: transparent; }
 
         section[data-testid="stSidebar"] {
