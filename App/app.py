@@ -1,4 +1,4 @@
-# AutoTecPro AI v69498 - repair Technical learning schema writes, link-only submissions, View Link display, and compact durable image history
+# AutoTecPro AI v69499 - keep Technical answers focused and hide unrequested installation links
 # Based on the user-requested v69496 rollback baseline.
 # Preserves v69491 climate-panel routing and v69490 fast catalog lookup / eager primary images.
 # Preserves v69489 clarification and SYNC routing fixes.
@@ -107,8 +107,8 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-AUTOTECPRO_RELEASE_VERSION = "v69498"
-AUTOTECPRO_RELEASE_BUILD = "v69498-technical-learning-schema-link-display-compact-images-20260928"
+AUTOTECPRO_RELEASE_VERSION = "v69499"
+AUTOTECPRO_RELEASE_BUILD = "v69499-technical-answer-no-unrequested-installation-links-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -535,6 +535,13 @@ diagnostic_log(
     analytics_followup_scoped_to_conversation_and_assistant=True,
     year_make_fitment_followups_excluded_from_analytics=True,
     raw_autotecpro_product_urls_labeled_view_link=True,
+)
+diagnostic_log(
+    "v69499_technical_answer_resource_optin_ready",
+    unrequested_installation_resource_sections_hidden=True,
+    explicit_resource_requests_preserved=True,
+    streaming_final_and_partial_answers_guarded=True,
+    nontechnical_workspaces_unchanged=True,
 )
 diagnostic_log(
     "v69484_login_fastpath_ready",
@@ -45118,6 +45125,68 @@ def remove_technical_pricing(text):
 
 
 
+def _technical_hide_unrequested_installation_links_v69499(text, user_prompt="", workspace_label=""):
+    """Remove unrequested installation-resource content from Technical answers."""
+    value = str(text or "")
+    if not value or str(workspace_label or "") != "🔧 Technical Support":
+        return value
+    prompt = re.sub(r"\s+", " ", str(user_prompt or "")).strip().casefold()
+    negative_request = bool(re.search(
+        r"\b(?:do not|don't|dont|never|no need to|without)\b.{0,60}\b(?:installation|install|resource|manual|video|wiring|diagram|link|url)s?\b",
+        prompt,
+    ))
+    asks_for_resource_link = bool(
+        not negative_request
+        and re.search(r"\b(?:show|send|provide|give|share|find|need|want|what(?:'s| is)|where(?:'s| is))\b", prompt)
+        and re.search(
+            r"\b(?:installation|install|manual|video|wiring|diagram|technical|resource)\b.{0,70}\b(?:link|url|video|manual|pdf|diagram|guide|instructions?)\b|"
+            r"\b(?:link|url|video|manual|pdf|diagram|guide|instructions?)\b.{0,70}\b(?:installation|install|wiring|technical)\b",
+            prompt,
+        )
+    )
+    asks_for_reply_draft = bool(re.search(
+        r"\b(?:customer reply|reply to (?:the )?customer|draft (?:a )?(?:reply|response)|write (?:a )?(?:reply|response))\b",
+        prompt,
+    ))
+    kept = []
+    skipping_resources = False
+    resource_heading = re.compile(
+        r"^\s{0,3}#{1,6}\s*.*\b(?:installation\s+resources?|helpful\s+resources?|technical\s+resources?)\b.*$",
+        re.IGNORECASE,
+    )
+    reply_heading = re.compile(
+        r"^\s{0,3}#{1,6}\s*.*\bcustomer\s+reply\s+draft\b.*$",
+        re.IGNORECASE,
+    )
+    heading = re.compile(r"^\s{0,3}#{1,6}\s+")
+    url_re = re.compile(r"https?://[^\s<>\])}]+", re.IGNORECASE)
+    resource_path_re = re.compile(
+        r"installation|install(?:ation)?[-_/ ]?(?:guide|instruction|manual|video|pdf)?|"
+        r"wiring[-_/ ]?(?:diagram|guide|manual)?|technical[-_/ ]?information|"
+        r"manual|diagram|firmware|\.pdf(?:\?|$)|\.mp4(?:\?|$)",
+        re.IGNORECASE,
+    )
+    for line in value.splitlines():
+        if (resource_heading.match(line) and not asks_for_resource_link) or (
+            reply_heading.match(line) and not asks_for_reply_draft
+        ):
+            skipping_resources = True
+            continue
+        if skipping_resources:
+            if heading.match(line):
+                skipping_resources = False
+            else:
+                continue
+        urls = url_re.findall(line)
+        if urls and any(resource_path_re.search(url) for url in urls) and not asks_for_resource_link:
+            # Installation-resource citations are normally a dedicated line; drop
+            # that line so a dead "View Link" label cannot remain in the answer.
+            continue
+        kept.append(line)
+    result = "\n".join(kept)
+    return re.sub(r"(?:\n\s*){3,}", "\n\n", result).strip()
+
+
 def _workspace_response_formatting_rules():
     """Shared presentation rules for readable operational AI responses."""
     return """
@@ -45314,19 +45383,22 @@ enrichment sections below in this exact order when information is available:
     - Include only verified configuration notes, CANBUS settings, amplifier/audio
       notes, camera notes, known limitations, and common installation mistakes.
 13. ## Installation Resources
-    - Show every verified installation video, manual, PDF, wiring diagram, CANBUS
-      reference, firmware link, or technical bulletin returned by file_search.
-    - Keep full URLs visible and clickable. Do not replace URLs with buttons.
-    - Never invent a link. If no exact verified resource is found, say so.
+    - Do not include installation links, manuals, videos, wiring diagrams, or a
+      resource section unless the user explicitly asks for that resource.
+    - For ordinary questions, answer directly and stop without appending resources
+      or an unrelated customer reply draft.
+    - If a resource is explicitly requested, show only the exact verified item.
 14. ## Customer Reply Draft
-    - Always place this last and format it as Markdown blockquote paragraphs.
+    - Include this only when the user asks for a customer-ready reply or draft.
+    - When requested, place it last and format it as Markdown blockquote paragraphs.
     - Insert one completely blank physical line between every customer-facing paragraph.
     - Keep the greeting, each issue or troubleshooting topic, each requested action,
       and the closing as separate short paragraphs. Never combine the entire customer
       reply into one dense paragraph.
 
-For ordinary non-order Technical Support questions, use the most relevant
-sections from the workflow above without forcing unrelated order sections.
+For ordinary non-order Technical Support questions, answer only the relevant
+question and include only relevant sections. Do not force unrelated order,
+installation-resource, or customer-reply sections.
 
 Never invent technical information.
 If documentation is unavailable, clearly say so.
@@ -112350,6 +112422,9 @@ else:
                             visible_stream = strip_website_image_control_tail_v68870(
                                 streamed_answer
                             )
+                            visible_stream = _technical_hide_unrequested_installation_links_v69499(
+                                visible_stream, interaction_prompt, assistant
+                            )
                             if explicit_learning_requested:
                                 visible_stream = format_learning_record_for_display(
                                     visible_stream
@@ -112456,6 +112531,9 @@ else:
                         answer_body = clean_visible_chat_text(
                             streamed_answer_clean_v68870
                         )
+                        answer_body = _technical_hide_unrequested_installation_links_v69499(
+                            answer_body, interaction_prompt, assistant
+                        )
                         if explicit_learning_requested:
                             answer_body = format_learning_record_for_display(answer_body)
                         if assistant == "🔧 Technical Support":
@@ -112485,6 +112563,9 @@ else:
                                         exact_authority_for_table_v69175.get("structured") or {},
                                     )
 
+                        answer_body = _technical_hide_unrequested_installation_links_v69499(
+                            answer_body, interaction_prompt, assistant
+                        )
                         answer = answer_body
                         if order_display_text:
                             analysis_section = (
@@ -112572,6 +112653,9 @@ else:
                             )
                         partial_answer_body = clean_visible_chat_text(
                             partial_stream_clean_v68870
+                        )
+                        partial_answer_body = _technical_hide_unrequested_installation_links_v69499(
+                            partial_answer_body, interaction_prompt, assistant
                         )
                         if explicit_learning_requested:
                             partial_answer_body = format_learning_record_for_display(
@@ -114550,6 +114634,9 @@ else:
                             visible_stream = strip_website_image_control_tail_v68870(
                                 streamed_answer
                             )
+                            visible_stream = _technical_hide_unrequested_installation_links_v69499(
+                                visible_stream, interaction_prompt, assistant
+                            )
                             if explicit_learning_requested:
                                 visible_stream = format_learning_record_for_display(
                                     visible_stream
@@ -114603,6 +114690,9 @@ else:
                         )
                         answer_body = clean_visible_chat_text(
                             streamed_answer_clean_v68870
+                        )
+                        answer_body = _technical_hide_unrequested_installation_links_v69499(
+                            answer_body, interaction_prompt, assistant
                         )
                         if explicit_learning_requested:
                             answer_body = format_learning_record_for_display(answer_body)
@@ -114776,6 +114866,9 @@ else:
                                 if exact_video_answer_v69369:
                                     answer_body = exact_video_answer_v69369
 
+                        answer_body = _technical_hide_unrequested_installation_links_v69499(
+                            answer_body, interaction_prompt, assistant
+                        )
                         answer = answer_body
                         if order_display_text:
                             analysis_section = (
@@ -114817,6 +114910,9 @@ else:
                         )
                         partial_answer_body = clean_visible_chat_text(
                             partial_stream_clean_v68870
+                        )
+                        partial_answer_body = _technical_hide_unrequested_installation_links_v69499(
+                            partial_answer_body, interaction_prompt, assistant
                         )
                         if explicit_learning_requested:
                             partial_answer_body = format_learning_record_for_display(
@@ -116774,6 +116870,9 @@ else:
             technical_authority_marker_v69144 = serialize_technical_authority_marker_v69144(
                 st.session_state.get("_technical_last_section_authority_v69142") or {}
             )
+        answer = _technical_hide_unrequested_installation_links_v69499(
+            answer, interaction_prompt, assistant
+        )
         assistant_content_to_save = (
             answer
             + technical_authority_marker_v69144
