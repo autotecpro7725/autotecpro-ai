@@ -106,9 +106,9 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-# AutoTecPro AI v69508 - Technical troubleshooting and stream recovery
-AUTOTECPRO_RELEASE_VERSION = "v69508"
-AUTOTECPRO_RELEASE_BUILD = "v69508-technical-troubleshooting-and-stream-recovery-20260928"
+# AutoTecPro AI v69509 - Technical troubleshooting and visual claim alignment
+AUTOTECPRO_RELEASE_VERSION = "v69509"
+AUTOTECPRO_RELEASE_BUILD = "v69509-technical-troubleshooting-and-visual-claim-alignment-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -104853,6 +104853,22 @@ def _technical_camera_visual_claim_sync_v69504(answer_text, prompt_text, images)
         "general product or main-harness photos as camera-wiring visuals."
     )
     answer = str(answer_text or "")
+    # Product-library photos can be valid vehicle-matched product references, but
+    # the strict camera gallery below intentionally publishes only authored
+    # camera/wiring visuals. Remove the provider's product-photo section whenever
+    # that final gallery is empty; otherwise a correct exact-source answer can
+    # still falsely tell the user that photos are displayed below.
+    product_photo_section = re.compile(
+        r"(?ims)^#{1,6}\s*Product Photo Availability\s*$.*?(?=^#{1,6}\s|\Z)"
+    )
+    answer = product_photo_section.sub(
+        "## Product Photo Availability\n\n"
+        "No product photo is attached to this reply. The exact technical source "
+        "link is provided above; product-listing photos are not being presented "
+        "as camera-wiring evidence.",
+        answer,
+        count=1,
+    )
     # The strict camera gallery gate removes all non-camera visuals from this
     # camera-specific reply. Remove any provider text claiming that the separate
     # Product Library photos were loaded or are displayed when none were published.
@@ -104893,6 +104909,11 @@ def _technical_product_lookup_is_unneeded_for_troubleshooting_v69508(prompt_text
         r"error code|fault code|issue with|problem with)\b",
         prompt,
     ))
+
+
+def _technical_package_overlap_lookup_is_unneeded_for_troubleshooting_v69509(prompt_text):
+    """Avoid registry/package ambiguity work for diagnosis that needs no fitment choice."""
+    return _technical_product_lookup_is_unneeded_for_troubleshooting_v69508(prompt_text)
 
 def _technical_clear_photo_context_v68879():
     st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
@@ -110341,17 +110362,28 @@ else:
         technical_preflight_safe_answer_v69377 = ""
         technical_source_limited_direct_answer_v69388 = ""
         if assistant == "🔧 Technical Support":
-            try:
-                technical_package_overlap_v69377 = _technical_package_overlap_ambiguity_v69377(
+            technical_troubleshooting_preflight_bypass_v69509 = bool(
+                _technical_package_overlap_lookup_is_unneeded_for_troubleshooting_v69509(
                     technical_request_prompt_v68879
                 )
-            except Exception as overlap_error_v69377:
-                technical_package_overlap_v69377 = {}
+            )
+            if technical_troubleshooting_preflight_bypass_v69509:
                 diagnostic_log(
-                    "technical_package_overlap_detection_failed_v69377",
-                    error_type=type(overlap_error_v69377).__name__,
-                    error=str(overlap_error_v69377)[:500],
+                    "technical_troubleshooting_package_overlap_bypassed_v69509",
+                    prompt_chars=len(str(technical_request_prompt_v68879 or "")),
                 )
+            else:
+                try:
+                    technical_package_overlap_v69377 = _technical_package_overlap_ambiguity_v69377(
+                        technical_request_prompt_v68879
+                    )
+                except Exception as overlap_error_v69377:
+                    technical_package_overlap_v69377 = {}
+                    diagnostic_log(
+                        "technical_package_overlap_detection_failed_v69377",
+                        error_type=type(overlap_error_v69377).__name__,
+                        error=str(overlap_error_v69377)[:500],
+                    )
             if technical_package_overlap_v69377:
                 technical_package_overlap_safe_answer_v69377 = _technical_package_overlap_answer_v69377(
                     technical_package_overlap_v69377
