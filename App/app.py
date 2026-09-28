@@ -106,8 +106,8 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-AUTOTECPRO_RELEASE_VERSION = "v69495"
-AUTOTECPRO_RELEASE_BUILD = "v69495-product-image-redirect-identity-fix-20260928"
+AUTOTECPRO_RELEASE_VERSION = "v69496"
+AUTOTECPRO_RELEASE_BUILD = "v69496-analytics-scope-view-links-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -527,6 +527,13 @@ diagnostic_log(
     percent_escape_hex_case_canonicalized=True,
     exact_product_path_still_required=True,
     volatile_v_query_only_ignored=True,
+)
+diagnostic_log(
+    "v69496_analytics_scope_and_view_links_ready",
+    generic_how_about_vehicle_turns_excluded_from_analytics=True,
+    analytics_followup_scoped_to_conversation_and_assistant=True,
+    year_make_fitment_followups_excluded_from_analytics=True,
+    raw_autotecpro_product_urls_labeled_view_link=True,
 )
 diagnostic_log(
     "v69484_login_fastpath_ready",
@@ -6615,8 +6622,6 @@ def detect_live_request(prompt, selected_assistant=None):
             "top-selling",
             "best selling",
             "best-selling",
-            "how about",
-            "what about",
             "same model",
             "same product",
             "same sku",
@@ -6631,6 +6636,18 @@ def detect_live_request(prompt, selected_assistant=None):
         #   How about in May?
         #   Revenue for the same model last month
         previous_analytics = st.session_state.get("woocommerce_analytics_context") or {}
+        current_conversation_id_v69496 = str(
+            st.session_state.get("conversation_id") or ""
+        ).strip()
+        if (
+            not isinstance(previous_analytics, dict)
+            or not current_conversation_id_v69496
+            or str(previous_analytics.get("conversation_id") or "").strip()
+            != current_conversation_id_v69496
+            or str(previous_analytics.get("assistant") or "").strip()
+            != str(selected_assistant or "").strip()
+        ):
+            previous_analytics = {}
         followup_prefix = bool(re.match(
             r"^\s*(?:and\s+)?(?:how|what)\s+about\b|"
             r"^\s*(?:and\s+)?(?:for|of)\s+the\s+same\s+(?:model|product|sku)\b|"
@@ -6641,11 +6658,21 @@ def detect_live_request(prompt, selected_assistant=None):
             phrase in lower
             for phrase in (
                 "same model", "same product", "same sku",
-                "how about", "what about",
             )
         )
 
-        if previous_analytics and (followup_prefix or followup_sales_language):
+        # "How about 2016 Chrysler 300 SRT?" is a vehicle fitment/discovery
+        # turn, even if it follows an analytics question in the same chat.
+        vehicle_fitment_followup_v69496 = bool(
+            re.search(r"\b(?:19|20)\d{2}\b", lower)
+            and _workspace_sales_fuzzy_vehicle_families_v69416(value)
+        )
+
+        if (
+            previous_analytics
+            and not vehicle_fitment_followup_v69496
+            and (followup_prefix or followup_sales_language)
+        ):
             # Start with any explicit product parsed by the normal analytics parser.
             product_query = _extract_analytics_product_query(value)
 
@@ -7070,6 +7097,8 @@ def get_live_data_for_prompt(
                 "start_iso": request_type.get("start_iso"),
                 "end_iso": request_type.get("end_iso"),
                 "period_label": request_type.get("period_label", ""),
+                "conversation_id": str(st.session_state.get("conversation_id") or "").strip(),
+                "assistant": str(selected_assistant or "").strip(),
             }
             return result
 
@@ -9873,7 +9902,7 @@ def safe_update_row(table_name, payload, row_id):
     return supabase.table(table_name).update(clean_payload).eq("id", row_id).execute()
 
 def inline_format(text):
-    """Escape text and support simple markdown bold inside custom HTML bubbles."""
+    """Escape text, render bold, and label AutoTecPro product URLs as links."""
     safe = html.escape(str(text or ""))
     parts = safe.split("**")
     if len(parts) > 1:
@@ -9881,6 +9910,25 @@ def inline_format(text):
         for i, part in enumerate(parts):
             rebuilt += f"<strong>{part}</strong>" if i % 2 else part
         safe = rebuilt
+    product_url_pattern_v69496 = re.compile(
+        r"https?://(?:www\.)?autotecpro\.com/product/[^\s<>\"']+",
+        flags=re.IGNORECASE,
+    )
+
+    def product_link_v69496(match):
+        raw_url = match.group(0)
+        trailing = ""
+        while raw_url and raw_url[-1] in ".,;!?":
+            trailing = raw_url[-1] + trailing
+            raw_url = raw_url[:-1]
+        if not raw_url:
+            return match.group(0)
+        return (
+            f'<a href="{raw_url}" target="_blank" '
+            f'rel="noopener noreferrer">View Link</a>{trailing}'
+        )
+
+    safe = product_url_pattern_v69496.sub(product_link_v69496, safe)
     return safe
 
 
@@ -9973,12 +10021,14 @@ def table_to_html(table_lines):
         for h in headers
     )
     product_results_table_v69412 = bool(
-        "option" in normalized_headers_v69412
-        and "product" in normalized_headers_v69412
-        and "product link" in normalized_headers_v69412
-        and (
-            "fitment" in normalized_headers_v69412
-            or "factory setup" in normalized_headers_v69412
+        "product" in normalized_headers_v69412
+        and any(
+            header in normalized_headers_v69412
+            for header in ("link", "product link", "view link")
+        )
+        and any(
+            header in normalized_headers_v69412
+            for header in ("fitment", "supported years", "factory setup")
         )
     )
     extra_table_class_v69412 = (
@@ -10048,14 +10098,17 @@ def table_to_html(table_lines):
             if normalized_headers_v69412[cell_index_v69410] in {
                 "product link",
                 "view link",
-            }:
+            } or (
+                product_results_table_v69412
+                and normalized_headers_v69412[cell_index_v69410] == "link"
+            ):
                 raw_url_v69412 = str(cell or "").strip()
                 if re.match(r"^https?://[^\s]+$", raw_url_v69412, flags=re.I):
                     safe_url_v69412 = html.escape(raw_url_v69412, quote=True)
                     cell_html_v69412 = (
                         f'<a class="atp-view-product-link-v69412" '
                         f'href="{safe_url_v69412}" target="_blank" '
-                        f'rel="noopener noreferrer">View Product →</a>'
+                        f'rel="noopener noreferrer">View Link</a>'
                     )
             html_rows.append(
                 f'<td data-atp-label="{label_attr_v69410}"{style_attr}>'
@@ -10112,14 +10165,17 @@ def table_to_html(table_lines):
                     continue
 
                 value_html_v69444 = inline_format(cell_v69444)
-                if normalized_header_v69444 in {"product link", "view link"}:
+                if normalized_header_v69444 in {"product link", "view link"} or (
+                    product_results_table_v69412
+                    and normalized_header_v69444 == "link"
+                ):
                     raw_url_v69444 = str(cell_v69444 or "").strip()
                     if re.match(r"^https?://[^\s]+$", raw_url_v69444, flags=re.I):
                         safe_url_v69444 = html.escape(raw_url_v69444, quote=True)
                         value_html_v69444 = (
                             f'<a class="atp-view-product-link-v69412" '
                             f'href="{safe_url_v69444}" target="_blank" '
-                            f'rel="noopener noreferrer">View Product →</a>'
+                            f'rel="noopener noreferrer">View Link</a>'
                         )
 
                 card_bits_v69444.extend([
@@ -71818,7 +71874,7 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
     elif category == "product_links":
         lines = ["Here are the exact product pages for the options already matched to this case:"]
         for index, row in enumerate(rows, 1):
-            lines.append(f"{index}. **{row['title']}** — {row['source']}")
+            lines.append(f"{index}. **{row['title']}** — [View Link]({row['source']})")
         answer = "\n".join(lines)
 
     elif category == "display_fact":
