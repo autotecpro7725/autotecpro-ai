@@ -106,8 +106,9 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-AUTOTECPRO_RELEASE_VERSION = "v69496"
-AUTOTECPRO_RELEASE_BUILD = "v69496-analytics-scope-view-links-20260928"
+# AutoTecPro AI v69497 - vehicle-aware fast exact-image candidate filtering
+AUTOTECPRO_RELEASE_VERSION = "v69497"
+AUTOTECPRO_RELEASE_BUILD = "v69497-fast-exact-image-candidate-filter-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -534,6 +535,13 @@ diagnostic_log(
     analytics_followup_scoped_to_conversation_and_assistant=True,
     year_make_fitment_followups_excluded_from_analytics=True,
     raw_autotecpro_product_urls_labeled_view_link=True,
+)
+diagnostic_log(
+    "v69497_fast_exact_image_candidate_filter_ready",
+    unrelated_vehicle_year_pages_skipped_before_image_fetch=True,
+    exact_product_and_final_fitment_gates_preserved=True,
+    topical_and_primary_sales_images_supported=True,
+    exact_page_prewarm_limited_to_images_already_available_instantly=True,
 )
 diagnostic_log(
     "v69484_login_fastpath_ready",
@@ -77412,17 +77420,27 @@ def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, 
             # primary, recover ONLY the WooCommerce main gallery image from that same
             # exact product URL. This cannot create/broaden product authority.
             if not any(bool(record.get("website_atp_primary_product_image_v69325")) for record in output):
-                fallback_v69354 = _workspace_exact_product_primary_page_fallback_v69354(
-                    str(pkg.get("source_url") or ""),
-                    destination,
-                    prompt_text,
-                    str(pkg.get("page_title") or pkg.get("title") or ""),
+                in_scope_v69497, scope_reason_v69497 = (
+                    _workspace_sales_image_candidate_scope_v69497(prompt_text, pkg)
                 )
-                if fallback_v69354:
-                    fallback_v69354["website_atp_product_identity_key_v69325"] = str(
-                        contract.get("product_identity_key") or ""
+                if in_scope_v69497:
+                    fallback_v69354 = _workspace_exact_product_primary_page_fallback_v69354(
+                        str(pkg.get("source_url") or ""),
+                        destination,
+                        prompt_text,
+                        str(pkg.get("page_title") or pkg.get("title") or ""),
                     )
-                    output.append(fallback_v69354)
+                    if fallback_v69354:
+                        fallback_v69354["website_atp_product_identity_key_v69325"] = str(
+                            contract.get("product_identity_key") or ""
+                        )
+                        output.append(fallback_v69354)
+                else:
+                    diagnostic_log(
+                        "workspace_sales_image_page_fetch_skipped_scope_v69497",
+                        reason=scope_reason_v69497,
+                        source_url=str(pkg.get("source_url") or "")[:400],
+                    )
 
             supporting_rows.sort(key=lambda x: (x[0], x[1]), reverse=True)
             for overlap, priority, url, meta in supporting_rows:
@@ -78382,7 +78400,11 @@ def _workspace_sales_semantics_prewarm_state_v69494():
     }
 
 
-def _workspace_sales_prewarm_exact_semantics_v69494(workspace_label, authority):
+def _workspace_sales_prewarm_exact_semantics_v69494(
+    workspace_label,
+    authority,
+    prompt_text="",
+):
     """Warm page semantics for exact Sales products during broad catalog answers.
 
     This reads only public current product pages already selected by the exact
@@ -78403,6 +78425,11 @@ def _workspace_sales_prewarm_exact_semantics_v69494(workspace_label, authority):
     seen = set()
     for package in packages[:8]:
         if str(package.get("destination") or "") != "Sales Database":
+            continue
+        in_scope_v69497, _scope_reason_v69497 = (
+            _workspace_sales_image_candidate_scope_v69497(prompt_text, package)
+        )
+        if not in_scope_v69497:
             continue
         source = str(package.get("source_url") or "").strip()
         if not source:
@@ -78524,6 +78551,98 @@ def _workspace_sales_image_manifest_key_v69420(
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 
+def _workspace_sales_image_candidate_scope_v69497(prompt_text, package):
+    """Reject only exact-page image candidates with clear vehicle/year conflicts."""
+    pkg = dict(package or {}) if isinstance(package, dict) else {}
+    source = str(pkg.get("source_url") or "").strip()
+    identity_text = " ".join(
+        str(value or "").strip()
+        for value in (
+            pkg.get("page_title"),
+            pkg.get("title"),
+            pkg.get("name"),
+            source,
+        )
+        if str(value or "").strip()
+    )
+    try:
+        requested_years = set(_website_identity_years_v69022(prompt_text) or set())
+        source_years = set(_website_identity_years_v69022(identity_text) or set())
+        if requested_years and source_years and requested_years.isdisjoint(source_years):
+            return False, "year_mismatch"
+    except Exception:
+        pass
+
+    known_brands_v69497 = {
+        "acura", "audi", "bmw", "buick", "cadillac", "chevrolet",
+        "chevy", "chrysler", "dodge", "ford", "gmc", "honda",
+        "hyundai", "infiniti", "jeep", "kia", "lexus", "lincoln",
+        "mazda", "mercedes", "nissan", "porsche", "ram", "subaru",
+        "tesla", "toyota", "volkswagen", "volvo", "genesis", "jaguar",
+        "mini", "mitsubishi", "pontiac", "saturn", "scion",
+    }
+    multiword_brands_v69497 = {"land rover"}
+    try:
+        requested_words = set(re.findall(r"[a-z]+", str(prompt_text or "").casefold()))
+        source_words = set(re.findall(r"[a-z]+", identity_text.casefold()))
+        requested_brands = requested_words & known_brands_v69497
+        source_brands = source_words & known_brands_v69497
+        requested_brand_text = str(prompt_text or "").casefold()
+        for brand in multiword_brands_v69497:
+            if re.search(r"\b" + re.escape(brand) + r"\b", requested_brand_text):
+                requested_brands.add(brand)
+            if re.search(r"\b" + re.escape(brand) + r"\b", identity_text.casefold()):
+                source_brands.add(brand)
+        brand_aliases_v69497 = {"chevy": "chevrolet"}
+        requested_brands = {
+            brand_aliases_v69497.get(brand, brand) for brand in requested_brands
+        }
+        source_brands = {
+            brand_aliases_v69497.get(brand, brand) for brand in source_brands
+        }
+        if requested_brands and source_brands and requested_brands.isdisjoint(source_brands):
+            return False, "vehicle_brand_mismatch"
+
+        requested_families = set(
+            _workspace_source_identity_vehicle_families_v69456(prompt_text) or set()
+        ) | set(_workspace_sales_fuzzy_vehicle_families_v69416(prompt_text) or set())
+        trusted_title_v69497 = " ".join(
+            str(value or "").strip()
+            for value in (pkg.get("page_title"), pkg.get("title"), pkg.get("name"))
+            if str(value or "").strip()
+        )
+        source_families = set(
+            _workspace_source_identity_vehicle_families_v69456(identity_text) or set()
+        ) | set(
+            _workspace_sales_fuzzy_vehicle_families_v69416(trusted_title_v69497) or set()
+        )
+        compatible_pairs_v69497 = set()
+        for requested_family in requested_families:
+            for source_family in source_families:
+                requested_normalized = re.sub(
+                    r"[^a-z0-9]", "", str(requested_family or "").casefold()
+                )
+                source_normalized = re.sub(
+                    r"[^a-z0-9]", "", str(source_family or "").casefold()
+                )
+                if requested_normalized == source_normalized:
+                    compatible_pairs_v69497.add((requested_family, source_family))
+                elif (
+                    requested_normalized == "ram"
+                    and source_normalized.startswith("ram")
+                ) or (
+                    source_normalized == "ram"
+                    and requested_normalized.startswith("ram")
+                ):
+                    compatible_pairs_v69497.add((requested_family, source_family))
+        if requested_families and source_families and not compatible_pairs_v69497:
+            return False, "vehicle_family_mismatch"
+    except Exception:
+        pass
+
+    return True, "candidate"
+
+
 def _workspace_sales_fast_primary_manifest_v69420(
     workspace_label,
     prompt_text,
@@ -78620,6 +78739,11 @@ def _workspace_sales_fast_topical_manifest_v69420(
         return []
 
     def resolve_one(pkg):
+        in_scope_v69497, _scope_reason_v69497 = (
+            _workspace_sales_image_candidate_scope_v69497(prompt_text, pkg)
+        )
+        if not in_scope_v69497:
+            return None
         try:
             record = _workspace_sales_exact_topic_semantic_record_v69401(
                 workspace_label,
@@ -113719,15 +113843,16 @@ else:
                                             12,
                                         )
                                     )
-                                    # Warm exact product-page image semantics in the
-                                    # background while the catalog answer generates.
-                                    # A likely compatibility-image follow-up can then
-                                    # use the existing short-lived cache and hit the
-                                    # immediate post-text renderer on a warm page.
+                                if instant_primary_v69483:
+                                    # Only prewarm later compatibility turns when
+                                    # this first product image is already instant.
+                                    # Missing-image requests will fetch only their
+                                    # in-scope exact page through the manifest worker.
                                     try:
                                         _workspace_sales_prewarm_exact_semantics_v69494(
                                             assistant,
                                             workspace_atp_authority_v69180,
+                                            prompt_text=interaction_prompt,
                                         )
                                     except Exception as prewarm_error_v69494:
                                         diagnostic_log(
@@ -113735,7 +113860,6 @@ else:
                                             error_type=type(prewarm_error_v69494).__name__,
                                             error=str(prewarm_error_v69494)[:300],
                                         )
-                                if instant_primary_v69483:
                                     workspace_sales_prefetched_manifest_v69420 = {
                                         "mode": "primary",
                                         "images": [
