@@ -106,9 +106,9 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-# AutoTecPro AI v69503 - clickable Markdown links + stricter topic-bound Technical visuals
-AUTOTECPRO_RELEASE_VERSION = "v69503"
-AUTOTECPRO_RELEASE_BUILD = "v69503-clickable-links-camera-topic-visuals-20260928"
+# AutoTecPro AI v69505 - all Technical inquiries concise response profile
+AUTOTECPRO_RELEASE_VERSION = "v69505"
+AUTOTECPRO_RELEASE_BUILD = "v69505-all-technical-concise-response-profile-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -50128,13 +50128,13 @@ def _build_ai_request(
             "Do not use backslash line-break escapes and do not compress numbered instructions into paragraph text."
         )
         try:
-            technical_speed_profile_v69376 = _technical_speed_response_profile_v69376(prompt_text)
+            technical_speed_profile_v69376 = _technical_speed_response_profile_v69576(prompt_text)
         except Exception:
             technical_speed_profile_v69376 = {}
         if technical_speed_profile_v69376:
             instructions += "\n\n" + str(technical_speed_profile_v69376.get("instruction") or "")
             diagnostic_log(
-                "technical_response_budget_fastpath_v69376",
+                "technical_response_budget_fastpath_v69576",
                 max_output_tokens=int(technical_speed_profile_v69376.get("max_output_tokens") or 0),
             )
 
@@ -104559,34 +104559,96 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=4):
     return output
 
 
-def _technical_speed_response_profile_v69376(prompt_text):
-    """Return a narrow response-latency profile for ordinary Technical chat turns."""
+def _technical_speed_response_profile_v69576(prompt_text):
+    """Bound routine Technical Support answers while preserving requested depth."""
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not prompt:
         return {}
     lower = prompt.casefold()
-    # Never alter document/export/order-enrichment behavior.
-    if re.search(r"\b(?:pdf|docx|word document|report|manual export|order #|woocommerce)\b", lower):
+
+    # Keep generated files, explicit deep procedures, and order work at the
+    # established response budget. A question about a manual remains eligible.
+    if re.search(r"\b(?:create|write|generate|export|download)\b.{0,35}\b(?:pdf|docx|word document|report|manual)\b|\b(?:order #|woocommerce)\b", lower):
         return {}
-    explicit_visual = bool(_website_image_explicit_visual_request_v68888(prompt))
-    config = bool(_technical_configuration_query_v69155(prompt))
-    troubleshoot = bool(re.search(
-        r"\b(?:no audio|no sound|not working|doesn['’]?t work|issue|problem|black screen|no power|"
-        r"carplay|android auto|bluetooth|camera|microphone|mic|troubleshoot|diagnose)\b",
+    asks_full_detail = bool(re.search(
+        r"\b(?:full|complete|comprehensive|in[- ]depth|deepest|detailed|step[- ]by[- ]step|all steps|entire procedure|exhaustive)\b",
         lower,
     ))
-    if not (explicit_visual or config or troubleshoot):
+    if asks_full_detail:
         return {}
+
+    strict_camera_kind = _technical_strict_camera_harness_request_v69482(prompt)
+    if strict_camera_kind == "camera_harness":
+        return {
+            "max_output_tokens": 240,
+            "instruction": (
+                "FAST EXACT CAMERA/HARNESS RESPONSE (v69505): Answer in at most 120 words. "
+                "State only the vehicle/year branch, exact source-supported camera/harness labels, "
+                "and any source-stated trigger condition or warning. Do not add generic installation "
+                "steps, guessed pin numbers, or claims that a photo/diagram is displayed. Say clearly "
+                "when the retrieved source does not confirm a camera-specific visual. Keep the exact "
+                "source link. Preserve all existing vehicle, year, package, and source authority rules."
+            ),
+        }
+
+    troubleshoot = bool(re.search(
+        r"\b(?:no audio|no sound|not working|doesn['’]?t work|issue|problem|black screen|no power|"
+        r"carplay|android auto|bluetooth|camera|microphone|mic|troubleshoot|diagnose|error code|fault code)\b",
+        lower,
+    ))
     return {
-        "max_output_tokens": 700 if troubleshoot and not config else 520,
+        "max_output_tokens": 700 if troubleshoot else 520,
         "instruction": (
-            "FAST TECHNICAL RESPONSE (v69376): Optimize staff latency without changing factual authority. "
-            "Give the complete actionable answer in at most 350 words. Lead with the verified answer or most likely cause. "
-            "Use no more than 5 numbered troubleshooting steps unless the user explicitly asks for a full procedure. "
-            "Do not include a Customer Reply Draft unless explicitly requested. Do not repeat background, duplicate links, "
-            "or restate the same warning. Preserve every existing compatibility, generation, source, and verification safety rule."
+            "FAST TECHNICAL RESPONSE (v69505): This budget applies to every routine Technical Support inquiry, "
+            "including product/vehicle compatibility, configuration, installation, wiring, feature, and "
+            "troubleshooting questions. Lead with the verified answer. Keep routine answers to at most "
+            "250 words (troubleshooting: 300 words and at most 6 numbered actions). Include only decisive "
+            "source-backed caveats and the relevant source links. Do not repeat facts or add an unsolicited "
+            "customer reply draft. Preserve exact vehicle/year/package matching, source authority, uncertainty, "
+            "and all safety rules. If evidence is insufficient, say so and ask only the needed question."
         ),
     }
+
+
+def _technical_camera_exact_gallery_filter_v69504(images):
+    """Keep only images whose source metadata proves the strict camera/harness match."""
+    return [
+        image for image in (images or [])
+        if isinstance(image, dict) and bool(image.get("technical_camera_harness_exact_v69482"))
+    ]
+
+
+def _technical_camera_visual_claim_sync_v69504(answer_text, prompt_text, images):
+    """Align strict camera answer claims with the exact image records actually published."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
+    if _technical_strict_camera_harness_request_v69482(prompt) != "camera_harness":
+        return str(answer_text or "")
+
+    exact_images = _technical_camera_exact_gallery_filter_v69504(images)
+    if exact_images:
+        return str(answer_text or "")
+
+    corrected_section = (
+        "## Exact Visual Availability\n\n"
+        "No exact camera-wiring photo or diagram is attached to this reply. "
+        "The technical source link below is available for reference; I have not treated "
+        "general product or main-harness photos as camera-wiring visuals."
+    )
+    answer = str(answer_text or "")
+    heading_pattern = re.compile(
+        r"(?ims)^#{1,6}\s*Exact Visual Availability\s*$.*?(?=^#{1,6}\s|\Z)"
+    )
+    if heading_pattern.search(answer):
+        answer = heading_pattern.sub(corrected_section, answer, count=1)
+    else:
+        # Remove explicit unsupported promises if an answer omitted the expected heading.
+        answer = re.sub(
+            r"(?i)(?:the )?(?:exact|matching) (?:camera|tundra)? ?(?:wiring )?(?:photo|image|diagram)[^.\n]*(?:displayed|shown|attached)[^.\n]*[.]*",
+            "",
+            answer,
+        )
+        answer = answer.rstrip() + "\n\n" + corrected_section
+    return answer.strip()
 
 def _technical_clear_photo_context_v68879():
     st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
@@ -116938,6 +117000,41 @@ else:
                 diagnostic_event="technical_absolute_final_publication_gate_v69363",
             )
             generated_images = list(assistant_images_to_save)
+
+        # v69504: a strict camera/harness request may publish only records whose
+        # authored semantic metadata proves a camera/harness visual in the exact
+        # requested branch. Product-library and generic product photos do not
+        # become camera evidence just because their vehicle/year match.
+        if (
+            assistant == "🔧 Technical Support"
+            and _technical_strict_camera_harness_request_v69482(
+                technical_request_prompt_v68879
+            ) == "camera_harness"
+        ):
+            camera_images_before_v69504 = list(assistant_images_to_save or [])
+            answer_before_camera_sync_v69504 = str(answer or "")
+            assistant_images_to_save = _technical_camera_exact_gallery_filter_v69504(
+                camera_images_before_v69504
+            )
+            camera_rejected_v69504 = len(camera_images_before_v69504) - len(assistant_images_to_save)
+            generated_images = list(assistant_images_to_save)
+            product_library_images = []
+            answer = _technical_camera_visual_claim_sync_v69504(
+                answer,
+                technical_request_prompt_v68879,
+                assistant_images_to_save,
+            )
+            if answer != answer_before_camera_sync_v69504:
+                stream_placeholder.markdown(
+                    _assistant_stream_html(answer),
+                    unsafe_allow_html=True,
+                )
+            diagnostic_log(
+                "technical_camera_absolute_gallery_lock_v69504",
+                exact_camera_images=len(assistant_images_to_save),
+                rejected_unverified_images=camera_rejected_v69504,
+                visual_claims_synchronized=True,
+            )
 
         if assistant == "🔧 Technical Support":
             resolved_visual_sources_v68879 = {
