@@ -106,9 +106,9 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-# AutoTecPro AI v69506 - Technical retrieval and Product Library payload speed
-AUTOTECPRO_RELEASE_VERSION = "v69506"
-AUTOTECPRO_RELEASE_BUILD = "v69506-technical-retrieval-and-image-payload-speed-20260928"
+# AutoTecPro AI v69507 - pre-answer stream TypeError recovery
+AUTOTECPRO_RELEASE_VERSION = "v69507"
+AUTOTECPRO_RELEASE_BUILD = "v69507-preanswer-stream-typeerror-recovery-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -50898,6 +50898,54 @@ def _stream_one_ai_response(request):
                     )
                     raise RuntimeError(message)
         except Exception as error:
+            if not received_text and isinstance(error, TypeError):
+                # Some SDK/transport combinations can construct the Responses
+                # stream successfully and then fail while decoding its first
+                # event. Preserve the exact request and retry once without
+                # streaming; this avoids turning an SDK stream incompatibility
+                # into a user-visible failed answer. Never retry after text was
+                # emitted, because that could duplicate or contradict content.
+                diagnostic_log(
+                    "ai_stream_preanswer_typeerror_nonstream_retry_v69507",
+                    workspace=str(assistant),
+                    file_search=any(
+                        isinstance(tool, dict) and tool.get("type") == "file_search"
+                        for tool in (active_request.get("tools") or [])
+                    ),
+                    error=str(error or "")[:300],
+                )
+                try:
+                    fallback_response_v69507 = chat_client_v69400.responses.create(
+                        **active_request
+                    )
+                except Exception as fallback_error_v69507:
+                    diagnostic_log(
+                        "ai_stream_preanswer_nonstream_retry_failed_v69507",
+                        workspace=str(assistant),
+                        error_type=type(fallback_error_v69507).__name__,
+                        status_code=getattr(fallback_error_v69507, "status_code", None),
+                    )
+                    raise fallback_error_v69507 from error
+                _capture_response_file_search_results_v69012(fallback_response_v69507)
+                fallback_text_v69507 = str(
+                    getattr(fallback_response_v69507, "output_text", "") or ""
+                )
+                if fallback_text_v69507:
+                    diagnostic_log(
+                        "ai_stream_preanswer_nonstream_retry_succeeded_v69507",
+                        workspace=str(assistant),
+                        elapsed_seconds=round(
+                            time.perf_counter() - provider_attempt_started_v69506, 3
+                        ),
+                    )
+                    yield fallback_text_v69507
+                    return fallback_response_v69507
+                diagnostic_log(
+                    "ai_stream_preanswer_nonstream_retry_empty_v69507",
+                    workspace=str(assistant),
+                    status=str(getattr(fallback_response_v69507, "status", "") or ""),
+                )
+                return fallback_response_v69507
             if (
                 not received_text
                 and not transient_pre_token_retry_used_v69400
