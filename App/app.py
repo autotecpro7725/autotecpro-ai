@@ -106,9 +106,9 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-# AutoTecPro AI v69502 - deduplicated visual variants + parallel Technical retrieval
-AUTOTECPRO_RELEASE_VERSION = "v69502"
-AUTOTECPRO_RELEASE_BUILD = "v69502-deduplicated-visual-variants-20260928"
+# AutoTecPro AI v69503 - clickable Markdown links + stricter topic-bound Technical visuals
+AUTOTECPRO_RELEASE_VERSION = "v69503"
+AUTOTECPRO_RELEASE_BUILD = "v69503-clickable-links-camera-topic-visuals-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -9950,10 +9950,27 @@ def inline_format(text):
         for i, part in enumerate(parts):
             rebuilt += f"<strong>{part}</strong>" if i % 2 else part
         safe = rebuilt
-    # Exact AutoTecPro product, fitment, and instruction links all render with
-    # the same customer-facing label. Skip URLs already inside Markdown link syntax.
-    autotecpro_url_pattern_v69501 = re.compile(
-        r"(?<!\]\()https?://(?:www\.)?autotecpro\.com/[^\s<>\"']+",
+    # The chat uses a small HTML renderer rather than Streamlit's Markdown
+    # renderer. Convert only safe AutoTecPro Markdown links to real anchors here.
+    markdown_link_pattern_v69503 = re.compile(
+        r"\[([^\]]{1,180})\]\((https?://(?:www\.)?autotecpro\.com/[^\s)<>\"']+)\)",
+        flags=re.IGNORECASE,
+    )
+
+    def markdown_link_v69503(match):
+        label = match.group(1)
+        url = match.group(2).rstrip(".,;!?")
+        trailing = match.group(2)[len(url):]
+        return (
+            f'<a href="{url}" target="_blank" '
+            f'rel="noopener noreferrer">{label}</a>{trailing}'
+        )
+
+    safe = markdown_link_pattern_v69503.sub(markdown_link_v69503, safe)
+
+    # Bare AutoTecPro URLs retain the customer-facing View Link label.
+    autotecpro_url_pattern_v69503 = re.compile(
+        r"(?<![=\"'])https?://(?:www\.)?autotecpro\.com/[^\s<>\"']+",
         flags=re.IGNORECASE,
     )
 
@@ -9970,7 +9987,7 @@ def inline_format(text):
             f'rel="noopener noreferrer">View Link</a>{trailing}'
         )
 
-    safe = autotecpro_url_pattern_v69501.sub(product_link_v69496, safe)
+    safe = autotecpro_url_pattern_v69503.sub(product_link_v69496, safe)
     return safe
 
 
@@ -10787,6 +10804,15 @@ def render_chat_message(
     html_regular_images_v69271 = [
         image for image in regular_final_images if image not in generated_transport_images_v69271
     ]
+    latest_assistant_message_v69503 = False
+    if role != "user" and message_index is not None:
+        try:
+            current_messages_v69503 = list(st.session_state.get("messages") or [])
+            latest_assistant_message_v69503 = (
+                int(message_index) >= max(0, len(current_messages_v69503) - 1)
+            )
+        except Exception:
+            latest_assistant_message_v69503 = False
 
     if role == "user":
         icon_html = "👤"
@@ -10809,7 +10835,7 @@ def render_chat_message(
         f'<div class="chat-icon {icon_class}">{icon_html}</div>'
         f'<div class="chat-bubble {bubble_class}">'
         f'{html_from_text(visible_content, assistant_mode=(role != "user"))}'
-        f'{render_image_previews(html_regular_images_v69271)}'
+        f'{render_image_previews(html_regular_images_v69271, loading_mode="eager" if latest_assistant_message_v69503 else "lazy")}'
         f'</div>'
         f'</div>'
     )
@@ -17231,7 +17257,7 @@ def _render_image_previews_cached(images_json, loading_mode="lazy"):
     if not isinstance(images, list) or not images:
         return ""
 
-    cards = []
+    grouped_cards_v69503 = {}
     image_loading_v69490 = "eager" if str(loading_mode or "").casefold() == "eager" else "lazy"
 
     for image_index, image in enumerate(images):
@@ -17263,7 +17289,17 @@ def _render_image_previews_cached(images_json, loading_mode="lazy"):
         fetch_priority_v69490 = (
             "high" if image_loading_v69490 == "eager" and image_index == 0 else "auto"
         )
-        cards.append(
+        section_title_v69503 = ""
+        if str(image.get("source") or "").strip() == "website_knowledge":
+            section_title_v69503 = str(
+                image.get("website_section_heading_v69010")
+                or image.get("technical_authority_section_title_v69144")
+                or ""
+            ).strip()
+        group_key_v69503 = section_title_v69503.casefold() if section_title_v69503 else ""
+        grouped_cards_v69503.setdefault(
+            group_key_v69503, {"title": section_title_v69503, "cards": []}
+        )["cards"].append(
             f'<div class="{card_class}">'
             f'<label class="atp-enlarge-label" for="{lightbox_id}" '
             f'title="Click to enlarge image">'
@@ -17282,10 +17318,29 @@ def _render_image_previews_cached(images_json, loading_mode="lazy"):
             f'</div>'
         )
 
-    if not cards:
+    if not grouped_cards_v69503:
         return ""
 
-    return '<div class="chat-image-grid">' + "".join(cards) + '</div>'
+    rendered_groups_v69503 = []
+    for group_v69503 in grouped_cards_v69503.values():
+        group_cards_v69503 = list(group_v69503.get("cards") or [])
+        if not group_cards_v69503:
+            continue
+        title_v69503 = str(group_v69503.get("title") or "").strip()
+        heading_v69503 = (
+            '<div class="atp-chat-image-section-heading-v69503" '
+            'style="font-weight:700;margin:12px 0 6px 0;">'
+            + html.escape(title_v69503)
+            + '</div>'
+            if title_v69503 else ""
+        )
+        rendered_groups_v69503.append(
+            heading_v69503
+            + '<div class="chat-image-grid">'
+            + "".join(group_cards_v69503)
+            + '</div>'
+        )
+    return "".join(rendered_groups_v69503)
 
 
 
@@ -64736,10 +64791,24 @@ def _website_image_tokens_v68883(value):
 def _website_image_query_role_v68884(prompt_text):
     """Classify only explicit visual intent in the current Technical question."""
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    # Specific camera wiring/connector questions must outrank broad "harness"
+    # matches. A general head-unit rear photo cannot satisfy this visual request.
+    if (
+        re.search(r"\b(?:camera|reverse camera|backup camera|rear camera)\b", value)
+        and re.search(r"\b(?:harness|wiring|connector|adapter|pinout|trigger wire)\b", value)
+    ):
+        return "camera_harness"
     rules = (
         ("car_model_ac", (
             "car model", "carmodel", "car model setting", "car model / ac",
             "car model/ac", "ac model", "a/c model",
+        )),
+        ("camera_harness", (
+            "backup-camera harness", "backup camera harness",
+            "reverse-camera harness", "reverse camera harness",
+            "camera connector wiring", "camera harness connector",
+            "backup camera wiring", "reverse camera wiring",
+            "camera pinout", "camera trigger wire",
         )),
         ("factory_camera", (
             "factory camera", "original camera", "oem camera",
@@ -64832,6 +64901,11 @@ def _website_image_role_score_v68884(query_role, payload):
     combined = " ".join((heading, nearby, caption, analysis))
 
     role_aliases = {
+        "camera_harness": (
+            "backup camera", "backup-camera", "reverse camera",
+            "camera harness", "camera connector", "camera wiring",
+            "camera pinout", "camera trigger", "ccd-12v", "reverse trigger",
+        ),
         "car_model_ac": (
             "car model / ac", "car model/ac", "car model", "carmodel",
             "ac model", "a/c model",
@@ -64966,7 +65040,7 @@ def _website_image_metadata_matches_role_v69004(payload, query_role):
     except Exception:
         return False
     if role in {
-        "car_model_ac", "factory_camera", "cargo_bed_camera",
+        "camera_harness", "car_model_ac", "factory_camera", "cargo_bed_camera",
         "aftermarket_camera", "dashboard_fitment", "audio",
     }:
         return score >= 14.0
@@ -64981,6 +65055,7 @@ def _website_image_section_gate_v68884(prompt_text, payload):
 
     role_score = _website_image_role_score_v68884(query_role, payload)
     if query_role in {
+        "camera_harness",
         "car_model_ac",
         "factory_camera",
         "cargo_bed_camera",
@@ -66154,15 +66229,29 @@ def _technical_final_image_rejection_reason_v69361(prompt_text, answer_text, ima
                 ]).casefold()
                 if "camera" not in combined_v69482:
                     return "strict_camera_metadata_missing"
-                harnessish_v69482 = any(term in combined_v69482 for term in ("harness", "wiring", "connector", "adapter", "ccd-v"))
+                image_role_v69482 = re.sub(
+                    r"[^a-z0-9]+", " ",
+                    str(meta_v69482.get("data-atp-image-role") or "").casefold(),
+                ).strip()
+                camera_wiring_role_v69482 = bool(
+                    "camera" in image_role_v69482
+                    and any(term in image_role_v69482 for term in (
+                        "harness", "wiring", "connector", "adapter", "pinout", "diagram", "trigger"
+                    ))
+                ) or bool(
+                    any(term in image_role_v69482 for term in ("wiring diagram", "wiring-diagram"))
+                    and any(term in combined_v69482 for term in (
+                        "camera harness", "camera wiring", "camera connector", "backup camera", "reverse camera"
+                    ))
+                )
                 diagnosticish_v69482 = any(term in combined_v69482 for term in (
                     "no-camera", "no camera", "no-image", "no image",
                     "reverse-no-trigger", "factory-camera-no-image",
                     "reverse-camera-no-image", "harness-problem",
                 ))
-                if strict_camera_kind_v69482 == "camera_harness" and not harnessish_v69482:
+                if strict_camera_kind_v69482 == "camera_harness" and not camera_wiring_role_v69482:
                     return "strict_camera_harness_role_mismatch"
-                if strict_camera_kind_v69482 == "camera_issue" and not (harnessish_v69482 or diagnosticish_v69482):
+                if strict_camera_kind_v69482 == "camera_issue" and not (camera_wiring_role_v69482 or diagnosticish_v69482):
                     return "strict_camera_diagnostic_role_mismatch"
                 if any(term in combined_v69482 for term in ("primary-product-image", "product hero", "after-installation-product-reference")):
                     return "strict_camera_generic_product_image"
@@ -85346,14 +85435,44 @@ def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_im
     authority = dict(authority or {})
     selected = []
     seen = set()
+    package_text = str(authority.get("package_text") or "")
+    try:
+        query_role = _website_image_query_role_v68884(prompt_text)
+    except Exception:
+        query_role = ""
+    strict_camera_urls = None
+    if query_role == "camera_harness":
+        strict_camera_urls = set()
+        try:
+            strict_payloads = _website_structured_image_payloads_from_file_v69012(
+                package_text,
+                str(authority.get("filename") or ""),
+                str(authority.get("file_id") or ""),
+            )
+            strict_payloads.extend(_website_legacy_html_payloads_from_file_v69012(
+                package_text,
+                str(authority.get("filename") or ""),
+                str(authority.get("file_id") or ""),
+            ))
+            strict_camera_urls = {
+                str(item.get("image_url") or "").strip()
+                for item in strict_payloads
+                if isinstance(item, dict)
+                and _website_image_final_payload_gate_v68885(prompt_text, item)
+            }
+        except Exception:
+            strict_camera_urls = set()
 
     def add(url):
         url = str(url or "").strip()
+        if strict_camera_urls is not None and url not in strict_camera_urls:
+            return
         if url.startswith("https://") and url not in seen:
             seen.add(url)
             selected.append(url)
 
-    # Exact structural image URLs are primary and all must display.
+    # Exact structural image URLs are primary and all must display. Camera-harness
+    # inquiries additionally require an exact topic match in the selected package.
     for url in (authority.get("selected_image_urls_v69143") or []):
         add(url)
 
@@ -85363,7 +85482,6 @@ def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_im
         for url in (segment.get("images") or []):
             add(url)
 
-    package_text = str(authority.get("package_text") or "")
     if not package_text:
         return selected[:max(1, int(max_images or 16))]
 
@@ -88063,6 +88181,12 @@ def _technical_exact_authority_chat_images_v69170(prompt_text, authority, max_im
         except Exception:
             pid = ""
         if source_id and pid and pid != source_id:
+            return
+
+        if (
+            _website_image_query_role_v68884(prompt_text) == "camera_harness"
+            and not _website_image_final_payload_gate_v68885(prompt_text, item)
+        ):
             return
 
         pfile = str(item.get("file_id_v69012") or item.get("file_id") or "").strip()
@@ -103835,7 +103959,7 @@ def _technical_strict_camera_harness_request_v69482(prompt_text):
     return ""
 
 
-def _technical_confirmed_camera_harness_images_v69482(prompt_text, state, max_images=2):
+def _technical_confirmed_camera_harness_images_v69482(prompt_text, state, max_images=4):
     """Bind only exact current-source camera/harness imagery from the confirmed package.
 
     The route is intentionally generic. It reads authored data-atp metadata from the
@@ -103958,10 +104082,9 @@ def _technical_confirmed_camera_harness_images_v69482(prompt_text, state, max_im
 
     ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
     output, seen = [], set()
-    # For an explicit camera/harness request, one exact routing-authority image is
-    # normally superior to a gallery. Keep at most two only when both are distinct
-    # exact references from the same compatible branch.
-    limit = 1 if request_kind == "camera_issue" else max(1, min(2, int(max_images or 2)))
+    # Show several images only when each is an exact reference in the same
+    # compatible package/year branch; the app-wide gallery limit remains four.
+    limit = 1 if request_kind == "camera_issue" else max(1, min(4, int(max_images or 4)))
     for _, _, _, record in ranked:
         key = str(record.get("archive_web_url") or record.get("data_url") or "").strip()
         if not key or key in seen:
@@ -103988,7 +104111,7 @@ def _technical_confirmed_camera_harness_images_v69482(prompt_text, state, max_im
     return output
 
 
-def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_images=2):
+def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_images=4):
     """Fast exact-image path from the already-confirmed package snapshot.
 
     This avoids page-index Supabase reads, full Technical image-index scans, and
@@ -104231,7 +104354,7 @@ def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_ima
     return output
 
 
-def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
+def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=4):
     """Return authored first-response images from exactly the selected package/page.
 
     For audio/no-sound on the 2013–2019 Silverado/Sierra source this deterministically
@@ -110871,6 +110994,12 @@ else:
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
             and str(technical_request_prompt_v68879 or "").strip()
+            # Strict camera/harness requests already have an exact current-package
+            # resolver and exact file_search-row image extraction. Do not start two
+            # broad image searches that cannot improve their topic authority.
+            and not _technical_strict_camera_harness_request_v69482(
+                technical_request_prompt_v68879
+            )
         ):
             # v69373 speed path: compiled/hot Technical authority used to DISABLE
             # prefetch completely, forcing related images to start searching only
@@ -115253,7 +115382,7 @@ else:
                         _technical_confirmed_semantic_fast_images_v69392(
                             technical_image_intent_v69394,
                             confirmed_state_fast_v69392,
-                            max_images=2,
+                            max_images=4,
                         )
                     )
                     if technical_confirmed_package_fast_images_v69392:
@@ -115361,6 +115490,9 @@ else:
             assistant == "🔧 Technical Support"
             and str(answer or "").strip()
             and not bool(technical_preflight_safe_answer_v69377)
+            and not _technical_strict_camera_harness_request_v69482(
+                technical_request_prompt_v68879
+            )
         ):
             active_package_state_v69115 = dict(
                 st.session_state.get("_technical_active_admin_package_v69113") or {}
@@ -115414,6 +115546,9 @@ else:
             and not bool(locals().get("technical_exact_topic_authority_v69409"))
             and not bool(technical_preflight_safe_answer_v69377)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
+            and not _technical_strict_camera_harness_request_v69482(
+                technical_request_prompt_v68879
+            )
         ):
             existing_website_images_v69008 = [
                 image for image in (generated_images or [])
@@ -115460,6 +115595,9 @@ else:
             and not bool(locals().get("technical_exact_topic_authority_v69409"))
             and str(answer or "").strip()
             and not bool(technical_preflight_safe_answer_v69377)
+            and not _technical_strict_camera_harness_request_v69482(
+                technical_request_prompt_v68879
+            )
         ):
             existing_product_bridge_v69365 = [
                 image for image in (generated_images or [])
@@ -115506,6 +115644,9 @@ else:
             and not bool(technical_preflight_safe_answer_v69377)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
             and not bool(locals().get("technical_confirmed_package_fast_images_v69392"))
+            and not _technical_strict_camera_harness_request_v69482(
+                technical_request_prompt_v68879
+            )
             and _website_image_universal_technical_candidate_v69014(
                 technical_request_prompt_v68879, answer
             )
@@ -116762,7 +116903,7 @@ else:
                 )
                 if not confirmed_images_v69382:
                     confirmed_images_v69382 = _technical_confirmed_package_exact_images_v69382(
-                        technical_request_prompt_v68879, max_images=2
+                        technical_request_prompt_v68879, max_images=4
                     )
             except Exception as confirmed_images_error_v69382:
                 confirmed_images_v69382 = []
