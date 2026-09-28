@@ -1,4 +1,4 @@
-# AutoTecPro AI v69493 - typo-tolerant compatibility identification images
+# AutoTecPro AI v69495 - canonicalize encoded product paths and prewarm compatibility images
 # Preserves v69491 climate-panel routing and v69490 fast catalog lookup / eager primary images.
 # Preserves v69489 clarification and SYNC routing fixes.
 # AutoTecPro AI v69489 - expire unrelated Product Library clarifications + classify screen-specific factory-feature questions
@@ -106,8 +106,8 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-AUTOTECPRO_RELEASE_VERSION = "v69493"
-AUTOTECPRO_RELEASE_BUILD = "v69493-typo-tolerant-compatibility-visuals-20260927"
+AUTOTECPRO_RELEASE_VERSION = "v69495"
+AUTOTECPRO_RELEASE_BUILD = "v69495-product-image-redirect-identity-fix-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -512,6 +512,21 @@ diagnostic_log(
     possessive_compatible_to_compatibility_repaired=True,
     natural_what_is_my_compatibility_intent_detected=True,
     same_case_nonvisual_image_suppression_respected=True,
+)
+diagnostic_log(
+    "v69494_exact_compatibility_image_prewarm_ready",
+    prewarms_only_exact_current_sales_product_pages=True,
+    overlaps_with_initial_product_answer=True,
+    uses_existing_120_second_page_semantics_cache=True,
+    new_authority_revalidates_page_identity=True,
+    bounded_shared_worker_pool=True,
+    image_timing_observability=True,
+)
+diagnostic_log(
+    "v69495_percent_encoded_product_identity_ready",
+    percent_escape_hex_case_canonicalized=True,
+    exact_product_path_still_required=True,
+    volatile_v_query_only_ignored=True,
 )
 diagnostic_log(
     "v69484_login_fastpath_ready",
@@ -2076,8 +2091,17 @@ def _exact_product_page_identity_v69342(raw_url):
     except Exception:
         identity = str(raw_url or "").strip().rstrip("/").casefold()
     base, sep, query = identity.partition("?")
+    # URL percent-escape hex digits are case-insensitive. WooCommerce/CDN redirects
+    # can change `%e2` to `%E2` without changing the product path. Canonicalize only
+    # escape spelling; keep the exact decoded path, host, port, and remaining query
+    # checks below intact so this cannot authorize a different product.
+    base = re.sub(
+        r"%[0-9a-fA-F]{2}",
+        lambda match: match.group(0).upper(),
+        base,
+    )
     if not sep or not query:
-        return identity
+        return base
     try:
         pairs = urllib.parse.parse_qsl(query, keep_blank_values=True)
     except Exception:
@@ -78286,6 +78310,100 @@ def _workspace_sales_authority_packages_v69420(authority):
     return []
 
 
+@st.cache_resource(show_spinner=False)
+def _workspace_sales_semantics_prewarm_state_v69494():
+    """Shared bounded worker pool for public exact-product-page cache warming."""
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    return {
+        "pool": ThreadPoolExecutor(
+            max_workers=4,
+            thread_name_prefix="atp-sales-semantic-warm",
+        ),
+        "lock": threading.Lock(),
+        "jobs": {},
+    }
+
+
+def _workspace_sales_prewarm_exact_semantics_v69494(workspace_label, authority):
+    """Warm page semantics for exact Sales products during broad catalog answers.
+
+    This reads only public current product pages already selected by the exact
+    Sales authority. It does not widen product search, use chat text as a cache
+    key, or publish an image. Later compatibility follow-ups reuse the existing
+    short-lived exact-page semantics cache, then run the normal image gates.
+    """
+    if not is_sales_workspace(workspace_label):
+        return {"scheduled": 0, "reused": 0, "products": 0}
+
+    packages = _workspace_sales_authority_packages_v69420(authority)
+    state = _workspace_sales_semantics_prewarm_state_v69494()
+    now = time.monotonic()
+    scheduled = 0
+    reused = 0
+    products = 0
+    urls = []
+    seen = set()
+    for package in packages[:8]:
+        if str(package.get("destination") or "") != "Sales Database":
+            continue
+        source = str(package.get("source_url") or "").strip()
+        if not source:
+            continue
+        try:
+            parsed = urllib.parse.urlsplit(source)
+            if parsed.scheme.casefold() != "https" or parsed.netloc.casefold() not in {
+                "autotecpro.com", "www.autotecpro.com"
+            }:
+                continue
+            page_id = _workspace_product_page_identity_v69396(source)
+        except Exception:
+            continue
+        if not str(page_id).startswith("product:") or page_id in seen:
+            continue
+        seen.add(page_id)
+        products += 1
+        revision = "|".join((
+            page_id,
+            str(package.get("extracted_at") or "").strip(),
+            str(package.get("workspace_sales_woocommerce_product_id_v69413") or "").strip(),
+        ))
+        job_key = hashlib.sha256(revision.encode("utf-8")).hexdigest()[:24]
+        urls.append((job_key, source))
+
+    with state["lock"]:
+        jobs = state["jobs"]
+        for job_key, source in urls:
+            old = jobs.get(job_key)
+            if old and (not old["future"].done() or now - old["started"] < 110.0):
+                reused += 1
+                continue
+            future = state["pool"].submit(
+                _workspace_exact_product_atp_semantics_v69402,
+                source,
+            )
+            jobs[job_key] = {"future": future, "started": now}
+            scheduled += 1
+        # Keep the process-wide registry bounded even when many products rotate.
+        for key, job in list(jobs.items()):
+            if now - float(job.get("started") or 0.0) > 180.0 and job["future"].done():
+                jobs.pop(key, None)
+        while len(jobs) > 256:
+            first_key = next(iter(jobs))
+            if not jobs[first_key]["future"].done():
+                break
+            jobs.pop(first_key, None)
+
+    diagnostic_log(
+        "workspace_sales_exact_page_semantics_prewarm_v69494",
+        products=products,
+        scheduled=scheduled,
+        reused=reused,
+    )
+    return {"scheduled": scheduled, "reused": reused, "products": products}
+
+
 def _workspace_sales_image_manifest_key_v69420(
     workspace_label,
     prompt_text,
@@ -113479,6 +113597,7 @@ else:
                     workspace_sales_image_prefetch_future_v69420 = None
                     workspace_sales_prefetched_manifest_v69420 = {}
                     workspace_sales_manifest_key_v69420 = ""
+                    workspace_sales_prefetch_started_at_v69494 = time.perf_counter()
                     if (
                         (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
                         and str(
@@ -113544,6 +113663,22 @@ else:
                                             12,
                                         )
                                     )
+                                    # Warm exact product-page image semantics in the
+                                    # background while the catalog answer generates.
+                                    # A likely compatibility-image follow-up can then
+                                    # use the existing short-lived cache and hit the
+                                    # immediate post-text renderer on a warm page.
+                                    try:
+                                        _workspace_sales_prewarm_exact_semantics_v69494(
+                                            assistant,
+                                            workspace_atp_authority_v69180,
+                                        )
+                                    except Exception as prewarm_error_v69494:
+                                        diagnostic_log(
+                                            "workspace_sales_exact_page_semantics_prewarm_failed_v69494",
+                                            error_type=type(prewarm_error_v69494).__name__,
+                                            error=str(prewarm_error_v69494)[:300],
+                                        )
                                 if instant_primary_v69483:
                                     workspace_sales_prefetched_manifest_v69420 = {
                                         "mode": "primary",
@@ -114477,6 +114612,7 @@ else:
         # after text completes, before the legacy late image-recovery/save pipeline.
         workspace_sales_early_images_rendered_v69420 = False
         workspace_sales_early_image_signature_v69420 = ()
+        workspace_sales_text_ready_at_v69494 = time.perf_counter()
         if (
             not is_graphic_generation
             and (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
@@ -114597,6 +114733,15 @@ else:
                                 published=len(
                                     fast_images_v69420
                                 ),
+                                prefetch_elapsed_seconds=round(
+                                    workspace_sales_text_ready_at_v69494
+                                    - float(locals().get(
+                                        "workspace_sales_prefetch_started_at_v69494",
+                                        workspace_sales_text_ready_at_v69494,
+                                    )),
+                                    3,
+                                ),
+                                delay_after_text_seconds=0.0,
                             )
             except Exception as early_image_error_v69420:
                 diagnostic_log(
@@ -116362,6 +116507,18 @@ else:
             image_count=len(generated_images or []),
             early_exact_manifest=bool(
                 locals().get("workspace_sales_early_manifest_final_v69441")
+            ),
+            image_commit_delay_after_text_seconds=(
+                round(
+                    time.perf_counter()
+                    - float(locals().get(
+                        "workspace_sales_text_ready_at_v69494",
+                        time.perf_counter(),
+                    )),
+                    3,
+                )
+                if bool(locals().get("workspace_sales_early_images_rendered_v69420"))
+                else None
             ),
         )
         st.session_state.messages.append({
