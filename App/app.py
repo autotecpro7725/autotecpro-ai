@@ -106,9 +106,9 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-# AutoTecPro AI v69497 - vehicle-aware fast exact-image candidate filtering
-AUTOTECPRO_RELEASE_VERSION = "v69497"
-AUTOTECPRO_RELEASE_BUILD = "v69497-fast-exact-image-candidate-filter-20260928"
+# AutoTecPro AI v69502 - deduplicated visual variants + parallel Technical retrieval
+AUTOTECPRO_RELEASE_VERSION = "v69502"
+AUTOTECPRO_RELEASE_BUILD = "v69502-deduplicated-visual-variants-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -542,6 +542,38 @@ diagnostic_log(
     exact_product_and_final_fitment_gates_preserved=True,
     topical_and_primary_sales_images_supported=True,
     exact_page_prewarm_limited_to_images_already_available_instantly=True,
+)
+diagnostic_log(
+    "v69498_typo_tolerant_vehicle_image_filter_ready",
+    fuzzy_vehicle_make_typo_repair=True,
+    unrelated_exact_page_fetch_skipped_before_network=True,
+    final_fitment_gate_preserved=True,
+)
+diagnostic_log(
+    "v69499_technical_exact_section_image_retrieval_ready",
+    prefetch_uses_role_expansion=True,
+    audio_aux_wire_section_terms_added=True,
+    generic_wiring_diagram_cannot_win_audio_role_by_section_score=True,
+    final_vehicle_year_provenance_gates_preserved=True,
+)
+diagnostic_log(
+    "v69500_parallel_technical_visual_prefetch_ready",
+    dedicated_visual_search_overlaps_answer_generation=True,
+    parallel_search_only_for_visual_intent=True,
+    final_image_authority_gates_unchanged=True,
+)
+diagnostic_log(
+    "v69501_mobile_canvas_and_view_link_ready",
+    dark_sticky_bottom_canvas=True,
+    all_autotecpro_source_links_labeled_view_link=True,
+    existing_markdown_links_preserved=True,
+    parallel_technical_visual_prefetch_preserved=True,
+)
+diagnostic_log(
+    "v69502_wordpress_visual_variant_dedupe_ready",
+    resize_suffix_variants_collapse=True,
+    wordpress_scaled_suffix_variants_collapse=True,
+    final_fitment_authority_gates_unchanged=True,
 )
 diagnostic_log(
     "v69484_login_fastpath_ready",
@@ -9918,8 +9950,10 @@ def inline_format(text):
         for i, part in enumerate(parts):
             rebuilt += f"<strong>{part}</strong>" if i % 2 else part
         safe = rebuilt
-    product_url_pattern_v69496 = re.compile(
-        r"https?://(?:www\.)?autotecpro\.com/product/[^\s<>\"']+",
+    # Exact AutoTecPro product, fitment, and instruction links all render with
+    # the same customer-facing label. Skip URLs already inside Markdown link syntax.
+    autotecpro_url_pattern_v69501 = re.compile(
+        r"(?<!\]\()https?://(?:www\.)?autotecpro\.com/[^\s<>\"']+",
         flags=re.IGNORECASE,
     )
 
@@ -9936,7 +9970,7 @@ def inline_format(text):
             f'rel="noopener noreferrer">View Link</a>{trailing}'
         )
 
-    safe = product_url_pattern_v69496.sub(product_link_v69496, safe)
+    safe = autotecpro_url_pattern_v69501.sub(product_link_v69496, safe)
     return safe
 
 
@@ -12264,6 +12298,46 @@ diagnostic_log(
 process_pending_login_cookie_action()
 
 apply_app_layout_css()
+
+# v69501: Streamlit's sticky mobile composer/footer can retain a light theme
+# background even while the app canvas is dark. Paint the page/root and sticky
+# bottom wrappers explicitly after shared layout CSS so the safe-area band matches
+# the authenticated app background. The composer control itself keeps its existing
+# styling. Screen-only scope leaves login and print palettes untouched.
+st.markdown(
+    """
+    <style>
+    @media screen {
+        html:has(.stApp),
+        body:has(.stApp),
+        #root:has(.stApp) {
+            background-color: #050b16 !important;
+            color-scheme: dark !important;
+        }
+        .stApp,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stBottom"],
+        [data-testid="stBottomBlockContainer"],
+        [data-testid="stChatInput"] {
+            background-color: #050b16 !important;
+        }
+        [data-testid="stBottom"],
+        [data-testid="stBottomBlockContainer"] {
+            background-image: linear-gradient(135deg, #050b16 0%, #0b1220 55%, #020617 100%) !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+diagnostic_log(
+    "v69501_dark_mobile_bottom_canvas_ready",
+    authenticated_screen_only=True,
+    sticky_bottom_and_safe_area_painted_dark=True,
+    chat_composer_control_styling_preserved=True,
+    print_palette_untouched=True,
+)
 
 # ============================================================
 # Header After Login
@@ -45153,10 +45227,15 @@ When a TECHNICAL TOOL ROUTING block is supplied, follow that workflow exactly.
 Only the selected workflow should run. Do not claim that a wiring image or PDF
 page is displayed unless image data is actually present in the conversation.
 
-The AutoTecPro application may also provide verified, live WooCommerce REST
-API order data for technical support and product identification.
+The AutoTecPro application may provide verified, live WooCommerce REST API
+order data only when the user explicitly asks about an order or provides an
+order identifier and the application has retrieved that exact order.
+For general vehicle compatibility, product availability, fitment, specifications,
+or a new product inquiry, do not query, cite, or imply WooCommerce authority.
+Use the Technical Support Vector Store and approved AutoTecPro technical
+references instead. This workspace is not the product catalog or sales channel.
 
-When WooCommerce data is provided:
+When exact WooCommerce order data is provided for an explicit order inquiry:
 - Treat it as the authoritative live order record.
 - Use it to identify the purchased product, SKU, quantity, selected options,
   vehicle details, order date, order status, customer note, shipping details,
@@ -45175,6 +45254,14 @@ For every Technical Support response:
 - Ignore any pricing found in Technical Support documents or earlier messages.
 - Focus only on compatibility, installation, configuration, troubleshooting,
   product identification, warranty procedure, and technical next steps.
+- For a new vehicle/product fitment inquiry, recommend a product page only when
+  the retrieved source explicitly matches the requested vehicle year, make,
+  model/trim, and relevant factory configuration. Confirm the linked page's
+  product name and screen size against the recommendation. If any identity or
+  specification conflicts, omit that product link and ask for the minimum detail
+  needed to verify; never substitute a nearby-year or different-screen product.
+- Present verified AutoTecPro website citations as a clickable “View Link” label.
+  Do not expose raw URLs unless the user asks to see them. Never invent a link.
 
 TECHNICAL ORDER ENRICHMENT WORKFLOW:
 When the application has already displayed a WooCommerce order, preserve that
@@ -45233,7 +45320,7 @@ enrichment sections below in this exact order when information is available:
 13. ## Installation Resources
     - Show every verified installation video, manual, PDF, wiring diagram, CANBUS
       reference, firmware link, or technical bulletin returned by file_search.
-    - Keep full URLs visible and clickable. Do not replace URLs with buttons.
+    - Show each verified AutoTecPro resource as a clickable “View Link” label.
     - Never invent a link. If no exact verified resource is found, say so.
 14. ## Customer Reply Draft
     - Always place this last and format it as Markdown blockquote paragraphs.
@@ -64548,7 +64635,9 @@ def _website_image_retrieval_query_v68889(prompt_text, topic):
             "different-year power harness; connector; wiring; cable"
         ),
         "audio": (
-            "Audio Setup; AUX; Bluetooth audio; Factory AMP"
+            "Audio Setup; AUX Audio Method; AUX-Wire.jpg; AUX wire; AUX cable; "
+            "newer-platform-aux-wire; audio-aux; F011_AUX_AUDIO; "
+            "Bluetooth audio; Factory AMP; audio connection guideline"
         ),
         "weather": (
             "Weather setup; weather app"
@@ -64668,7 +64757,9 @@ def _website_image_query_role_v68884(prompt_text):
             "fitment",
         )),
         ("audio", (
-            "audio", "aux", "bluetooth audio", "sound",
+            "audio", "aux", "bluetooth audio", "sound", "aux wire",
+            "audio harness", "audio connector", "audio-aux",
+            "newer-platform-aux-wire",
         )),
         ("weather", (
             "weather", "weather app",
@@ -64760,7 +64851,9 @@ def _website_image_role_score_v68884(query_role, payload):
             "dashboard fitment", "dash fitment", "fitment",
         ),
         "audio": (
-            "audio", "aux", "bluetooth audio", "sound",
+            "audio", "aux", "bluetooth audio", "sound", "aux wire",
+            "audio harness", "audio connector", "audio-aux",
+            "newer-platform-aux-wire",
         ),
         "weather": ("weather", "weather app"),
         "navigation": ("offline navigation", "navigation", "gps"),
@@ -64804,6 +64897,34 @@ def _website_image_role_score_v68884(query_role, payload):
     if any(alias in analysis for alias in aliases):
         score += 10.0
 
+    # Exact audio/AUX metadata should outrank broad wiring references. A main
+    # wiring diagram may show connectors without documenting the audio path.
+    if query_role == "audio":
+        exact_audio_terms = (
+            "aux-wire", "aux wire", "audio-aux", "newer-platform-aux-wire",
+            "aux audio method", "audio connection guideline", "f011_aux_audio",
+        )
+        if any(term in combined for term in exact_audio_terms):
+            score += 24.0
+        if "main wiring diagram" in combined and not any(
+            term in combined for term in exact_audio_terms
+        ):
+            score -= 12.0
+
+    # Prefer the exact audio/AUX image section; a general wiring image can show
+    # connectors without documenting the audio path.
+    if query_role == "audio":
+        exact_audio_terms = (
+            "aux-wire", "aux wire", "audio-aux", "newer-platform-aux-wire",
+            "aux audio method", "audio connection guideline", "f011_aux_audio",
+        )
+        if any(term in combined for term in exact_audio_terms):
+            score += 24.0
+        if "main wiring diagram" in combined and not any(
+            term in combined for term in exact_audio_terms
+        ):
+            score -= 12.0
+
     if conflict_terms and any(term in heading for term in conflict_terms):
         score -= 30.0
 
@@ -64846,7 +64967,7 @@ def _website_image_metadata_matches_role_v69004(payload, query_role):
         return False
     if role in {
         "car_model_ac", "factory_camera", "cargo_bed_camera",
-        "aftermarket_camera", "dashboard_fitment",
+        "aftermarket_camera", "dashboard_fitment", "audio",
     }:
         return score >= 14.0
     return score >= 6.0
@@ -64866,6 +64987,8 @@ def _website_image_section_gate_v68884(prompt_text, payload):
         "aftermarket_camera",
         "dashboard_fitment",
     }:
+        return role_score >= 14.0
+    if query_role == "audio":
         return role_score >= 14.0
     return role_score >= 6.0
 
@@ -66941,6 +67064,14 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_la
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not prompt:
         return []
+    # Reuse the current single prefetch call, but search the exact section/asset
+    # vocabulary for the detected role. This improves recall without adding a
+    # second remote lookup or weakening final compatibility checks.
+    query_role = _website_image_query_role_v68884(prompt)
+    search_prompt = (
+        _website_image_retrieval_query_v68889(prompt, query_role)
+        if query_role else prompt
+    )
     vector_store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
     if not vector_store_ids:
         return []
@@ -66955,13 +67086,14 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_la
             "AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
             "ATP_WEB_IMAGE_JSON, or legacy raw HTML <img> tags in that same section. "
             "Do not broaden to unrelated sections or another fitment.\n\n"
-            f"USER REQUEST:\n{prompt[:2600]}\n"
+            f"USER REQUEST:\n{search_prompt[:4200]}\n"
         ),
         "tools": [{"type": "file_search", "vector_store_ids": vector_store_ids}],
         "tool_choice": "required",
         "include": ["file_search_call.results"],
         "max_output_tokens": 32,
     }
+    prefetch_started_v69499 = time.monotonic()
     try:
         rows = _website_image_response_rows_with_retry_v69047(
             request,
@@ -66976,6 +67108,9 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_la
     diagnostic_log(
         "website_image_prefetch_complete_v69015",
         result_count=len(rows),
+        elapsed_seconds=round(time.monotonic() - prefetch_started_v69499, 3),
+        query_role=query_role or "unclassified",
+        role_expansion=bool(query_role),
     )
     return rows
 
@@ -67212,7 +67347,7 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
     return output
 
 
-def _website_image_dedicated_file_search_results_v69013(prompt_text, answer_text=""):
+def _website_image_dedicated_file_search_results_v69013(prompt_text, answer_text="", workspace_label=None):
     """Run an independent Technical file_search dedicated to image-source discovery.
 
     This is intentionally invoked only after the durable image index and the ordinary
@@ -67221,7 +67356,7 @@ def _website_image_dedicated_file_search_results_v69013(prompt_text, answer_text
     records. It never generates or selects the final image; the existing deterministic
     vehicle/year/section/visual authority gates remain final.
     """
-    if str(assistant or "") != "🔧 Technical Support":
+    if str(workspace_label if workspace_label is not None else assistant or "") != "🔧 Technical Support":
         return []
     if not _website_image_visual_intent_v68883(prompt_text):
         return []
@@ -78587,6 +78722,23 @@ def _workspace_sales_image_candidate_scope_v69497(prompt_text, package):
         source_words = set(re.findall(r"[a-z]+", identity_text.casefold()))
         requested_brands = requested_words & known_brands_v69497
         source_brands = source_words & known_brands_v69497
+        # Recover common one or two character make typos (for example,
+        # "chysler") before deciding whether a candidate page fits the inquiry.
+        # Exact make names always win; fuzzy correction is limited to prompt
+        # tokens of at least four letters and a strong similarity threshold.
+        for token in requested_words - known_brands_v69497:
+            if len(token) < 4:
+                continue
+            best_brand = ""
+            best_ratio = 0.0
+            for brand in known_brands_v69497:
+                if len(brand) < 4 or abs(len(token) - len(brand)) > 2:
+                    continue
+                ratio = SequenceMatcher(None, token, brand).ratio()
+                if ratio > best_ratio:
+                    best_brand, best_ratio = brand, ratio
+            if best_brand and best_ratio >= 0.80:
+                requested_brands.add(best_brand)
         requested_brand_text = str(prompt_text or "").casefold()
         for brand in multiword_brands_v69497:
             if re.search(r"\b" + re.escape(brand) + r"\b", requested_brand_text):
@@ -80302,9 +80454,38 @@ def _website_automatic_related_image_recovery_v69049(
 
 
 def _dedupe_website_chat_images_v68883(images):
-    """Remove duplicates between deterministic index hits and model control hits."""
+    """Remove duplicate website images, including WordPress size variants."""
     output = []
     seen = set()
+
+    def visual_keys(image):
+        keys = set()
+        digest = str(image.get("website_image_sha256") or "").strip().casefold()
+        if digest:
+            keys.add("sha256:" + digest)
+        url = str(image.get("archive_web_url") or "").strip()
+        if url.startswith(("http://", "https://")):
+            try:
+                parsed = urlparse(url)
+                path = str(parsed.path or "")
+                # WordPress serves one source image under names such as
+                # Compatibility-19-scaled.jpg and Compatibility-19-768x549.jpg.
+                # These are display-size variants of the same authored visual.
+                if "/wp-content/uploads/" in path.casefold():
+                    path = re.sub(r"-\d{2,5}x\d{2,5}(?=\.[^.]+$)", "", path, flags=re.I)
+                    path = re.sub(r"[-_]scaled(?=\.[^.]+$)", "", path, flags=re.I)
+                keys.add(
+                    "url:" + str(parsed.netloc or "").casefold() + path.casefold()
+                )
+            except Exception:
+                keys.add("url:" + url.split("?", 1)[0].split("#", 1)[0].casefold())
+        data_url = str(image.get("data_url") or "").strip()
+        if data_url:
+            keys.add("data:" + hashlib.sha256(
+                data_url.encode("utf-8", errors="ignore")
+            ).hexdigest())
+        return keys
+
     for image in images or []:
         if not isinstance(image, dict):
             output.append(image)
@@ -80312,15 +80493,10 @@ def _dedupe_website_chat_images_v68883(images):
         if str(image.get("source") or "") != "website_knowledge":
             output.append(image)
             continue
-        key = (
-            str(image.get("website_image_sha256") or "").strip()
-            or str(image.get("archive_web_url") or "").strip()
-            or str(image.get("data_url") or "").strip()
-        )
-        if key and key in seen:
+        keys = visual_keys(image)
+        if keys and keys & seen:
             continue
-        if key:
-            seen.add(key)
+        seen.update(keys)
         output.append(image)
     return output
 
@@ -110689,6 +110865,7 @@ else:
         technical_early_index_images_v69016 = []
         technical_image_prefetch_executor_v69015 = None
         technical_image_prefetch_future_v69015 = None
+        technical_image_dedicated_prefetch_future_v69500 = None
         technical_image_prefetch_cached_rows_v69016 = []
         if (
             assistant == "🔧 Technical Support"
@@ -110750,7 +110927,7 @@ else:
                     try:
                         from concurrent.futures import ThreadPoolExecutor
                         technical_image_prefetch_executor_v69015 = ThreadPoolExecutor(
-                            max_workers=1, thread_name_prefix="atp-tech-image-prefetch"
+                            max_workers=2, thread_name_prefix="atp-tech-image-prefetch"
                         )
                         technical_image_prefetch_future_v69015 = (
                             technical_image_prefetch_executor_v69015.submit(
@@ -110759,6 +110936,24 @@ else:
                                 assistant,
                             )
                         )
+                        # v69500: run the answer-independent dedicated visual query
+                        # alongside the broad prompt prefetch. The old flow waited for
+                        # the answer, then issued this second remote search serially.
+                        # It remains visual-intent-only and passes through the same
+                        # strict candidate and final image authority checks.
+                        if _website_image_visual_intent_v68883(technical_request_prompt_v68879):
+                            technical_image_dedicated_prefetch_future_v69500 = (
+                                technical_image_prefetch_executor_v69015.submit(
+                                    _website_image_dedicated_file_search_results_v69013,
+                                    technical_request_prompt_v68879,
+                                    "",
+                                    assistant,
+                                )
+                            )
+                            diagnostic_log(
+                                "technical_image_parallel_prefetch_started_v69500",
+                                visual_intent=True,
+                            )
                     except Exception as error:
                         technical_image_prefetch_executor_v69015 = None
                         technical_image_prefetch_future_v69015 = None
@@ -115373,7 +115568,36 @@ else:
                             answer_result_rows_v69014 + prefetched_rows_v69015,
                         )
 
-                    # If the prompt-only prefetch was not precise enough, preserve the
+                    # Consume the answer-independent visual retrieval already running
+                    # in parallel. Its rows are not trusted until the same deterministic
+                    # vehicle/year/section gates approve an image.
+                    dedicated_rows_v69014 = []
+                    dedicated_prefetch_future_v69500 = locals().get(
+                        "technical_image_dedicated_prefetch_future_v69500"
+                    )
+                    if not universal_images_v69014 and dedicated_prefetch_future_v69500 is not None:
+                        try:
+                            dedicated_rows_v69014 = list(
+                                dedicated_prefetch_future_v69500.result(timeout=0.20) or []
+                            )
+                            if dedicated_rows_v69014:
+                                universal_images_v69014 = _website_file_search_images_v69014(
+                                    technical_request_prompt_v68879,
+                                    answer,
+                                    answer_result_rows_v69014 + prefetched_rows_v69015 + dedicated_rows_v69014,
+                                )
+                            diagnostic_log(
+                                "technical_image_parallel_prefetch_consumed_v69500",
+                                result_count=len(dedicated_rows_v69014),
+                                recovered=len(universal_images_v69014 or []),
+                            )
+                        except Exception as error:
+                            diagnostic_log(
+                                "technical_image_parallel_prefetch_not_ready_v69500",
+                                error_type=type(error).__name__,
+                            )
+
+                    # If the parallel prompt prefetches were not precise enough, preserve
                     # existing answer-aware dedicated search as the fail-safe fallback.
                     if (
                         not universal_images_v69014
@@ -115387,7 +115611,7 @@ else:
                         ) != "recovered"
                     ):
                         dedicated_rows_v69014 = _website_image_dedicated_file_search_results_v69014(
-                            technical_request_prompt_v68879, answer
+                            technical_request_prompt_v68879, answer, assistant
                         )
                         if dedicated_rows_v69014:
                             universal_images_v69014 = _website_file_search_images_v69014(
