@@ -106,9 +106,9 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-# AutoTecPro AI v69507 - pre-answer stream TypeError recovery
-AUTOTECPRO_RELEASE_VERSION = "v69507"
-AUTOTECPRO_RELEASE_BUILD = "v69507-preanswer-stream-typeerror-recovery-20260928"
+# AutoTecPro AI v69508 - Technical troubleshooting and stream recovery
+AUTOTECPRO_RELEASE_VERSION = "v69508"
+AUTOTECPRO_RELEASE_BUILD = "v69508-technical-troubleshooting-and-stream-recovery-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -50340,6 +50340,17 @@ class _StreamingNotSupportedError(RuntimeError):
     """Raised only when the installed OpenAI SDK rejects stream=True."""
 
 
+_AI_STREAM_REPLACE_SENTINEL_V69508 = "\x00ATP-STREAM-REPLACEMENT-V69508\x00"
+
+
+def _ai_stream_replacement_payload_v69508(value):
+    """Return complete fallback text carried as an internal stream-replace event."""
+    text = str(value or "")
+    if text.startswith(_AI_STREAM_REPLACE_SENTINEL_V69508):
+        return text[len(_AI_STREAM_REPLACE_SENTINEL_V69508):]
+    return None
+
+
 class _WorkspaceEmptyCompletionError(RuntimeError):
     """A completed conversational Responses API call produced no answer text."""
 
@@ -51123,6 +51134,67 @@ def ask_ai_stream(
     except _StreamingNotSupportedError:
         # Compatibility with an older OpenAI SDK that does not support stream.
         _observe_silent_exception_v69451("ask_ai_stream@L48029")
+    except Exception as stream_error_v69508:
+        # A stream can fail after emitting partial text (for example, the
+        # connection closes before a terminal event). Retry the exact same
+        # request once without streaming, then tell the renderer to replace its
+        # partial draft with the complete answer. Never broaden or rewrite the
+        # evidence request. Do not retry explicit client-side 4xx failures.
+        status_v69508 = getattr(stream_error_v69508, "status_code", None)
+        retryable_status_v69508 = status_v69508 in {408, 409, 429} or (
+            status_v69508 is not None and int(status_v69508) >= 500
+        )
+        known_stream_termination_v69508 = (
+            isinstance(stream_error_v69508, (TypeError, RuntimeError))
+            and (
+                isinstance(stream_error_v69508, TypeError)
+                or "stream ended before a final response event" in str(stream_error_v69508).casefold()
+            )
+        )
+        transient_provider_error_v69508 = _openai_transient_pre_token_error_v69400(
+            stream_error_v69508
+        )
+        if retryable_status_v69508 or known_stream_termination_v69508 or transient_provider_error_v69508:
+            diagnostic_log(
+                "ai_stream_terminal_retry_started_v69508",
+                workspace=str(assistant),
+                error_type=type(stream_error_v69508).__name__,
+                status_code=status_v69508,
+                error=str(stream_error_v69508 or "")[:300],
+            )
+            try:
+                fallback_response_v69508 = _openai_chat_client_v69400().responses.create(
+                    **original_request
+                )
+                _capture_response_file_search_results_v69012(fallback_response_v69508)
+                fallback_text_v69508 = str(
+                    getattr(fallback_response_v69508, "output_text", "") or ""
+                )
+                fallback_status_v69508 = str(
+                    getattr(fallback_response_v69508, "status", "") or ""
+                ).strip().lower()
+                if fallback_text_v69508 and fallback_status_v69508 != "failed":
+                    diagnostic_log(
+                        "ai_stream_terminal_retry_succeeded_v69508",
+                        workspace=str(assistant),
+                        chars=len(fallback_text_v69508),
+                    )
+                    yield _AI_STREAM_REPLACE_SENTINEL_V69508 + fallback_text_v69508
+                    return fallback_response_v69508
+                diagnostic_log(
+                    "ai_stream_terminal_retry_no_complete_text_v69508",
+                    workspace=str(assistant),
+                    status=fallback_status_v69508,
+                    chars=len(fallback_text_v69508),
+                )
+            except Exception as fallback_error_v69508:
+                diagnostic_log(
+                    "ai_stream_terminal_retry_failed_v69508",
+                    workspace=str(assistant),
+                    error_type=type(fallback_error_v69508).__name__,
+                    status_code=getattr(fallback_error_v69508, "status_code", None),
+                )
+        raise
 
     # Non-streaming compatibility fallback with the same bounded continuation.
     request = original_request
@@ -104781,6 +104853,20 @@ def _technical_camera_visual_claim_sync_v69504(answer_text, prompt_text, images)
         "general product or main-harness photos as camera-wiring visuals."
     )
     answer = str(answer_text or "")
+    # The strict camera gallery gate removes all non-camera visuals from this
+    # camera-specific reply. Remove any provider text claiming that the separate
+    # Product Library photos were loaded or are displayed when none were published.
+    answer = re.sub(
+        r"(?i)(?:the )?verified product-library result confirms matching"
+        r"(?:\s+[\w/-]+){0,5}\s+product photos? (?:are|were) loaded for chat display\.?",
+        "No matching product photos are attached to this reply.",
+        answer,
+    )
+    answer = re.sub(
+        r"(?i)matching approved website images loaded for chat display:\s*\d+",
+        "No approved website images are attached to this reply",
+        answer,
+    )
     heading_pattern = re.compile(
         r"(?ims)^#{1,6}\s*Exact Visual Availability\s*$.*?(?=^#{1,6}\s|\Z)"
     )
@@ -104795,6 +104881,18 @@ def _technical_camera_visual_claim_sync_v69504(answer_text, prompt_text, images)
         )
         answer = answer.rstrip() + "\n\n" + corrected_section
     return answer.strip()
+
+
+def _technical_product_lookup_is_unneeded_for_troubleshooting_v69508(prompt_text):
+    """Avoid irrelevant catalogue discriminator questions for support diagnosis."""
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    return bool(re.search(
+        r"\b(?:no audio|no sound|no power|won['’]?t power|won['’]?t turn on|"
+        r"black screen|blank screen|screen flicker|keeps rebooting|not booting|"
+        r"not working|doesn['’]?t work|stopped working|troubleshoot|diagnos(?:e|is)|"
+        r"error code|fault code|issue with|problem with)\b",
+        prompt,
+    ))
 
 def _technical_clear_photo_context_v68879():
     st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
@@ -111514,6 +111612,31 @@ else:
                 )[:80],
             )
 
+        # Troubleshooting asks (no sound, power, or boot, etc.) need the
+        # Technical knowledge path, not a Product Library product discriminator.
+        # Asking for screen size on an audio diagnosis adds latency and can
+        # prevent the requested checks from being returned. Keep the catalogue
+        # active for explicit product/photo requests and preserve the separate
+        # exact technical package authority path above.
+        technical_troubleshooting_lookup_bypass_v69508 = bool(
+            assistant == "🔧 Technical Support"
+            and _technical_product_lookup_is_unneeded_for_troubleshooting_v69508(
+                technical_request_prompt_v68879
+            )
+            and not _explicit_product_library_request(
+                technical_request_prompt_v68879
+            )
+            and not _product_library_prompt_requests_images(
+                technical_request_prompt_v68879
+            )
+        )
+        if technical_troubleshooting_lookup_bypass_v69508:
+            allow_product_library_lookup = False
+            diagnostic_log(
+                "technical_troubleshooting_product_lookup_bypassed_v69508",
+                prompt_chars=len(str(technical_request_prompt_v68879 or "")),
+            )
+
         if assistant == "🎨 Graphic Marketing":
             explicit_graphic_library_request_v69303 = _explicit_product_library_request(interaction_prompt)
             project_for_library_v69303 = get_graphic_project_state() or {}
@@ -112723,6 +112846,17 @@ else:
 
                         for delta in stream_source_v69370:
                             delta_text = str(delta or "")
+                            replacement_text_v69508 = _ai_stream_replacement_payload_v69508(delta_text)
+                            if replacement_text_v69508 is not None:
+                                streamed_answer = ""
+                                last_stream_render_chars_v69026 = 0
+                                last_stream_update = 0.0
+                                delta_text = replacement_text_v69508
+                                diagnostic_log(
+                                    "ai_stream_partial_replaced_by_complete_retry_v69508",
+                                    workspace=str(assistant),
+                                    chars=len(delta_text),
+                                )
                             if delta_text and not first_stream_delta_received:
                                 first_stream_delta_received = True
                                 loading_status_placeholder.empty()
@@ -114923,6 +115057,17 @@ else:
                             )
                         for delta in stream_source_v69158:
                             delta_text = str(delta or "")
+                            replacement_text_v69508 = _ai_stream_replacement_payload_v69508(delta_text)
+                            if replacement_text_v69508 is not None:
+                                streamed_answer = ""
+                                last_stream_render_chars_v69026 = 0
+                                last_stream_update = 0.0
+                                delta_text = replacement_text_v69508
+                                diagnostic_log(
+                                    "ai_stream_partial_replaced_by_complete_retry_v69508",
+                                    workspace=str(assistant),
+                                    chars=len(delta_text),
+                                )
                             if delta_text and not first_stream_delta_received:
                                 first_stream_delta_received = True
                                 loading_status_placeholder.empty()
