@@ -1,4 +1,4 @@
-# AutoTecPro AI v69492 - exact SYNC exclusion polarity, truthful climate-panel images, and bounded Sales fact lookups
+# AutoTecPro AI v69493 - typo-tolerant compatibility identification images
 # Preserves v69491 climate-panel routing and v69490 fast catalog lookup / eager primary images.
 # Preserves v69489 clarification and SYNC routing fixes.
 # AutoTecPro AI v69489 - expire unrelated Product Library clarifications + classify screen-specific factory-feature questions
@@ -106,8 +106,8 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-AUTOTECPRO_RELEASE_VERSION = "v69492"
-AUTOTECPRO_RELEASE_BUILD = "v69492-factory-sync-exclusion-polarity-20260927"
+AUTOTECPRO_RELEASE_VERSION = "v69493"
+AUTOTECPRO_RELEASE_BUILD = "v69493-typo-tolerant-compatibility-visuals-20260927"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -505,6 +505,13 @@ diagnostic_log(
     answer_text_never_promises_unpublished_product_photos=True,
     live_feature_fact_fetch_timeout_seconds=1.75,
     live_feature_fact_parallel_limit=8,
+)
+diagnostic_log(
+    "v69493_compatibility_typo_visual_fix_ready",
+    hwo_to_how_repaired=True,
+    possessive_compatible_to_compatibility_repaired=True,
+    natural_what_is_my_compatibility_intent_detected=True,
+    same_case_nonvisual_image_suppression_respected=True,
 )
 diagnostic_log(
     "v69484_login_fastpath_ready",
@@ -77724,6 +77731,16 @@ def _workspace_sales_normalize_visual_query_v69446(prompt_text):
     if not value:
         return ""
 
+    # v69493: recover common typo/malformed noun phrasing from Sales follow-ups.
+    # Keep these rewrites local to visual compatibility intent; don't mutate the
+    # customer's raw message or any product/vehicle identity.
+    value = re.sub(r"\bhwo(?=\s+(?:to|do|can|could|should)\b)", "how", value)
+    value = re.sub(
+        r"\b(my|your|our)\s+compatible(?=\s*(?:[?.!,;:]|$))",
+        r"\1 compatibility",
+        value,
+    )
+
     canonical_terms = (
         "compatibility", "compatible", "identification", "installation",
         "connector", "wiring", "harness", "camera", "resolution",
@@ -77778,7 +77795,9 @@ def _workspace_sales_auto_compatibility_visual_intent_v69418(prompt_text):
         r"how\s+to\s+(?:check|tell|know|identify|confirm|determine)|"
         r"(?:check|identify|confirm|determine)\s+(?:the\s+)?compatib(?:le|ility)|"
         r"which\s+(?:one|version|model)|"
-        r"what\s+(?:version|model)\s+(?:do|should)\s+i"
+        r"what\s+(?:version|model)\s+(?:do|should)\s+i|"
+        r"what(?:\s+is|'s|s)\s+(?:(?:my|your|our|the)\s+)?compatib(?:le|ility)\b|"
+        r"what(?:\s+is|'s|s)\s+compatib(?:le|ility)\s+(?:with|for)\b"
         r")\b",
         value,
     ))
