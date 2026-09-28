@@ -106,9 +106,9 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-# AutoTecPro AI v69505 - all Technical inquiries concise response profile
-AUTOTECPRO_RELEASE_VERSION = "v69505"
-AUTOTECPRO_RELEASE_BUILD = "v69505-all-technical-concise-response-profile-20260928"
+# AutoTecPro AI v69506 - Technical retrieval and Product Library payload speed
+AUTOTECPRO_RELEASE_VERSION = "v69506"
+AUTOTECPRO_RELEASE_BUILD = "v69506-technical-retrieval-and-image-payload-speed-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -10789,6 +10789,23 @@ def render_chat_message(
         if isinstance(image, dict)
         and str(image.get("source") or "").strip().lower() == "product_library"
     ]
+    refreshed_product_library_images_v69506 = []
+    for image_v69506 in product_library_final_images:
+        image_v69506 = dict(image_v69506)
+        storage_path_v69506 = str(image_v69506.get("storage_path") or "").strip()
+        if storage_path_v69506:
+            signed_url_v69506 = _product_library_signed_url(
+                storage_path_v69506,
+                expires=86400,
+            )
+            if signed_url_v69506:
+                image_v69506["data_url"] = signed_url_v69506
+        if not str(image_v69506.get("data_url") or "").strip():
+            image_v69506["data_url"] = str(
+                image_v69506.get("archive_web_url") or ""
+            ).strip()
+        refreshed_product_library_images_v69506.append(image_v69506)
+    product_library_final_images = refreshed_product_library_images_v69506
     regular_final_images = [
         image for image in (final_images or [])
         if not (
@@ -16939,6 +16956,28 @@ def serialize_images_marker(images):
     if not images:
         return ""
 
+    # Product Library photos are private Storage objects. Persist their metadata
+    # and storage path, not the full base64 bytes; the renderer renews a signed
+    # URL when restoring chat history. This keeps large galleries out of the
+    # Supabase message row and Streamlit session payload.
+    marker_images_v69506 = []
+    for image_v69506 in images or []:
+        if not isinstance(image_v69506, dict):
+            continue
+        if str(image_v69506.get("source") or "").strip().casefold() == "product_library":
+            compact_v69506 = {
+                key_v69506: image_v69506.get(key_v69506)
+                for key_v69506 in (
+                    "name", "source", "asset_type", "asset_subtype",
+                    "storage_path", "content_type", "archive_web_url",
+                )
+                if image_v69506.get(key_v69506) not in (None, "")
+            }
+            if compact_v69506.get("storage_path") or compact_v69506.get("archive_web_url"):
+                marker_images_v69506.append(compact_v69506)
+        else:
+            marker_images_v69506.append(image_v69506)
+
     # v69297: preserve the exact v69272 Reference execution path and visual
     # output behavior, while hardening only the post-generation message
     # serialization step so a successfully rendered generated image survives
@@ -16947,7 +16986,7 @@ def serialize_images_marker(images):
     primary_error_type_v69297 = ""
     primary_error_text_v69297 = ""
     try:
-        return "\n\n" + IMAGE_MARKER_PREFIX + json.dumps(images, ensure_ascii=False) + IMAGE_MARKER_SUFFIX
+        return "\n\n" + IMAGE_MARKER_PREFIX + json.dumps(marker_images_v69506, ensure_ascii=False) + IMAGE_MARKER_SUFFIX
     except Exception as primary_error_v69297:
         primary_error_type_v69297 = type(primary_error_v69297).__name__
         primary_error_text_v69297 = str(primary_error_v69297)[:300]
@@ -16964,11 +17003,15 @@ def serialize_images_marker(images):
         "graphic_v69273_source_sha256",
     )
     safe_images_v69297 = []
-    for image_v69297 in images or []:
+    for image_v69297 in marker_images_v69506:
         if not isinstance(image_v69297, dict):
             continue
         data_url_v69297 = str(image_v69297.get("data_url") or "")
-        if not data_url_v69297:
+        product_library_reference_v69506 = bool(
+            str(image_v69297.get("source") or "").strip().casefold() == "product_library"
+            and (image_v69297.get("storage_path") or image_v69297.get("archive_web_url"))
+        )
+        if not data_url_v69297 and not product_library_reference_v69506:
             continue
         safe_v69297 = {}
         for key_v69297 in safe_keys_v69297:
@@ -16981,7 +17024,8 @@ def serialize_images_marker(images):
                 safe_v69297[key_v69297] = str(value_v69297)
             else:
                 safe_v69297[key_v69297] = str(value_v69297)
-        safe_v69297["data_url"] = data_url_v69297
+        if data_url_v69297:
+            safe_v69297["data_url"] = data_url_v69297
         safe_v69297["name"] = str(safe_v69297.get("name") or image_v69297.get("filename") or "generated image")
         safe_images_v69297.append(safe_v69297)
 
@@ -17168,12 +17212,18 @@ def extract_images_from_message_content(content):
 
     clean_images = []
     for image in images:
-        if not isinstance(image, dict) or not image.get("data_url"):
+        if not isinstance(image, dict):
+            continue
+        is_product_library_reference_v69506 = bool(
+            str(image.get("source") or "").strip().casefold() == "product_library"
+            and (image.get("storage_path") or image.get("archive_web_url"))
+        )
+        if not image.get("data_url") and not is_product_library_reference_v69506:
             continue
 
         clean_image = {
             "name": str(image.get("name") or "uploaded image"),
-            "data_url": str(image.get("data_url")),
+            "data_url": str(image.get("data_url") or ""),
         }
 
         # Preserve optional generated-image metadata while remaining fully
@@ -17189,6 +17239,7 @@ def extract_images_from_message_content(content):
             "filename",
             "source",
             "asset_type",
+            "asset_subtype",
             "storage_path",
             "content_type",
             "archive_web_url",
@@ -50684,9 +50735,19 @@ def _stream_one_ai_response(request):
     while True:
         while True:
             try:
+                provider_attempt_started_v69506 = time.perf_counter()
                 stream = chat_client_v69400.responses.create(
                     **active_request,
                     stream=True,
+                )
+                diagnostic_log(
+                    "ai_provider_stream_open_v69506",
+                    workspace=str(assistant),
+                    open_seconds=round(time.perf_counter() - provider_attempt_started_v69506, 3),
+                    file_search=any(
+                        isinstance(tool, dict) and tool.get("type") == "file_search"
+                        for tool in (active_request.get("tools") or [])
+                    ),
                 )
                 break
             except TypeError as error:
@@ -50773,19 +50834,49 @@ def _stream_one_ai_response(request):
                 raise
 
         received_text = False
+        first_text_delta_seen_v69506 = False
         final_response = None
         try:
             for event in stream:
                 event_type = str(getattr(event, "type", "") or "")
+                if event_type.startswith("response.file_search_call."):
+                    diagnostic_log(
+                        "ai_provider_file_search_phase_v69506",
+                        workspace=str(assistant),
+                        event=event_type,
+                        elapsed_seconds=round(time.perf_counter() - provider_attempt_started_v69506, 3),
+                    )
                 if event_type == "response.output_text.delta":
                     delta = str(getattr(event, "delta", "") or "")
                     if delta:
                         received_text = True
+                        if not first_text_delta_seen_v69506:
+                            first_text_delta_seen_v69506 = True
+                            diagnostic_log(
+                                "ai_provider_first_text_delta_v69506",
+                                workspace=str(assistant),
+                                elapsed_seconds=round(time.perf_counter() - provider_attempt_started_v69506, 3),
+                                file_search=any(
+                                    isinstance(tool, dict) and tool.get("type") == "file_search"
+                                    for tool in (active_request.get("tools") or [])
+                                ),
+                            )
                         yield delta
                 elif event_type == "response.refusal.delta":
                     delta = str(getattr(event, "delta", "") or "")
                     if delta:
                         received_text = True
+                        if not first_text_delta_seen_v69506:
+                            first_text_delta_seen_v69506 = True
+                            diagnostic_log(
+                                "ai_provider_first_text_delta_v69506",
+                                workspace=str(assistant),
+                                elapsed_seconds=round(time.perf_counter() - provider_attempt_started_v69506, 3),
+                                file_search=any(
+                                    isinstance(tool, dict) and tool.get("type") == "file_search"
+                                    for tool in (active_request.get("tools") or [])
+                                ),
+                            )
                         yield delta
                 elif event_type in {
                     "response.completed",
@@ -50793,6 +50884,12 @@ def _stream_one_ai_response(request):
                     "response.failed",
                 }:
                     final_response = getattr(event, "response", None)
+                    diagnostic_log(
+                        "ai_provider_stream_terminal_v69506",
+                        workspace=str(assistant),
+                        event=event_type,
+                        elapsed_seconds=round(time.perf_counter() - provider_attempt_started_v69506, 3),
+                    )
                 elif event_type == "error":
                     message = str(
                         getattr(event, "message", "")
@@ -100157,6 +100254,7 @@ def _product_library_original_url(asset, expires=3600):
     return str(asset.get("archive_web_url") or "").strip()
 
 
+@st.cache_data(ttl=300, max_entries=512, show_spinner=False)
 def _product_library_signed_url(path, expires=3600):
     """Create a temporary URL for a private Product Library image."""
     clean_path = str(path or "").strip().lstrip("/")
@@ -105358,10 +105456,11 @@ def _product_library_cached_assets(product_code, product_id):
             or []
         )
 
-    # A normalized scan is still required because Supabase equality matching is
-    # case-sensitive and older rows may have missing/incorrect product_id values.
-    # Keep it bounded to protect performance.
-    if normalized_code:
+    # The full legacy catalogue is a cold fallback only. Exact code and product-id
+    # reads are authoritative and normally complete; indexing up to 5,000 unrelated
+    # assets on a cold lookup adds avoidable latency. Preserve recovery for legacy
+    # rows when both indexed reads miss entirely.
+    if normalized_code and not collected:
         all_assets = _product_library_cached_asset_catalog()
         asset_index = _product_library_cached_asset_index()
         used_legacy_scan = True
@@ -105731,8 +105830,8 @@ def _product_library_chat_lookup(prompt, max_images=None):
         image_limit = int(max_images) if max_images is not None else None
     except (TypeError, ValueError):
         image_limit = None
-    if image_limit is not None and image_limit <= 0:
-        image_limit = None
+    if image_limit is None or image_limit <= 0:
+        image_limit = 4
 
     if requested_subtypes:
         ranked_assets = sorted(
@@ -105764,15 +105863,14 @@ def _product_library_chat_lookup(prompt, max_images=None):
 
     images = []
     for asset in selected:
-        image_source = _product_library_asset_data_url(asset)
-
-        # The Manage Products page already uses this signed URL successfully,
-        # so use it as a direct browser-display fallback.
+        # Send image bytes from private storage directly to the browser. Signed
+        # URLs keep image payloads out of Python memory and saved chat history.
+        image_source = _product_library_signed_url(
+            asset.get("storage_path"),
+            expires=86400,
+        )
         if not image_source:
-            image_source = _product_library_signed_url(
-                asset.get("storage_path"),
-                expires=86400,
-            )
+            image_source = _product_library_asset_data_url(asset)
 
         if image_source:
             images.append({
@@ -111397,9 +111495,26 @@ else:
                     if assistant == "🔧 Technical Support"
                     else interaction_prompt
                 )
-                product_library_lookup = _product_library_chat_lookup(
-                    product_library_prompt_v68879
+                technical_nonvisual_size_reply_v69506 = bool(
+                    assistant == "🔧 Technical Support"
+                    and len(re.sub(r"\s+", " ", str(interaction_prompt or "")).strip()) <= 48
+                    and re.search(
+                        r"(?<!\d)\d{1,2}(?:\.\d)?\s*(?:\b(?:inch(?:es)?|in\.?)\b|\")",
+                        str(interaction_prompt or ""),
+                        re.IGNORECASE,
+                    )
+                    and not _product_library_prompt_requests_images(interaction_prompt)
                 )
+                if technical_nonvisual_size_reply_v69506:
+                    product_library_lookup = None
+                    diagnostic_log(
+                        "technical_size_clarification_skips_product_asset_lookup_v69506",
+                        reply=str(interaction_prompt or "")[:48],
+                    )
+                else:
+                    product_library_lookup = _product_library_chat_lookup(
+                        product_library_prompt_v68879
+                    )
 
                 # v68879: a Technical photo clarification that already supplies the
                 # requested screen/SYNC/climate detail must not be trapped in another
@@ -111422,7 +111537,7 @@ else:
                     )
                     product_library_lookup = None
 
-                if product_library_lookup is None:
+                if product_library_lookup is None and not technical_nonvisual_size_reply_v69506:
                     product_library_lookup = _product_library_fact_lookup(
                         product_library_prompt_v68879
                     )
@@ -115775,6 +115890,7 @@ else:
                     # in parallel. Its rows are not trusted until the same deterministic
                     # vehicle/year/section gates approve an image.
                     dedicated_rows_v69014 = []
+                    dedicated_prefetch_completed_v69506 = False
                     dedicated_prefetch_future_v69500 = locals().get(
                         "technical_image_dedicated_prefetch_future_v69500"
                     )
@@ -115783,6 +115899,7 @@ else:
                             dedicated_rows_v69014 = list(
                                 dedicated_prefetch_future_v69500.result(timeout=0.20) or []
                             )
+                            dedicated_prefetch_completed_v69506 = True
                             if dedicated_rows_v69014:
                                 universal_images_v69014 = _website_file_search_images_v69014(
                                     technical_request_prompt_v68879,
@@ -115800,10 +115917,13 @@ else:
                                 error_type=type(error).__name__,
                             )
 
-                    # If the parallel prompt prefetches were not precise enough, preserve
-                    # existing answer-aware dedicated search as the fail-safe fallback.
+                    # Use one exact answer-aware search only when the overlapping
+                    # prefetch is still pending/failed. A completed empty search is a
+                    # valid negative; repeating file_search serially after generation
+                    # only delays the answer and cannot improve its exact-source basis.
                     if (
                         not universal_images_v69014
+                        and not dedicated_prefetch_completed_v69506
                         and str(
                             (
                                 st.session_state.get(
@@ -115814,7 +115934,7 @@ else:
                         ) != "recovered"
                     ):
                         dedicated_rows_v69014 = _website_image_dedicated_file_search_results_v69014(
-                            technical_request_prompt_v68879, answer, assistant
+                            technical_request_prompt_v68879, answer
                         )
                         if dedicated_rows_v69014:
                             universal_images_v69014 = _website_file_search_images_v69014(
