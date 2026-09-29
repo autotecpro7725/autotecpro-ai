@@ -1,4 +1,4 @@
-# AutoTecPro AI v69449-tech-speed-11 - render verified Technical video tabs in their topic sections
+# AutoTecPro AI v69449-tech-speed-13 - render authored Technical video labels without changing answers
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
 # AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
@@ -92,8 +92,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-11"
-AUTOTECPRO_RELEASE_BUILD = "v69449-tech-speed-11-technical-section-video-tabs-20260929"
+AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-13"
+AUTOTECPRO_RELEASE_BUILD = "v69449-tech-speed-13-authored-video-label-rendering-20260929"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -8082,7 +8082,8 @@ def _technical_related_video_bullet_html_v69516(item_text):
     value = str(item_text or "")
     link_pattern = re.compile(
         r"\[Watch Video\]\((https://[^)\s]+)\)"
-        r"|(?<!\w)(?:\*\*)?Watch Video(?:\*\*)?:\s*"
+        r"|(?<!\w)(?:\*\*)?Watch\s+"
+        r"(?:([A-Za-z0-9][A-Za-z0-9 /+&-]{0,79}?)\s+)?Video(?:\*\*)?:\s*"
         r"(https://[^\s<>)]+)",
         flags=re.I,
     )
@@ -8092,10 +8093,12 @@ def _technical_related_video_bullet_html_v69516(item_text):
     parts = []
     cursor = 0
     for match in matches:
-        url = str(match.group(1) or match.group(2) or "").strip()
+        url = str(match.group(1) or match.group(3) or "").strip()
         if not re.match(r"^https://(?:www\.)?(?:youtu\.be/|youtube(?:-nocookie)?\.com/)", url, flags=re.I):
             return ""
         parts.append(html.escape(value[cursor:match.start()]))
+        if match.group(2):
+            parts.append(html.escape(match.group(2).strip() + ": "))
         safe_url = html.escape(url, quote=True)
         parts.append(
             f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer" '
