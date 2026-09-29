@@ -1,10 +1,3 @@
-# AutoTecPro AI v69493 - typo-tolerant compatibility identification images
-# Preserves v69491 climate-panel routing and v69490 fast catalog lookup / eager primary images.
-# Preserves v69489 clarification and SYNC routing fixes.
-# AutoTecPro AI v69489 - expire unrelated Product Library clarifications + classify screen-specific factory-feature questions
-# AutoTecPro AI v69478 - native top-right PDF download control + minimal Streamlit toolbar + preserved v69477 fixes
-# AutoTecPro AI v69451 - explicit Graphic engine pinning + silent-exception observability hardening
-# AutoTecPro AI v69450 - precise product labels + trim-fitment display + concise compatibility captions + Streamlit iframe migration
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
 # AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
@@ -98,16 +91,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-# AutoTecPro AI v69479
-# Rebuilt from the known-good v69449 browser-print baseline while preserving the later
-# non-print hardening: v69457 catalog/schema/price fixes, v69460 fitment display, v69461
-# completed-answer persistence, v69468 voice/concurrency guard, v69473 durable chat recovery,
-# v69474 deterministic learned-answer recall, and v69475 compatibility-image dedupe.
-# All v69469-v69478 experimental print/download bridges are intentionally removed.
-# AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
-# AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-AUTOTECPRO_RELEASE_VERSION = "v69493"
-AUTOTECPRO_RELEASE_BUILD = "v69493-typo-tolerant-compatibility-visuals-20260927"
+AUTOTECPRO_RELEASE_VERSION = "v69449"
+AUTOTECPRO_RELEASE_BUILD = "v69449-product-bound-compatibility-image-stability-20260924"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -160,7 +145,7 @@ def _graphic_v69320_is_protected_followup_stop(error):
         if isinstance(error, _GraphicProtectedFollowupStop):
             return True
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v69320_is_protected_followup_stop@L147")
+        pass
     if type(error).__name__ == "_GraphicProtectedFollowupStop":
         return True
     return bool(
@@ -326,45 +311,6 @@ def diagnostic_log(event, **fields):
         pass
 
 
-# v69451: preserve every historical fail-open/fall-through exception contract while
-# making formerly silent failures observable. This helper never mutates session,
-# project, prompt, image, provider, cache, history, auth, or persistence state.
-# It records only a static source scope + exception class, once per process key.
-# Any failure inside the observer is swallowed so it can never alter application flow.
-_SILENT_EXCEPTION_OBSERVED_V69451 = set()
-_SILENT_EXCEPTION_LOCK_V69451 = threading.Lock()
-
-
-def _observe_silent_exception_v69451(scope):
-    try:
-        import sys
-        error_v69451 = sys.exc_info()[1]
-        error_type_v69451 = (
-            type(error_v69451).__name__
-            if error_v69451 is not None
-            else "UnknownException"
-        )
-        key_v69451 = (str(scope or "")[:180], error_type_v69451[:120])
-        should_log_v69451 = False
-        with _SILENT_EXCEPTION_LOCK_V69451:
-            if (
-                key_v69451 not in _SILENT_EXCEPTION_OBSERVED_V69451
-                and len(_SILENT_EXCEPTION_OBSERVED_V69451) < 512
-            ):
-                _SILENT_EXCEPTION_OBSERVED_V69451.add(key_v69451)
-                should_log_v69451 = True
-        if should_log_v69451:
-            diagnostic_log(
-                "silent_exception_observed_v69451",
-                scope=key_v69451[0],
-                error_type=key_v69451[1],
-            )
-    except BaseException:
-        # Observability must never change the legacy fail-open/fall-through behavior.
-        return None
-    return None
-
-
 OPENAI_CHAT_TIMEOUT_SECONDS_V69400 = 45.0
 
 
@@ -383,9 +329,9 @@ def _log_runtime_release_v69400():
             return
         st.session_state["_app_release_logged_v69400"] = marker
     except Exception:
-        _observe_silent_exception_v69451("_log_runtime_release_v69400@L331")
+        pass
     diagnostic_log(
-        "app_release_v69453",
+        "app_release_v69449",
         release=AUTOTECPRO_RELEASE_VERSION,
         build=AUTOTECPRO_RELEASE_BUILD,
         source_sha=_runtime_source_sha_v69400(__file__),
@@ -440,100 +386,6 @@ def _openai_transient_pre_token_error_v69400(error):
 
 
 _log_runtime_release_v69400()
-
-diagnostic_log(
-    "v69481_sales_live_authority_ready",
-    price_typo_routing=True,
-    generic_feature_queries=True,
-    short_description_authority=True,
-    custom_tab_authority=True,
-)
-diagnostic_log(
-    "v69482_technical_image_authority_ready",
-    durable_image_schema_contract=True,
-    strict_camera_harness_routing=True,
-    wrong_generic_image_fail_closed=True,
-    prior_sales_authority_preserved=True,
-)
-diagnostic_log(
-    "v69483_sales_fast_catalog_ready",
-    fast_public_family_search=True,
-    broad_vector_bypass=True,
-    canonical_catalog_gate=True,
-    instant_primary_images=True,
-    prior_learning_and_technical_authority_preserved=True,
-)
-
-diagnostic_log(
-    "v69486_adaptive_compatibility_resolver_ready",
-    minimal_clarification=True,
-    configuration_conditional_feature_authority=True,
-    durable_conditional_learning=True,
-    exact_case_memory=True,
-)
-diagnostic_log(
-    "v69487_universal_adaptive_compatibility_ready",
-    any_vehicle_family=True,
-    metadata_driven_discriminators=True,
-    multi_dimension_clarification=True,
-    one_best_question_at_a_time=True,
-    no_model_specific_routing=True,
-    durable_compatibility_facets=True,
-)
-diagnostic_log(
-    "v69488_cross_workspace_verification_ready",
-    sales_stale_clarification_guard=True,
-    sales_universal_outcome_guard=True,
-    sales_authority_conflict_fail_closed=True,
-    technical_dynamic_product_discriminators=True,
-    technical_ambiguous_fact_clarification=True,
-    arbitrary_authored_option_enumerations=True,
-)
-diagnostic_log(
-    "v69489_live_audit_regressions_fixed_ready",
-    unrelated_turn_expires_pending_product_clarification=True,
-    explicit_unsure_keeps_photo_clarification=True,
-    size_qualified_feature_questions_detected=True,
-    unknown_factory_sync_support_fails_closed=True,
-)
-diagnostic_log(
-    "v69492_sales_followup_regressions_fixed_ready",
-    without_original_sync_is_not_retained=True,
-    configuration_scoped_negative_evidence_precedes_generic_feature_flags=True,
-    implicit_compatibility_visual_has_exact_primary_fallback=True,
-    missing_visuals_never_claimed_as_shown=True,
-    answer_text_never_promises_unpublished_product_photos=True,
-    live_feature_fact_fetch_timeout_seconds=1.75,
-    live_feature_fact_parallel_limit=8,
-)
-diagnostic_log(
-    "v69493_compatibility_typo_visual_fix_ready",
-    hwo_to_how_repaired=True,
-    possessive_compatible_to_compatibility_repaired=True,
-    natural_what_is_my_compatibility_intent_detected=True,
-    same_case_nonvisual_image_suppression_respected=True,
-)
-diagnostic_log(
-    "v69484_login_fastpath_ready",
-    preauth_authenticated_css_deferred=True,
-    graphic_integrity_deferred_outside_graphic=True,
-    empty_case_print_component_deferred=True,
-    auth_timing_observable=True,
-)
-diagnostic_log(
-    "v69485_structured_sales_learning_ready",
-    short_description_learning=True,
-    custom_tab_learning=True,
-    semantic_attribute_learning=True,
-    feature_polarity_scope="feature_subject_segment",
-    live_fetch_only_when_learned_evidence_insufficient=True,
-)
-diagnostic_log(
-    "v69480_print_baseline_hardened",
-    baseline="v69449",
-    mode="native_browser_print_explicit_ancestor_marker",
-    post_print_bridges_removed=True,
-)
 
 
 # ============================================================
@@ -630,7 +482,7 @@ class _HeavyWorkGuardV69188:
                     }
                     self.coordinator["depth"] = 1
         except Exception:
-            _observe_silent_exception_v69451("__enter__@L484")
+            pass
 
         diagnostic_log(
             "heavy_work_admitted_v69188",
@@ -659,7 +511,7 @@ class _HeavyWorkGuardV69188:
                     if remaining_depth == 0:
                         self.coordinator["active"] = None
         except Exception:
-            _observe_silent_exception_v69451("__exit__@L513")
+            pass
 
         try:
             if self.acquired:
@@ -807,7 +659,7 @@ def _graphic_is_streamlit_stop_exception(error):
         if STREAMLIT_STOP_EXCEPTION is not None and isinstance(error, STREAMLIT_STOP_EXCEPTION):
             return True
     except Exception:
-        _observe_silent_exception_v69451("_graphic_is_streamlit_stop_exception@L661")
+        pass
     return type(error).__name__ == "StopException"
 
 
@@ -819,7 +671,7 @@ def _graphic_is_streamlit_rerun_exception(error):
         if STREAMLIT_RERUN_EXCEPTION is not None and isinstance(error, STREAMLIT_RERUN_EXCEPTION):
             return True
     except Exception:
-        _observe_silent_exception_v69451("_graphic_is_streamlit_rerun_exception@L673")
+        pass
     return type(error).__name__ == "RerunException"
 
 
@@ -1245,12 +1097,6 @@ def _effective_workspace_permissions_cached(clean_role, stored_payload):
     if clean_role in STRICT_EXTERNAL_ROLES:
         permissions = {key: key == "technical" for key in WORKSPACE_LABELS}
 
-    # v69452 hard boundary: the Admin Panel is role-authorized, not merely a
-    # configurable workspace bit. A stale/manually edited JSON permission can
-    # never grant Admin Panel access to a non-admin account.
-    if clean_role != "admin":
-        permissions["admin"] = False
-
     if not any(permissions.values()):
         permissions["technical"] = True
 
@@ -1352,325 +1198,322 @@ st.set_page_config(
 # but every Streamlit layout ancestor is flattened for print and the transcript uses
 # a theme-independent light print palette. No Technical, Graphic, retrieval, provider,
 # image-authority, same-URL, upload, persistence, or business pipeline is modified.
-def _install_authenticated_print_css_v69484():
-    """Emit the unchanged v69449/v69007 print CSS only after authentication."""
-    st.markdown(
-        """
-        <style>
+st.markdown(
+    """
+    <style>
+    .atp-print-transcript-v69007 {
+        display: none;
+    }
+
+    @media print {
+        @page {
+            size: auto;
+            margin: 12mm 11mm 14mm;
+        }
+
+        /* Browser pagination must see a normal document, not Streamlit's viewport
+           / flex / scroll tree. Reset every known ancestor that can constrain the
+           transcript to one screen. */
+        html, body {
+            display: block !important;
+            width: auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            position: static !important;
+            transform: none !important;
+            contain: none !important;
+            background: #ffffff !important;
+        }
+
+        .stApp,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stMain"],
+        [data-testid="stMainBlockContainer"],
+        [data-testid="stVerticalBlock"],
+        [data-testid="stVerticalBlockBorderWrapper"],
+        .main, .block-container {
+            display: block !important;
+            float: none !important;
+            flex: none !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            position: static !important;
+            inset: auto !important;
+            transform: none !important;
+            contain: none !important;
+            clip: auto !important;
+            clip-path: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+        }
+
+        /* Hide app chrome and all normal Streamlit content. The dedicated print
+           transcript is restored explicitly below. */
+        section[data-testid="stSidebar"],
+        header[data-testid="stHeader"],
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"],
+        [data-testid="stBottom"],
+        [data-testid="stChatInput"],
+        div[data-testid="stChatInput"],
+        [data-testid="stMainBlockContainer"] div[data-testid="stElementContainer"] {
+            display: none !important;
+        }
+
+        /* Restore the transcript element and every Streamlit wrapper on its direct
+           ancestry. :has() is supported by the Chromium print engine used here. */
+        [data-testid="stMainBlockContainer"]
+        div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69007),
+        [data-testid="stVerticalBlock"]:has(.atp-print-transcript-v69007),
+        [data-testid="stVerticalBlockBorderWrapper"]:has(.atp-print-transcript-v69007) {
+            display: block !important;
+            float: none !important;
+            flex: none !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            position: static !important;
+            inset: auto !important;
+            transform: none !important;
+            contain: none !important;
+            clip: auto !important;
+            clip-path: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+        }
+
+        [data-testid="stMainBlockContainer"]
+        div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69007)
+        [data-testid="stMarkdownContainer"] {
+            display: block !important;
+            float: none !important;
+            flex: none !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            position: static !important;
+            inset: auto !important;
+            transform: none !important;
+            contain: none !important;
+            clip: auto !important;
+            clip-path: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            background: #ffffff !important;
+        }
+
         .atp-print-transcript-v69007 {
-            display: none;
+            display: block !important;
+            float: none !important;
+            flex: none !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            overflow-x: visible !important;
+            overflow-y: visible !important;
+            position: static !important;
+            inset: auto !important;
+            transform: none !important;
+            contain: none !important;
+            clip: auto !important;
+            clip-path: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            background: #ffffff !important;
+            font-family: Arial, Helvetica, sans-serif !important;
+            font-size: 10.5pt !important;
+            line-height: 1.45 !important;
         }
 
-        @media print {
-            @page {
-                size: auto;
-                margin: 12mm 11mm 14mm;
-            }
-
-            /* Browser pagination must see a normal document, not Streamlit's viewport
-               / flex / scroll tree. Reset every known ancestor that can constrain the
-               transcript to one screen. */
-            html, body {
-                display: block !important;
-                width: auto !important;
-                height: auto !important;
-                min-height: 0 !important;
-                max-height: none !important;
-                overflow: visible !important;
-                position: static !important;
-                transform: none !important;
-                contain: none !important;
-                background: #ffffff !important;
-            }
-
-            .stApp,
-            [data-testid="stAppViewContainer"],
-            [data-testid="stMain"],
-            [data-testid="stMainBlockContainer"],
-            [data-testid="stVerticalBlock"],
-            [data-testid="stVerticalBlockBorderWrapper"],
-            .main, .block-container {
-                display: block !important;
-                float: none !important;
-                flex: none !important;
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: none !important;
-                height: auto !important;
-                min-height: 0 !important;
-                max-height: none !important;
-                overflow: visible !important;
-                overflow-x: visible !important;
-                overflow-y: visible !important;
-                position: static !important;
-                inset: auto !important;
-                transform: none !important;
-                contain: none !important;
-                clip: auto !important;
-                clip-path: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                background: #ffffff !important;
-            }
-
-            /* Hide app chrome and all normal Streamlit content. The dedicated print
-               transcript is restored explicitly below. */
-            section[data-testid="stSidebar"],
-            header[data-testid="stHeader"],
-            [data-testid="stToolbar"],
-            [data-testid="stDecoration"],
-            [data-testid="stStatusWidget"],
-            [data-testid="stBottom"],
-            [data-testid="stChatInput"],
-            div[data-testid="stChatInput"],
-            [data-testid="stMainBlockContainer"] div[data-testid="stElementContainer"] {
-                display: none !important;
-            }
-
-            /* Restore the transcript element and every Streamlit wrapper on its direct
-               ancestry. :has() is supported by the Chromium print engine used here. */
-            [data-testid="stMainBlockContainer"]
-            div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69007),
-            [data-testid="stVerticalBlock"]:has(.atp-print-transcript-v69007),
-            [data-testid="stVerticalBlockBorderWrapper"]:has(.atp-print-transcript-v69007) {
-                display: block !important;
-                float: none !important;
-                flex: none !important;
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: none !important;
-                height: auto !important;
-                min-height: 0 !important;
-                max-height: none !important;
-                overflow: visible !important;
-                overflow-x: visible !important;
-                overflow-y: visible !important;
-                position: static !important;
-                inset: auto !important;
-                transform: none !important;
-                contain: none !important;
-                clip: auto !important;
-                clip-path: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                background: #ffffff !important;
-            }
-
-            [data-testid="stMainBlockContainer"]
-            div[data-testid="stElementContainer"]:has(.atp-print-transcript-v69007)
-            [data-testid="stMarkdownContainer"] {
-                display: block !important;
-                float: none !important;
-                flex: none !important;
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: none !important;
-                height: auto !important;
-                min-height: 0 !important;
-                max-height: none !important;
-                overflow: visible !important;
-                overflow-x: visible !important;
-                overflow-y: visible !important;
-                position: static !important;
-                inset: auto !important;
-                transform: none !important;
-                contain: none !important;
-                clip: auto !important;
-                clip-path: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                color: #111827 !important;
-                -webkit-text-fill-color: #111827 !important;
-                background: #ffffff !important;
-            }
-
-            .atp-print-transcript-v69007 {
-                display: block !important;
-                float: none !important;
-                flex: none !important;
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: none !important;
-                height: auto !important;
-                min-height: 0 !important;
-                max-height: none !important;
-                overflow: visible !important;
-                overflow-x: visible !important;
-                overflow-y: visible !important;
-                position: static !important;
-                inset: auto !important;
-                transform: none !important;
-                contain: none !important;
-                clip: auto !important;
-                clip-path: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                color: #111827 !important;
-                -webkit-text-fill-color: #111827 !important;
-                background: #ffffff !important;
-                font-family: Arial, Helvetica, sans-serif !important;
-                font-size: 10.5pt !important;
-                line-height: 1.45 !important;
-            }
-
-            /* Hard reset app-theme paint inside the print transcript. v69006 only
-               changed the parent color, so descendant text-fill/background rules from
-               the dark application theme could still win. */
-            .atp-print-transcript-v69007 * {
-                box-sizing: border-box !important;
-                color: #111827 !important;
-                -webkit-text-fill-color: #111827 !important;
-                background-color: transparent !important;
-                background-image: none !important;
-                text-shadow: none !important;
-                box-shadow: none !important;
-                filter: none !important;
-                opacity: 1 !important;
-            }
-
-            .atp-print-header-v69007 {
-                display: block !important;
-                margin: 0 0 8mm !important;
-                padding: 0 0 4mm !important;
-                border-bottom: 1px solid #cbd5e1 !important;
-                break-after: avoid !important;
-                page-break-after: avoid !important;
-            }
-            .atp-print-brand-v69007 {
-                color: #111827 !important;
-                -webkit-text-fill-color: #111827 !important;
-                font-size: 18pt !important;
-                font-weight: 800 !important;
-                line-height: 1.15 !important;
-            }
-            .atp-print-workspace-v69007 {
-                margin-top: 1.5mm !important;
-                color: #475569 !important;
-                -webkit-text-fill-color: #475569 !important;
-                font-size: 10pt !important;
-                font-weight: 650 !important;
-            }
-
-            .atp-print-conversation-v69007,
-            .atp-print-message-v69007,
-            .atp-print-body-v69007 {
-                display: block !important;
-                float: none !important;
-                flex: none !important;
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: none !important;
-                height: auto !important;
-                min-height: 0 !important;
-                max-height: none !important;
-                overflow: visible !important;
-                position: static !important;
-                transform: none !important;
-                contain: none !important;
-                clip: auto !important;
-                clip-path: none !important;
-                color: #111827 !important;
-                -webkit-text-fill-color: #111827 !important;
-                background: transparent !important;
-            }
-            .atp-print-message-v69007 {
-                margin: 0 0 6mm !important;
-                padding: 0 !important;
-                break-inside: auto !important;
-                page-break-inside: auto !important;
-            }
-            .atp-print-role-v69007 {
-                margin: 0 0 1.5mm !important;
-                color: #334155 !important;
-                -webkit-text-fill-color: #334155 !important;
-                font-size: 9pt !important;
-                font-weight: 800 !important;
-                text-transform: uppercase !important;
-                letter-spacing: .02em !important;
-            }
-
-            .atp-print-body-v69007 p,
-            .atp-print-body-v69007 div,
-            .atp-print-body-v69007 ul,
-            .atp-print-body-v69007 ol,
-            .atp-print-body-v69007 li,
-            .atp-print-body-v69007 blockquote,
-            .atp-print-body-v69007 pre,
-            .atp-print-body-v69007 table {
-                height: auto !important;
-                min-height: 0 !important;
-                max-height: none !important;
-                overflow: visible !important;
-                break-inside: auto !important;
-                page-break-inside: auto !important;
-                orphans: 2;
-                widows: 2;
-            }
-
-            .atp-print-body-v69007 table {
-                width: 100% !important;
-                border-collapse: collapse !important;
-                margin: 2mm 0 4mm !important;
-                background: #ffffff !important;
-            }
-            .atp-print-body-v69007 th,
-            .atp-print-body-v69007 td {
-                border: 1px solid #cbd5e1 !important;
-                padding: 1.5mm 2mm !important;
-                vertical-align: top !important;
-                color: #111827 !important;
-                -webkit-text-fill-color: #111827 !important;
-                background: #ffffff !important;
-            }
-            .atp-print-body-v69007 h1,
-            .atp-print-body-v69007 h2,
-            .atp-print-body-v69007 h3,
-            .atp-print-body-v69007 h4 {
-                color: #111827 !important;
-                -webkit-text-fill-color: #111827 !important;
-                background: transparent !important;
-                break-after: avoid !important;
-                page-break-after: avoid !important;
-            }
-
-            .atp-print-image-v69007 {
-                display: block !important;
-                width: fit-content !important;
-                max-width: 125mm !important;
-                height: auto !important;
-                max-height: none !important;
-                overflow: visible !important;
-                margin: 4mm auto !important;
-                break-inside: avoid !important;
-                page-break-inside: avoid !important;
-            }
-            .atp-print-image-v69007 img {
-                display: block !important;
-                max-width: 125mm !important;
-                max-height: 115mm !important;
-                width: auto !important;
-                height: auto !important;
-                object-fit: contain !important;
-                margin: 0 auto !important;
-                background: transparent !important;
-            }
-            .atp-print-image-v69007 figcaption {
-                margin-top: 1.5mm !important;
-                color: #64748b !important;
-                -webkit-text-fill-color: #64748b !important;
-                font-size: 8.5pt !important;
-            }
-
-            * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
+        /* Hard reset app-theme paint inside the print transcript. v69006 only
+           changed the parent color, so descendant text-fill/background rules from
+           the dark application theme could still win. */
+        .atp-print-transcript-v69007 * {
+            box-sizing: border-box !important;
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            background-color: transparent !important;
+            background-image: none !important;
+            text-shadow: none !important;
+            box-shadow: none !important;
+            filter: none !important;
+            opacity: 1 !important;
         }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
 
+        .atp-print-header-v69007 {
+            display: block !important;
+            margin: 0 0 8mm !important;
+            padding: 0 0 4mm !important;
+            border-bottom: 1px solid #cbd5e1 !important;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+        }
+        .atp-print-brand-v69007 {
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            font-size: 18pt !important;
+            font-weight: 800 !important;
+            line-height: 1.15 !important;
+        }
+        .atp-print-workspace-v69007 {
+            margin-top: 1.5mm !important;
+            color: #475569 !important;
+            -webkit-text-fill-color: #475569 !important;
+            font-size: 10pt !important;
+            font-weight: 650 !important;
+        }
+
+        .atp-print-conversation-v69007,
+        .atp-print-message-v69007,
+        .atp-print-body-v69007 {
+            display: block !important;
+            float: none !important;
+            flex: none !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: none !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            position: static !important;
+            transform: none !important;
+            contain: none !important;
+            clip: auto !important;
+            clip-path: none !important;
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            background: transparent !important;
+        }
+        .atp-print-message-v69007 {
+            margin: 0 0 6mm !important;
+            padding: 0 !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+        }
+        .atp-print-role-v69007 {
+            margin: 0 0 1.5mm !important;
+            color: #334155 !important;
+            -webkit-text-fill-color: #334155 !important;
+            font-size: 9pt !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            letter-spacing: .02em !important;
+        }
+
+        .atp-print-body-v69007 p,
+        .atp-print-body-v69007 div,
+        .atp-print-body-v69007 ul,
+        .atp-print-body-v69007 ol,
+        .atp-print-body-v69007 li,
+        .atp-print-body-v69007 blockquote,
+        .atp-print-body-v69007 pre,
+        .atp-print-body-v69007 table {
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            orphans: 2;
+            widows: 2;
+        }
+
+        .atp-print-body-v69007 table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin: 2mm 0 4mm !important;
+            background: #ffffff !important;
+        }
+        .atp-print-body-v69007 th,
+        .atp-print-body-v69007 td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 1.5mm 2mm !important;
+            vertical-align: top !important;
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            background: #ffffff !important;
+        }
+        .atp-print-body-v69007 h1,
+        .atp-print-body-v69007 h2,
+        .atp-print-body-v69007 h3,
+        .atp-print-body-v69007 h4 {
+            color: #111827 !important;
+            -webkit-text-fill-color: #111827 !important;
+            background: transparent !important;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+        }
+
+        .atp-print-image-v69007 {
+            display: block !important;
+            width: fit-content !important;
+            max-width: 125mm !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            margin: 4mm auto !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        .atp-print-image-v69007 img {
+            display: block !important;
+            max-width: 125mm !important;
+            max-height: 115mm !important;
+            width: auto !important;
+            height: auto !important;
+            object-fit: contain !important;
+            margin: 0 auto !important;
+            background: transparent !important;
+        }
+        .atp-print-image-v69007 figcaption {
+            margin-top: 1.5mm !important;
+            color: #64748b !important;
+            -webkit-text-fill-color: #64748b !important;
+            font-size: 8.5pt !important;
+        }
+
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 
@@ -1736,7 +1579,7 @@ def _finish_auth_transition(placeholder):
         try:
             placeholder.empty()
         except Exception:
-            _observe_silent_exception_v69451("_finish_auth_transition@L1581")
+            pass
     st.session_state.pop("_auth_transition", None)
 
 
@@ -2004,7 +1847,7 @@ def _woocommerce_product_by_source_url_v69326(source_url):
                 else:
                     return {"status":"unavailable","reason":"variation_count_exceeds_verified_bound"}
             except Exception:
-                _observe_silent_exception_v69451("_woocommerce_product_by_source_url_v69326@L1849")
+                pass
 
     def _decimal(value):
         try:
@@ -2576,1333 +2419,6 @@ def _current_product_page_price_by_exact_url_v69340(source_url, timeout_seconds=
 
 
 
-
-@st.cache_data(ttl=120, max_entries=128, show_spinner=False)
-def _workspace_sales_woocommerce_structured_content_v69485(page_html):
-    """Extract Woo short description, custom tabs, and ATP semantic attributes separately."""
-    raw_v69485 = str(page_html or "")
-    if not raw_v69485:
-        return {"short_description_text": "", "custom_tab_sections": [], "custom_tabs_text": "", "semantic_attributes": {}, "semantic_attribute_text": ""}
-
-    def plain_v69485(value):
-        value_v69485 = re.sub(r"<script\b[^>]*>.*?</script>", " ", str(value or ""), flags=re.I | re.S)
-        value_v69485 = re.sub(r"<style\b[^>]*>.*?</style>", " ", value_v69485, flags=re.I | re.S)
-        value_v69485 = re.sub(r"<[^>]+>", " ", value_v69485)
-        return re.sub(r"\s+", " ", html.unescape(value_v69485)).strip()
-
-    short_html_v69485 = ""
-    short_match_v69485 = re.search(r"<div[^>]+class=[\"'][^\"']*woocommerce-product-details__short-description[^\"']*[\"'][^>]*>(.*?)</div>", raw_v69485, flags=re.I | re.S)
-    if short_match_v69485:
-        short_html_v69485 = str(short_match_v69485.group(1) or "")
-    short_text_v69485 = plain_v69485(short_html_v69485)
-
-    tab_title_map_v69485 = {}
-    for nav_v69485 in re.finditer(r"<(?:li|a)[^>]*(?:aria-controls|href)=[\"'](?:#)?(tab-[^\"']+)[\"'][^>]*>(.*?)</(?:li|a)>", raw_v69485, flags=re.I | re.S):
-        key_v69485 = str(nav_v69485.group(1) or "").strip().casefold()
-        title_v69485 = plain_v69485(nav_v69485.group(2))
-        if key_v69485 and title_v69485:
-            tab_title_map_v69485[key_v69485] = title_v69485[:180]
-
-    tab_sections_v69485 = []
-    seen_tabs_v69485 = set()
-    tab_pattern_v69485 = re.compile(r"<(div|section)([^>]+(?:class=[\"'][^\"']*woocommerce-Tabs-panel[^\"']*[\"']|id=[\"']tab-[^\"']+[\"'])[^>]*)>(.*?)</\1>", flags=re.I | re.S)
-    for tab_match_v69485 in tab_pattern_v69485.finditer(raw_v69485):
-        attrs_v69485 = str(tab_match_v69485.group(2) or "")
-        body_v69485 = str(tab_match_v69485.group(3) or "")
-        id_match_v69485 = re.search(r"\bid=[\"']([^\"']+)[\"']", attrs_v69485, flags=re.I)
-        tab_id_v69485 = str(id_match_v69485.group(1) or "").strip() if id_match_v69485 else ""
-        text_v69485 = plain_v69485(body_v69485)
-        if not text_v69485:
-            continue
-        canonical_v69485 = re.sub(r"\s+", " ", text_v69485).strip().casefold()
-        if canonical_v69485 in seen_tabs_v69485:
-            continue
-        seen_tabs_v69485.add(canonical_v69485)
-        title_v69485 = tab_title_map_v69485.get(tab_id_v69485.casefold(), "")
-        if not title_v69485:
-            title_v69485 = re.sub(r"^tab[-_]", "", tab_id_v69485, flags=re.I).replace("-", " ").replace("_", " ").strip().title()
-        tab_sections_v69485.append({"id": tab_id_v69485[:180], "title": title_v69485[:180], "text": text_v69485[:20000]})
-
-    semantic_attributes_v69485 = {}
-    for attr_match_v69485 in re.finditer(r"\b(data-atp-[a-z0-9_-]+)\s*=\s*[\"']([^\"']*)[\"']", raw_v69485, flags=re.I):
-        key_v69485 = str(attr_match_v69485.group(1) or "").strip().casefold()
-        value_v69485 = plain_v69485(attr_match_v69485.group(2))
-        if not key_v69485 or not value_v69485:
-            continue
-        bucket_v69485 = semantic_attributes_v69485.setdefault(key_v69485, [])
-        if value_v69485 not in bucket_v69485:
-            bucket_v69485.append(value_v69485[:4000])
-
-    tabs_text_v69485 = " | ".join((f"{x.get('title')}: {x.get('text')}" if x.get("title") else str(x.get("text") or "")) for x in tab_sections_v69485 if str(x.get("text") or "").strip())
-    semantic_lines_v69485 = [f"{key}: {value}" for key, values in semantic_attributes_v69485.items() for value in values]
-    return {
-        "short_description_text": short_text_v69485[:12000],
-        "custom_tab_sections": tab_sections_v69485[:32],
-        "custom_tabs_text": tabs_text_v69485[:40000],
-        "semantic_attributes": semantic_attributes_v69485,
-        "semantic_attribute_text": " | ".join(semantic_lines_v69485)[:30000],
-    }
-
-
-def _workspace_sales_learned_structured_facts_v69485(package_text):
-    """Read v69485 structured Woo sections embedded in a learned website package."""
-    value_v69485 = str(package_text or "")
-    if "WOOCOMMERCE STRUCTURED PRODUCT CONTENT V69485" not in value_v69485:
-        return {}
-    short_v69485 = ""
-    tabs_v69485 = []
-    attrs_v69485 = {}
-    short_match_v69485 = re.search(r"WOO_SHORT_DESCRIPTION_V69485:\s*(.*?)\nWOO_CUSTOM_TABS_V69485:", value_v69485, flags=re.S)
-    if short_match_v69485:
-        short_v69485 = re.sub(r"\s+", " ", str(short_match_v69485.group(1) or "")).strip()
-    tabs_match_v69485 = re.search(r"WOO_CUSTOM_TABS_V69485:\s*(.*?)\nWOO_SEMANTIC_ATTRIBUTES_JSON_V69485:", value_v69485, flags=re.S)
-    if tabs_match_v69485:
-        raw_tabs_v69485 = str(tabs_match_v69485.group(1) or "")
-        for m_v69485 in re.finditer(r"^TAB\[(.*?)\]\s*(.*?)(?=^TAB\[|\Z)", raw_tabs_v69485, flags=re.M | re.S):
-            title_v69485 = str(m_v69485.group(1) or "").strip()
-            text_v69485 = re.sub(r"\s+", " ", str(m_v69485.group(2) or "")).strip()
-            if text_v69485:
-                tabs_v69485.append({"title": title_v69485[:180], "text": text_v69485[:20000]})
-    attrs_match_v69485 = re.search(r"WOO_SEMANTIC_ATTRIBUTES_JSON_V69485:\s*(\{.*?\})\s*(?:\n|$)", value_v69485, flags=re.S)
-    if attrs_match_v69485:
-        try:
-            parsed_v69485 = json.loads(str(attrs_match_v69485.group(1) or "{}"))
-            if isinstance(parsed_v69485, dict):
-                attrs_v69485 = parsed_v69485
-        except Exception:
-            attrs_v69485 = {}
-    return {
-        "short_description_text": short_v69485[:12000],
-        "custom_tab_sections": tabs_v69485[:32],
-        "custom_tabs_text": " | ".join(str(x.get("text") or "") for x in tabs_v69485)[:40000],
-        "semantic_attributes": attrs_v69485,
-        "semantic_attribute_text": " | ".join(f"{k}: {v}" for k, values in attrs_v69485.items() for v in (values if isinstance(values, list) else [values]))[:30000],
-    }
-
-
-def _workspace_sales_feature_evidence_v69485(label, topic, evidence_sources):
-    """Evaluate only subject-bearing evidence segments so unrelated negatives cannot bleed."""
-    feature_v69485 = re.sub(r"[-_]+", " ", str(label or "").casefold())
-    feature_v69485 = re.sub(r"\s+", " ", feature_v69485).strip()
-    if not feature_v69485:
-        return {"status": "not_stated", "detail": "", "source": ""}
-    stop_v69485 = {"original", "factory", "system", "systems", "feature", "features", "control", "controls", "the", "a", "an"}
-    tokens_v69485 = [tok for tok in re.findall(r"[a-z0-9]+", feature_v69485) if len(tok) >= 2 and tok not in stop_v69485]
-    if not tokens_v69485:
-        tokens_v69485 = [tok for tok in re.findall(r"[a-z0-9]+", feature_v69485) if len(tok) >= 2]
-    tokens_v69485 = list(dict.fromkeys(tokens_v69485))[:8]
-    positive_words_v69485 = re.compile(r"\b(?:support(?:s|ed|ing)?|retain(?:s|ed|ing)?|keep(?:s|ing)?|kept|include(?:s|d|ing)?|built[ -]?in|compatible|available|functional|remain(?:s|ed)? functional|works?|preserv(?:e|es|ed))\b", flags=re.I)
-    negative_words_v69485 = re.compile(r"\b(?:not supported|unsupported|does not support|doesn't support|not available|not included|not retained|does not retain|doesn't retain|not functional|without support|no support)\b", flags=re.I)
-    candidates_v69485 = []
-    for source_name_v69485, source_value_v69485 in (evidence_sources or []):
-        if isinstance(source_value_v69485, dict):
-            for key_v69485, values_v69485 in source_value_v69485.items():
-                for value_v69485 in (values_v69485 if isinstance(values_v69485, list) else [values_v69485]):
-                    candidates_v69485.append((f"{source_name_v69485}:{key_v69485}", f"{key_v69485} {value_v69485}"))
-        elif isinstance(source_value_v69485, list):
-            for item_v69485 in source_value_v69485:
-                if isinstance(item_v69485, dict):
-                    candidates_v69485.append((f"{source_name_v69485}:{str(item_v69485.get('title') or item_v69485.get('id') or '')}", str(item_v69485.get("text") or "")))
-                else:
-                    candidates_v69485.append((source_name_v69485, str(item_v69485 or "")))
-        else:
-            candidates_v69485.append((source_name_v69485, str(source_value_v69485 or "")))
-    matched_v69485 = []
-    for source_name_v69485, raw_v69485 in candidates_v69485:
-        normalized_v69485 = re.sub(r"[-_]+", " ", html.unescape(str(raw_v69485 or "")))
-        segments_v69485 = re.split(r"(?<=[.!?])\s+|[\n\r|;]+", normalized_v69485)
-        for segment_v69485 in segments_v69485:
-            clean_v69485 = re.sub(r"\s+", " ", segment_v69485).strip()
-            low_v69485 = clean_v69485.casefold()
-            if not clean_v69485:
-                continue
-            if tokens_v69485 and not all(re.search(rf"\b{re.escape(tok)}\b", low_v69485) for tok in tokens_v69485):
-                continue
-            neg_v69485 = bool(negative_words_v69485.search(low_v69485))
-            pos_v69485 = bool(positive_words_v69485.search(low_v69485))
-            source_low_v69485 = str(source_name_v69485 or "").casefold()
-            if any(k in source_low_v69485 for k in ("not-supported", "unsupported")):
-                neg_v69485 = True
-            # Explicit negation always controls the same subject-bearing segment;
-            # the word "supported" inside "not supported" must never create a
-            # false mixed/conditional result.
-            if neg_v69485:
-                pos_v69485 = False
-            elif any(k in source_low_v69485 for k in ("retained", "support", "compatibility", "feature", "short", "tab", "summary", "webpage")):
-                # A subject explicitly listed in a structured exact-product source
-                # is affirmative unless that same segment carries an explicit negative.
-                pos_v69485 = True
-            if neg_v69485 or pos_v69485:
-                matched_v69485.append({"source": source_name_v69485, "text": clean_v69485[:700], "negative": neg_v69485, "positive": pos_v69485})
-    positives_v69485 = [x for x in matched_v69485 if x.get("positive") and not x.get("negative")]
-    negatives_v69485 = [x for x in matched_v69485 if x.get("negative") and not x.get("positive")]
-    mixed_v69485 = [x for x in matched_v69485 if x.get("positive") and x.get("negative")]
-    def evidence_rank_v69485(item_v69485):
-        source_v69485 = str(item_v69485.get("source") or "").casefold()
-        text_v69485 = str(item_v69485.get("text") or "").casefold()
-        score_v69485 = 0
-        if "retained" in source_v69485 or "retain" in text_v69485:
-            score_v69485 += 8
-        if "not-supported" in source_v69485 or "unsupported" in text_v69485 or "not supported" in text_v69485:
-            score_v69485 += 8
-        if "semantic" in source_v69485:
-            score_v69485 += 4
-        if "short" in source_v69485 or "tab" in source_v69485:
-            score_v69485 += 3
-        if "compatibility" in source_v69485:
-            score_v69485 += 1
-        return score_v69485
-    if positives_v69485:
-        best_v69485 = max(positives_v69485, key=evidence_rank_v69485)
-        return {"status": "supported", "detail": best_v69485.get("text", ""), "source": best_v69485.get("source", "")}
-    if negatives_v69485:
-        best_v69485 = max(negatives_v69485, key=evidence_rank_v69485)
-        return {"status": "unsupported", "detail": best_v69485.get("text", ""), "source": best_v69485.get("source", "")}
-    if mixed_v69485:
-        best_v69485 = mixed_v69485[0]
-        return {"status": "conditional", "detail": best_v69485.get("text", ""), "source": best_v69485.get("source", "")}
-    return {"status": "not_stated", "detail": "", "source": ""}
-
-
-
-def _workspace_sales_system_label_v69486(token):
-    """Human label for a strong factory-system token; no product mapping is inferred."""
-    token_v69486 = str(token or "").strip().casefold().replace("-", "_")
-    mapping_v69486 = {
-        "no_sync": "No SYNC", "sync_1": "SYNC 1", "sync1": "SYNC 1",
-        "sync_2": "SYNC 2", "sync2": "SYNC 2", "sync_3": "SYNC 3",
-        "sync3": "SYNC 3", "sync_4": "SYNC 4", "sync4": "SYNC 4",
-        "new_body": "New Body", "ram_classic": "RAM Classic",
-    }
-    return mapping_v69486.get(token_v69486, re.sub(r"\s+", " ", str(token or "")).strip())
-
-
-def _workspace_sales_feature_label_v69486(topic):
-    label_map_v69486 = {
-        "carplay": "Wireless Apple CarPlay",
-        "android_auto": "Wireless Android Auto",
-        "bluetooth": "Bluetooth",
-        "wifi": "Wi-Fi",
-        "lte": "4G LTE",
-        "steering": "Steering-wheel controls",
-        "climate": "Original climate-control retention",
-        "reverse_camera": "Original reverse-camera retention",
-        "cargo_camera": "Cargo-camera retention",
-        "premium_audio": "Premium-sound-system support",
-        "factory_sync": "Original factory SYNC retention",
-        "installation_video": "Installation video available",
-    }
-    topic_v69486 = str(topic or "").strip()
-    if topic_v69486.startswith("free:"):
-        return topic_v69486[5:].strip()
-    return label_map_v69486.get(topic_v69486, "")
-
-
-def _workspace_sales_feature_token_groups_v69486(label, topic):
-    """Synonym-aware subject groups. Any one complete group can bind the evidence."""
-    topic_v69486 = str(topic or "").strip()
-    fixed_v69486 = {
-        "carplay": [("carplay",)],
-        "android_auto": [("android", "auto")],
-        "bluetooth": [("bluetooth",), ("a2dp",)],
-        "wifi": [("wifi",), ("wi", "fi")],
-        "lte": [("4g",), ("lte",)],
-        "steering": [("steering", "wheel"), ("swc",)],
-        "climate": [("climate", "control"), ("a", "c", "control")],
-        "reverse_camera": [("reverse", "camera"), ("backup", "camera"), ("factory", "camera")],
-        "cargo_camera": [("cargo", "camera")],
-        "premium_audio": [("premium", "sound"), ("premium", "audio"), ("bose",), ("alpine",), ("harman",), ("sony",), ("b", "o")],
-        "factory_sync": [("original", "sync"), ("factory", "sync"), ("microsoft", "sync"), ("ford", "sync")],
-        "installation_video": [("installation", "video"), ("install", "video")],
-    }
-    if topic_v69486 in fixed_v69486:
-        return fixed_v69486[topic_v69486]
-    feature_v69486 = re.sub(r"[-_]+", " ", str(label or "").casefold())
-    # Keep "original"/"factory" for free-form features because they often distinguish
-    # the retained OEM function from the new Android function (for example original
-    # SYNC vs generic SYNC compatibility).
-    stop_v69486 = {"system", "systems", "feature", "features", "control", "controls", "retention", "support", "supported", "the", "a", "an"}
-    tokens_v69486 = tuple(tok for tok in re.findall(r"[a-z0-9]+", feature_v69486) if len(tok) >= 2 and tok not in stop_v69486)
-    if not tokens_v69486:
-        tokens_v69486 = tuple(tok for tok in re.findall(r"[a-z0-9]+", feature_v69486) if len(tok) >= 2)
-    return [tokens_v69486[:8]] if tokens_v69486 else []
-
-
-def _workspace_sales_factory_system_options_v69486(package=None, structured=None):
-    """Return only strong authored factory-system options for one exact product."""
-    package_v69486 = dict(package or {})
-    structured_v69486 = dict(structured or {})
-    attrs_v69486 = dict(structured_v69486.get("semantic_attributes") or {})
-    strong_text_v69486 = []
-    for key_v69486, values_v69486 in attrs_v69486.items():
-        key_low_v69486 = str(key_v69486 or "").casefold()
-        if any(tag_v69486 in key_low_v69486 for tag_v69486 in (
-            "factory-system", "factory_system", "compatibility-branch", "factory-system-scope"
-        )):
-            strong_text_v69486.extend(values_v69486 if isinstance(values_v69486, list) else [values_v69486])
-    if not strong_text_v69486:
-        raw_v69486 = str(package_v69486.get("package_text") or "")
-        for attr_v69486 in (
-            "data-atp-factory-system", "data-atp-factory-system-compatibility",
-            "data-atp-factory-system-scope", "data-atp-retained-factory-system",
-        ):
-            for match_v69486 in re.finditer(rf'{re.escape(attr_v69486)}\s*=\s*["\']([^"\']+)["\']', raw_v69486, flags=re.I):
-                strong_text_v69486.append(str(match_v69486.group(1) or ""))
-    systems_v69486 = set()
-    for value_v69486 in strong_text_v69486:
-        systems_v69486 |= set(_website_identity_systems_v69022(str(value_v69486 or "")))
-    order_v69486 = {"no_sync": 0, "sync_1": 1, "sync_2": 2, "sync_3": 3, "sync_4": 4, "new_body": 20, "ram_classic": 21}
-    return [
-        {"token": token_v69486, "label": _workspace_sales_system_label_v69486(token_v69486)}
-        for token_v69486 in sorted(systems_v69486, key=lambda x: (order_v69486.get(str(x), 99), str(x)))
-    ]
-
-
-def _workspace_sales_conditional_feature_rules_v69486(structured_content):
-    """Extract compact conditional feature clauses for durable Woo learning."""
-    structured_v69486 = dict(structured_content or {})
-    sources_v69486 = [
-        ("short_description", str(structured_v69486.get("short_description_text") or "")),
-        *[(f"custom_tab:{str(x.get('title') or x.get('id') or '')}", str(x.get("text") or "")) for x in (structured_v69486.get("custom_tab_sections") or []) if isinstance(x, dict)],
-    ]
-    for key_v69486, values_v69486 in dict(structured_v69486.get("semantic_attributes") or {}).items():
-        for value_v69486 in (values_v69486 if isinstance(values_v69486, list) else [values_v69486]):
-            sources_v69486.append((f"semantic:{key_v69486}", f"{key_v69486} {value_v69486}"))
-    rules_v69486 = []
-    seen_v69486 = set()
-    for source_v69486, text_v69486 in sources_v69486:
-        normalized_v69486 = re.sub(r"[-_]+", " ", html.unescape(str(text_v69486 or "")))
-        for segment_v69486 in re.split(r"(?<=[.!?])\s+|[\n\r|]+", normalized_v69486):
-            clean_v69486 = re.sub(r"\s+", " ", segment_v69486).strip()
-            if not clean_v69486:
-                continue
-            systems_v69486 = sorted(_website_identity_systems_v69022(clean_v69486))
-            if not systems_v69486:
-                continue
-            if not re.search(r"\b(?:support|supported|retain|retained|retains|not supported|unsupported|compatible|functional|works?|preserv)\w*\b", clean_v69486, flags=re.I):
-                continue
-            key_v69486 = (source_v69486.casefold(), clean_v69486.casefold())
-            if key_v69486 in seen_v69486:
-                continue
-            seen_v69486.add(key_v69486)
-            rules_v69486.append({
-                "source": source_v69486[:220],
-                "systems": systems_v69486[:8],
-                "text": clean_v69486[:1200],
-            })
-    return rules_v69486[:64]
-
-
-def _workspace_sales_learned_structured_facts_v69486(package_text):
-    """v69485 structured facts plus durable conditional-rule metadata."""
-    base_v69486 = dict(_workspace_sales_learned_structured_facts_v69485(package_text) or {})
-    value_v69486 = str(package_text or "")
-    rules_v69486 = []
-    match_v69486 = re.search(r"WOO_CONDITIONAL_FEATURE_RULES_JSON_V69486:\s*(\[[^\n]*\])", value_v69486, flags=re.S)
-    if match_v69486:
-        try:
-            parsed_v69486 = json.loads(str(match_v69486.group(1) or "[]"))
-            if isinstance(parsed_v69486, list):
-                rules_v69486 = [dict(x) for x in parsed_v69486 if isinstance(x, dict)][:64]
-        except Exception:
-            rules_v69486 = []
-    if not rules_v69486:
-        rules_v69486 = _workspace_sales_conditional_feature_rules_v69486(base_v69486)
-    base_v69486["conditional_feature_rules_v69486"] = rules_v69486
-    return base_v69486
-
-
-def _workspace_sales_feature_evidence_v69486(label, topic, evidence_sources, selected_factory_system="", available_factory_systems=None):
-    """Subject-, polarity-, synonym-, and configuration-aware exact feature authority."""
-    groups_v69486 = _workspace_sales_feature_token_groups_v69486(label, topic)
-    if not groups_v69486:
-        return {"status": "not_stated", "detail": "", "source": "", "clarification_options": []}
-    selected_v69486 = str(selected_factory_system or "").strip().casefold().replace("-", "_")
-    available_v69486 = {str(x or "").strip().casefold().replace("-", "_") for x in (available_factory_systems or []) if str(x or "").strip()}
-    positive_words_v69486 = re.compile(r"\b(?:support(?:s|ed|ing)?|retain(?:s|ed|ing)?|keep(?:s|ing)?|kept|include(?:s|d|ing)?|built[ -]?in|compatible|available|functional|remain(?:s|ed)? functional|works?|preserv(?:e|es|ed))\b", flags=re.I)
-    negative_words_v69486 = re.compile(r"\b(?:not supported|unsupported|does not support|doesn't support|not available|not included|not retained|does not retain|doesn't retain|not functional|without support|no support)\b", flags=re.I)
-    candidates_v69486 = []
-    for source_name_v69486, source_value_v69486 in (evidence_sources or []):
-        if isinstance(source_value_v69486, dict):
-            for key_v69486, values_v69486 in source_value_v69486.items():
-                for value_v69486 in (values_v69486 if isinstance(values_v69486, list) else [values_v69486]):
-                    candidates_v69486.append((f"{source_name_v69486}:{key_v69486}", f"{key_v69486} {value_v69486}"))
-        elif isinstance(source_value_v69486, list):
-            for item_v69486 in source_value_v69486:
-                if isinstance(item_v69486, dict):
-                    candidates_v69486.append((f"{source_name_v69486}:{str(item_v69486.get('title') or item_v69486.get('id') or item_v69486.get('source') or '')}", str(item_v69486.get("text") or "")))
-                else:
-                    candidates_v69486.append((source_name_v69486, str(item_v69486 or "")))
-        else:
-            candidates_v69486.append((source_name_v69486, str(source_value_v69486 or "")))
-
-    matched_v69486 = []
-    for source_name_v69486, raw_v69486 in candidates_v69486:
-        normalized_v69486 = re.sub(r"[-_]+", " ", html.unescape(str(raw_v69486 or "")))
-        for segment_v69486 in re.split(r"(?<=[.!?])\s+|[\n\r|;]+", normalized_v69486):
-            clean_v69486 = re.sub(r"\s+", " ", segment_v69486).strip()
-            low_v69486 = clean_v69486.casefold()
-            if not clean_v69486:
-                continue
-            def group_match_v69486(group_v69486):
-                return bool(group_v69486) and all(re.search(rf"\b{re.escape(tok_v69486)}\b", low_v69486) for tok_v69486 in group_v69486)
-            if not any(group_match_v69486(group_v69486) for group_v69486 in groups_v69486):
-                continue
-            neg_v69486 = bool(negative_words_v69486.search(low_v69486))
-            pos_v69486 = bool(positive_words_v69486.search(low_v69486))
-            source_low_v69486 = str(source_name_v69486 or "").casefold()
-            if any(k_v69486 in source_low_v69486 for k_v69486 in ("not-supported", "unsupported")):
-                neg_v69486 = True
-            if neg_v69486:
-                pos_v69486 = False
-            elif (
-                any(k_v69486 in source_low_v69486 for k_v69486 in ("retained", "support", "compatibility", "feature", "facts", "short", "tab", "summary"))
-                and not any(k_v69486 in source_low_v69486 for k_v69486 in ("search-terms", "keyword", "seo", "video", "image", "link-exclusions"))
-            ):
-                pos_v69486 = True
-            if not (neg_v69486 or pos_v69486):
-                continue
-            systems_v69486 = {str(x).casefold().replace("-", "_") for x in _website_identity_systems_v69022(clean_v69486)}
-            # A dedicated feature-specific semantic field that scopes the feature to
-            # a subset of factory systems is stronger than a broad feature list.
-            direct_scope_v69486 = bool(
-                systems_v69486
-                and (
-                    re.search(r"\b(?:on|for|with|when|only)\b.{0,80}\bsync\s*[1-4]\b", low_v69486, flags=re.I)
-                    or any(k_v69486 in source_low_v69486 for k_v69486 in ("retained-factory-system", "retained-siriusxm"))
-                )
-            )
-            score_v69486 = 0
-            if any(k_v69486 in source_low_v69486 for k_v69486 in ("retained-factory-system", "retained-siriusxm", "original-cd-player-support")):
-                score_v69486 += 30
-            if "data-atp-feature" in source_low_v69486:
-                score_v69486 += 22
-            if "semantic" in source_low_v69486:
-                score_v69486 += 12
-            if "short" in source_low_v69486 or "tab" in source_low_v69486:
-                score_v69486 += 8
-            if "webpage" in source_low_v69486:
-                score_v69486 += 3
-            if direct_scope_v69486:
-                score_v69486 += 20
-            matched_v69486.append({
-                "source": source_name_v69486,
-                "text": clean_v69486[:900],
-                "negative": neg_v69486,
-                "positive": pos_v69486,
-                "systems": systems_v69486,
-                "direct_scope": direct_scope_v69486,
-                "score": score_v69486,
-            })
-
-    scoped_v69486 = [x for x in matched_v69486 if x.get("direct_scope") and x.get("systems")]
-    if available_v69486:
-        scoped_v69486 = [x for x in scoped_v69486 if set(x.get("systems") or set()) < available_v69486 or set(x.get("systems") or set()) != available_v69486]
-    if scoped_v69486 and not selected_v69486:
-        best_v69486 = max(scoped_v69486, key=lambda x: int(x.get("score") or 0))
-        options_v69486 = sorted(available_v69486 or set().union(*(set(x.get("systems") or set()) for x in scoped_v69486)))
-        return {
-            "status": "conditional", "detail": str(best_v69486.get("text") or ""),
-            "source": str(best_v69486.get("source") or ""),
-            "clarification_dimension": "factory_system",
-            "clarification_options": options_v69486,
-        }
-
-    if selected_v69486:
-        applicable_scoped_v69486 = [x for x in scoped_v69486 if selected_v69486 in set(x.get("systems") or set())]
-        if applicable_scoped_v69486:
-            matched_v69486 = applicable_scoped_v69486 + [x for x in matched_v69486 if x.get("negative") and not x.get("systems")]
-        elif scoped_v69486:
-            strongest_scope_v69486 = max(int(x.get("score") or 0) for x in scoped_v69486)
-            matched_v69486 = [
-                x for x in matched_v69486
-                if x.get("negative") or int(x.get("score") or 0) > strongest_scope_v69486
-            ]
-            if not matched_v69486:
-                best_scope_v69486 = max(scoped_v69486, key=lambda x: int(x.get("score") or 0))
-                return {
-                    "status": "not_stated", "detail": str(best_scope_v69486.get("text") or ""),
-                    "source": str(best_scope_v69486.get("source") or ""),
-                    "excluded_by_configuration": True,
-                    "selected_factory_system": selected_v69486,
-                    "clarification_options": [],
-                }
-        else:
-            matched_v69486 = [x for x in matched_v69486 if not x.get("systems") or selected_v69486 in set(x.get("systems") or set())]
-
-    positives_v69486 = [x for x in matched_v69486 if x.get("positive") and not x.get("negative")]
-    negatives_v69486 = [x for x in matched_v69486 if x.get("negative") and not x.get("positive")]
-    if positives_v69486:
-        best_v69486 = max(positives_v69486, key=lambda x: int(x.get("score") or 0))
-        return {"status": "supported", "detail": best_v69486.get("text", ""), "source": best_v69486.get("source", ""), "clarification_options": []}
-    if negatives_v69486:
-        best_v69486 = max(negatives_v69486, key=lambda x: int(x.get("score") or 0))
-        return {"status": "unsupported", "detail": best_v69486.get("text", ""), "source": best_v69486.get("source", ""), "clarification_options": []}
-    return {"status": "not_stated", "detail": "", "source": "", "clarification_options": []}
-
-
-def _workspace_sales_recent_factory_system_v69486(prompt_text=""):
-    """Resolve one explicit factory-system answer from current/recent USER turns only."""
-    values_v69486 = [str(prompt_text or "")]
-    try:
-        for message_v69486 in reversed(list(st.session_state.get("messages") or [])):
-            if not isinstance(message_v69486, dict) or str(message_v69486.get("role") or "") != "user":
-                continue
-            values_v69486.append(str(message_v69486.get("content") or ""))
-            if len(values_v69486) >= 8:
-                break
-    except Exception:
-        pass
-    for index_v69486, value_v69486 in enumerate(values_v69486):
-        systems_v69486 = set(_website_identity_systems_v69022(value_v69486))
-        if len(systems_v69486) == 1:
-            return next(iter(systems_v69486))
-        # Never carry a factory-system answer across a later explicit vehicle/year
-        # identity change. This prevents stale SYNC context from leaking into a new case.
-        if index_v69486 > 0 and not systems_v69486:
-            if _website_identity_vehicle_families_v69022(value_v69486) or _website_identity_years_v69022(value_v69486):
-                break
-    return ""
-
-
-def _workspace_sales_pending_clarification_v69486(current_prompt):
-    """Recover a v69486 clarification from durable chat history after reruns/reloads."""
-    current_v69486 = re.sub(r"\s+", " ", str(current_prompt or "")).strip()
-    if not current_v69486:
-        return {}
-    try:
-        messages_v69486 = [dict(x) for x in (st.session_state.get("messages") or []) if isinstance(x, dict)]
-    except Exception:
-        return {}
-    # Locate the most recent assistant clarification and the user request immediately before it.
-    assistant_index_v69486 = -1
-    for idx_v69486 in range(len(messages_v69486) - 1, -1, -1):
-        msg_v69486 = messages_v69486[idx_v69486]
-        if str(msg_v69486.get("role") or "") != "assistant":
-            continue
-        content_v69486 = str(msg_v69486.get("content") or "")
-        if "I need one detail before I can answer this accurately." in content_v69486 and "Please confirm **" in content_v69486:
-            assistant_index_v69486 = idx_v69486
-            break
-    if assistant_index_v69486 < 0:
-        return {}
-    original_v69486 = ""
-    for idx_v69486 in range(assistant_index_v69486 - 1, -1, -1):
-        if str(messages_v69486[idx_v69486].get("role") or "") == "user":
-            original_v69486 = str(messages_v69486[idx_v69486].get("content") or "").strip()
-            break
-    if not original_v69486:
-        return {}
-    assistant_text_v69486 = str(messages_v69486[assistant_index_v69486].get("content") or "")
-    dimension_match_v69486 = re.search(r"Please confirm \*\*([^*]+)\*\*:", assistant_text_v69486)
-    dimension_v69486 = str(dimension_match_v69486.group(1) or "").strip().casefold().replace(" ", "_") if dimension_match_v69486 else ""
-    return {"original_prompt": original_v69486, "dimension": dimension_v69486, "assistant_text": assistant_text_v69486}
-
-
-def _workspace_sales_adaptive_feature_clarification_v69486(prompt_text, rows, topic, evidence_by_source):
-    """Ask only the minimum discriminator when the requested fact truly varies by configuration."""
-    label_v69486 = _workspace_sales_feature_label_v69486(topic)
-    if not label_v69486:
-        return ""
-    selected_v69486 = _workspace_sales_recent_factory_system_v69486(prompt_text)
-    if selected_v69486:
-        return ""
-    option_tokens_v69486 = set()
-    conditional_details_v69486 = []
-    for row_v69486 in (rows or []):
-        source_v69486 = str(row_v69486.get("source") or "").strip()
-        evidence_v69486 = dict((evidence_by_source or {}).get(source_v69486) or {})
-        if str(evidence_v69486.get("status") or "") != "conditional":
-            continue
-        option_tokens_v69486 |= {str(x or "").strip().casefold().replace("-", "_") for x in (evidence_v69486.get("clarification_options") or []) if str(x or "").strip()}
-        if str(evidence_v69486.get("detail") or "").strip():
-            conditional_details_v69486.append(str(evidence_v69486.get("detail") or "").strip())
-    if len(option_tokens_v69486) < 2:
-        return ""
-    labels_v69486 = [_workspace_sales_system_label_v69486(x) for x in sorted(option_tokens_v69486, key=lambda x: ({"no_sync":0,"sync_1":1,"sync_2":2,"sync_3":3,"sync_4":4}.get(x,99),x))]
-    if len(labels_v69486) == 2:
-        option_text_v69486 = f"**{labels_v69486[0]}** or **{labels_v69486[1]}**"
-    else:
-        option_text_v69486 = ", ".join(f"**{x}**" for x in labels_v69486[:-1]) + f", or **{labels_v69486[-1]}**"
-    diagnostic_log(
-        "workspace_sales_adaptive_clarification_required_v69486",
-        topic=str(topic or "")[:120], dimension="factory_system",
-        options=labels_v69486[:8], products=len(rows or []),
-    )
-    return (
-        "I need one detail before I can answer this accurately. "
-        f"The answer for **{label_v69486}** changes with the vehicle's factory configuration.\n\n"
-        f"Please confirm **Factory system**: is it {option_text_v69486}?\n\n"
-        "If you're not sure, send me a clear photo of the original dashboard/radio and I can help identify it."
-    )
-
-
-def _workspace_sales_dimension_label_v69487(dimension):
-    """Human label for model-independent compatibility discriminators."""
-    mapping_v69487 = {
-        "factory_system": "Factory system",
-        "climate_control": "Climate control",
-        "audio_system": "Factory audio system",
-        "camera_system": "Factory camera system",
-        "body_style": "Body style / generation",
-        "factory_radio": "Factory radio / screen",
-        "trim": "Trim / package",
-        "cab_style": "Cab style",
-        "steering_position": "Steering position",
-        "market": "Vehicle market / region",
-        "connector_variant": "Factory connector / harness",
-        "screen_size": "Factory / desired screen size",
-    }
-    key_v69487 = str(dimension or "").strip().casefold().replace("-", "_").replace(" ", "_")
-    return mapping_v69487.get(key_v69487, re.sub(r"\s+", " ", key_v69487.replace("_", " ")).strip().title())
-
-
-def _workspace_sales_option_token_v69487(value):
-    value_v69487 = re.sub(r"\s+", " ", html.unescape(str(value or ""))).strip().casefold()
-    value_v69487 = value_v69487.replace("&", " and ")
-    value_v69487 = re.sub(r"[^a-z0-9]+", "_", value_v69487).strip("_")
-    return value_v69487[:120]
-
-
-def _workspace_sales_semantic_dimension_v69487(attribute_name):
-    """Map authored ATP semantic keys to generic compatibility dimensions.
-
-    This deliberately maps metadata *types*, never vehicle/model names.
-    """
-    key_v69487 = str(attribute_name or "").strip().casefold().replace("_", "-")
-    # Retention/exclusion fields describe a feature consequence, not the complete
-    # universe of selectable vehicle configurations. They may scope evidence later
-    # but must not invent the available-option list.
-    if any(x in key_v69487 for x in ("retained-", "incompatible-", "exclusion", "excluded-", "not-supported")):
-        return ""
-    if any(x in key_v69487 for x in ("factory-system", "system-group", "oem-system")):
-        return "factory_system"
-    if any(x in key_v69487 for x in ("climate-branch", "climate-control", "climate-type", "ac-control", "a-c-control")):
-        return "climate_control"
-    if any(x in key_v69487 for x in ("audio-branch", "audio-system", "sound-system", "premium-audio", "amplifier-type", "factory-amplifier")):
-        return "audio_system"
-    if any(x in key_v69487 for x in ("camera-branch", "camera-system", "camera-class", "camera-type", "camera-configuration")):
-        return "camera_system"
-    if any(x in key_v69487 for x in ("body-style", "body-type", "generation")):
-        return "body_style"
-    if any(x in key_v69487 for x in ("factory-radio", "radio-type", "original-radio", "factory-screen", "oem-screen")):
-        return "factory_radio"
-    if "trim" in key_v69487 and not any(x in key_v69487 for x in ("trim-color", "trim-colour")):
-        return "trim"
-    if any(x in key_v69487 for x in ("cab-style", "cab-type", "cab-configuration")):
-        return "cab_style"
-    if any(x in key_v69487 for x in ("steering-position", "drive-side", "hand-drive")):
-        return "steering_position"
-    if any(x in key_v69487 for x in ("vehicle-market", "market-scope", "region-scope", "vehicle-region")):
-        return "market"
-    if any(x in key_v69487 for x in ("connector-variant", "harness-variant", "factory-connector")):
-        return "connector_variant"
-    return ""
-
-
-def _workspace_sales_value_options_v69487(dimension, value):
-    """Parse only concise authored option labels; never turn prose into a fake option."""
-    dimension_v69487 = str(dimension or "")
-    clean_v69487 = re.sub(r"\s+", " ", html.unescape(str(value or ""))).strip()
-    if not clean_v69487:
-        return []
-    low_v69487 = clean_v69487.casefold()
-    options_v69487 = []
-
-    def add_v69487(label_v69487, token_v69487=""):
-        label_v69487 = re.sub(r"\s+", " ", str(label_v69487 or "")).strip(" ,;/|")
-        if not label_v69487 or len(label_v69487) > 100:
-            return
-        token_v69487 = str(token_v69487 or _workspace_sales_option_token_v69487(label_v69487)).strip()
-        if not token_v69487:
-            return
-        if not any(str(x.get("token") or "") == token_v69487 for x in options_v69487):
-            options_v69487.append({"token": token_v69487, "label": label_v69487})
-
-    if dimension_v69487 == "factory_system":
-        systems_v69487 = sorted(_website_identity_systems_v69022(clean_v69487))
-        for token_v69487 in systems_v69487:
-            add_v69487(_workspace_sales_system_label_v69486(token_v69487), token_v69487)
-        # Arbitrary authored factory systems (NBT/EVO, MIB variants, etc.) are
-        # supported when the semantic field itself explicitly enumerates them.
-        if not systems_v69487 and len(clean_v69487) <= 180:
-            parts_v69487 = [x.strip() for x in re.split(r"\s*(?:;|\||/|\bor\b)\s*", clean_v69487, flags=re.I) if x.strip()]
-            if len(parts_v69487) == 1 and re.search(r"\s+and\s+", clean_v69487, flags=re.I):
-                parts_v69487 = [x.strip() for x in re.split(r"\s+and\s+", clean_v69487, flags=re.I) if x.strip()]
-            if 1 <= len(parts_v69487) <= 8:
-                for part_v69487 in parts_v69487:
-                    if not re.search(r"\b(?:retained|supported|compatible|configuration|models?|vehicles?|system is|remain)\b", part_v69487, flags=re.I):
-                        add_v69487(part_v69487)
-        return options_v69487[:12]
-
-    if dimension_v69487 == "climate_control":
-        if re.search(r"\bmanual\b", low_v69487):
-            add_v69487("Manual climate control", "manual")
-        if re.search(r"\bautomatic\b|\bauto(?:matic)?\s+(?:a/?c|climate)", low_v69487):
-            add_v69487("Automatic climate control", "automatic")
-        if re.search(r"\bdual[-\s]?zone\b", low_v69487):
-            add_v69487("Dual-zone climate control", "dual_zone")
-        if re.search(r"\bsingle[-\s]?zone\b", low_v69487):
-            add_v69487("Single-zone climate control", "single_zone")
-    elif dimension_v69487 == "audio_system":
-        audio_patterns_v69487 = (
-            (r"\bbose\b", "Bose"), (r"\bb\s*&\s*o\b|\bbang\s*&?\s*olufsen\b", "B&O"),
-            (r"\bsony\b", "Sony"), (r"\balpine\b", "Alpine"), (r"\bjbl\b", "JBL"),
-            (r"\bharman(?:\s+kardon)?\b", "Harman Kardon"),
-            (r"\b(?:base|standard|non[-\s]?amplified)\s+(?:audio|sound)\b", "Base / non-amplified audio"),
-            (r"\b(?:factory\s+)?amplified\s+(?:audio|sound)\b", "Factory amplified audio"),
-        )
-        for pattern_v69487, label_v69487 in audio_patterns_v69487:
-            if re.search(pattern_v69487, clean_v69487, flags=re.I):
-                add_v69487(label_v69487)
-    elif dimension_v69487 == "camera_system":
-        for pattern_v69487, label_v69487, token_v69487 in (
-            (r"\b360(?:[-\s]?degree)?\s+camera|surround[-\s]?view", "360° / surround-view camera", "camera_360"),
-            (r"\bcargo\s+camera", "Cargo camera", "cargo_camera"),
-            (r"\b(?:backup|reverse|rear)\s+camera", "Factory backup / reverse camera", "backup_camera"),
-            (r"\b(?:no|without)\s+(?:factory\s+)?camera", "No factory camera", "no_camera"),
-        ):
-            if re.search(pattern_v69487, clean_v69487, flags=re.I):
-                add_v69487(label_v69487, token_v69487)
-    elif dimension_v69487 == "body_style":
-        if re.search(r"\bnew[-\s]?body\b", low_v69487): add_v69487("New body", "new_body")
-        if re.search(r"\bclassic\b", low_v69487): add_v69487("Classic body", "classic")
-        for name_v69487 in ("crew cab", "extended cab", "regular cab", "quad cab", "mega cab"):
-            if name_v69487 in low_v69487: add_v69487(name_v69487.title())
-    elif dimension_v69487 == "steering_position":
-        if re.search(r"\b(?:lhd|left[-\s]?hand drive)\b", low_v69487): add_v69487("Left-hand drive", "lhd")
-        if re.search(r"\b(?:rhd|right[-\s]?hand drive)\b", low_v69487): add_v69487("Right-hand drive", "rhd")
-    else:
-        # For trim/radio/cab/market/connector metadata, trust only short authored
-        # enumerations from the dedicated semantic key.
-        if len(clean_v69487) <= 220:
-            parts_v69487 = [x.strip() for x in re.split(r"\s*(?:;|\||/|\bor\b)\s*", clean_v69487, flags=re.I) if x.strip()]
-            if len(parts_v69487) == 1 and len(clean_v69487) <= 80:
-                parts_v69487 = [clean_v69487]
-            if 1 <= len(parts_v69487) <= 10:
-                for part_v69487 in parts_v69487:
-                    # Decimal option labels such as 8.4-inch factory radios are
-                    # legitimate concise values; length/enumeration bounds already
-                    # prevent prose sentences from becoming options.
-                    if len(part_v69487) <= 80:
-                        add_v69487(part_v69487)
-    return options_v69487[:12]
-
-
-def _workspace_sales_value_options_v69488(dimension, value):
-    """v69488: extend dedicated semantic fields to arbitrary authored option labels.
-
-    v69487 recognized common configurations (SYNC, JBL/Bose, manual/automatic,
-    camera types).  That is useful but not universal.  When a dedicated ATP
-    compatibility field explicitly enumerates two or more concise values, preserve
-    those authored values even when the names are new to the application.  Prose is
-    rejected so descriptive sentences cannot become fake compatibility options.
-    """
-    base_v69488 = list(_workspace_sales_value_options_v69487(dimension, value) or [])
-    clean_v69488 = re.sub(r"\s+", " ", html.unescape(str(value or ""))).strip()
-    if not clean_v69488:
-        return base_v69488
-    # Only dedicated compatibility dimensions reach this helper.  Require an
-    # explicit enumeration delimiter for unknown values; a single prose phrase is
-    # never promoted into a selectable option.
-    parts_v69488 = [
-        x.strip(" ,;/|") for x in
-        re.split(r"\s*(?:;|\||/|\bor\b)\s*", clean_v69488, flags=re.I)
-        if x.strip(" ,;/|")
-    ]
-    if len(parts_v69488) == 1 and re.search(r"\s+and\s+", clean_v69488, flags=re.I):
-        parts_v69488 = [x.strip(" ,;/|") for x in re.split(r"\s+and\s+", clean_v69488, flags=re.I) if x.strip(" ,;/|")]
-    if not (2 <= len(parts_v69488) <= 10):
-        return base_v69488
-    reject_v69488 = re.compile(
-        r"\b(?:supports?|supported|retains?|retained|compatible|vehicles?|models?|"
-        r"installation|instructions?|features?|functions?|remain|works?|working|"
-        r"please|customer|system is|not supported)\b", re.I
-    )
-    # Factory-system parsing already canonicalizes known SYNC/body identities and
-    # handles arbitrary authored systems when no known identity exists.  Do not add
-    # a second token such as microsoft_sync_1 beside canonical sync_1.
-    if str(dimension or "") == "factory_system" and base_v69488:
-        return base_v69488[:12]
-    existing_v69488 = {str(x.get("token") or "") for x in base_v69488}
-    existing_labels_v69488 = [re.sub(r"[^a-z0-9]+", " ", str(x.get("label") or "").casefold()).strip() for x in base_v69488]
-    for part_v69488 in parts_v69488:
-        if not part_v69488 or len(part_v69488) > 80 or reject_v69488.search(part_v69488):
-            continue
-        token_v69488 = _workspace_sales_option_token_v69487(part_v69488)
-        part_words_v69488 = {x for x in re.findall(r"[a-z0-9]+", part_v69488.casefold()) if len(x) >= 2}
-        # Avoid semantic duplicates such as "Base Audio" beside the canonical
-        # "Base / non-amplified audio" or "Standard Reverse Camera" beside the
-        # canonical reverse-camera label.
-        semantic_duplicate_v69488 = False
-        if part_words_v69488:
-            for label_v69488 in existing_labels_v69488:
-                label_words_v69488 = {x for x in re.findall(r"[a-z0-9]+", label_v69488) if len(x) >= 2}
-                if part_words_v69488 <= label_words_v69488 or (len(part_words_v69488 & label_words_v69488) >= min(2, len(part_words_v69488))):
-                    semantic_duplicate_v69488 = True
-                    break
-        if token_v69488 and token_v69488 not in existing_v69488 and not semantic_duplicate_v69488:
-            base_v69488.append({"token": token_v69488, "label": part_v69488})
-            existing_v69488.add(token_v69488)
-            existing_labels_v69488.append(re.sub(r"[^a-z0-9]+", " ", part_v69488.casefold()).strip())
-    return base_v69488[:12]
-
-
-def _workspace_sales_compatibility_facets_v69487(package=None, structured=None):
-    """Extract generic authored compatibility facets for any vehicle/product family."""
-    package_v69487 = dict(package or {})
-    structured_v69487 = dict(structured or {})
-    attrs_v69487 = dict(structured_v69487.get("semantic_attributes") or {})
-    facets_v69487 = {}
-
-    def merge_v69487(dimension_v69487, options_v69487, source_v69487):
-        if not dimension_v69487:
-            return
-        bucket_v69487 = facets_v69487.setdefault(dimension_v69487, {"label": _workspace_sales_dimension_label_v69487(dimension_v69487), "options": []})
-        for option_v69487 in options_v69487 or []:
-            token_v69487 = str(option_v69487.get("token") or "").strip()
-            label_v69487 = str(option_v69487.get("label") or "").strip()
-            if not token_v69487 or not label_v69487:
-                continue
-            if not any(str(x.get("token") or "") == token_v69487 for x in bucket_v69487["options"]):
-                bucket_v69487["options"].append({"token": token_v69487, "label": label_v69487, "source": str(source_v69487 or "")[:180]})
-
-    # Preserve the hardened legacy factory-system parser, then extend it with any
-    # arbitrary authored factory-system labels from semantic metadata.
-    merge_v69487("factory_system", _workspace_sales_factory_system_options_v69486(package_v69487, structured_v69487), "legacy_factory_system")
-    for key_v69487, values_v69487 in attrs_v69487.items():
-        dimension_v69487 = _workspace_sales_semantic_dimension_v69487(key_v69487)
-        if not dimension_v69487:
-            continue
-        for value_v69487 in (values_v69487 if isinstance(values_v69487, list) else [values_v69487]):
-            merge_v69487(dimension_v69487, _workspace_sales_value_options_v69488(dimension_v69487, value_v69487), key_v69487)
-
-    # Backward-compatible raw HTML fallback when a pre-v69485 package has not yet
-    # been relearned. Only dedicated data-atp keys are inspected.
-    if not attrs_v69487:
-        raw_v69487 = str(package_v69487.get("package_text") or "")
-        for match_v69487 in re.finditer(r'\b(data-atp-[a-z0-9_-]+)\s*=\s*["\']([^"\']*)["\']', raw_v69487, flags=re.I):
-            key_v69487 = str(match_v69487.group(1) or "").strip().casefold()
-            dimension_v69487 = _workspace_sales_semantic_dimension_v69487(key_v69487)
-            if dimension_v69487:
-                merge_v69487(dimension_v69487, _workspace_sales_value_options_v69488(dimension_v69487, match_v69487.group(2)), key_v69487)
-
-    return {k: v for k, v in facets_v69487.items() if v.get("options")}
-
-
-def _workspace_sales_segment_conditions_v69487(text, available_facets=None, source_name=""):
-    """Bind a feature clause to whichever authored compatibility options it names."""
-    clean_v69487 = re.sub(r"[-_]+", " ", html.unescape(str(text or "")))
-    low_v69487 = re.sub(r"\s+", " ", clean_v69487).strip().casefold()
-    conditions_v69487 = {}
-    facets_v69487 = dict(available_facets or {})
-    for dimension_v69487, facet_v69487 in facets_v69487.items():
-        hits_v69487 = []
-        for option_v69487 in (facet_v69487.get("options") or []):
-            token_v69487 = str(option_v69487.get("token") or "")
-            label_v69487 = re.sub(r"\s+", " ", str(option_v69487.get("label") or "")).strip().casefold()
-            label_words_v69487 = [x for x in re.findall(r"[a-z0-9]+", label_v69487) if len(x) >= 2]
-            matched_v69487 = bool(label_v69487 and label_v69487 in low_v69487)
-            # Factory-system labels such as SYNC 1/SYNC 2 share the word "sync".
-            # A bag-of-words fallback would therefore mark every SYNC option whenever
-            # any one version appears.  Use the polarity-aware canonical system parser
-            # (plus exact full-label match) for this dimension.
-            if dimension_v69487 == "factory_system":
-                matched_v69487 = matched_v69487 or token_v69487 in _website_identity_systems_v69022(low_v69487)
-            elif not matched_v69487 and label_words_v69487:
-                matched_v69487 = all(re.search(rf"\b{re.escape(word_v69487)}\b", low_v69487) for word_v69487 in label_words_v69487)
-            if matched_v69487:
-                hits_v69487.append(token_v69487)
-        if hits_v69487:
-            conditions_v69487[dimension_v69487] = list(dict.fromkeys(hits_v69487))
-
-    # Heuristic fallback for strong common configuration phrases even when old
-    # learned packages do not yet contain semantic facet metadata.
-    fallback_v69487 = {
-        "climate_control": _workspace_sales_value_options_v69487("climate_control", clean_v69487),
-        "audio_system": _workspace_sales_value_options_v69487("audio_system", clean_v69487),
-        "camera_system": _workspace_sales_value_options_v69487("camera_system", clean_v69487),
-        "body_style": _workspace_sales_value_options_v69487("body_style", clean_v69487),
-        "steering_position": _workspace_sales_value_options_v69487("steering_position", clean_v69487),
-    }
-    for dimension_v69487, options_v69487 in fallback_v69487.items():
-        if options_v69487 and dimension_v69487 not in conditions_v69487:
-            conditions_v69487[dimension_v69487] = [str(x.get("token") or "") for x in options_v69487 if str(x.get("token") or "")]
-    systems_v69487 = sorted(_website_identity_systems_v69022(clean_v69487))
-    if systems_v69487 and "factory_system" not in conditions_v69487:
-        conditions_v69487["factory_system"] = systems_v69487
-    return conditions_v69487
-
-
-def _workspace_sales_conditional_feature_rules_v69487(structured_content):
-    """Durably learn configuration-dependent feature clauses across all models."""
-    structured_v69487 = dict(structured_content or {})
-    facets_v69487 = _workspace_sales_compatibility_facets_v69487({}, structured_v69487)
-    sources_v69487 = [
-        ("short_description", str(structured_v69487.get("short_description_text") or "")),
-        *[(f"custom_tab:{str(x.get('title') or x.get('id') or '')}", str(x.get("text") or "")) for x in (structured_v69487.get("custom_tab_sections") or []) if isinstance(x, dict)],
-    ]
-    for key_v69487, values_v69487 in dict(structured_v69487.get("semantic_attributes") or {}).items():
-        for value_v69487 in (values_v69487 if isinstance(values_v69487, list) else [values_v69487]):
-            sources_v69487.append((f"semantic:{key_v69487}", f"{key_v69487} {value_v69487}"))
-    rules_v69487, seen_v69487 = [], set()
-    for source_v69487, text_v69487 in sources_v69487:
-        normalized_v69487 = html.unescape(str(text_v69487 or ""))
-        for segment_v69487 in re.split(r"(?<=[.!?])\s+|[\n\r|]+", normalized_v69487):
-            clean_v69487 = re.sub(r"\s+", " ", segment_v69487).strip()
-            if not clean_v69487 or not re.search(r"\b(?:support|supported|retain|retained|retains|not supported|unsupported|compatible|functional|works?|preserv)\w*\b", clean_v69487, flags=re.I):
-                continue
-            conditions_v69487 = _workspace_sales_segment_conditions_v69487(clean_v69487, facets_v69487, source_v69487)
-            if not conditions_v69487:
-                continue
-            key_v69487 = (source_v69487.casefold(), clean_v69487.casefold())
-            if key_v69487 in seen_v69487:
-                continue
-            seen_v69487.add(key_v69487)
-            rules_v69487.append({"source": source_v69487[:220], "conditions": conditions_v69487, "text": clean_v69487[:1200]})
-    return rules_v69487[:96]
-
-
-def _workspace_sales_learned_structured_facts_v69487(package_text):
-    base_v69487 = dict(_workspace_sales_learned_structured_facts_v69486(package_text) or {})
-    value_v69487 = str(package_text or "")
-    rules_v69487 = []
-    facets_v69487 = {}
-    match_v69487 = re.search(r"WOO_CONDITIONAL_FEATURE_RULES_JSON_V69487:\s*(\[[^\n]*\])", value_v69487, flags=re.S)
-    if match_v69487:
-        try:
-            parsed_v69487 = json.loads(str(match_v69487.group(1) or "[]"))
-            if isinstance(parsed_v69487, list): rules_v69487 = [dict(x) for x in parsed_v69487 if isinstance(x, dict)][:96]
-        except Exception: rules_v69487 = []
-    facet_match_v69487 = re.search(r"WOO_COMPATIBILITY_FACETS_JSON_V69487:\s*(\{[^\n]*\})", value_v69487, flags=re.S)
-    if facet_match_v69487:
-        try:
-            parsed_facets_v69487 = json.loads(str(facet_match_v69487.group(1) or "{}"))
-            if isinstance(parsed_facets_v69487, dict): facets_v69487 = parsed_facets_v69487
-        except Exception: facets_v69487 = {}
-    if not facets_v69487:
-        facets_v69487 = _workspace_sales_compatibility_facets_v69487({}, base_v69487)
-    if not rules_v69487:
-        rules_v69487 = _workspace_sales_conditional_feature_rules_v69487(base_v69487)
-    base_v69487["compatibility_facets_v69487"] = facets_v69487
-    base_v69487["conditional_feature_rules_v69487"] = rules_v69487
-    return base_v69487
-
-
-def _workspace_sales_match_option_v69487(text, options, dimension=""):
-    clean_v69487 = re.sub(r"\s+", " ", str(text or "")).strip().casefold()
-    if not clean_v69487:
-        return ""
-    if str(dimension or "") == "factory_system":
-        systems_v69487 = set(_website_identity_systems_v69022(clean_v69487))
-        if len(systems_v69487) == 1:
-            token_v69487 = next(iter(systems_v69487))
-            if any(str(x.get("token") or "") == token_v69487 for x in (options or [])):
-                return token_v69487
-    matches_v69487 = []
-    for option_v69487 in options or []:
-        token_v69487 = str(option_v69487.get("token") or "").strip()
-        label_v69487 = re.sub(r"\s+", " ", str(option_v69487.get("label") or "")).strip().casefold()
-        token_text_v69487 = token_v69487.replace("_", " ").casefold()
-        if (label_v69487 and label_v69487 in clean_v69487) or (token_text_v69487 and re.search(rf"\b{re.escape(token_text_v69487)}\b", clean_v69487)):
-            matches_v69487.append(token_v69487)
-    matches_v69487 = list(dict.fromkeys(x for x in matches_v69487 if x))
-    if len(matches_v69487) == 1:
-        return matches_v69487[0]
-    # Canonicalize natural replies for known generic dimensions.  For example,
-    # "Base Audio" must match the canonical option token used by
-    # "Base / non-amplified audio" even though the display labels are not literal
-    # substrings of one another.  Arbitrary authored options still use exact labels.
-    parsed_v69488 = _workspace_sales_value_options_v69487(str(dimension or ""), text)
-    allowed_v69488 = {str(x.get("token") or "") for x in (options or []) if str(x.get("token") or "")}
-    canonical_v69488 = list(dict.fromkeys(
-        str(x.get("token") or "") for x in parsed_v69488
-        if str(x.get("token") or "") in allowed_v69488
-    ))
-    return canonical_v69488[0] if len(canonical_v69488) == 1 else ""
-
-
-def _workspace_sales_recent_compatibility_selections_v69487(prompt_text, facets):
-    """Resolve generic compatibility selections from current/recent USER turns only."""
-    facets_v69487 = dict(facets or {})
-    selections_v69487 = {}
-    values_v69487 = [str(prompt_text or "")]
-    try:
-        for message_v69487 in reversed(list(st.session_state.get("messages") or [])):
-            if not isinstance(message_v69487, dict) or str(message_v69487.get("role") or "") != "user": continue
-            values_v69487.append(str(message_v69487.get("content") or ""))
-            if len(values_v69487) >= 8: break
-    except Exception:
-        pass
-    for index_v69487, value_v69487 in enumerate(values_v69487):
-        for dimension_v69487, facet_v69487 in facets_v69487.items():
-            if dimension_v69487 in selections_v69487: continue
-            token_v69487 = _workspace_sales_match_option_v69487(value_v69487, facet_v69487.get("options") or [], dimension_v69487)
-            if token_v69487: selections_v69487[dimension_v69487] = token_v69487
-        if index_v69487 > 0 and (_website_identity_vehicle_families_v69022(value_v69487) or _website_identity_years_v69022(value_v69487)):
-            break
-    return selections_v69487
-
-
-def _workspace_sales_pending_clarification_v69487(current_prompt):
-    """Recover only the immediately pending clarification, never a stale one.
-
-    v69487 searched arbitrarily far back for the last clarification.  A later
-    unrelated "I'm not sure" could therefore be attached to an old question.  The
-    clarification must now be the most recent assistant turn immediately preceding
-    the current user turn (or the latest assistant turn when the current turn has
-    not yet been appended to session history).
-    """
-    current_v69487 = re.sub(r"\s+", " ", str(current_prompt or "")).strip()
-    if not current_v69487:
-        return {}
-    try:
-        messages_v69487 = [dict(x) for x in (st.session_state.get("messages") or []) if isinstance(x, dict)]
-    except Exception:
-        return {}
-    if not messages_v69487:
-        return {}
-
-    # Locate the current user turn when it is already in history.  Otherwise use
-    # the latest assistant as the immediate predecessor.
-    current_index_v69488 = -1
-    for idx_v69488 in range(len(messages_v69487) - 1, -1, -1):
-        msg_v69488 = messages_v69487[idx_v69488]
-        if str(msg_v69488.get("role") or "") != "user":
-            continue
-        content_v69488 = re.sub(r"\s+", " ", str(msg_v69488.get("content") or "")).strip()
-        if content_v69488 == current_v69487:
-            current_index_v69488 = idx_v69488
-            break
-    search_end_v69488 = current_index_v69488 if current_index_v69488 >= 0 else len(messages_v69487)
-    assistant_index_v69487 = -1
-    for idx_v69488 in range(search_end_v69488 - 1, -1, -1):
-        role_v69488 = str(messages_v69487[idx_v69488].get("role") or "")
-        if role_v69488 == "assistant":
-            assistant_index_v69487 = idx_v69488
-            break
-        # Any earlier user turn means the clarification is not immediately pending.
-        if role_v69488 == "user":
-            return {}
-    if assistant_index_v69487 < 0:
-        return {}
-    assistant_text_v69487 = str(messages_v69487[assistant_index_v69487].get("content") or "")
-    if not ("I need one detail before I can" in assistant_text_v69487 and "Please confirm **" in assistant_text_v69487):
-        return {}
-
-    # No completed user/assistant exchange may sit between the clarification and
-    # the current user reply.
-    between_v69488 = messages_v69487[assistant_index_v69487 + 1:search_end_v69488]
-    if any(str(x.get("role") or "") in {"user", "assistant"} for x in between_v69488):
-        return {}
-
-    original_v69487 = ""
-    for idx_v69487 in range(assistant_index_v69487 - 1, -1, -1):
-        if str(messages_v69487[idx_v69487].get("role") or "") == "user":
-            original_v69487 = str(messages_v69487[idx_v69487].get("content") or "").strip()
-            break
-    if not original_v69487:
-        return {}
-
-    dimension_match_v69487 = re.search(r"Please confirm \*\*([^*]+)\*\*:", assistant_text_v69487)
-    label_v69487 = str(dimension_match_v69487.group(1) or "").strip() if dimension_match_v69487 else ""
-    reverse_v69487 = {_workspace_sales_dimension_label_v69487(x).casefold(): x for x in (
-        "factory_system","climate_control","audio_system","camera_system","body_style",
-        "factory_radio","trim","cab_style","steering_position","market","connector_variant","screen_size"
-    )}
-    dimension_v69487 = reverse_v69487.get(label_v69487.casefold(), re.sub(r"[^a-z0-9]+", "_", label_v69487.casefold()).strip("_"))
-
-    # Parse option labels only from the confirmation clause.  Bold feature names in
-    # the explanation are not selectable options.
-    confirm_tail_v69488 = assistant_text_v69487[dimension_match_v69487.end():] if dimension_match_v69487 else ""
-    confirm_tail_v69488 = confirm_tail_v69488.split("If you're not sure", 1)[0]
-    option_labels_v69487 = re.findall(r"\*\*([^*]+)\*\*", confirm_tail_v69488)
-    option_labels_v69487 = list(dict.fromkeys(x.strip() for x in option_labels_v69487 if x.strip()))[:12]
-    return {
-        "original_prompt": original_v69487,
-        "dimension": dimension_v69487,
-        "dimension_label": label_v69487,
-        "option_labels": option_labels_v69487,
-        "assistant_text": assistant_text_v69487,
-    }
-
-
-def _workspace_sales_best_discriminator_v69487(rows, prompt_text, allow_single=False):
-    """Choose the highest-information unresolved compatibility dimension generically."""
-    row_data_v69487 = []
-    combined_facets_v69487 = {}
-    for row_v69487 in rows or []:
-        pkg_v69487 = dict(row_v69487.get("package") or {})
-        learned_v69487 = _workspace_sales_learned_structured_facts_v69487(str(pkg_v69487.get("package_text") or ""))
-        facets_v69487 = dict(learned_v69487.get("compatibility_facets_v69487") or _workspace_sales_compatibility_facets_v69487(pkg_v69487, learned_v69487))
-        row_data_v69487.append((row_v69487, facets_v69487))
-        for dim_v69487, facet_v69487 in facets_v69487.items():
-            bucket_v69487 = combined_facets_v69487.setdefault(dim_v69487, {"label": facet_v69487.get("label") or _workspace_sales_dimension_label_v69487(dim_v69487), "options": []})
-            for opt_v69487 in facet_v69487.get("options") or []:
-                if not any(str(x.get("token") or "") == str(opt_v69487.get("token") or "") for x in bucket_v69487["options"]): bucket_v69487["options"].append(dict(opt_v69487))
-    selections_v69487 = _workspace_sales_recent_compatibility_selections_v69487(prompt_text, combined_facets_v69487)
-    filtered_v69487 = []
-    for row_v69487, facets_v69487 in row_data_v69487:
-        reject_v69487 = False
-        for dim_v69487, selected_v69487 in selections_v69487.items():
-            options_v69487 = {str(x.get("token") or "") for x in (facets_v69487.get(dim_v69487, {}).get("options") or [])}
-            if options_v69487 and selected_v69487 not in options_v69487:
-                reject_v69487 = True; break
-        if not reject_v69487: filtered_v69487.append(row_v69487)
-    if not filtered_v69487: filtered_v69487 = [x[0] for x in row_data_v69487]
-
-    rank_v69487 = {"factory_system":0,"climate_control":1,"audio_system":2,"camera_system":3,"factory_radio":4,"body_style":5,"trim":6,"cab_style":7,"steering_position":8,"market":9,"connector_variant":10}
-    candidates_v69487 = []
-    for dim_v69487, combined_v69487 in combined_facets_v69487.items():
-        if dim_v69487 in selections_v69487: continue
-        signatures_v69487, union_v69487 = [], set()
-        for row_v69487, facets_v69487 in row_data_v69487:
-            if row_v69487 not in filtered_v69487: continue
-            sig_v69487 = frozenset(str(x.get("token") or "") for x in (facets_v69487.get(dim_v69487, {}).get("options") or []) if str(x.get("token") or ""))
-            signatures_v69487.append(sig_v69487); union_v69487 |= set(sig_v69487)
-        distinct_v69487 = {x for x in signatures_v69487 if x}
-        discriminates_v69487 = len(distinct_v69487) >= 2 and len(union_v69487) >= 2
-        if allow_single and len(filtered_v69487) == 1 and len(union_v69487) >= 2:
-            discriminates_v69487 = True
-        if discriminates_v69487:
-            options_v69487 = [x for x in combined_v69487.get("options") or [] if str(x.get("token") or "") in union_v69487]
-            candidates_v69487.append((len(distinct_v69487) * 100 - len(options_v69487), -rank_v69487.get(dim_v69487, 50), dim_v69487, options_v69487))
-    if not candidates_v69487:
-        return {"rows": filtered_v69487, "selections": selections_v69487, "dimension": "", "options": [], "facets": combined_facets_v69487}
-    _, _, dim_v69487, options_v69487 = max(candidates_v69487)
-    return {"rows": filtered_v69487, "selections": selections_v69487, "dimension": dim_v69487, "options": options_v69487[:10], "facets": combined_facets_v69487}
-
-
-def _workspace_sales_clarification_text_v69487(dimension, options, feature_label=""):
-    label_v69487 = _workspace_sales_dimension_label_v69487(dimension)
-    labels_v69487 = [str(x.get("label") or "").strip() for x in (options or []) if str(x.get("label") or "").strip()]
-    labels_v69487 = list(dict.fromkeys(labels_v69487))[:8]
-    if not labels_v69487: return ""
-    if len(labels_v69487) == 1: option_text_v69487 = f"**{labels_v69487[0]}**"
-    elif len(labels_v69487) == 2: option_text_v69487 = f"**{labels_v69487[0]}** or **{labels_v69487[1]}**"
-    else: option_text_v69487 = ", ".join(f"**{x}**" for x in labels_v69487[:-1]) + f", or **{labels_v69487[-1]}**"
-    reason_v69487 = (f"The answer for **{feature_label}** changes with this configuration." if feature_label else "The remaining compatible versions use different configurations.")
-    return (
-        "I need one detail before I can confirm the exact configuration. " + reason_v69487 + "\n\n"
-        f"Please confirm **{label_v69487}**: is it {option_text_v69487}?\n\n"
-        "If you're not sure, send me a clear photo of the original dashboard/radio and I can help identify it."
-    )
-
-
-def _workspace_sales_feature_evidence_v69487(label, topic, evidence_sources, selected_facets=None, available_facets=None):
-    """Generic multi-dimension feature authority for any vehicle/model family."""
-    groups_v69487 = _workspace_sales_feature_token_groups_v69486(label, topic)
-    if not groups_v69487:
-        return {"status":"not_stated","detail":"","source":"","clarification_options":[]}
-    selected_v69487 = {str(k):str(v) for k,v in dict(selected_facets or {}).items() if str(k) and str(v)}
-    available_v69487 = dict(available_facets or {})
-    positive_v69487 = re.compile(r"\b(?:support(?:s|ed|ing)?|retain(?:s|ed|ing)?|keep(?:s|ing)?|kept|include(?:s|d|ing)?|built[ -]?in|compatible|available|functional|remain(?:s|ed)? functional|works?|preserv(?:e|es|ed))\b", re.I)
-    negative_v69487 = re.compile(r"\b(?:not supported|unsupported|does not support|doesn't support|not available|not included|not retained|does not retain|doesn't retain|not functional|without support|no support)\b", re.I)
-    candidates_v69487 = []
-    for source_name_v69487, source_value_v69487 in (evidence_sources or []):
-        if isinstance(source_value_v69487, dict):
-            for key_v69487, values_v69487 in source_value_v69487.items():
-                for value_v69487 in (values_v69487 if isinstance(values_v69487, list) else [values_v69487]): candidates_v69487.append((f"{source_name_v69487}:{key_v69487}", f"{key_v69487} {value_v69487}"))
-        elif isinstance(source_value_v69487, list):
-            for item_v69487 in source_value_v69487:
-                if isinstance(item_v69487, dict): candidates_v69487.append((f"{source_name_v69487}:{str(item_v69487.get('title') or item_v69487.get('id') or item_v69487.get('source') or '')}", str(item_v69487.get("text") or "")))
-                else: candidates_v69487.append((source_name_v69487, str(item_v69487 or "")))
-        else: candidates_v69487.append((source_name_v69487, str(source_value_v69487 or "")))
-    matched_v69487 = []
-    for source_name_v69487, raw_v69487 in candidates_v69487:
-        normalized_v69487 = re.sub(r"[-_]+", " ", html.unescape(str(raw_v69487 or "")))
-        for segment_v69487 in re.split(r"(?<=[.!?])\s+|[\n\r|;]+", normalized_v69487):
-            clean_v69487 = re.sub(r"\s+", " ", segment_v69487).strip(); low_v69487 = clean_v69487.casefold()
-            if not clean_v69487: continue
-            if not any(group and all(re.search(rf"\b{re.escape(tok)}\b", low_v69487) for tok in group) for group in groups_v69487): continue
-            sync_exclusion_v69492 = bool(
-                str(topic or "").strip().casefold() == "factory_sync"
-                and re.search(
-                    r"\bwithout\s+(?:the\s+)?(?:(?:original|factory|oem)\s+)?(?:(?:microsoft|ford)\s+)?sync\s*(?:version\s*)?[123]\b",
-                    low_v69487,
-                    flags=re.I,
-                )
-            )
-            neg_v69487 = bool(negative_v69487.search(low_v69487)) or sync_exclusion_v69492
-            pos_v69487 = bool(positive_v69487.search(low_v69487))
-            source_low_v69487 = str(source_name_v69487 or "").casefold()
-            # Retrieval/SEO/media metadata is discoverability context, never factual
-            # support/negative authority even when its keywords contain words such as
-            # "retained" or "supported".
-            if any(k in source_low_v69487 for k in ("search-terms", "keyword", "seo", "video", "image", "link-exclusions")):
-                continue
-            if any(k in source_low_v69487 for k in ("not-supported","unsupported")): neg_v69487 = True
-            if neg_v69487: pos_v69487 = False
-            elif any(k in source_low_v69487 for k in ("retained","support","compatibility","feature","facts","short","tab","summary")) and not any(k in source_low_v69487 for k in ("search-terms","keyword","seo","video","image","link-exclusions")): pos_v69487 = True
-            if not (neg_v69487 or pos_v69487): continue
-            conditions_v69487 = _workspace_sales_segment_conditions_v69487(clean_v69487, available_v69487, source_name_v69487)
-            direct_v69487 = bool(conditions_v69487 and (sync_exclusion_v69492 or re.search(r"\b(?:on|for|with|when|only|equipped)\b", low_v69487) or any(k in source_low_v69487 for k in ("branch","retained","scope","conditional"))))
-            score_v69487 = (30 if any(k in source_low_v69487 for k in ("retained","not-supported","unsupported")) else 0) + (22 if "data-atp-feature" in source_low_v69487 else 0) + (12 if "semantic" in source_low_v69487 else 0) + (8 if "short" in source_low_v69487 or "tab" in source_low_v69487 else 0) + (20 if direct_v69487 else 0)
-            matched_v69487.append({"source":source_name_v69487,"text":clean_v69487[:900],"positive":pos_v69487,"negative":neg_v69487,"conditions":conditions_v69487 if direct_v69487 else {},"score":score_v69487})
-
-    scoped_v69487 = [x for x in matched_v69487 if x.get("conditions")]
-    # Ask one highest-value missing discriminator at a time.
-    missing_v69487 = []
-    for item_v69487 in scoped_v69487:
-        for dim_v69487, tokens_v69487 in dict(item_v69487.get("conditions") or {}).items():
-            if dim_v69487 in selected_v69487: continue
-            available_options_v69487 = list((available_v69487.get(dim_v69487) or {}).get("options") or [])
-            if len(available_options_v69487) >= 2:
-                missing_v69487.append((int(item_v69487.get("score") or 0), dim_v69487, available_options_v69487))
-    if missing_v69487:
-        # Do not ask for a discriminator when every authored option is already
-        # covered by configuration-scoped evidence with the same polarity.
-        # Example: SYNC 1 retains X; SYNC 2/3 retain X -> answer X directly.
-        material_missing_v69488 = []
-        for score_v69488, dim_v69488, options_v69488 in missing_v69487:
-            available_tokens_v69488 = {str(x.get("token") or "") for x in options_v69488 if str(x.get("token") or "")}
-            relevant_v69488 = [x for x in scoped_v69487 if dim_v69488 in dict(x.get("conditions") or {})]
-            covered_v69488 = set().union(*(set(dict(x.get("conditions") or {}).get(dim_v69488) or []) for x in relevant_v69488)) if relevant_v69488 else set()
-            polarities_v69488 = {
-                "negative" if x.get("negative") else "positive"
-                for x in relevant_v69488 if x.get("negative") or x.get("positive")
-            }
-            if available_tokens_v69488 and available_tokens_v69488 <= covered_v69488 and len(polarities_v69488) == 1:
-                continue
-            material_missing_v69488.append((score_v69488, dim_v69488, options_v69488))
-        if material_missing_v69488:
-            material_missing_v69488.sort(key=lambda x:(x[0], -len(x[2])), reverse=True)
-            _, dim_v69487, options_v69487 = material_missing_v69488[0]
-            best_v69487 = max(scoped_v69487, key=lambda x:int(x.get("score") or 0))
-            return {"status":"conditional","detail":best_v69487.get("text",""),"source":best_v69487.get("source",""),"clarification_dimension":dim_v69487,"clarification_options":[str(x.get("token") or "") for x in options_v69487],"clarification_option_rows":options_v69487}
-
-    if selected_v69487 and scoped_v69487:
-        applicable_v69487 = []
-        for item_v69487 in scoped_v69487:
-            conditions_v69487 = dict(item_v69487.get("conditions") or {})
-            mismatch_v69487 = any(dim in selected_v69487 and selected_v69487[dim] not in set(tokens or []) for dim,tokens in conditions_v69487.items())
-            if not mismatch_v69487: applicable_v69487.append(item_v69487)
-        if applicable_v69487:
-            strongest_scope_v69487 = max(int(x.get("score") or 0) for x in scoped_v69487)
-            matched_v69487 = applicable_v69487 + [x for x in matched_v69487 if not x.get("conditions") and int(x.get("score") or 0) > strongest_scope_v69487]
-        else:
-            best_scope_v69487 = max(scoped_v69487, key=lambda x:int(x.get("score") or 0))
-            return {"status":"not_stated","detail":best_scope_v69487.get("text",""),"source":best_scope_v69487.get("source",""),"excluded_by_configuration":True,"clarification_options":[]}
-    positives_v69487 = [x for x in matched_v69487 if x.get("positive") and not x.get("negative")]
-    negatives_v69487 = [x for x in matched_v69487 if x.get("negative") and not x.get("positive")]
-    if positives_v69487 and negatives_v69487:
-        best_pos_v69488 = max(positives_v69487, key=lambda x:int(x.get("score") or 0))
-        best_neg_v69488 = max(negatives_v69487, key=lambda x:int(x.get("score") or 0))
-        pos_score_v69488 = int(best_pos_v69488.get("score") or 0)
-        neg_score_v69488 = int(best_neg_v69488.get("score") or 0)
-        if pos_score_v69488 > neg_score_v69488:
-            return {"status":"supported","detail":best_pos_v69488.get("text",""),"source":best_pos_v69488.get("source",""),"clarification_options":[]}
-        if neg_score_v69488 > pos_score_v69488:
-            return {"status":"unsupported","detail":best_neg_v69488.get("text",""),"source":best_neg_v69488.get("source",""),"clarification_options":[]}
-        return {
-            "status":"not_stated",
-            "detail":"Conflicting exact product sources have equal authority; verification is required.",
-            "source":"authority_conflict",
-            "authority_conflict":True,
-            "clarification_options":[],
-        }
-    if positives_v69487:
-        best_v69487 = max(positives_v69487,key=lambda x:int(x.get("score") or 0)); return {"status":"supported","detail":best_v69487.get("text",""),"source":best_v69487.get("source",""),"clarification_options":[]}
-    if negatives_v69487:
-        best_v69487 = max(negatives_v69487,key=lambda x:int(x.get("score") or 0)); return {"status":"unsupported","detail":best_v69487.get("text",""),"source":best_v69487.get("source",""),"clarification_options":[]}
-    return {"status":"not_stated","detail":"","source":"","clarification_options":[]}
-
-
-def _workspace_sales_adaptive_feature_clarification_v69487(prompt_text, rows, topic, evidence_by_source):
-    label_v69487 = _workspace_sales_feature_label_v69486(topic)
-    if not label_v69487: return ""
-    candidates_v69487 = []
-    for row_v69487 in rows or []:
-        evidence_v69487 = dict((evidence_by_source or {}).get(str(row_v69487.get("source") or "")) or {})
-        if str(evidence_v69487.get("status") or "") != "conditional": continue
-        dim_v69487 = str(evidence_v69487.get("clarification_dimension") or "")
-        option_rows_v69487 = list(evidence_v69487.get("clarification_option_rows") or [])
-        if dim_v69487 and len(option_rows_v69487) >= 2: candidates_v69487.append((dim_v69487, option_rows_v69487))
-    if not candidates_v69487: return ""
-    dim_v69487, options_v69487 = candidates_v69487[0]
-    diagnostic_log("workspace_sales_adaptive_clarification_required_v69487", topic=str(topic or "")[:120], dimension=dim_v69487, options=[str(x.get("label") or "") for x in options_v69487[:8]], products=len(rows or []))
-    return _workspace_sales_clarification_text_v69487(dim_v69487, options_v69487, label_v69487)
-
-
-def _workspace_sales_exact_product_page_facts_v69481(source_url, timeout_seconds=3.5):
-    """Return exact current product-page factual text, including Woo custom tabs.
-
-    This is a read-only, same-product, identity-verified fallback for Sales factual
-    follow-ups. It deliberately captures the visible Woo short description, the
-    Description/Main Features/Specification tab panels, and ATP semantic attributes.
-    Related-product links are not treated as authority because the final URL must
-    canonicalize to the exact requested /product/ identity.
-    """
-    source_v69481 = str(source_url or "").strip()
-    if not source_v69481:
-        return {"status": "unavailable", "reason": "missing_source_url"}
-    try:
-        source_identity_v69481 = _exact_product_page_identity_v69342(source_v69481)
-    except Exception:
-        source_identity_v69481 = source_v69481.rstrip("/").casefold()
-    try:
-        timeout_v69481 = max(1.0, float(timeout_seconds or 3.5))
-        response_v69481 = http_session.get(
-            source_v69481,
-            headers={"Accept": "text/html,application/xhtml+xml", "User-Agent": "AutoTecPro-AI/1.0"},
-            timeout=(min(2.5, timeout_v69481), timeout_v69481),
-            allow_redirects=True,
-        )
-        response_v69481.raise_for_status()
-    except Exception as error_v69481:
-        return {
-            "status": "unavailable", "reason": "exact_product_page_fetch_failed",
-            "error_type": type(error_v69481).__name__, "error": str(error_v69481)[:400],
-        }
-    final_url_v69481 = str(getattr(response_v69481, "url", "") or source_v69481).strip()
-    try:
-        final_identity_v69481 = _exact_product_page_identity_v69342(final_url_v69481)
-    except Exception:
-        final_identity_v69481 = final_url_v69481.rstrip("/").casefold()
-    if final_identity_v69481 != source_identity_v69481:
-        return {
-            "status": "unavailable", "reason": "exact_product_page_redirect_identity_mismatch",
-            "final_url": final_url_v69481,
-        }
-    html_v69481 = str(getattr(response_v69481, "text", "") or "")
-    if not html_v69481:
-        return {"status": "unavailable", "reason": "empty_product_page"}
-
-    def plain_v69481(value):
-        value = re.sub(r"<script\b[^>]*>.*?</script>", " ", str(value or ""), flags=re.I | re.S)
-        value = re.sub(r"<style\b[^>]*>.*?</style>", " ", value, flags=re.I | re.S)
-        value = re.sub(r"<[^>]+>", " ", value)
-        return re.sub(r"\s+", " ", html.unescape(value)).strip()
-
-    structured_v69485 = _workspace_sales_woocommerce_structured_content_v69485(html_v69481)
-    full_text_v69481 = plain_v69481(html_v69481)
-    short_text_v69481 = str(structured_v69485.get("short_description_text") or "")
-    tabs_text_v69481 = str(structured_v69485.get("custom_tabs_text") or "")
-    semantic_text_v69481 = str(structured_v69485.get("semantic_attribute_text") or "")
-    factual_text_v69481 = " | ".join(
-        x for x in (short_text_v69481, tabs_text_v69481, semantic_text_v69481, full_text_v69481)
-        if x
-    )
-    diagnostic_log(
-        "workspace_sales_exact_live_product_facts_v69481",
-        source_url=source_v69481[:500],
-        short_chars=len(short_text_v69481),
-        tab_chars=len(tabs_text_v69481),
-        semantic_chars=len(semantic_text_v69481),
-        full_chars=len(full_text_v69481),
-    )
-    return {
-        "status": "verified",
-        "source_url": source_v69481,
-        "final_url": final_url_v69481,
-        "short_description_text": short_text_v69481[:12000],
-        "custom_tabs_text": tabs_text_v69481[:30000],
-        "custom_tab_sections": list(structured_v69485.get("custom_tab_sections") or [])[:32],
-        "semantic_attribute_text": semantic_text_v69481[:16000],
-        "semantic_attributes": dict(structured_v69485.get("semantic_attributes") or {}),
-        "factual_text": factual_text_v69481[:60000],
-    }
-
 def _workspace_product_currency_url_v69437(source_url, currency_code):
     """Return the same exact product URL in a WooCommerce currency presentation.
 
@@ -3933,7 +2449,7 @@ def _workspace_product_currency_url_v69437(source_url, currency_code):
         return ""
 
 
-@st.cache_data(ttl=300, max_entries=128, show_spinner=False)
+@st.cache_data(ttl=45, max_entries=128, show_spinner=False)
 def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
     """Read WooCommerce's own displayed price for one exact product/currency.
 
@@ -3950,7 +2466,7 @@ def _workspace_exact_product_currency_price_v69437(source_url, currency_code):
             "currency": currency,
         }
 
-    result = dict(_current_product_page_price_by_exact_url_v69340(target_url, timeout_seconds=1.8) or {})
+    result = dict(_current_product_page_price_by_exact_url_v69340(target_url, timeout_seconds=3.0) or {})
     if str(result.get("status") or "") != "verified":
         result["requested_currency"] = currency
         result["currency_url"] = target_url
@@ -4382,7 +2898,7 @@ def search_woocommerce_order_number(order_number, access_level="sales"):
         if str(order.get("number") or order.get("id") or "") == clean_number:
             return direct_result
     except Exception:
-        _observe_silent_exception_v69451("search_woocommerce_order_number@L2900")
+        pass
 
     orders = woocommerce_api_request(
         "orders",
@@ -5380,7 +3896,7 @@ def _workspace_sales_usd_rate_v69347(base_currency):
         try:
             st.session_state[cache_key] = dict(result)
         except Exception:
-            _observe_silent_exception_v69451("_workspace_sales_usd_rate_v69347@L3898")
+            pass
         return result
     except Exception as error_v69347:
         diagnostic_log(
@@ -7328,7 +5844,7 @@ def _optional_ui_fragment(function):
         try:
             return fragment(function)
         except Exception:
-            _observe_silent_exception_v69451("_optional_ui_fragment@L5846")
+            pass
     return function
 
 
@@ -7401,7 +5917,7 @@ def _managed_image_data_url(file_type, file_bytes):
                 return f"data:{mime_type};base64,{encoded}"
         except Exception:
             # Unsupported/corrupt images retain the previous safe fallback.
-            _observe_silent_exception_v69451("_managed_image_data_url@L5918")
+            pass
 
     encoded = base64.b64encode(raw).decode()
     return f"data:{str(file_type or 'image/png')};base64,{encoded}"
@@ -7590,774 +6106,6 @@ def _graphic_v68865_should_show_early_status(prompt_text, assistant, uploaded_fi
     return any(term in value for term in action_terms)
 
 
-def _run_invisible_trusted_browser_script_v69453(script_html):
-    """Execute an internal browser helper without creating a visible iframe row.
-
-    AutoTecPro is pinned to Streamlit 1.61, where ``st.html`` supports trusted
-    JavaScript through ``unsafe_allow_javascript=True`` and executes it directly
-    in the app document instead of inside an iframe.  The marker + scoped CSS
-    collapse only this helper's Streamlit element container so it contributes
-    no border, line, height, gap, focus target, or pointer surface to any
-    workspace.  Only source-controlled internal scripts may be passed here.
-    """
-    trusted_html = (
-        """
-        <style>
-        div[data-testid="stElementContainer"]:has(.stHtml .atp-invisible-browser-script-v69453),
-        div[data-testid="element-container"]:has(.stHtml .atp-invisible-browser-script-v69453) {
-            display: none !important;
-            visibility: hidden !important;
-            width: 0 !important;
-            height: 0 !important;
-            min-width: 0 !important;
-            min-height: 0 !important;
-            max-width: 0 !important;
-            max-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            border: 0 !important;
-            overflow: hidden !important;
-            pointer-events: none !important;
-            flex: 0 0 0 !important;
-        }
-        .stHtml:has(.atp-invisible-browser-script-v69453) {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            border: 0 !important;
-            overflow: hidden !important;
-        }
-        </style>
-        <span class="atp-invisible-browser-script-v69453" hidden></span>
-        """
-        + str(script_html or "")
-    )
-    st.html(
-        trusted_html,
-        width="content",
-        unsafe_allow_javascript=True,
-    )
-
-
-def _run_legacy_ui_runtime_without_deprecated_html_v69459(callback, *args, **kwargs):
-    """Run trusted legacy UI helpers through Streamlit's supported iframe API.
-
-    v69457/v69458 routed legacy ``components.html`` helpers through ``st.html``.
-    That transport is *not* iframe-equivalent: the imported helpers were written
-    around ``window.parent`` and require a same-origin child frame so they can mount
-    controls into the Streamlit app document. Production screenshots confirmed that
-    the direct ``st.html`` bridge did not mount the microphone/send proxy and did not
-    run the composer layout controller.
-
-    Streamlit's supported ``st.iframe`` API provides the same same-origin iframe
-    execution model as the old components helper without the deprecation warning.
-    The proxy is module-local and never monkey-patches Streamlit globally.
-    """
-    if not callable(callback):
-        return None
-    callback_globals_v69459 = getattr(callback, "__globals__", None)
-    if not isinstance(callback_globals_v69459, dict):
-        return callback(*args, **kwargs)
-    original_components_v69459 = callback_globals_v69459.get("components")
-    if original_components_v69459 is None:
-        return callback(*args, **kwargs)
-
-    if not bool(getattr(original_components_v69459, "_atp_iframe_proxy_v69459", False)):
-        class _UiRuntimeComponentsIframeProxyV69459:
-            _atp_iframe_proxy_v69459 = True
-
-            def __init__(self, delegate_v69459):
-                self._delegate_v69459 = delegate_v69459
-
-            def __getattr__(self, name_v69459):
-                return getattr(self._delegate_v69459, name_v69459)
-
-            def html(self, body_v69459, *html_args_v69459, **html_kwargs_v69459):
-                # Preserve the trusted helper source byte-for-byte. In particular,
-                # window.parent must continue to refer to the Streamlit app document.
-                trusted_body_v69459 = str(body_v69459 or "")
-                requested_height_v69459 = html_kwargs_v69459.get("height", 0)
-                requested_width_v69459 = html_kwargs_v69459.get("width", 0)
-                try:
-                    height_v69459 = max(1, int(requested_height_v69459 or 1))
-                except Exception:
-                    height_v69459 = 1
-                try:
-                    width_v69459 = max(1, int(requested_width_v69459 or 1))
-                except Exception:
-                    width_v69459 = 1
-                # st.iframe requires positive integer dimensions. Collapse the
-                # Streamlit element after the same-origin child frame starts; hiding
-                # the host does not stop the controller, observers, or event handlers.
-                collapse_host_v69459 = r"""
-                <script>
-                (() => {
-                  try {
-                    const frame = window.frameElement;
-                    if (!frame) return;
-                    frame.style.setProperty("width", "1px", "important");
-                    frame.style.setProperty("height", "1px", "important");
-                    frame.style.setProperty("border", "0", "important");
-                    const host = frame.closest(
-                      'div[data-testid="stElementContainer"], div[data-testid="element-container"]'
-                    );
-                    if (host) {
-                      host.style.setProperty("position", "absolute", "important");
-                      host.style.setProperty("width", "1px", "important");
-                      host.style.setProperty("height", "1px", "important");
-                      host.style.setProperty("min-width", "1px", "important");
-                      host.style.setProperty("min-height", "1px", "important");
-                      host.style.setProperty("max-width", "1px", "important");
-                      host.style.setProperty("max-height", "1px", "important");
-                      host.style.setProperty("margin", "0", "important");
-                      host.style.setProperty("padding", "0", "important");
-                      host.style.setProperty("overflow", "hidden", "important");
-                      host.style.setProperty("opacity", "0", "important");
-                      host.style.setProperty("pointer-events", "none", "important");
-                    }
-                  } catch (error) {}
-                })();
-                </script>
-                """
-                st.iframe(
-                    collapse_host_v69459 + trusted_body_v69459,
-                    width=width_v69459,
-                    height=height_v69459,
-                    tab_index=-1,
-                )
-                return None
-
-        callback_globals_v69459["components"] = _UiRuntimeComponentsIframeProxyV69459(
-            original_components_v69459
-        )
-    return callback(*args, **kwargs)
-
-
-def _install_composer_top_left_fallback_v69459():
-    """Force the native editable field to start at the composer's upper-left edge.
-
-    This CSS is intentionally independent of the JavaScript controller so the field
-    remains correctly aligned during the short interval before the iframe helper
-    mounts or if the browser temporarily delays a MutationObserver callback.
-    """
-    st.markdown(
-        """
-        <style>
-        html body div[data-testid="stChatInput"] [data-baseweb="textarea"],
-        html body div[data-testid="stChatInput"] [data-baseweb="base-input"] {
-            align-items: flex-start !important;
-            justify-content: flex-start !important;
-        }
-        html body div[data-testid="stChatInput"] textarea {
-            text-align: left !important;
-            vertical-align: top !important;
-            padding-top: 6px !important;
-            padding-bottom: 6px !important;
-            padding-left: 4px !important;
-            padding-right: 4px !important;
-            line-height: 22px !important;
-            white-space: pre-wrap !important;
-        }
-        html body div[data-testid="stChatInput"] textarea::placeholder {
-            text-align: left !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def _install_chat_turn_guard_v69468():
-    """Install the v69468 transactional composer + voice compatibility controller.
-
-    v69468 keeps the v69467 dual-slot draft/pending model and hardens every browser
-    boundary that can race with Streamlit's controlled chat widget:
-      * the editable next inquiry lives in DRAFT_KEY;
-      * the submitted-but-not-yet-acknowledged inquiry lives in PENDING_KEY;
-      * pending acknowledgement requires Streamlit's *native* disabled transition,
-        never the Python fallback busy flag;
-      * a failed submission is never discarded when a newer draft already exists;
-      * send interception is limited to actual send controls;
-      * the custom microphone is never disabled by the draft bridge and speech is
-        routed to the visible editor (overlay while busy/drafting, native input when idle).
-
-    The last item fixes the v69467 voice regression: the legacy voice controller always
-    wrote speech into Streamlit's native textarea, while v69467 could place a body-level
-    draft textarea over it and also disabled the mic during an active response.  Speech
-    therefore went into a hidden editor or the microphone became unclickable.
-    """
-    _run_invisible_trusted_browser_script_v69453(
-        r"""
-        <script>
-        (() => {
-          const root = window;
-          const doc = document;
-          const GLOBAL_KEY = "__atpChatTurnGuardV69468";
-          const PY_BUSY_KEY = "__atpChatTurnGuardPendingV69468";
-          const DRAFT_KEY = "__atpChatPreparedDraftV69468";
-          const PENDING_SUBMIT_KEY = "__atpChatPendingSubmitV69468";
-          const LEGACY_DRAFT_KEYS = [
-            "__atpChatPreparedDraftV69467",
-            "__atpChatPreparedDraftV69466",
-            "__atpChatPreparedDraftV69465",
-            "__atpChatPreparedDraftV69464",
-            "__atpChatPreparedDraftV69463"
-          ];
-          const OVERLAY_ID = "atp-next-inquiry-draft-v69468";
-          const VOICE_ID = "atp-browser-voice-dictation";
-          const SEND_PROXY_ID = "atp-send-proxy";
-          const STORAGE_TTL_MS = 30 * 60 * 1000;
-          const SUBMIT_ACK_TIMEOUT_MS = 4500;
-
-          function composer() {
-            return doc.querySelector('div[data-testid="stChatInput"]');
-          }
-
-          function nativeInput(container = composer()) {
-            if (!container) return null;
-            return (
-              container.querySelector('textarea[data-testid="stChatInputTextArea"]') ||
-              [...container.querySelectorAll("textarea")].find(
-                (node) => node.id !== OVERLAY_ID && !node.classList.contains("atp-next-inquiry-draft-v69468")
-              ) || null
-            );
-          }
-
-          function nativeSend(container = composer()) {
-            if (!container) return null;
-            return (
-              container.querySelector('button[data-testid="stChatInputSubmitButton"]') ||
-              [...container.querySelectorAll('button[type="submit"]')].find(
-                (button) => button.id !== VOICE_ID && button.id !== SEND_PROXY_ID
-              ) || null
-            );
-          }
-
-          function sendProxy() { return doc.getElementById(SEND_PROXY_ID); }
-          function voiceButton() { return doc.getElementById(VOICE_ID); }
-
-          function readRecord(key) {
-            try {
-              const raw = root.sessionStorage?.getItem(key);
-              if (!raw) return "";
-              const parsed = JSON.parse(raw);
-              const value = String(parsed?.value || "");
-              const updatedAt = Number(parsed?.updatedAt || 0);
-              if (!value || !updatedAt || Date.now() - updatedAt > STORAGE_TTL_MS) {
-                root.sessionStorage?.removeItem(key);
-                return "";
-              }
-              return value;
-            } catch (error) { return ""; }
-          }
-
-          function writeRecord(key, value) {
-            const next = String(value || "");
-            try {
-              if (!next) root.sessionStorage?.removeItem(key);
-              else root.sessionStorage?.setItem(key, JSON.stringify({value: next, updatedAt: Date.now()}));
-            } catch (error) {}
-          }
-
-          function readDraft() {
-            let value = readRecord(DRAFT_KEY);
-            if (value) return value;
-            for (const key of LEGACY_DRAFT_KEYS) {
-              value = readRecord(key);
-              if (value) {
-                writeRecord(DRAFT_KEY, value);
-                break;
-              }
-            }
-            for (const key of LEGACY_DRAFT_KEYS) {
-              try { root.sessionStorage?.removeItem(key); } catch (error) {}
-            }
-            return value || "";
-          }
-          function writeDraft(value) { writeRecord(DRAFT_KEY, value); }
-          function clearDraft() { writeRecord(DRAFT_KEY, ""); }
-          function readPending() { return readRecord(PENDING_SUBMIT_KEY); }
-          function writePending(value) { writeRecord(PENDING_SUBMIT_KEY, value); }
-          function clearPending() { writeRecord(PENDING_SUBMIT_KEY, ""); }
-
-          function overlay() { return doc.getElementById(OVERLAY_ID); }
-          function removeOverlay() { try { overlay()?.remove(); } catch (error) {} }
-
-          function nativeRunBusy(input = nativeInput()) {
-            if (!input) return false;
-            const button = nativeSend();
-            return Boolean(
-              input.disabled || input.getAttribute("aria-disabled") === "true" ||
-              input.closest('[aria-disabled="true"]') ||
-              (button && (button.disabled || button.getAttribute("aria-disabled") === "true"))
-            );
-          }
-
-          function copyTextareaVisuals(source, target) {
-            if (!source || !target) return;
-            try {
-              const style = root.getComputedStyle(source);
-              for (const prop of [
-                "font-family","font-size","font-weight","font-style","line-height",
-                "letter-spacing","text-align","color","background-color","padding-top",
-                "padding-right","padding-bottom","padding-left","border-radius","caret-color",
-                "text-rendering","-webkit-text-fill-color"
-              ]) {
-                const value = style.getPropertyValue(prop);
-                if (value) target.style.setProperty(prop, value, "important");
-              }
-            } catch (error) {}
-          }
-
-          function positionOverlay(input, draft) {
-            if (!input || !draft) return;
-            try {
-              const rect = input.getBoundingClientRect();
-              if (rect.width <= 0 || rect.height <= 0) {
-                draft.style.setProperty("visibility", "hidden", "important");
-                return;
-              }
-              draft.style.setProperty("position", "fixed", "important");
-              draft.style.setProperty("left", `${Math.round(rect.left)}px`, "important");
-              draft.style.setProperty("top", `${Math.round(rect.top)}px`, "important");
-              draft.style.setProperty("width", `${Math.round(rect.width)}px`, "important");
-              draft.style.setProperty("height", `${Math.max(44, Math.round(rect.height))}px`, "important");
-              draft.style.setProperty("min-height", "44px", "important");
-              draft.style.setProperty("max-height", "180px", "important");
-              draft.style.setProperty("visibility", "visible", "important");
-            } catch (error) {}
-          }
-
-          function forceMicUsable() {
-            const mic = voiceButton();
-            if (!mic) return;
-            try {
-              for (const key of Object.keys(mic.dataset || {})) {
-                if (key.toLowerCase().includes("draftbridgedisabled")) delete mic.dataset[key];
-              }
-              mic.disabled = false;
-              mic.removeAttribute("aria-disabled");
-              mic.style.removeProperty("pointer-events");
-              mic.style.removeProperty("opacity");
-              if (!state.voiceListening) {
-                mic.setAttribute("title", "Voice dictation");
-                mic.setAttribute("aria-label", "Start voice dictation");
-              }
-            } catch (error) {}
-          }
-
-          function setReactValue(input, value) {
-            if (!input) return false;
-            const next = String(value || "");
-            const previous = String(input.value || "");
-            try {
-              const prototype = root.HTMLTextAreaElement?.prototype || Object.getPrototypeOf(input);
-              const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
-              if (setter) setter.call(input, next); else input.value = next;
-              try {
-                const tracker = input._valueTracker;
-                if (tracker && typeof tracker.setValue === "function") tracker.setValue(previous);
-              } catch (error) {}
-              let evt;
-              try { evt = new InputEvent("input", {bubbles:true, inputType:"insertText", data:null}); }
-              catch (error) { evt = new Event("input", {bubbles:true}); }
-              input.dispatchEvent(evt);
-              input.dispatchEvent(new Event("change", {bubbles:true}));
-              return String(input.value || "") === next;
-            } catch (error) { return false; }
-          }
-
-          function restoreLegacyArtifacts() {
-            for (const version of ["V69467","V69466","V69465","V69464","V69463","V69462"]) {
-              try {
-                const controller = root[`__atpChatTurnGuard${version}`];
-                if (controller && typeof controller.cleanup === "function") controller.cleanup();
-                delete root[`__atpChatTurnGuard${version}`];
-                delete root[`__atpChatTurnGuardPending${version}`];
-              } catch (error) {}
-            }
-            for (const id of [
-              "atp-next-inquiry-draft-v69467","atp-next-inquiry-draft-v69466",
-              "atp-next-inquiry-draft-v69465","atp-next-inquiry-draft-v69464"
-            ]) {
-              try { doc.getElementById(id)?.remove(); } catch (error) {}
-            }
-          }
-          restoreLegacyArtifacts();
-
-          const existing = root[GLOBAL_KEY];
-          if (existing && typeof existing.refresh === "function") {
-            try {
-              if (typeof root[PY_BUSY_KEY] === "boolean") {
-                existing.setPythonBusy(root[PY_BUSY_KEY]);
-                delete root[PY_BUSY_KEY];
-              }
-              existing.refresh();
-            } catch (error) {}
-            return;
-          }
-
-          const state = {
-            pythonBusy:false,
-            internalClick:false,
-            observer:null,
-            timer:null,
-            scheduled:false,
-            submitToken:0,
-            pendingStartedAt:0,
-            lastClickAt:0,
-            voiceRecognition:null,
-            voiceListening:false,
-            voiceIdleHtml:"",
-          };
-
-          function effectiveBusy(input = nativeInput()) {
-            return Boolean(state.pythonBusy || nativeRunBusy(input));
-          }
-
-          function ensureOverlay(input) {
-            if (!input) return null;
-            let draft = overlay();
-            if (!draft) {
-              draft = doc.createElement("textarea");
-              draft.id = OVERLAY_ID;
-              draft.className = "atp-next-inquiry-draft-v69468";
-              draft.setAttribute("aria-label", "Next inquiry draft");
-              draft.setAttribute("autocomplete", "off");
-              draft.setAttribute("spellcheck", "true");
-              draft.placeholder = "Type your next message...";
-              draft.value = readDraft();
-              for (const [k,v] of Object.entries({
-                "box-sizing":"border-box","border":"0","outline":"0","box-shadow":"none",
-                "resize":"none","overflow-y":"auto","white-space":"pre-wrap","overflow-wrap":"break-word",
-                "z-index":"2147483000","pointer-events":"auto","opacity":"1","margin":"0"
-              })) draft.style.setProperty(k,v,"important");
-              copyTextareaVisuals(input,draft);
-              const persist = () => { writeDraft(String(draft.value || "")); scheduleApply(); };
-              draft.addEventListener("input", persist);
-              draft.addEventListener("change", persist);
-              draft.addEventListener("compositionend", persist);
-              draft.addEventListener("keydown", (event) => {
-                if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-                  event.preventDefault(); event.stopPropagation();
-                  persist(); submitPreparedDraft();
-                }
-              });
-              doc.body.appendChild(draft);
-            } else {
-              const stored = readDraft();
-              if (String(draft.value || "") !== stored && doc.activeElement !== draft) draft.value = stored;
-            }
-            copyTextareaVisuals(input,draft);
-            positionOverlay(input,draft);
-            return draft;
-          }
-
-          function acknowledgePendingIfNativeBusy(input) {
-            const pending = readPending();
-            if (!pending || !state.pendingStartedAt) return false;
-            if (!nativeRunBusy(input)) return false;
-            clearPending();
-            state.pendingStartedAt = 0;
-            state.submitToken += 1;
-            return true;
-          }
-
-          function activeVoiceEditor() {
-            const input = nativeInput();
-            if (!input) return null;
-            const draftValue = readDraft();
-            const pendingValue = readPending();
-            if (effectiveBusy(input) || draftValue || pendingValue || overlay()) return ensureOverlay(input);
-            return input;
-          }
-
-          function persistVoiceValue(editor, value) {
-            const next = String(value || "");
-            if (!editor) return;
-            if (editor.id === OVERLAY_ID) {
-              editor.value = next;
-              writeDraft(next);
-              try { editor.dispatchEvent(new Event("input", {bubbles:true})); } catch (error) {}
-            } else {
-              setReactValue(editor, next);
-            }
-          }
-
-          function resetIntegratedVoice(button = voiceButton()) {
-            state.voiceListening = false;
-            state.voiceRecognition = null;
-            if (!button) return;
-            try {
-              button.classList.remove("listening");
-              if (state.voiceIdleHtml) button.innerHTML = state.voiceIdleHtml;
-              button.setAttribute("title", "Voice dictation");
-              button.setAttribute("aria-label", "Start voice dictation");
-            } catch (error) {}
-          }
-
-          function onVoiceClickCapture(event) {
-            const target = event.target?.closest?.(`#${VOICE_ID}`);
-            if (!target) return;
-            const SpeechRecognition = root.SpeechRecognition || root.webkitSpeechRecognition;
-            if (!SpeechRecognition) return; // let the legacy controller show its unsupported message
-
-            event.preventDefault();
-            event.stopPropagation();
-            event.stopImmediatePropagation?.();
-            forceMicUsable();
-
-            if (state.voiceListening && state.voiceRecognition) {
-              try { state.voiceRecognition.stop(); } catch (error) {}
-              return;
-            }
-
-            const editor = activeVoiceEditor();
-            if (!editor) return;
-            try {
-              const recognition = new SpeechRecognition();
-              state.voiceRecognition = recognition;
-              recognition.continuous = false;
-              recognition.interimResults = true;
-              recognition.maxAlternatives = 1;
-              recognition.lang = doc.documentElement.lang || root.navigator.language || "en-US";
-              let committed = String(editor.value || "").trim();
-              state.voiceIdleHtml = target.innerHTML || state.voiceIdleHtml;
-
-              recognition.onstart = () => {
-                state.voiceListening = true;
-                try {
-                  target.classList.add("listening");
-                  target.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="currentColor"/></svg>';
-                  target.setAttribute("title", "Listening — tap to stop");
-                  target.setAttribute("aria-label", "Stop voice dictation");
-                } catch (error) {}
-              };
-
-              recognition.onresult = (resultEvent) => {
-                let interim = "";
-                let finalText = "";
-                for (let i = resultEvent.resultIndex; i < resultEvent.results.length; i += 1) {
-                  const transcript = resultEvent.results[i][0].transcript;
-                  if (resultEvent.results[i].isFinal) finalText += transcript;
-                  else interim += transcript;
-                }
-                const prefix = committed ? committed + " " : "";
-                const next = (prefix + finalText + interim).trimStart();
-                persistVoiceValue(editor, next);
-                if (finalText) committed = (prefix + finalText).trim();
-                scheduleApply();
-              };
-              recognition.onerror = () => {};
-              recognition.onend = () => { resetIntegratedVoice(target); scheduleApply(); };
-              recognition.start();
-            } catch (error) {
-              resetIntegratedVoice(target);
-            }
-          }
-
-          function attemptPendingSubmit(token, n=0) {
-            if (token !== state.submitToken) return;
-            const pending = readPending();
-            if (!pending) return;
-            const currentInput = nativeInput();
-            if (!currentInput) return;
-            if (nativeRunBusy(currentInput)) {
-              acknowledgePendingIfNativeBusy(currentInput);
-              scheduleApply();
-              return;
-            }
-            if (state.pythonBusy) return;
-            setReactValue(currentInput, pending);
-            const button = nativeSend();
-            if (String(currentInput.value || "") === pending && button && !button.disabled && button.getAttribute("aria-disabled") !== "true") {
-              if (!state.lastClickAt || Date.now() - state.lastClickAt >= 700) {
-                state.lastClickAt = Date.now();
-                try { state.internalClick = true; button.click(); }
-                catch (error) {}
-                finally { state.internalClick = false; }
-              }
-            } else if (String(currentInput.value || "") === pending && !button) {
-              try { currentInput.dispatchEvent(new KeyboardEvent("keydown", {key:"Enter",code:"Enter",bubbles:true,cancelable:true})); }
-              catch (error) {}
-            }
-            if (n < 14) {
-              const delays=[16,32,60,100,160,240,360,500,700,900,1200,1500,1800,2200,2600];
-              root.setTimeout(()=>attemptPendingSubmit(token,n+1),delays[Math.min(n,delays.length-1)]);
-            }
-          }
-
-          function recoverOrRetryFailedPending() {
-            const pending = readPending();
-            if (!pending || !state.pendingStartedAt) return;
-            if (Date.now() - Number(state.pendingStartedAt || 0) < SUBMIT_ACK_TIMEOUT_MS) return;
-            if (nativeRunBusy(nativeInput()) || state.pythonBusy) return;
-            const currentDraft = readDraft();
-            if (!currentDraft) {
-              writeDraft(pending);
-              clearPending();
-              state.pendingStartedAt = 0;
-              state.submitToken += 1;
-              const d = ensureOverlay(nativeInput());
-              if (d) d.value = pending;
-              return;
-            }
-            // Never discard PENDING merely because the user already typed the following turn.
-            // Keep the immutable submitted inquiry and retry it independently of the newer draft.
-            state.pendingStartedAt = Date.now();
-            state.lastClickAt = 0;
-            const token = ++state.submitToken;
-            root.requestAnimationFrame(()=>attemptPendingSubmit(token,0));
-          }
-
-          function submitPreparedDraft() {
-            const input = nativeInput();
-            if (!input || effectiveBusy(input) || readPending()) return false;
-            const draftNode = overlay();
-            const value = String(draftNode?.value || readDraft() || "");
-            if (!value.trim()) return false;
-
-            writePending(value);
-            clearDraft();
-            if (draftNode) draftNode.value = "";
-            state.pendingStartedAt = Date.now();
-            state.lastClickAt = 0;
-            const token = ++state.submitToken;
-            root.requestAnimationFrame(()=>attemptPendingSubmit(token,0));
-            scheduleApply();
-            return true;
-          }
-
-          function isActualSendControl(target) {
-            if (!target) return false;
-            if (target.id === SEND_PROXY_ID) return true;
-            if (target.matches?.('button[data-testid="stChatInputSubmitButton"]')) return true;
-            if (target.matches?.('button[type="submit"]') && target.id !== VOICE_ID) return true;
-            return false;
-          }
-
-          function syncProxyState(busy, draftValue, pendingValue) {
-            const proxy = sendProxy();
-            if (!proxy) return;
-            const ownsDraftFlow = Boolean(overlay() || draftValue || pendingValue || busy);
-            if (!ownsDraftFlow) return; // legacy controller owns normal native-input state
-            const enabled = Boolean(!busy && !pendingValue && String(draftValue || "").trim());
-            try {
-              proxy.disabled = !enabled;
-              proxy.setAttribute("aria-disabled", enabled ? "false" : "true");
-              proxy.setAttribute("title", enabled ? "Send message" : (busy ? "Wait for the current response to finish" : "Send message"));
-            } catch (error) {}
-          }
-
-          function apply() {
-            state.scheduled=false;
-            const input=nativeInput();
-            if (!input) return;
-            const nativeBusy=nativeRunBusy(input);
-            const busy=Boolean(state.pythonBusy || nativeBusy);
-            if (nativeBusy) acknowledgePendingIfNativeBusy(input);
-            else recoverOrRetryFailedPending();
-
-            const draftValue=readDraft();
-            const pendingValue=readPending();
-            if (busy || draftValue || pendingValue) {
-              const d=ensureOverlay(input);
-              if (d && doc.activeElement !== d && String(d.value || "") !== draftValue) d.value=draftValue;
-            } else {
-              removeOverlay();
-            }
-            forceMicUsable();
-            syncProxyState(busy,draftValue,pendingValue);
-          }
-
-          function scheduleApply() {
-            if (state.scheduled) return;
-            state.scheduled=true;
-            root.requestAnimationFrame(apply);
-          }
-
-          function onComposerClickCapture(event) {
-            if (state.internalClick) return;
-            const target=event.target?.closest?.("button");
-            if (!target || target.id === VOICE_ID || !isActualSendControl(target)) return;
-            const c=composer();
-            if (!c || !c.contains(target)) return;
-            const input=nativeInput();
-            if (!input || effectiveBusy(input) || readPending()) return;
-            const value=readDraft();
-            if (!String(value || "").trim()) return;
-            event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
-            submitPreparedDraft();
-          }
-
-          function setPythonBusy(value) { state.pythonBusy=Boolean(value); scheduleApply(); }
-
-          doc.addEventListener("click",onVoiceClickCapture,true);
-          doc.addEventListener("click",onComposerClickCapture,true);
-          root.addEventListener("resize",scheduleApply,true);
-          root.addEventListener("scroll",scheduleApply,true);
-          if (root.visualViewport) {
-            root.visualViewport.addEventListener("resize",scheduleApply);
-            root.visualViewport.addEventListener("scroll",scheduleApply);
-          }
-          const observeRoot=doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
-          state.observer=new MutationObserver(scheduleApply);
-          if (observeRoot) state.observer.observe(observeRoot,{childList:true,subtree:true,attributes:true,attributeFilter:["disabled","aria-disabled","style","class"]});
-          state.timer=root.setInterval(scheduleApply,60);
-
-          function cleanup() {
-            try { state.observer?.disconnect(); } catch (error) {}
-            try { root.clearInterval(state.timer); } catch (error) {}
-            try { state.voiceRecognition?.stop?.(); } catch (error) {}
-            try { doc.removeEventListener("click",onVoiceClickCapture,true); } catch (error) {}
-            try { doc.removeEventListener("click",onComposerClickCapture,true); } catch (error) {}
-            try { root.removeEventListener("resize",scheduleApply,true); } catch (error) {}
-            try { root.removeEventListener("scroll",scheduleApply,true); } catch (error) {}
-            try { root.visualViewport?.removeEventListener("resize",scheduleApply); } catch (error) {}
-            try { root.visualViewport?.removeEventListener("scroll",scheduleApply); } catch (error) {}
-            forceMicUsable(); removeOverlay();
-          }
-
-          root[GLOBAL_KEY]={
-            setPythonBusy,refresh:scheduleApply,cleanup,
-            hasDraft:()=>Boolean(readDraft()),
-            draftValue:()=>String(readDraft() || ""),
-            pendingValue:()=>String(readPending() || ""),
-            submitDraft:submitPreparedDraft,
-          };
-          if (typeof root[PY_BUSY_KEY] === "boolean") {
-            setPythonBusy(root[PY_BUSY_KEY]); delete root[PY_BUSY_KEY];
-          }
-          scheduleApply();
-        })();
-        </script>
-        """
-    )
-
-
-def _set_chat_composer_busy_v69468(is_busy):
-    """Mirror structured-tool Python lifecycle into the v69468 browser controller."""
-    busy_js_v69468 = "true" if bool(is_busy) else "false"
-    _run_invisible_trusted_browser_script_v69453(
-        f"""
-        <script>
-        (() => {{
-          try {{
-            const root = window;
-            const controller = root.__atpChatTurnGuardV69468;
-            if (controller && typeof controller.setPythonBusy === "function") {{
-              controller.setPythonBusy({busy_js_v69468});
-            }} else {{
-              root.__atpChatTurnGuardPendingV69468 = {busy_js_v69468};
-            }}
-          }} catch (error) {{}}
-        }})();
-        </script>
-        """
-    )
-
 def _sync_native_chat_send_arrow_for_attachments(has_attachments):
     """Enable the existing native chat send arrow for attachment-only turns.
 
@@ -8368,11 +6116,11 @@ def _sync_native_chat_send_arrow_for_attachments(has_attachments):
     """
     enabled = "true" if bool(has_attachments) else "false"
     sentinel_json = json.dumps(ATTACHMENT_ONLY_CHAT_SENTINEL)
-    _run_invisible_trusted_browser_script_v69453(
+    components.html(
         f"""
         <script>
         (() => {{
-          const parentWindow = window;
+          const parentWindow = window.parent;
           const doc = parentWindow.document;
           const sentinel = {sentinel_json};
           const hasAttachments = {enabled};
@@ -8416,6 +6164,8 @@ def _sync_native_chat_send_arrow_for_attachments(has_attachments):
         }})();
         </script>
         """,
+        height=0,
+        width=0,
     )
 
 
@@ -8589,998 +6339,995 @@ def managed_file_uploader(
 
 
 
-def _install_authenticated_app_css_v69484():
-    """Emit authenticated app/table/history CSS after auth instead of blocking cookie restore."""
-    inject_base_css()
+inject_base_css()
 
-    # v69368: mobile table CSS is injected once at app level instead of inside
-    # assistant response HTML. This keeps streamed assistant content free of <style>
-    # blocks while preserving desktop behavior and enabling horizontal swipe on phones.
-    st.markdown(
-        """
-        <style>
-        @media (max-width: 767.98px) {
-            .atp-mobile-table-wrap-v69368 {
-                display: block !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                overflow-x: auto !important;
-                overflow-y: hidden !important;
-                -webkit-overflow-scrolling: touch !important;
-                overscroll-behavior-x: contain !important;
-            }
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 {
-                min-width: 900px !important;
-                width: 900px !important;
-                max-width: none !important;
-                table-layout: fixed !important;
-            }
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 {
-                min-width: 780px !important;
-                width: 780px !important;
-                max-width: none !important;
-                table-layout: fixed !important;
-            }
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 {
-                min-width: 700px !important;
-                width: 700px !important;
-                max-width: none !important;
-                table-layout: fixed !important;
-            }
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-3minus-v69368 {
-                min-width: 620px !important;
-                width: 620px !important;
-                max-width: none !important;
-                table-layout: fixed !important;
-            }
-            .atp-mobile-table-wrap-v69368 th,
-            .atp-mobile-table-wrap-v69368 td {
-                vertical-align: top !important;
-                white-space: normal !important;
-                word-break: normal !important;
-                overflow-wrap: normal !important;
-                hyphens: none !important;
-            }
-            .atp-mobile-table-wrap-v69368 th { line-height: 1.28 !important; }
-            .atp-mobile-table-wrap-v69368 td { line-height: 1.38 !important; }
-            .atp-mobile-table-wrap-v69368 th:last-child,
-            .atp-mobile-table-wrap-v69368 td:last-child {
-                overflow-wrap: anywhere !important;
-                word-break: break-word !important;
-            }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # v69410: mobile-only table presentation. 4+ column tables become stacked cards
-    # so product/specification tables stay readable instead of compressing headers
-    # into one-character columns. Desktop rendering is intentionally unchanged.
-    st.markdown(
-        """
-        <style>
-        @media (max-width: 767.98px) {
-            .atp-mobile-table-wrap-v69368 {
-                display: block !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                overflow-x: auto !important;
-                overflow-y: visible !important;
-                -webkit-overflow-scrolling: touch !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 {
-                display: block !important;
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: 100% !important;
-                table-layout: auto !important;
-                border-collapse: separate !important;
-                border-spacing: 0 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead {
-                display: none !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody {
-                display: block !important;
-                width: 100% !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
-                display: block !important;
-                width: 100% !important;
-                margin: 0 0 12px 0 !important;
-                border: 1px solid rgba(128,128,128,.34) !important;
-                border-radius: 10px !important;
-                overflow: hidden !important;
-                background: transparent !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td {
-                display: grid !important;
-                grid-template-columns: minmax(104px, 34%) minmax(0, 1fr) !important;
-                gap: 10px !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                box-sizing: border-box !important;
-                padding: 9px 11px !important;
-                margin: 0 !important;
-                border: 0 !important;
-                border-bottom: 1px solid rgba(128,128,128,.22) !important;
-                text-align: left !important;
-                vertical-align: top !important;
-                white-space: normal !important;
-                word-break: normal !important;
-                overflow-wrap: anywhere !important;
-                line-height: 1.42 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td:last-child,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td:last-child,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td:last-child {
-                border-bottom: 0 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
-                content: attr(data-atp-label) !important;
-                display: block !important;
-                min-width: 0 !important;
-                font-weight: 700 !important;
-                line-height: 1.35 !important;
-                white-space: normal !important;
-                overflow-wrap: break-word !important;
-                opacity: .92 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-3minus-v69368 {
-                min-width: 620px !important;
-                width: 620px !important;
-                max-width: none !important;
-                table-layout: fixed !important;
-            }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-
-    # v69412: container-width responsive cards. This supplements the old viewport
-    # media query and keys off the actual assistant-table wrapper width. It fixes
-    # mobile Safari/embedded layouts where the page viewport can remain desktop-ish
-    # while the chat bubble itself is narrow.
-    st.markdown(
-        """
-        <style>
-        .atp-mobile-table-wrap-v69368 {
-            container-type: inline-size;
-            container-name: atp-table-v69412;
-        }
-
-        @container atp-table-v69412 (max-width: 720px) {
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 {
-                display: block !important;
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: 100% !important;
-                table-layout: auto !important;
-                border-collapse: separate !important;
-                border-spacing: 0 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead {
-                display: none !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody {
-                display: block !important;
-                width: 100% !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
-                display: block !important;
-                width: 100% !important;
-                margin: 0 0 14px 0 !important;
-                border: 1px solid rgba(148,163,184,.28) !important;
-                border-radius: 12px !important;
-                overflow: hidden !important;
-                background: rgba(15,23,42,.18) !important;
-                box-shadow: 0 1px 2px rgba(0,0,0,.08) !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td {
-                display: grid !important;
-                grid-template-columns: minmax(94px, 30%) minmax(0, 1fr) !important;
-                gap: 10px !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                box-sizing: border-box !important;
-                padding: 10px 12px !important;
-                margin: 0 !important;
-                border: 0 !important;
-                border-bottom: 1px solid rgba(148,163,184,.18) !important;
-                text-align: left !important;
-                vertical-align: top !important;
-                white-space: normal !important;
-                word-break: normal !important;
-                overflow-wrap: anywhere !important;
-                line-height: 1.45 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td:last-child,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td:last-child,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td:last-child {
-                border-bottom: 0 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
-                content: attr(data-atp-label) !important;
-                display: block !important;
-                min-width: 0 !important;
-                font-weight: 700 !important;
-                line-height: 1.35 !important;
-                white-space: normal !important;
-                overflow-wrap: normal !important;
-                word-break: normal !important;
-                opacity: .9 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:first-child {
-                display: block !important;
-                font-weight: 800 !important;
-                font-size: 1.02rem !important;
-                padding: 11px 12px !important;
-                background: rgba(59,130,246,.10) !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:first-child::before {
-                content: "Option " !important;
-                display: inline !important;
-                margin-right: 3px !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:nth-child(2) {
-                grid-template-columns: 1fr !important;
-                gap: 5px !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:nth-child(2)::before {
-                content: "Product" !important;
-            }
-
-            .atp-view-product-link-v69412 {
-                display: inline-flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                min-height: 42px !important;
-                padding: 9px 14px !important;
-                border-radius: 9px !important;
-                text-decoration: none !important;
-                font-weight: 700 !important;
-                white-space: nowrap !important;
-                border: 1px solid currentColor !important;
-            }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-
-    # v69419: make the wrapper a real CSS container, then keep the common 4-column
-    # product result as an adaptive table whenever there is enough chat-bubble width.
-    # Very narrow containers and 5+/6+ column specification tables keep the proven
-    # stacked-card presentation.
-    st.markdown(
-        """
-        <style>
+# v69368: mobile table CSS is injected once at app level instead of inside
+# assistant response HTML. This keeps streamed assistant content free of <style>
+# blocks while preserving desktop behavior and enabling horizontal swipe on phones.
+st.markdown(
+    """
+    <style>
+    @media (max-width: 767.98px) {
         .atp-mobile-table-wrap-v69368 {
             display: block !important;
             width: 100% !important;
             max-width: 100% !important;
-            min-width: 0 !important;
-            box-sizing: border-box !important;
-            container-type: inline-size !important;
-            container-name: atp-table-v69412 !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            -webkit-overflow-scrolling: touch !important;
+            overscroll-behavior-x: contain !important;
         }
-
-        @container atp-table-v69412 (min-width: 351px) and (max-width: 720px) {
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 {
-                display: table !important;
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: 100% !important;
-                table-layout: fixed !important;
-                border-collapse: collapse !important;
-                border-spacing: 0 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 colgroup {
-                display: table-column-group !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-option-v69419 {
-                width: clamp(42px, 10cqw, 54px) !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-fitment-v69419 {
-                width: clamp(62px, 17cqw, 82px) !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-link-v69419 {
-                width: clamp(84px, 22cqw, 108px) !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-product-v69419 {
-                width: auto !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 thead {
-                display: table-header-group !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tbody {
-                display: table-row-group !important;
-                width: auto !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr {
-                display: table-row !important;
-                width: auto !important;
-                margin: 0 !important;
-                border: 0 !important;
-                border-radius: 0 !important;
-                overflow: visible !important;
-                background: transparent !important;
-                box-shadow: none !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 th,
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 td {
-                display: table-cell !important;
-                width: auto !important;
-                max-width: none !important;
-                box-sizing: border-box !important;
-                padding: clamp(7px, 1.8cqw, 10px) clamp(5px, 1.6cqw, 9px) !important;
-                margin: 0 !important;
-                border: 1px solid rgba(148,163,184,.26) !important;
-                text-align: left !important;
-                vertical-align: top !important;
-                white-space: normal !important;
-                word-break: normal !important;
-                overflow-wrap: break-word !important;
-                line-height: 1.38 !important;
-                background: transparent !important;
-                font-size: clamp(.84rem, 3.45cqw, .98rem) !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 th {
-                font-weight: 700 !important;
-                line-height: 1.25 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 td::before {
-                content: none !important;
-                display: none !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:first-child {
-                display: table-cell !important;
-                width: auto !important;
-                font-weight: 600 !important;
-                font-size: inherit !important;
-                padding: clamp(7px, 1.8cqw, 10px) clamp(5px, 1.6cqw, 9px) !important;
-                background: transparent !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:first-child::before,
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:nth-child(2)::before {
-                content: none !important;
-                display: none !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:nth-child(2) {
-                display: table-cell !important;
-                width: auto !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 .atp-view-product-link-v69412 {
-                display: inline !important;
-                min-height: 0 !important;
-                padding: 0 !important;
-                border: 0 !important;
-                border-radius: 0 !important;
-                white-space: normal !important;
-                line-height: 1.35 !important;
-                text-decoration: underline !important;
-            }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 {
+            min-width: 900px !important;
+            width: 900px !important;
+            max-width: none !important;
+            table-layout: fixed !important;
         }
-
-        /* Extra-narrow phone/chat bubbles retain the card layout automatically. */
-        @container atp-table-v69412 (max-width: 350px) {
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 colgroup {
-                display: none !important;
-            }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 {
+            min-width: 780px !important;
+            width: 780px !important;
+            max-width: none !important;
+            table-layout: fixed !important;
         }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-    # v69423: iPhone / touch-device hard stop against the v69419 adaptive 4-column
-    # table override. Mobile Safari may expose a desktop-ish layout viewport even
-    # while the actual chat region is phone-width, so viewport/container queries
-    # alone are not sufficient. On coarse-pointer/touch devices, every 4+ column
-    # assistant table is rendered as readable stacked cards. Desktop remains unchanged.
-    st.markdown(
-        """
-        <style>
-        @media (hover: none) and (pointer: coarse) {
-            .atp-mobile-table-wrap-v69368 {
-                display: block !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                min-width: 0 !important;
-                overflow: visible !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368,
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 {
-                display: block !important;
-                width: 100% !important;
-                min-width: 0 !important;
-                max-width: 100% !important;
-                table-layout: auto !important;
-                border-collapse: separate !important;
-                border-spacing: 0 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead {
-                display: none !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody {
-                display: block !important;
-                width: 100% !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
-                display: block !important;
-                width: 100% !important;
-                margin: 0 0 12px 0 !important;
-                border: 1px solid rgba(148,163,184,.28) !important;
-                border-radius: 12px !important;
-                overflow: hidden !important;
-                background: rgba(15,23,42,.18) !important;
-                box-shadow: 0 1px 2px rgba(0,0,0,.08) !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td,
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 td {
-                display: grid !important;
-                grid-template-columns: minmax(96px, 31%) minmax(0, 1fr) !important;
-                gap: 10px !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                box-sizing: border-box !important;
-                padding: 10px 12px !important;
-                margin: 0 !important;
-                border: 0 !important;
-                border-bottom: 1px solid rgba(148,163,184,.18) !important;
-                text-align: left !important;
-                vertical-align: top !important;
-                white-space: normal !important;
-                word-break: normal !important;
-                overflow-wrap: anywhere !important;
-                line-height: 1.42 !important;
-                font-size: .94rem !important;
-                background: transparent !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td:last-child,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td:last-child,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td:last-child {
-                border-bottom: 0 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
-                content: attr(data-atp-label) !important;
-                display: block !important;
-                min-width: 0 !important;
-                font-weight: 700 !important;
-                line-height: 1.3 !important;
-                white-space: normal !important;
-                overflow-wrap: break-word !important;
-                word-break: normal !important;
-                opacity: .92 !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:first-child {
-                display: block !important;
-                width: 100% !important;
-                font-weight: 800 !important;
-                font-size: 1rem !important;
-                padding: 11px 12px !important;
-                background: rgba(59,130,246,.10) !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:first-child::before {
-                content: "Option " !important;
-                display: inline !important;
-                margin-right: 3px !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:nth-child(2) {
-                display: grid !important;
-                grid-template-columns: minmax(96px, 31%) minmax(0, 1fr) !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:nth-child(2)::before {
-                content: attr(data-atp-label) !important;
-                display: block !important;
-            }
-
-            .atp-mobile-table-wrap-v69368 .atp-view-product-link-v69412 {
-                display: inline-flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                width: auto !important;
-                min-height: 40px !important;
-                padding: 8px 12px !important;
-                border: 1px solid currentColor !important;
-                border-radius: 9px !important;
-                white-space: nowrap !important;
-                text-decoration: none !important;
-                font-weight: 700 !important;
-            }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 {
+            min-width: 700px !important;
+            width: 700px !important;
+            max-width: none !important;
+            table-layout: fixed !important;
         }
-
-        /* iOS Safari-specific reinforcement for cases where pointer media features
-           are reported inconsistently inside an embedded/installed web app. */
-        @supports (-webkit-touch-callout: none) {
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 {
-                display: block !important;
-                width: 100% !important;
-                table-layout: auto !important;
-            }
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup {
-                display: none !important;
-            }
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
-                display: block !important;
-                width: 100% !important;
-            }
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td {
-                display: grid !important;
-                grid-template-columns: minmax(96px, 31%) minmax(0, 1fr) !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                white-space: normal !important;
-                overflow-wrap: anywhere !important;
-            }
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
-            .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
-                content: attr(data-atp-label) !important;
-                display: block !important;
-                font-weight: 700 !important;
-            }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-3minus-v69368 {
+            min-width: 620px !important;
+            width: 620px !important;
+            max-width: none !important;
+            table-layout: fixed !important;
         }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-    # v69444: native phone cards using only tags preserved by the final chat
-    # safety sweep. v69442 used div/span/article, which the renderer strips.
-    st.markdown(
-        """
-        <style>
-        .atp-mobile-card-list-v69444 {
-            display: none;
-            width: 100%;
-            max-width: 100%;
-            padding: 0 !important;
-            margin: 10px 0 16px 0 !important;
-            list-style: none !important;
-            box-sizing: border-box;
-        }
-
-        @media (max-width: 900px) {
-            table.atp-mobile-cols-4-v69368,
-            table.atp-mobile-cols-5-v69368,
-            table.atp-mobile-cols-6plus-v69368 {
-                display: none !important;
-            }
-
-            .atp-mobile-card-list-v69444 {
-                display: block !important;
-            }
-
-            .atp-result-card-v69444 {
-                display: block !important;
-                width: 100% !important;
-                max-width: 100% !important;
-                min-width: 0 !important;
-                margin: 0 0 14px 0 !important;
-                padding: 0 !important;
-                list-style: none !important;
-                box-sizing: border-box !important;
-                overflow: hidden !important;
-                border: 1px solid rgba(148,163,184,.28) !important;
-                border-radius: 14px !important;
-                background: rgba(15,23,42,.20) !important;
-                box-shadow: 0 2px 8px rgba(0,0,0,.08) !important;
-            }
-
-            .atp-result-card-title-v69444 {
-                display: block !important;
-                width: 100% !important;
-                box-sizing: border-box !important;
-                padding: 13px 14px 12px 14px !important;
-                border-bottom: 1px solid rgba(148,163,184,.20) !important;
-                background: rgba(59,130,246,.09) !important;
-                font-size: 1rem !important;
-                font-weight: 760 !important;
-                line-height: 1.42 !important;
-                overflow-wrap: anywhere !important;
-            }
-
-            .atp-result-option-v69444 {
-                display: block !important;
-                margin: 0 0 6px 0 !important;
-                font-size: .78rem !important;
-                font-weight: 800 !important;
-                line-height: 1.2 !important;
-                opacity: .84 !important;
-            }
-
-            .atp-result-fields-v69444 {
-                display: block !important;
-                width: 100% !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                list-style: none !important;
-            }
-
-            .atp-result-field-v69444 {
-                display: grid !important;
-                grid-template-columns: minmax(90px, 31%) minmax(0, 1fr) !important;
-                gap: 12px !important;
-                width: 100% !important;
-                box-sizing: border-box !important;
-                padding: 11px 14px !important;
-                margin: 0 !important;
-                list-style: none !important;
-                border-bottom: 1px solid rgba(148,163,184,.16) !important;
-                align-items: start !important;
-            }
-
-            .atp-result-field-v69444:last-child {
-                border-bottom: 0 !important;
-            }
-
-            .atp-result-label-v69444 {
-                display: block !important;
-                min-width: 0 !important;
-                font-size: .82rem !important;
-                font-weight: 760 !important;
-                line-height: 1.35 !important;
-                opacity: .86 !important;
-            }
-
-            .atp-result-value-v69444 {
-                display: block !important;
-                min-width: 0 !important;
-                font-size: .95rem !important;
-                line-height: 1.48 !important;
-                overflow-wrap: anywhere !important;
-                word-break: normal !important;
-            }
-
-            .atp-result-value-v69444 .atp-view-product-link-v69412 {
-                display: inline-flex !important;
-                width: 100% !important;
-                min-height: 42px !important;
-                box-sizing: border-box !important;
-                align-items: center !important;
-                justify-content: center !important;
-                padding: 9px 12px !important;
-                border-radius: 10px !important;
-                border: 1px solid currentColor !important;
-                text-decoration: none !important;
-                font-weight: 750 !important;
-                white-space: nowrap !important;
-            }
-        }
-
-        @supports (-webkit-touch-callout: none) {
-            table.atp-mobile-cols-4-v69368,
-            table.atp-mobile-cols-5-v69368,
-            table.atp-mobile-cols-6plus-v69368 {
-                display: none !important;
-            }
-            .atp-mobile-card-list-v69444 {
-                display: block !important;
-            }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-    # Final isolated history-row presentation.
-    # The title and action menu are siblings; no Streamlit columns are used.
-    st.markdown(
-        """
-        <style>
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"] {
-            position: relative !important;
-            width: 100% !important;
-            height: 38px !important;
-            min-height: 38px !important;
-            max-height: 38px !important;
-            margin: 0 0 4px 0 !important;
-            padding: 0 3px !important;
-            box-sizing: border-box !important;
-            overflow: hidden !important;
-            text-align: left !important;
-        }
-
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        > div[data-testid="stVerticalBlock"] {
-            position: relative !important;
-            display: block !important;
-            width: 100% !important;
-            height: 38px !important;
-            min-height: 38px !important;
-            max-height: 38px !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            gap: 0 !important;
-            overflow: visible !important;
-        }
-
-        /* The title control occupies the complete row width. */
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        div[class*="st-key-open_"],
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        div[class*="st-key-open_"] .stButton,
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        div[class*="st-key-open_"] div[data-testid="stButton"] {
-            display: block !important;
-            width: 100% !important;
-            min-width: 0 !important;
-            max-width: 100% !important;
-            height: 38px !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-            text-align: left !important;
-        }
-
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        div[class*="st-key-open_"] button {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: flex-start !important;
-            width: 100% !important;
-            min-width: 0 !important;
-            max-width: 100% !important;
-            height: 38px !important;
-            min-height: 38px !important;
-            max-height: 38px !important;
-            margin: 0 !important;
-            padding: 0 34px 0 5px !important;
-            box-sizing: border-box !important;
-            overflow: hidden !important;
-            text-align: left !important;
-            white-space: nowrap !important;
+        .atp-mobile-table-wrap-v69368 th,
+        .atp-mobile-table-wrap-v69368 td {
+            vertical-align: top !important;
+            white-space: normal !important;
             word-break: normal !important;
             overflow-wrap: normal !important;
+            hyphens: none !important;
+        }
+        .atp-mobile-table-wrap-v69368 th { line-height: 1.28 !important; }
+        .atp-mobile-table-wrap-v69368 td { line-height: 1.38 !important; }
+        .atp-mobile-table-wrap-v69368 th:last-child,
+        .atp-mobile-table-wrap-v69368 td:last-child {
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# v69410: mobile-only table presentation. 4+ column tables become stacked cards
+# so product/specification tables stay readable instead of compressing headers
+# into one-character columns. Desktop rendering is intentionally unchanged.
+st.markdown(
+    """
+    <style>
+    @media (max-width: 767.98px) {
+        .atp-mobile-table-wrap-v69368 {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            overflow-x: auto !important;
+            overflow-y: visible !important;
+            -webkit-overflow-scrolling: touch !important;
         }
 
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        div[class*="st-key-open_"] button
-        div[data-testid="stMarkdownContainer"],
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        div[class*="st-key-open_"] button
-        div[data-testid="stMarkdownContainer"] p,
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        div[class*="st-key-open_"] button span {
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 {
             display: block !important;
             width: 100% !important;
             min-width: 0 !important;
             max-width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-            text-align: left !important;
-            white-space: nowrap !important;
-            text-overflow: ellipsis !important;
-            word-break: normal !important;
-            overflow-wrap: normal !important;
-            line-height: 1.2 !important;
+            table-layout: auto !important;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
         }
 
-        /* Anchor the popover itself at the far-right center.
-           This selector works across the current Streamlit DOM structure. */
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        [data-testid="stPopover"] {
-            position: absolute !important;
-            top: 50% !important;
-            right: 3px !important;
-            transform: translateY(-50%) !important;
-            z-index: 80 !important;
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead {
+            display: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody {
             display: block !important;
-            width: 28px !important;
-            min-width: 28px !important;
-            max-width: 28px !important;
-            height: 28px !important;
-            min-height: 28px !important;
-            max-height: 28px !important;
+            width: 100% !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
+            display: block !important;
+            width: 100% !important;
+            margin: 0 0 12px 0 !important;
+            border: 1px solid rgba(128,128,128,.34) !important;
+            border-radius: 10px !important;
+            overflow: hidden !important;
+            background: transparent !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td {
+            display: grid !important;
+            grid-template-columns: minmax(104px, 34%) minmax(0, 1fr) !important;
+            gap: 10px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 9px 11px !important;
             margin: 0 !important;
-            padding: 0 !important;
-            overflow: visible !important;
-            opacity: 0 !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-            transition: opacity 0.12s ease !important;
+            border: 0 !important;
+            border-bottom: 1px solid rgba(128,128,128,.22) !important;
+            text-align: left !important;
+            vertical-align: top !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: anywhere !important;
+            line-height: 1.42 !important;
         }
 
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]:hover
-        [data-testid="stPopover"],
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]:focus-within
-        [data-testid="stPopover"],
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        [data-testid="stPopover"]:has(button[aria-expanded="true"]) {
-            opacity: 1 !important;
-            visibility: visible !important;
-            pointer-events: auto !important;
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td:last-child,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td:last-child,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td:last-child {
+            border-bottom: 0 !important;
         }
 
-        /* Prevent the popover's Streamlit wrapper from hiding or clipping it. */
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
-            position: static !important;
-            width: 0 !important;
-            height: 0 !important;
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
+            content: attr(data-atp-label) !important;
+            display: block !important;
             min-width: 0 !important;
-            min-height: 0 !important;
+            font-weight: 700 !important;
+            line-height: 1.35 !important;
+            white-space: normal !important;
+            overflow-wrap: break-word !important;
+            opacity: .92 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-3minus-v69368 {
+            min-width: 620px !important;
+            width: 620px !important;
+            max-width: none !important;
+            table-layout: fixed !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+
+# v69412: container-width responsive cards. This supplements the old viewport
+# media query and keys off the actual assistant-table wrapper width. It fixes
+# mobile Safari/embedded layouts where the page viewport can remain desktop-ish
+# while the chat bubble itself is narrow.
+st.markdown(
+    """
+    <style>
+    .atp-mobile-table-wrap-v69368 {
+        container-type: inline-size;
+        container-name: atp-table-v69412;
+    }
+
+    @container atp-table-v69412 (max-width: 720px) {
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 {
+            display: block !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            table-layout: auto !important;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead {
+            display: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody {
+            display: block !important;
+            width: 100% !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
+            display: block !important;
+            width: 100% !important;
+            margin: 0 0 14px 0 !important;
+            border: 1px solid rgba(148,163,184,.28) !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
+            background: rgba(15,23,42,.18) !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,.08) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td {
+            display: grid !important;
+            grid-template-columns: minmax(94px, 30%) minmax(0, 1fr) !important;
+            gap: 10px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 10px 12px !important;
             margin: 0 !important;
-            padding: 0 !important;
-            overflow: visible !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-            pointer-events: none !important;
+            border: 0 !important;
+            border-bottom: 1px solid rgba(148,163,184,.18) !important;
+            text-align: left !important;
+            vertical-align: top !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: anywhere !important;
+            line-height: 1.45 !important;
         }
 
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]:hover
-        div[data-testid="stElementContainer"]:has([data-testid="stPopover"]),
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]:focus-within
-        div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
-            pointer-events: auto !important;
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td:last-child,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td:last-child,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td:last-child {
+            border-bottom: 0 !important;
         }
 
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_"]
-        [data-testid="stPopover"] > button {
-            display: flex !important;
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
+            content: attr(data-atp-label) !important;
+            display: block !important;
+            min-width: 0 !important;
+            font-weight: 700 !important;
+            line-height: 1.35 !important;
+            white-space: normal !important;
+            overflow-wrap: normal !important;
+            word-break: normal !important;
+            opacity: .9 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:first-child {
+            display: block !important;
+            font-weight: 800 !important;
+            font-size: 1.02rem !important;
+            padding: 11px 12px !important;
+            background: rgba(59,130,246,.10) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:first-child::before {
+            content: "Option " !important;
+            display: inline !important;
+            margin-right: 3px !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:nth-child(2) {
+            grid-template-columns: 1fr !important;
+            gap: 5px !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:nth-child(2)::before {
+            content: "Product" !important;
+        }
+
+        .atp-view-product-link-v69412 {
+            display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
-            width: 28px !important;
-            min-width: 28px !important;
-            max-width: 28px !important;
-            height: 28px !important;
-            min-height: 28px !important;
-            max-height: 28px !important;
+            min-height: 42px !important;
+            padding: 9px 14px !important;
+            border-radius: 9px !important;
+            text-decoration: none !important;
+            font-weight: 700 !important;
+            white-space: nowrap !important;
+            border: 1px solid currentColor !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+
+# v69419: make the wrapper a real CSS container, then keep the common 4-column
+# product result as an adaptive table whenever there is enough chat-bubble width.
+# Very narrow containers and 5+/6+ column specification tables keep the proven
+# stacked-card presentation.
+st.markdown(
+    """
+    <style>
+    .atp-mobile-table-wrap-v69368 {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+        container-type: inline-size !important;
+        container-name: atp-table-v69412 !important;
+    }
+
+    @container atp-table-v69412 (min-width: 351px) and (max-width: 720px) {
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 {
+            display: table !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+            border-spacing: 0 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 colgroup {
+            display: table-column-group !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-option-v69419 {
+            width: clamp(42px, 10cqw, 54px) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-fitment-v69419 {
+            width: clamp(62px, 17cqw, 82px) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-link-v69419 {
+            width: clamp(84px, 22cqw, 108px) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 col.atp-product-col-product-v69419 {
+            width: auto !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 thead {
+            display: table-header-group !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tbody {
+            display: table-row-group !important;
+            width: auto !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr {
+            display: table-row !important;
+            width: auto !important;
+            margin: 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            overflow: visible !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 th,
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 td {
+            display: table-cell !important;
+            width: auto !important;
+            max-width: none !important;
+            box-sizing: border-box !important;
+            padding: clamp(7px, 1.8cqw, 10px) clamp(5px, 1.6cqw, 9px) !important;
+            margin: 0 !important;
+            border: 1px solid rgba(148,163,184,.26) !important;
+            text-align: left !important;
+            vertical-align: top !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
+            line-height: 1.38 !important;
+            background: transparent !important;
+            font-size: clamp(.84rem, 3.45cqw, .98rem) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 th {
+            font-weight: 700 !important;
+            line-height: 1.25 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 td::before {
+            content: none !important;
+            display: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:first-child {
+            display: table-cell !important;
+            width: auto !important;
+            font-weight: 600 !important;
+            font-size: inherit !important;
+            padding: clamp(7px, 1.8cqw, 10px) clamp(5px, 1.6cqw, 9px) !important;
+            background: transparent !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:first-child::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:nth-child(2)::before {
+            content: none !important;
+            display: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 tr > td:nth-child(2) {
+            display: table-cell !important;
+            width: auto !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 .atp-view-product-link-v69412 {
+            display: inline !important;
+            min-height: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            border-radius: 0 !important;
+            white-space: normal !important;
+            line-height: 1.35 !important;
+            text-decoration: underline !important;
+        }
+    }
+
+    /* Extra-narrow phone/chat bubbles retain the card layout automatically. */
+    @container atp-table-v69412 (max-width: 350px) {
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 colgroup {
+            display: none !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# v69423: iPhone / touch-device hard stop against the v69419 adaptive 4-column
+# table override. Mobile Safari may expose a desktop-ish layout viewport even
+# while the actual chat region is phone-width, so viewport/container queries
+# alone are not sufficient. On coarse-pointer/touch devices, every 4+ column
+# assistant table is rendered as readable stacked cards. Desktop remains unchanged.
+st.markdown(
+    """
+    <style>
+    @media (hover: none) and (pointer: coarse) {
+        .atp-mobile-table-wrap-v69368 {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            overflow: visible !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 {
+            display: block !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            table-layout: auto !important;
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead {
+            display: none !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody {
+            display: block !important;
+            width: 100% !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
+            display: block !important;
+            width: 100% !important;
+            margin: 0 0 12px 0 !important;
+            border: 1px solid rgba(148,163,184,.28) !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
+            background: rgba(15,23,42,.18) !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,.08) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412.atp-mobile-cols-4-v69368 td {
+            display: grid !important;
+            grid-template-columns: minmax(96px, 31%) minmax(0, 1fr) !important;
+            gap: 10px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 10px 12px !important;
+            margin: 0 !important;
+            border: 0 !important;
+            border-bottom: 1px solid rgba(148,163,184,.18) !important;
+            text-align: left !important;
+            vertical-align: top !important;
+            white-space: normal !important;
+            word-break: normal !important;
+            overflow-wrap: anywhere !important;
+            line-height: 1.42 !important;
+            font-size: .94rem !important;
+            background: transparent !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td:last-child,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td:last-child,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td:last-child {
+            border-bottom: 0 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
+            content: attr(data-atp-label) !important;
+            display: block !important;
+            min-width: 0 !important;
+            font-weight: 700 !important;
+            line-height: 1.3 !important;
+            white-space: normal !important;
+            overflow-wrap: break-word !important;
+            word-break: normal !important;
+            opacity: .92 !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:first-child {
+            display: block !important;
+            width: 100% !important;
+            font-weight: 800 !important;
+            font-size: 1rem !important;
+            padding: 11px 12px !important;
+            background: rgba(59,130,246,.10) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:first-child::before {
+            content: "Option " !important;
+            display: inline !important;
+            margin-right: 3px !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:nth-child(2) {
+            display: grid !important;
+            grid-template-columns: minmax(96px, 31%) minmax(0, 1fr) !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 > table.atp-product-results-v69412 tr > td:nth-child(2)::before {
+            content: attr(data-atp-label) !important;
+            display: block !important;
+        }
+
+        .atp-mobile-table-wrap-v69368 .atp-view-product-link-v69412 {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: auto !important;
+            min-height: 40px !important;
+            padding: 8px 12px !important;
+            border: 1px solid currentColor !important;
+            border-radius: 9px !important;
+            white-space: nowrap !important;
+            text-decoration: none !important;
+            font-weight: 700 !important;
+        }
+    }
+
+    /* iOS Safari-specific reinforcement for cases where pointer media features
+       are reported inconsistently inside an embedded/installed web app. */
+    @supports (-webkit-touch-callout: none) {
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 {
+            display: block !important;
+            width: 100% !important;
+            table-layout: auto !important;
+        }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 thead,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 colgroup,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 colgroup {
+            display: none !important;
+        }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tbody,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 tr,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 tr {
+            display: block !important;
+            width: 100% !important;
+        }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td {
+            display: grid !important;
+            grid-template-columns: minmax(96px, 31%) minmax(0, 1fr) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+        }
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-6plus-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-5-v69368 td::before,
+        .atp-mobile-table-wrap-v69368 > table.atp-mobile-cols-4-v69368 td::before {
+            content: attr(data-atp-label) !important;
+            display: block !important;
+            font-weight: 700 !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# v69444: native phone cards using only tags preserved by the final chat
+# safety sweep. v69442 used div/span/article, which the renderer strips.
+st.markdown(
+    """
+    <style>
+    .atp-mobile-card-list-v69444 {
+        display: none;
+        width: 100%;
+        max-width: 100%;
+        padding: 0 !important;
+        margin: 10px 0 16px 0 !important;
+        list-style: none !important;
+        box-sizing: border-box;
+    }
+
+    @media (max-width: 900px) {
+        table.atp-mobile-cols-4-v69368,
+        table.atp-mobile-cols-5-v69368,
+        table.atp-mobile-cols-6plus-v69368 {
+            display: none !important;
+        }
+
+        .atp-mobile-card-list-v69444 {
+            display: block !important;
+        }
+
+        .atp-result-card-v69444 {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 0 !important;
+            margin: 0 0 14px 0 !important;
+            padding: 0 !important;
+            list-style: none !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+            border: 1px solid rgba(148,163,184,.28) !important;
+            border-radius: 14px !important;
+            background: rgba(15,23,42,.20) !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08) !important;
+        }
+
+        .atp-result-card-title-v69444 {
+            display: block !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 13px 14px 12px 14px !important;
+            border-bottom: 1px solid rgba(148,163,184,.20) !important;
+            background: rgba(59,130,246,.09) !important;
+            font-size: 1rem !important;
+            font-weight: 760 !important;
+            line-height: 1.42 !important;
+            overflow-wrap: anywhere !important;
+        }
+
+        .atp-result-option-v69444 {
+            display: block !important;
+            margin: 0 0 6px 0 !important;
+            font-size: .78rem !important;
+            font-weight: 800 !important;
+            line-height: 1.2 !important;
+            opacity: .84 !important;
+        }
+
+        .atp-result-fields-v69444 {
+            display: block !important;
+            width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-            border-radius: 7px !important;
-            line-height: 1 !important;
+            list-style: none !important;
         }
 
-        /* Pinned and Recent titles share the exact same left edge. */
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_pinned_"]::before,
-        section[data-testid="stSidebar"]
-        div[class*="st-key-history_row_active_pinned_"]::before {
+        .atp-result-field-v69444 {
+            display: grid !important;
+            grid-template-columns: minmax(90px, 31%) minmax(0, 1fr) !important;
+            gap: 12px !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 11px 14px !important;
+            margin: 0 !important;
+            list-style: none !important;
+            border-bottom: 1px solid rgba(148,163,184,.16) !important;
+            align-items: start !important;
+        }
+
+        .atp-result-field-v69444:last-child {
+            border-bottom: 0 !important;
+        }
+
+        .atp-result-label-v69444 {
+            display: block !important;
+            min-width: 0 !important;
+            font-size: .82rem !important;
+            font-weight: 760 !important;
+            line-height: 1.35 !important;
+            opacity: .86 !important;
+        }
+
+        .atp-result-value-v69444 {
+            display: block !important;
+            min-width: 0 !important;
+            font-size: .95rem !important;
+            line-height: 1.48 !important;
+            overflow-wrap: anywhere !important;
+            word-break: normal !important;
+        }
+
+        .atp-result-value-v69444 .atp-view-product-link-v69412 {
+            display: inline-flex !important;
+            width: 100% !important;
+            min-height: 42px !important;
+            box-sizing: border-box !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 9px 12px !important;
+            border-radius: 10px !important;
+            border: 1px solid currentColor !important;
+            text-decoration: none !important;
+            font-weight: 750 !important;
+            white-space: nowrap !important;
+        }
+    }
+
+    @supports (-webkit-touch-callout: none) {
+        table.atp-mobile-cols-4-v69368,
+        table.atp-mobile-cols-5-v69368,
+        table.atp-mobile-cols-6plus-v69368 {
             display: none !important;
-            content: none !important;
-            width: 0 !important;
         }
-
-        section[data-testid="stSidebar"] .history-row-meta {
-            display: none !important;
+        .atp-mobile-card-list-v69444 {
+            display: block !important;
         }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
+
+# Final isolated history-row presentation.
+# The title and action menu are siblings; no Streamlit columns are used.
+st.markdown(
+    """
+    <style>
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"] {
+        position: relative !important;
+        width: 100% !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        margin: 0 0 4px 0 !important;
+        padding: 0 3px !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    > div[data-testid="stVerticalBlock"] {
+        position: relative !important;
+        display: block !important;
+        width: 100% !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* The title control occupies the complete row width. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] .stButton,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] div[data-testid="stButton"] {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        height: 38px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        text-align: left !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        margin: 0 !important;
+        padding: 0 34px 0 5px !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] button
+    div[data-testid="stMarkdownContainer"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] button
+    div[data-testid="stMarkdownContainer"] p,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[class*="st-key-open_"] button span {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        text-align: left !important;
+        white-space: nowrap !important;
+        text-overflow: ellipsis !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+        line-height: 1.2 !important;
+    }
+
+    /* Anchor the popover itself at the far-right center.
+       This selector works across the current Streamlit DOM structure. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] {
+        position: absolute !important;
+        top: 50% !important;
+        right: 3px !important;
+        transform: translateY(-50%) !important;
+        z-index: 80 !important;
+        display: block !important;
+        width: 28px !important;
+        min-width: 28px !important;
+        max-width: 28px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        transition: opacity 0.12s ease !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:hover
+    [data-testid="stPopover"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:focus-within
+    [data-testid="stPopover"],
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"]:has(button[aria-expanded="true"]) {
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+    }
+
+    /* Prevent the popover's Streamlit wrapper from hiding or clipping it. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
+        position: static !important;
+        width: 0 !important;
+        height: 0 !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: none !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:hover
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]),
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]:focus-within
+    div[data-testid="stElementContainer"]:has([data-testid="stPopover"]) {
+        pointer-events: auto !important;
+    }
+
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_"]
+    [data-testid="stPopover"] > button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 28px !important;
+        min-width: 28px !important;
+        max-width: 28px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border-radius: 7px !important;
+        line-height: 1 !important;
+    }
+
+    /* Pinned and Recent titles share the exact same left edge. */
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_pinned_"]::before,
+    section[data-testid="stSidebar"]
+    div[class*="st-key-history_row_active_pinned_"]::before {
+        display: none !important;
+        content: none !important;
+        width: 0 !important;
+    }
+
+    section[data-testid="stSidebar"] .history-row-meta {
+        display: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 
@@ -9653,25 +7400,16 @@ def get_table_columns(table_name):
         if result.data:
             return [row["column_name"] for row in result.data if row.get("column_name")]
     except Exception:
-        _observe_silent_exception_v69451("get_table_columns@L7403")
+        pass
 
     # Safe minimum fallback only. These are columns used by the original app and are
     # usually present even in older schemas. Optional learning fields are filtered out
     # unless Supabase confirms they exist.
     fallback = {
-        # v69454: this table is a production-owned schema, not an arbitrary external
-        # table. If information_schema RPC is unavailable, preserve the complete
-        # known learning contract instead of silently stripping authoritative fields
-        # such as assistant/vehicle/solution/source_type. Supabase remains the final
-        # schema validator and will fail closed if an installation is genuinely older.
         "learned_knowledge": [
-            "id", "username", "record_type", "department", "category",
-            "assistant", "vehicle", "issue", "solution", "approved_answer",
-            "question", "keywords", "source_question", "source_answer",
-            "source_conversation_id", "confidence_score", "completeness_score",
-            "times_seen", "times_used", "search_count", "openai_file_id",
-            "vector_store_id", "synced", "embedding_status", "source_type",
-            "staff_confirmed", "approved", "created_by", "created_at", "updated_at"
+            "id", "question", "approved_answer", "keywords",
+            "source_conversation_id", "openai_file_id", "vector_store_id",
+            "synced", "created_at"
         ],
         "ai_analytics": [
             "id", "username", "assistant", "vehicle", "issue", "product",
@@ -9696,71 +7434,11 @@ def get_table_columns(table_name):
 
 
 
-_LEARNING_CORE_SCHEMA_FIELDS_V69456 = {
-    "assistant", "vehicle", "issue", "solution", "approved_answer",
-    "question", "keywords", "source_question", "source_answer",
-    "source_conversation_id", "confidence_score", "times_seen",
-    "openai_file_id", "vector_store_id", "synced",
-}
-
-# Optional metadata may legitimately be absent on older production schemas. These
-# fields must never make an otherwise authoritative learning transaction fail.
-_LEARNING_OPTIONAL_SCHEMA_FIELDS_V69456 = {
-    "username", "record_type", "department", "category", "source_type",
-    "staff_confirmed", "embedding_status", "completeness_score", "times_used",
-    "search_count", "approved", "created_by", "updated_at", "created_at",
-}
-_LEARNING_SCHEMA_MISSING_OPTIONAL_V69456 = set()
-_LEARNING_SCHEMA_MISSING_OPTIONAL_LOCK_V69456 = threading.Lock()
-
-
-def _learning_missing_column_from_error_v69456(error):
-    text_v69456 = str(error or "")
-    patterns_v69456 = (
-        r"Could not find the ['\"]([^'\"]+)['\"] column",
-        r"column ['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]? of .* does not exist",
-        r"['\"]column['\"]\s*:\s*['\"]([^'\"]+)['\"]",
-    )
-    for pattern_v69456 in patterns_v69456:
-        match_v69456 = re.search(pattern_v69456, text_v69456, flags=re.I)
-        if match_v69456:
-            return str(match_v69456.group(1) or "").strip()
-    return ""
-
-
-def _learning_known_missing_optional_v69456():
-    with _LEARNING_SCHEMA_MISSING_OPTIONAL_LOCK_V69456:
-        return set(_LEARNING_SCHEMA_MISSING_OPTIONAL_V69456)
-
-
-def _learning_mark_missing_optional_v69456(column_v69456):
-    column_v69456 = str(column_v69456 or "").strip()
-    if not column_v69456:
-        return
-    with _LEARNING_SCHEMA_MISSING_OPTIONAL_LOCK_V69456:
-        _LEARNING_SCHEMA_MISSING_OPTIONAL_V69456.add(column_v69456)
-
-
 def filter_payload_for_table(table_name, payload):
-    """Remove optional unknown fields, but never silently strip core learning authority."""
+    """Remove fields that do not exist in Supabase table to prevent PGRST204 errors."""
     columns = set(get_table_columns(table_name))
     if not columns:
         return payload
-    if str(table_name) == "learned_knowledge":
-        protected_v69454 = set(_LEARNING_CORE_SCHEMA_FIELDS_V69456)
-        missing_v69454 = sorted(
-            key for key in protected_v69454
-            if key in dict(payload or {}) and key not in columns
-        )
-        if missing_v69454:
-            diagnostic_log(
-                "learning_schema_contract_blocked_v69454",
-                missing=",".join(missing_v69454),
-            )
-            raise RuntimeError(
-                "Learning schema verification failed for required fields: "
-                + ", ".join(missing_v69454)
-            )
     return {k: v for k, v in payload.items() if k in columns}
 
 
@@ -9796,55 +7474,12 @@ def safe_select_rows(table_name, order_columns=None, limit=500):
         raise
 
 
-def _safe_learning_write_v69456(operation_v69456, payload_v69456, row_id_v69456=None):
-    clean_v69456 = dict(filter_payload_for_table("learned_knowledge", payload_v69456) or {})
-    known_missing_v69456 = _learning_known_missing_optional_v69456()
-    clean_v69456 = {
-        key_v69456: value_v69456
-        for key_v69456, value_v69456 in clean_v69456.items()
-        if key_v69456 not in known_missing_v69456
-    }
-
-    for _attempt_v69456 in range(1, 9):
-        try:
-            if operation_v69456 == "insert":
-                return supabase.table("learned_knowledge").insert(clean_v69456).execute()
-            return (
-                supabase.table("learned_knowledge")
-                .update(clean_v69456)
-                .eq("id", row_id_v69456)
-                .execute()
-            )
-        except Exception as error_v69456:
-            missing_v69456 = _learning_missing_column_from_error_v69456(error_v69456)
-            if (
-                missing_v69456
-                and missing_v69456 in _LEARNING_OPTIONAL_SCHEMA_FIELDS_V69456
-                and missing_v69456 in clean_v69456
-            ):
-                clean_v69456.pop(missing_v69456, None)
-                _learning_mark_missing_optional_v69456(missing_v69456)
-                diagnostic_log(
-                    "learning_optional_schema_field_omitted_v69456",
-                    operation=operation_v69456,
-                    field=missing_v69456,
-                    error_type=type(error_v69456).__name__,
-                )
-                continue
-            raise
-    raise RuntimeError("Learning schema compatibility retries were exhausted.")
-
-
 def safe_insert_row(table_name, payload):
-    if str(table_name) == "learned_knowledge":
-        return _safe_learning_write_v69456("insert", payload)
     clean_payload = filter_payload_for_table(table_name, payload)
     return supabase.table(table_name).insert(clean_payload).execute()
 
 
 def safe_update_row(table_name, payload, row_id):
-    if str(table_name) == "learned_knowledge":
-        return _safe_learning_write_v69456("update", payload, row_id_v69456=row_id)
     clean_payload = filter_payload_for_table(table_name, payload)
     return supabase.table(table_name).update(clean_payload).eq("id", row_id).execute()
 
@@ -10839,280 +8474,9 @@ def render_print_transcript_v69007(messages, assistant_label="Technical Support"
         else:
             st.markdown(transcript_html, unsafe_allow_html=True)
 
-def _install_print_ancestor_marker_v69480():
-    """Mark the real transcript ancestry in the parent Streamlit document.
-
-    v69449's print CSS relies on :has() to re-open anonymous Streamlit wrappers.
-    On the current hosted Streamlit/Chromium path the normal app is hidden but that
-    ancestry restoration can fail during print snapshotting. Keep native browser
-    Print, but mark the actual transcript ancestors explicitly so final print CSS
-    no longer depends on :has() for correctness.
-    """
-    marker_script_v69480 = r'''
-    <script>
-    (() => {
-      const root = window.parent;
-      const doc = root && root.document ? root.document : document;
-      const KEEP = 'atp-print-keep-v69480';
-
-      function clearOld() {
-        try {
-          doc.querySelectorAll('.' + KEEP).forEach((el) => el.classList.remove(KEEP));
-        } catch (_) {}
-      }
-
-      function mark() {
-        try {
-          clearOld();
-          const transcript = doc.querySelector('.atp-print-transcript-v69007');
-          const keyedRoot = doc.querySelector('.st-key-atp_print_transcript_root_v69480');
-          let node = keyedRoot || transcript;
-          if (!node) return false;
-          while (node && node !== doc.documentElement) {
-            if (node.classList) node.classList.add(KEEP);
-            node = node.parentElement;
-          }
-          if (doc.body && doc.body.classList) doc.body.classList.add(KEEP);
-          if (doc.documentElement && doc.documentElement.classList) doc.documentElement.classList.add(KEEP);
-          return true;
-        } catch (_) { return false; }
-      }
-
-      mark();
-      try {
-        if (!root.__atpPrintAncestorObserverV69480) {
-          const observer = new root.MutationObserver(() => { mark(); });
-          observer.observe(doc.documentElement || doc.body, {childList:true, subtree:true});
-          root.__atpPrintAncestorObserverV69480 = observer;
-        }
-      } catch (_) {}
-      try {
-        if (!root.__atpPrintAncestorBeforePrintV69480) {
-          root.addEventListener('beforeprint', mark, true);
-          root.__atpPrintAncestorBeforePrintV69480 = true;
-        }
-      } catch (_) {}
-      try { root.__atpPrintAncestorMarkV69480 = mark; } catch (_) {}
-    })();
-    </script>
-    '''
-    try:
-        components.html(marker_script_v69480, height=0, width=0)
-    except Exception as error_v69480:
-        diagnostic_log(
-            "print_ancestor_marker_install_failed_v69480",
-            error_type=type(error_v69480).__name__,
-            error=str(error_v69480)[:500],
-        )
-
-
 
 REMEMBER_CREDENTIAL_COOKIE = "atp_saved_login_v1"
 REMEMBER_CREDENTIAL_DAYS = 30
-def _durable_chat_rows_v69473(rows):
-    """Normalize durable/session rows to the exact chat fields used by rendering."""
-    normalized_v69473 = []
-    for row_v69473 in list(rows or []):
-        if not isinstance(row_v69473, dict):
-            continue
-        role_v69473 = str(row_v69473.get("role") or "").strip().lower()
-        if role_v69473 not in {"user", "assistant"}:
-            continue
-        normalized_v69473.append({
-            "role": role_v69473,
-            "content": str(row_v69473.get("content") or ""),
-        })
-    return normalized_v69473
-
-
-def _reconcile_live_chat_with_durable_history_v69473():
-    """Repair completed-turn UI from durable history before rendering."""
-    if not bool(st.session_state.pop("_chat_durable_sync_pending_v69473", False)):
-        return False
-    conversation_v69473 = str(st.session_state.get("conversation_id") or "").strip()
-    username_v69473 = str(st.session_state.get("username") or "").strip()
-    if not conversation_v69473 or not username_v69473 or not history_is_enabled():
-        return False
-    try:
-        durable_v69473 = _durable_chat_rows_v69473(load_messages(conversation_v69473))
-        session_v69473 = _durable_chat_rows_v69473(st.session_state.get("messages") or [])
-        if not durable_v69473:
-            diagnostic_log(
-                "chat_durable_render_sync_empty_v69473",
-                conversation_id=conversation_v69473,
-                session_count=len(session_v69473),
-            )
-            return False
-        if durable_v69473 != session_v69473:
-            st.session_state.messages = durable_v69473
-            diagnostic_log(
-                "chat_durable_render_recovered_v69473",
-                conversation_id=conversation_v69473,
-                before_count=len(session_v69473),
-                durable_count=len(durable_v69473),
-            )
-            return True
-        diagnostic_log(
-            "chat_durable_render_verified_v69473",
-            conversation_id=conversation_v69473,
-            message_count=len(durable_v69473),
-        )
-        return False
-    except Exception as error_v69473:
-        diagnostic_log(
-            "chat_durable_render_sync_failed_v69473",
-            conversation_id=conversation_v69473,
-            error_type=type(error_v69473).__name__,
-            error=str(error_v69473)[:500],
-        )
-        return False
-
-
-def _normalize_learned_question_v69474(value):
-    """Normalize stable staff-taught questions for exact cross-conversation recall."""
-    value_v69474 = html.unescape(str(value or "")).casefold()
-    value_v69474 = re.sub(r"https?://\S+", " ", value_v69474)
-    value_v69474 = re.sub(r"[^a-z0-9]+", " ", value_v69474)
-    return re.sub(r"\s+", " ", value_v69474).strip()
-
-
-def _learned_recall_is_volatile_v69474(question, detected_live_request=None):
-    """Fail closed for facts that should be re-checked rather than frozen from memory."""
-    live_v69474 = detected_live_request if isinstance(detected_live_request, dict) else {}
-    live_type_v69474 = str(live_v69474.get("type") or "none").strip().casefold()
-    if live_type_v69474 not in {"", "none"}:
-        return True
-    value_v69474 = _normalize_learned_question_v69474(question)
-    if not value_v69474:
-        return True
-    volatile_patterns_v69474 = (
-        r"\bprice\b", r"\bhow much\b", r"\bcost\b", r"\bdiscount\b", r"\bpromotion\b",
-        r"\bpromo\b", r"\bsale price\b", r"\bin stock\b", r"\bstock\b", r"\binventory\b",
-        r"\bavailable now\b", r"\bavailability\b", r"\border status\b", r"\btracking\b",
-        r"\bshipment\b", r"\bdelivery status\b", r"\bexchange rate\b", r"\bcurrency\b",
-        r"\bweather\b", r"\btoday\b", r"\bright now\b", r"\bcurrent price\b",
-        r"\blatest price\b", r"\bwhat do you have\b", r"\bwhat do you carry\b",
-        r"\bwhat products\b", r"\bwhich products\b", r"\bwhat models do you have\b",
-        r"\bwhat models do you carry\b",
-    )
-    return any(re.search(pattern_v69474, value_v69474) for pattern_v69474 in volatile_patterns_v69474)
-
-
-def _cross_conversation_exact_learned_answer_v69474(
-    question,
-    selected_assistant,
-    *,
-    detected_live_request=None,
-):
-    """Return a trusted approved answer for the same stable question across cases.
-
-    Only exact normalized question matches from strong staff-authority records are
-    terminal. Semantic/paraphrased questions continue through the normal vector/model
-    path. Live/current requests are deliberately excluded.
-    """
-    if not str(question or "").strip():
-        return None
-    if str(selected_assistant or "") in {"🎨 Graphic Marketing", "⚙️ Admin Panel"}:
-        return None
-    try:
-        if detect_explicit_learning_command(
-            str(question or ""),
-            has_recent_context=bool(st.session_state.get("messages")),
-            has_attachments=False,
-        ):
-            return None
-    except Exception:
-        pass
-    if _learned_recall_is_volatile_v69474(question, detected_live_request):
-        return None
-
-    normalized_v69474 = _normalize_learned_question_v69474(question)
-    if not normalized_v69474:
-        return None
-    assistant_v69474 = clean_assistant_label(selected_assistant).strip()
-    if not assistant_v69474:
-        return None
-
-    try:
-        response_v69474 = (
-            supabase.table("learned_knowledge")
-            .select("*")
-            .eq("assistant", assistant_v69474)
-            .order("updated_at", desc=True)
-            .limit(250)
-            .execute()
-        )
-        rows_v69474 = [dict(row or {}) for row in list(response_v69474.data or [])]
-    except Exception as error_v69474:
-        diagnostic_log(
-            "cross_case_learned_recall_query_failed_v69474",
-            workspace=assistant_v69474,
-            error_type=type(error_v69474).__name__,
-        )
-        return None
-
-    matches_v69474 = []
-    for row_v69474 in rows_v69474:
-        try:
-            if is_pending_knowledge_row(row_v69474):
-                continue
-        except Exception:
-            pass
-        solution_v69474 = str(
-            row_v69474.get("approved_answer")
-            or row_v69474.get("solution")
-            or ""
-        ).strip()
-        if not solution_v69474:
-            continue
-        try:
-            confidence_v69474 = int(row_v69474.get("confidence_score") or 0)
-        except Exception:
-            confidence_v69474 = 0
-        source_type_v69474 = str(row_v69474.get("source_type") or "").strip().casefold()
-        staff_confirmed_v69474 = bool(row_v69474.get("staff_confirmed"))
-        strong_v69474 = bool(
-            confidence_v69474 >= 95
-            or staff_confirmed_v69474
-            or source_type_v69474 in {
-                "explicit_staff_instruction",
-                "staff_confirmed_solution",
-                "staff_authored_correction",
-            }
-        )
-        if not strong_v69474:
-            continue
-        question_candidates_v69474 = {
-            _normalize_learned_question_v69474(row_v69474.get("source_question")),
-            _normalize_learned_question_v69474(row_v69474.get("question")),
-        }
-        question_candidates_v69474.discard("")
-        if normalized_v69474 not in question_candidates_v69474:
-            continue
-        matches_v69474.append((confidence_v69474, row_v69474))
-
-    if not matches_v69474:
-        return None
-    matches_v69474.sort(key=lambda item_v69474: item_v69474[0], reverse=True)
-    row_v69474 = matches_v69474[0][1]
-    result_v69474 = {
-        "record_id": str(row_v69474.get("id") or ""),
-        "answer": str(row_v69474.get("approved_answer") or row_v69474.get("solution") or "").strip(),
-        "confidence": int(row_v69474.get("confidence_score") or 0),
-        "vehicle": str(row_v69474.get("vehicle") or "").strip(),
-        "issue": str(row_v69474.get("issue") or "").strip(),
-        "source_type": str(row_v69474.get("source_type") or "").strip(),
-    }
-    diagnostic_log(
-        "cross_case_exact_learned_recall_v69474",
-        workspace=assistant_v69474,
-        record_id=result_v69474["record_id"],
-        confidence=result_v69474["confidence"],
-        vehicle=result_v69474["vehicle"][:120],
-    )
-    return result_v69474
-
-
 def _password_hash(password):
     """Compatibility wrapper around the isolated security module."""
     return security_hash_password(password)
@@ -11203,7 +8567,7 @@ def get_saved_login_credentials():
             try:
                 save_login_credentials(username)
             except Exception:
-                _observe_silent_exception_v69451("get_saved_login_credentials@L8570")
+                pass
         return {"remember": True, "username": username, "password": ""}
     except Exception:
         return empty
@@ -11241,17 +8605,17 @@ def remove_saved_login_credentials():
             same_site="strict",
         )
     except Exception:
-        _observe_silent_exception_v69451("remove_saved_login_credentials@L8608")
+        pass
 
 
 def clear_legacy_browser_login_data():
     """Remove storage values left by earlier experimental Remember Me versions."""
-    _run_invisible_trusted_browser_script_v69453(
+    components.html(
         """
         <script>
         (() => {
           try {
-            const storage = window.localStorage;
+            const storage = window.parent.localStorage;
             storage.removeItem("atp_remembered_credentials_v1");
             storage.removeItem("atp_login_profile");
             storage.removeItem("atp_remember_session");
@@ -11261,6 +8625,8 @@ def clear_legacy_browser_login_data():
         })();
         </script>
         """,
+        height=0,
+        width=0,
     )
 
 
@@ -11402,7 +8768,7 @@ def _auth_http_session_v69226():
         session.mount("https://", adapter)
         session.mount("http://", adapter)
     except Exception:
-        _observe_silent_exception_v69451("_auth_http_session_v69226@L8772")
+        pass
     return session
 
 
@@ -11469,78 +8835,6 @@ def _login_user_lookup_v69186(username, timeout_seconds=6.0):
 
 def _load_active_user_record(username):
     return _login_user_lookup_v69186(username, timeout_seconds=6.0)
-
-
-def _learning_admin_authorized_v69452(*, revalidate=True):
-    """Fail closed unless the active authenticated account is a current admin.
-
-    Explicit learning mutates shared durable knowledge, so a UI/session role alone
-    is not sufficient authority. Admin requests are revalidated against the active
-    server-side user record and the credential fingerprint captured at login.
-    No password, secret, learning payload, or customer content is logged here.
-    """
-    username = str(st.session_state.get("username") or "").strip()
-    session_role = str(st.session_state.get("role") or "").strip().lower()
-    logged_in = bool(st.session_state.get("logged_in"))
-
-    if not logged_in or not username or session_role != "admin":
-        diagnostic_log(
-            "learning_admin_authority_denied_v69452",
-            reason="session_not_admin",
-            role=session_role or "none",
-        )
-        return False
-
-    if not revalidate:
-        return True
-
-    try:
-        active_user = _load_active_user_record(username)
-    except Exception as error:
-        diagnostic_log(
-            "learning_admin_authority_denied_v69452",
-            reason="server_revalidation_failed",
-            role=session_role,
-            error_type=type(error).__name__,
-        )
-        return False
-
-    active_username = str((active_user or {}).get("username") or "").strip()
-    active_role = str((active_user or {}).get("role") or "").strip().lower()
-    if (
-        not active_user
-        or active_role != "admin"
-        or active_username.casefold() != username.casefold()
-    ):
-        diagnostic_log(
-            "learning_admin_authority_denied_v69452",
-            reason="server_record_not_admin",
-            role=active_role or "none",
-        )
-        return False
-
-    session_fingerprint = str(
-        st.session_state.get("_auth_credential_fingerprint_v69186") or ""
-    ).strip()
-    current_fingerprint = _auth_credential_fingerprint(
-        (active_user or {}).get("password")
-    )
-    if (
-        not session_fingerprint
-        or not hmac.compare_digest(session_fingerprint, current_fingerprint)
-    ):
-        diagnostic_log(
-            "learning_admin_authority_denied_v69452",
-            reason="credential_fingerprint_mismatch",
-            role=active_role,
-        )
-        return False
-
-    diagnostic_log(
-        "learning_admin_authority_verified_v69452",
-        role=active_role,
-    )
-    return True
 
 
 def save_authenticated_session(username, remember=False, workspace=None, conversation_id=None, credential_fingerprint=None, admin_section=None):
@@ -11651,7 +8945,7 @@ def remove_authenticated_session():
             same_site="strict",
         )
     except Exception:
-        _observe_silent_exception_v69451("remove_authenticated_session@L8949")
+        pass
 
 
 def _load_authenticated_user(username, expected_credential_fingerprint=None):
@@ -11833,7 +9127,7 @@ def logout_user():
     try:
         st.query_params.clear()
     except Exception:
-        _observe_silent_exception_v69451("logout_user@L9131")
+        pass
 
     diagnostic_log(
         "logout_requested",
@@ -11853,7 +9147,7 @@ def logout_user():
             try:
                 del st.session_state[key]
             except Exception:
-                _observe_silent_exception_v69451("logout_user@L9151")
+                pass
 
     st.session_state["logged_in"] = False
     st.session_state["messages"] = []
@@ -11872,11 +9166,11 @@ def logout_user():
 
 def _install_login_interaction_fastpath_v69044():
     """Event-driven login form polish with no auth, cookie, or submit authority."""
-    _run_invisible_trusted_browser_script_v69453(
+    components.html(
         """
         <script>
         (() => {
-          const root = window;
+          const root = window.parent;
           const doc = root.document;
           const KEY = "__atpLoginInteractionFastpathV69044";
           try { root[KEY]?.cleanup?.(); } catch (error) {}
@@ -11932,6 +9226,8 @@ def _install_login_interaction_fastpath_v69044():
         })();
         </script>
         """,
+        height=0,
+        width=0,
     )
 
 
@@ -12080,7 +9376,7 @@ def login_screen():
                 try:
                     st.query_params.clear()
                 except Exception:
-                    _observe_silent_exception_v69451("login_screen@L9381")
+                    pass
 
                 st.rerun()
             else:
@@ -12089,7 +9385,7 @@ def login_screen():
                 try:
                     st.query_params.clear()
                 except Exception:
-                    _observe_silent_exception_v69451("login_screen@L9390")
+                    pass
                 st.error("Invalid username or password.")
 
         except Exception as error:
@@ -12133,14 +9429,7 @@ if not bool(st.session_state.get("logged_in")):
         else:
             st.session_state.pop("_explicit_logout_pending", None)
     else:
-        _auth_restore_started_v69484 = time.perf_counter()
         _auth_restore_result_v69043 = restore_login_session()
-        diagnostic_log(
-            "auth_restore_timing_v69484",
-            elapsed_seconds=round(time.perf_counter() - _auth_restore_started_v69484, 4),
-            restored=bool(_auth_restore_result_v69043 is True),
-            transient=bool(_auth_restore_result_v69043 is None),
-        )
         if _auth_restore_result_v69043 is True:
             st.session_state.pop("_auth_bootstrap_attempt_v69042", None)
 
@@ -12154,22 +9443,12 @@ if not bool(st.session_state.get("logged_in")):
         try:
             _auth_transition_placeholder.empty()
         except Exception:
-            _observe_silent_exception_v69451("<module>@L9448")
+            pass
     login_screen()
     # The destination login UI is now complete; remove the transition cover
     # before stopping execution so authenticated content cannot render below it.
     _finish_auth_transition(_auth_transition_placeholder)
     st.stop()
-
-# v69484: authenticated-only CSS used to be emitted before CookieController had a
-# chance to restore the signed session. The unchanged style bodies are now emitted
-# only after authentication, removing ~200 KB of pre-auth Streamlit DOM work.
-_install_authenticated_print_css_v69484()
-_install_authenticated_app_css_v69484()
-diagnostic_log(
-    "authenticated_ui_css_loaded_v69484",
-    restored=bool(locals().get("_auth_restore_result_v69043") is True),
-)
 
 # Complete any Remember Me cookie write/removal on a stable authenticated
 # render. Do not rerun immediately after this call.
@@ -13342,15 +10621,17 @@ _current_workspace_slug = next(
 # This is intentionally not a temporary transition flag: recent Streamlit builds
 # can retain keyed nodes from a previous conditional branch after reconciliation.
 # A permanent marker lets workspace-scoped CSS keep those stale nodes hidden.
-_run_invisible_trusted_browser_script_v69453(
+components.html(
     f"""
     <script>
     (() => {{
-        const body = document.body;
+        const body = window.parent.document.body;
         body.dataset.atpCurrentWorkspace = {json.dumps(_current_workspace_slug)};
     }})();
     </script>
     """,
+    height=0,
+    width=0,
 )
 
 
@@ -13363,11 +10644,11 @@ _workspace_mobile_collapse_nonce_v68882 = st.session_state.pop(
     None,
 )
 if _workspace_mobile_collapse_nonce_v68882:
-    _run_invisible_trusted_browser_script_v69453(
+    components.html(
         f"""
         <script>
         (() => {{
-            const parentWindow = window;
+            const parentWindow = window.parent;
             const doc = parentWindow.document;
             const nonce = {json.dumps(str(_workspace_mobile_collapse_nonce_v68882))};
             const isMobile = parentWindow.matchMedia("(max-width: 768px)").matches;
@@ -13493,6 +10774,8 @@ if _workspace_mobile_collapse_nonce_v68882:
         }})();
         </script>
         """,
+        height=0,
+        width=0,
     )
 
 _workspace_nav_started_v68880 = st.session_state.pop(
@@ -13510,7 +10793,7 @@ if _workspace_nav_started_v68880 is not None:
             ),
         )
     except Exception:
-        _observe_silent_exception_v69451("<module>@L10800")
+        pass
 
 # Persistent workspace DOM isolation.
 #
@@ -14945,7 +12228,7 @@ def _graphic_verified_upload_digest_v68983(uploaded_file, raw=None):
         uploaded_file.graphic_asset_id = digest
         uploaded_file._atp_graphic_asset_id_verified_v68983 = True
     except Exception:
-        _observe_silent_exception_v69451("_graphic_verified_upload_digest_v68983@L12235")
+        pass
     return digest
 
 def normalized_image_data_url(uploaded_file):
@@ -15168,7 +12451,7 @@ def clean_visible_chat_text(text):
             flags=re.DOTALL,
         )
     except Exception:
-        _observe_silent_exception_v69451("clean_visible_chat_text@L12458")
+        pass
 
     value = (
         value.replace("&lt;", "<")
@@ -15242,7 +12525,7 @@ def _make_image_preview_data_url_cached(
 
             raw = output.getvalue()
         except Exception:
-            _observe_silent_exception_v69451("_make_image_preview_data_url_cached@L12532")
+            pass
 
     encoded = base64.b64encode(raw).decode()
     return f"data:{mime_type};base64,{encoded}"
@@ -15984,7 +13267,7 @@ def save_generated_document_to_knowledge(
         try:
             client.files.delete(file_id)
         except Exception:
-            _observe_silent_exception_v69451("save_generated_document_to_knowledge@L13274")
+            pass
         raise
 
     return {
@@ -16125,7 +13408,7 @@ def _document_icon_data_uri(format_name):
             ).decode("ascii")
             return f"data:image/png;base64,{encoded}"
         except Exception:
-            _observe_silent_exception_v69451("_document_icon_data_uri@L13415")
+            pass
 
     icon_specs = {
         "csv": ("▦", "#64748B", "#475569", "CSV"),
@@ -16846,7 +14129,7 @@ def _workspace_product_page_identity_v69396(raw_url):
         if host in {"autotecpro.com"} and "/product/" in path.casefold():
             return f"product:{host}{path.casefold()}"
     except Exception:
-        _observe_silent_exception_v69451("_workspace_product_page_identity_v69396@L14136")
+        pass
     try:
         return canonical_website_url_identity(value)
     except Exception:
@@ -16916,7 +14199,7 @@ def _workspace_product_image_identity_v69346(image):
             if host and "/product/" in path.casefold():
                 return f"product:{host}{path.casefold()}"
         except Exception:
-            _observe_silent_exception_v69451("_workspace_product_image_identity_v69346@L14206")
+            pass
     # v69347: suppress repeats only when exact product-page identity is proven.
     # Image SHA/URL can legitimately be reused by a different product/model.
     return ""
@@ -17058,8 +14341,8 @@ def extract_images_from_message_content(content):
     return visible_text, clean_images
 
 
-@st.cache_data(ttl=180, max_entries=32, show_spinner=False)
-def _render_image_previews_cached(images_json, loading_mode="lazy"):
+@st.cache_data(ttl=180, max_entries=16, show_spinner=False)
+def _render_image_previews_cached(images_json):
     """Build deterministic image-preview HTML with click-to-enlarge lightboxes."""
     try:
         images = json.loads(images_json)
@@ -17070,7 +14353,6 @@ def _render_image_previews_cached(images_json, loading_mode="lazy"):
         return ""
 
     cards = []
-    image_loading_v69490 = "eager" if str(loading_mode or "").casefold() == "eager" else "lazy"
 
     for image_index, image in enumerate(images):
         name = html.escape(
@@ -17098,21 +14380,18 @@ def _render_image_previews_cached(images_json, loading_mode="lazy"):
             if image.get("generated")
             else "chat-image-card"
         )
-        fetch_priority_v69490 = (
-            "high" if image_loading_v69490 == "eager" and image_index == 0 else "auto"
-        )
         cards.append(
             f'<div class="{card_class}">'
             f'<label class="atp-enlarge-label" for="{lightbox_id}" '
             f'title="Click to enlarge image">'
-            f'<img src="{safe_data_url}" alt="{name}" loading="{image_loading_v69490}" decoding="async" fetchpriority="{fetch_priority_v69490}">'
+            f'<img src="{safe_data_url}" alt="{name}" loading="lazy">'
             f'</label>'
             f'<input class="atp-lightbox-toggle" type="checkbox" '
             f'id="{lightbox_id}" aria-hidden="true">'
             f'<label class="atp-lightbox-overlay" for="{lightbox_id}" '
             f'aria-label="Close enlarged image">'
             f'<span class="atp-lightbox-frame">'
-            f'<img src="{safe_data_url}" alt="{name} — enlarged" loading="lazy" decoding="async">'
+            f'<img src="{safe_data_url}" alt="{name} — enlarged">'
             f'<span class="atp-lightbox-close" aria-hidden="true">×</span>'
             f'</span>'
             f'</label>'
@@ -17127,18 +14406,15 @@ def _render_image_previews_cached(images_json, loading_mode="lazy"):
 
 
 
-def render_image_previews(images, loading_mode="lazy"):
-    """Render chat images; keep history lazy and allow priority for fresh results."""
+def render_image_previews(images):
+    """Render uploaded chat images using cached deterministic markup."""
     if not images:
         return ""
     try:
         images_json = json.dumps(images, ensure_ascii=False, sort_keys=True, default=str)
     except Exception:
         images_json = "[]"
-    normalized_loading_v69490 = (
-        "eager" if str(loading_mode or "").casefold() == "eager" else "lazy"
-    )
-    return _render_image_previews_cached(images_json, normalized_loading_v69490)
+    return _render_image_previews_cached(images_json)
 
 
 def render_selectable_website_preview_grid_v69002(preview_records, preview_urls, state_key):
@@ -18305,7 +15581,7 @@ def _graphic_role_data_url(item):
             try:
                 cache.pop(next(iter(cache)))
             except Exception:
-                _observe_silent_exception_v69451("_graphic_role_data_url@L15588")
+                pass
         cache[asset_id] = value
     return value
 
@@ -20538,12 +17814,12 @@ def _graphic_cleanup_spooled_uploads_v68847(records):
         try:
             path.unlink(missing_ok=True)
         except Exception:
-            _observe_silent_exception_v69451("_graphic_cleanup_spooled_uploads_v68847@L17821")
+            pass
     for directory in directories:
         try:
             directory.rmdir()
         except Exception:
-            _observe_silent_exception_v69451("_graphic_cleanup_spooled_uploads_v68847@L17826")
+            pass
 
 
 def _graphic_spool_upload_records_v68847(files, job_id):
@@ -23810,7 +21086,7 @@ def _graphic_uploaded_file_bytes(uploaded_file):
             try:
                 uploaded_file.seek(position)
             except Exception:
-                _observe_silent_exception_v69451("_graphic_uploaded_file_bytes@L21093")
+                pass
 
 
 def _graphic_product_fingerprint(role_items):
@@ -24458,7 +21734,7 @@ def _graphic_reference_palette(role_items):
             with Image.open(io.BytesIO(raw)) as im:
                 q=ImageOps.exif_transpose(im).convert("RGB").resize((64,64)).quantize(colors=12).convert("RGB")
                 colors.extend(q.getdata())
-        except Exception: _observe_silent_exception_v69451("_graphic_reference_palette@L21742")
+        except Exception: pass
     if not colors: return {"accent":(236,52,45),"panel":(6,9,14),"text":(255,255,255)}
     # Prefer saturated, moderately bright colors as accent.
     def score(c):
@@ -24617,7 +21893,7 @@ def _graphic_open_product_layer(uploaded_file):
             if cutout.width > 8 and cutout.height > 8:
                 return cutout, True
         except Exception:
-            _observe_silent_exception_v69451("_graphic_open_product_layer@L21900")
+            pass
     raw = _graphic_uploaded_file_bytes(uploaded_file)
     if not raw:
         return None, False
@@ -24679,7 +21955,7 @@ def _graphic_collect_result_bytes(result):
         try:
             candidates.extend(list(data))
         except Exception:
-            _observe_silent_exception_v69451("_graphic_collect_result_bytes@L21962")
+            pass
     # Some SDK surfaces expose the completed image directly.
     if getattr(result, "b64_json", None) or getattr(result, "url", None):
         candidates.append(result)
@@ -24790,7 +22066,7 @@ def compose_graphic_layered_ad(background_bytes, product_file, prompt_text, refe
             _ImageDraw.Draw(card_mask).rounded_rectangle((0, 0, card.width - 1, card.height - 1), radius=max(20, card_pad), fill=255)
             card.putalpha(card_mask)
         except Exception:
-            _observe_silent_exception_v69451("compose_graphic_layered_ad@L22073")
+            pass
         card.alpha_composite(product, (card_pad, card_pad))
         product = card
 
@@ -25346,7 +22622,7 @@ def _graphic_project_role_items(uploaded_files, prompt_text, forced_role="Auto-d
                     hashlib.sha256(_graphic_uploaded_file_bytes(file_obj)).hexdigest()
                 )
             except Exception:
-                _observe_silent_exception_v69451("_graphic_project_role_items@L22629")
+                pass
         candidate = next(
             (
                 item for item in role_items
@@ -26764,7 +24040,7 @@ def _graphic_v68874_bound_session_cache(cache):
             cache.pop(oldest, None)
             sizes.pop(oldest, None)
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v68874_bound_session_cache@L24047")
+        pass
 
     return cache
 
@@ -26796,7 +24072,7 @@ def _graphic_v68874_process_memory_snapshot():
         snapshot["rss_mb"] = round(rss_kb / 1024.0, 2) if rss_kb is not None else None
         snapshot["peak_rss_mb"] = round(peak_kb / 1024.0, 2) if peak_kb is not None else None
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v68874_process_memory_snapshot@L24079")
+        pass
 
     try:
         available_kb = None
@@ -26812,7 +24088,7 @@ def _graphic_v68874_process_memory_snapshot():
             else None
         )
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v68874_process_memory_snapshot@L24095")
+        pass
 
     return snapshot
 
@@ -26839,7 +24115,7 @@ def _graphic_v68874_release_transient_memory(stage=""):
         if callable(clear_cache):
             clear_cache()
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v68874_release_transient_memory@L24122")
+        pass
 
     # On Linux/glibc, return free heap arenas to the container where possible.
     try:
@@ -26850,7 +24126,7 @@ def _graphic_v68874_release_transient_memory(stage=""):
             if callable(malloc_trim):
                 malloc_trim(0)
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v68874_release_transient_memory@L24133")
+        pass
 
     snapshot = _graphic_v68874_process_memory_snapshot()
     diagnostic_log(
@@ -27666,7 +24942,7 @@ def _graphic_reference_layout_blueprint_v9000(reference_blueprint=None, template
             box = list(defaults[box_key]); box[index] = value
             defaults[box_key] = clean_box(box, defaults[box_key])
         except Exception:
-            _observe_silent_exception_v69451("_graphic_reference_layout_blueprint_v9000@L24949")
+            pass
 
     # Commercial guardrails: the reference product must remain dominant and the
     # information zones must stay substantial. These limits prevent sparse slide-like output.
@@ -27721,7 +24997,7 @@ def _graphic_product_source_signature_v9000(product_item):
             with Image.open(io.BytesIO(raw)) as im:
                 im=ImageOps.exif_transpose(im)
                 result.update({"width":im.width,"height":im.height,"aspect_ratio":round(im.width/max(1,im.height),6)})
-        except Exception: _observe_silent_exception_v69451("_graphic_product_source_signature_v9000@L25005")
+        except Exception: pass
     return result
 
 
@@ -29020,7 +26296,7 @@ def _graphic_lightweight_upload_identity_v22000(file):
                 result["width"], result["height"] = image.size
                 result["mode"] = str(image.mode)
         except Exception:
-            _observe_silent_exception_v69451("_graphic_lightweight_upload_identity_v22000@L26303")
+            pass
     return result
 
 
@@ -31107,7 +28383,7 @@ def _graphic_v68976_finish_variant_from_exact_source(product, prompt_text=""):
                 try:
                     protected |= np.asarray(mask.convert("L"), dtype=np.uint8) >= 8
                 except Exception:
-                    _observe_silent_exception_v69451("_graphic_v68976_finish_variant_from_exact_source@L28390")
+                    pass
         # Conservative fallback protection for portrait infotainment units if automatic
         # aperture/control masks are unavailable.
         if not protected.any():
@@ -33809,7 +31085,7 @@ def _graphic_progress_update_v3300(status, label, state="running"):
         try:
             status.update(label=label, state=state if state in {"running", "complete", "error"} else "running")
         except Exception:
-            _observe_silent_exception_v69451("_graphic_progress_update_v3300@L31092")
+            pass
 
 
 def _graphic_reference_geometry_v3300(reference_blueprint=None, prompt_text=""):
@@ -34293,7 +31569,7 @@ def _graphic_build_hybrid_campaign_result_v3300(prompt_text, role_items, output_
         del composed
         del background
     except Exception:
-        _observe_silent_exception_v69451("_graphic_build_hybrid_campaign_result_v3300@L31576")
+        pass
     _graphic_v68874_release_transient_memory("reference_composite_ready")
 
     scorecard = _graphic_qa_scorecard_v42000(result["layered_metadata"])
@@ -35195,7 +32471,7 @@ def _graphic_ui_source_item_v44000(role_items):
             if item.get("role") == "style_reference":
                 score += 0.25
         except Exception:
-            _observe_silent_exception_v69451("_graphic_ui_source_item_v44000@L32478")
+            pass
         scored.append((score, item))
     scored.sort(key=lambda x: x[0], reverse=True)
     return scored[0][1] if scored else None
@@ -35935,7 +33211,7 @@ def _graphic_role_fingerprint_v8200(role_items, roles=None):
                 try:
                     item["_data_url_digest_v68983"] = digest
                 except Exception:
-                    _observe_silent_exception_v69451("_graphic_role_fingerprint_v8200@L33218")
+                    pass
         selected.append({
             "role": role,
             "name": str(item.get("name") or ""),
@@ -36298,7 +33574,7 @@ def _graphic_v69301_localized_cleanup_qa(result, current_canvas, edit_directive=
             with Image.open(io.BytesIO(base_raw)) as im:
                 base_size = [int(im.width), int(im.height)]
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v69301_localized_cleanup_qa@L33581")
+        pass
     directive = dict(edit_directive or {})
     checks = {
         "image_valid": bool(result_raw),
@@ -36362,7 +33638,7 @@ def _graphic_v69315_background_followup_qa(result, current_canvas, edit_directiv
             with Image.open(io.BytesIO(base_raw)) as im:
                 base_size = [int(im.width), int(im.height)]
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v69315_background_followup_qa@L33645")
+        pass
     directive = dict(edit_directive or {})
     checks = {
         "image_valid": bool(result_raw),
@@ -36765,7 +34041,7 @@ def _graphic_v69318_followup_transport_qa(result, current_canvas, edit_directive
             with Image.open(io.BytesIO(base_raw)) as im:
                 base_size = [int(im.width), int(im.height)]
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v69318_followup_transport_qa@L34048")
+        pass
     checks = {
         "image_valid": bool(result_raw),
         "edit_base_present": bool(base_raw),
@@ -41446,7 +38722,7 @@ def _graphic_v68200_font(size, bold=False, italic=False):
         try:
             return ImageFont.truetype(path, max(10,int(size)))
         except Exception:
-            _observe_silent_exception_v69451("_graphic_v68200_font@L38729")
+            pass
     return ImageFont.load_default()
 
 
@@ -42174,7 +39450,7 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
         try:
             position = uploaded_file.tell()
         except Exception:
-            _observe_silent_exception_v69451("_graphic_v68826_uploaded_file_digest@L39457")
+            pass
         try:
             raw = bytes(uploaded_file.read() or b"")
         except Exception:
@@ -42183,7 +39459,7 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
             try:
                 uploaded_file.seek(position)
             except Exception:
-                _observe_silent_exception_v69451("_graphic_v68826_uploaded_file_digest@L39466")
+                pass
     result = {
         "name": Path(str(getattr(uploaded_file, "name", "") or "")).name,
         "type": str(getattr(uploaded_file, "type", "") or "").lower(),
@@ -42193,7 +39469,7 @@ def _graphic_v68826_uploaded_file_digest(uploaded_file):
     try:
         setattr(uploaded_file, "_atp_graphic_digest_v69255", dict(result))
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v68826_uploaded_file_digest@L39476")
+        pass
     return result
 
 
@@ -42276,7 +39552,7 @@ def _graphic_v68826_storage_bucket():
         if admin_client is not None:
             clients.append(admin_client)
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v68826_storage_bucket@L39559")
+        pass
     clients.append(supabase)
     for client_obj in clients:
         try:
@@ -43556,7 +40832,7 @@ def _graphic_v68829_release_audit(image):
             if value is not None and float(value) < minimum:
                 explicit_failures.append(key)
         except Exception:
-            _observe_silent_exception_v69451("_graphic_v68829_release_audit@L40839")
+            pass
     return {
         "engine": GRAPHIC_V68829_INSTALLED_ENGINE,
         "available": any(v is not None for v in checks.values()),
@@ -43761,7 +41037,7 @@ def _graphic_v68988_is_reference_request(prompt_text, uploaded_files=None, force
         if _graphic_v68827_is_reference_mode(prompt_text, uploaded_files, forced_upload_role):
             return True
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v68988_is_reference_request@L41044")
+        pass
     state = _graphic_v68988_safe_project_state()
     return bool(
         str(state.get("active_reference_id") or "").strip()
@@ -44056,7 +41332,7 @@ def _graphic_v67200_upload_bytes(item):
         try:
             return bytes(file_obj.getvalue() or b"")
         except Exception:
-            _observe_silent_exception_v69451("_graphic_v67200_upload_bytes@L41339")
+            pass
     data_url = str(item.get("data_url") or "")
     if data_url:
         return data_url.encode("utf-8", "ignore")
@@ -44282,7 +41558,7 @@ def _graphic_v67200_prepare_locked_facts(role_items, prompt_text, style_strength
                 if current_ctx is not None:
                     executor_kwargs["initializer"] = lambda: add_script_run_ctx(threading.current_thread(), current_ctx)
             except Exception:
-                _observe_silent_exception_v69451("_graphic_v67200_prepare_locked_facts@L41565")
+                pass
             with ThreadPoolExecutor(**executor_kwargs) as pool:
                 futures = {name: (pool.submit(func), time.perf_counter()) for name, func in tasks}
                 for name, (future, task_started) in futures.items():
@@ -45758,7 +43034,7 @@ def _uploaded_file_bytes(uploaded_file):
             try:
                 uploaded_file.seek(original_position)
             except Exception:
-                _observe_silent_exception_v69451("_uploaded_file_bytes@L43041")
+                pass
 
     return bytes(payload or b"")
 
@@ -46405,7 +43681,7 @@ def _learned_knowledge_schema_remember_missing_v69360(column):
             state["missing_columns"] = missing
             state["learned_at"] = time.monotonic()
     except Exception:
-        _observe_silent_exception_v69451("_learned_knowledge_schema_remember_missing_v69360@L43688")
+        pass
 
 
 def _recent_case_learned_knowledge_context(selected_assistant, limit=5):
@@ -47958,7 +45234,7 @@ def _technical_section_package_candidate_v69142(prompt_text, row):
             if full:
                 package_text = full
         except Exception:
-            _observe_silent_exception_v69451("_technical_section_package_candidate_v69142@L45241")
+            pass
     if "AUTOTECPRO WEBSITE KNOWLEDGE PACKAGE" not in package_text:
         return None
     if _technical_package_header_value_v69113(package_text, "Destination") != "Technical Support Database":
@@ -48010,7 +45286,7 @@ def _technical_section_package_candidate_v69142(prompt_text, row):
     if prompt_families and source_families:
         score += max(0.0, 30.0 - (5.0 * len(source_families)))
     try: score += float(row.get("score") or 0.0) * 10.0
-    except Exception: _observe_silent_exception_v69451("_technical_section_package_candidate_v69142@L45294")
+    except Exception: pass
 
     return {
         "file_id": file_id,
@@ -49113,7 +46389,7 @@ def _technical_source_identity_candidate_v69150(prompt_text, row, *, hydrate=Tru
             if full:
                 text_value = full
         except Exception:
-            _observe_silent_exception_v69451("_technical_source_identity_candidate_v69150@L46396")
+            pass
     if not text_value:
         return None
 
@@ -50289,7 +47565,7 @@ def _workspace_exact_retrieval_cache_clear_v69365():
         with state["lock"]:
             state["entries"].clear()
     except Exception:
-        _observe_silent_exception_v69451("_workspace_exact_retrieval_cache_clear_v69365@L47572")
+        pass
 
 
 def _website_request_vector_search_rows_v69047(request, max_results=12):
@@ -50747,7 +48023,7 @@ def ask_ai_stream(
 
     except _StreamingNotSupportedError:
         # Compatibility with an older OpenAI SDK that does not support stream.
-        _observe_silent_exception_v69451("ask_ai_stream@L48029")
+        pass
 
     # Non-streaming compatibility fallback with the same bounded continuation.
     request = original_request
@@ -51337,15 +48613,15 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
-        _observe_silent_exception_v69451("upload_to_vector_store@L48620")
+        pass
     try:
         vector_store_has_filename.clear()
     except Exception:
-        _observe_silent_exception_v69451("upload_to_vector_store@L48624")
+        pass
     try:
         _vector_store_file_catalog_v69040.clear()
     except Exception:
-        _observe_silent_exception_v69451("upload_to_vector_store@L48628")
+        pass
     return openai_file.id
 
 
@@ -51355,23 +48631,13 @@ def upload_to_vector_store(uploaded_file, vector_store_id):
 # ============================================================
 
 def get_learning_vector_store_id(selected_assistant):
-    """Resolve a learning destination fail-closed; never default unknown workspaces to Technical."""
     if is_sales_workspace(selected_assistant):
-        vector_store_id = SALES_VECTOR_STORE_ID
-    elif is_marketing_workspace(selected_assistant):
-        vector_store_id = MARKETING_VECTOR_STORE_ID
-    elif is_graphic_workspace(selected_assistant):
-        vector_store_id = GRAPHIC_VECTOR_STORE_ID
-    elif _normalized_workspace_name(selected_assistant) == "technical support":
-        vector_store_id = TECHNICAL_VECTOR_STORE_ID
-    else:
-        raise RuntimeError(
-            f"Unsupported learning workspace: {clean_assistant_label(selected_assistant) or selected_assistant!s}"
-        )
-    vector_store_id = str(vector_store_id or "").strip()
-    if not vector_store_id.startswith("vs_"):
-        raise RuntimeError("The learning vector store is not configured for this workspace.")
-    return vector_store_id
+        return SALES_VECTOR_STORE_ID
+    if is_marketing_workspace(selected_assistant):
+        return MARKETING_VECTOR_STORE_ID
+    if is_graphic_workspace(selected_assistant):
+        return GRAPHIC_VECTOR_STORE_ID
+    return TECHNICAL_VECTOR_STORE_ID
 
 
 def normalize_text_for_match(value):
@@ -51392,7 +48658,7 @@ def extract_json_object(raw_text):
     try:
         return json.loads(text)
     except Exception:
-        _observe_silent_exception_v69451("extract_json_object@L48665")
+        pass
     match = re.search(r"\{.*\}", text, re.DOTALL)
     if match:
         try:
@@ -51877,18 +49143,11 @@ def detect_explicit_learning_command(
     if not normalized:
         return False
 
-    # v69454: never mistake deletion/forgetting instructions for a save command,
-    # while preserving the intentional positive command "don't forget this".
-    deletion_probe_v69454 = re.sub(
-        r"\bdon['’]?t\s+forget\s+(?:this|it)\b",
-        "",
-        normalized,
-        flags=re.IGNORECASE,
-    )
+    # Never mistake deletion/forgetting instructions for a save command.
     if re.search(
         r"\b(?:forget|delete|remove|erase)\b.*"
         r"\b(?:knowledge|memory|record|this|it)\b",
-        deletion_probe_v69454,
+        normalized,
     ):
         return False
 
@@ -52004,16 +49263,9 @@ def extract_explicit_learning_payload(prompt_text):
     if not value:
         return ""
     patterns = (
-        r"^\s*(?:please\s+)?learn\s+(?:and\s+save\s+)?(?:this|it)\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?teach\s+(?:(?:the\s+ai|autotecpro\s+ai)\s+)?(?:this|it)\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?save\s+(?:this|it)(?:\s+permanently|\s+(?:for|to)\s+future\s+(?:reference|use|cases?)|\s+(?:to|in)\s+(?:the\s+)?(?:memory|knowledge(?:\s+base)?|database))?\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?remember\s+(?:this|it)(?:\s+for\s+future\s+(?:reference|use|cases?))?\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?add\s+(?:this|it)\s+to\s+(?:the\s+)?(?:knowledge\s+base|memory|database)\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?store\s+(?:this|it)(?:\s+as\s+(?:permanent\s+)?knowledge)?\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?keep\s+(?:this|it)\s+for\s+(?:later|future\s+(?:reference|use|cases?))\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?don['’]?t\s+forget\s+(?:this|it)\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?use\s+(?:this|it)\s+for\s+future\s+(?:cases?|reference|support)\s*[:\-]?\s*",
-        r"^\s*(?:please\s+)?make\s+(?:this|it)\s+(?:permanent|part\s+of\s+(?:the\s+)?knowledge\s+base)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?learn\s+(?:and\s+save\s+)?this\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?save\s+this\s+(?:to|in)\s+(?:memory|knowledge)\s*[:\-]?\s*",
+        r"^\s*(?:please\s+)?remember\s+this\s*[:\-]?\s*",
     )
     cleaned = value
     for pattern in patterns:
@@ -52158,7 +49410,6 @@ def extract_learning_candidate(
     staff_teaching=False,
     conversation_context="",
     explicit_requested=False,
-    learning_attachments=None,
 ):
     """Extract a department-specific professional record without DB schema changes."""
     safe_question = redact_learning_private_data(question)
@@ -52252,36 +49503,10 @@ RECENT CONTEXT:
 {safe_context}
 """
     try:
-        learning_attachment_parts_v69454 = []
-        for attachment_v69454 in (learning_attachments or []):
-            if not isinstance(attachment_v69454, dict):
-                continue
-            image_url_v69454 = str(attachment_v69454.get("image_url") or "").strip()
-            file_id_v69454 = str(attachment_v69454.get("file_id") or "").strip()
-            if image_url_v69454.startswith("data:image/"):
-                learning_attachment_parts_v69454.append({
-                    "type": "input_image",
-                    "image_url": image_url_v69454,
-                })
-            elif file_id_v69454:
-                learning_attachment_parts_v69454.append({
-                    "type": "input_file",
-                    "file_id": file_id_v69454,
-                })
-        if learning_attachment_parts_v69454:
-            response_input_v69454 = [{
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": extraction_prompt},
-                    *learning_attachment_parts_v69454,
-                ],
-            }]
-        else:
-            response_input_v69454 = extraction_prompt
         response = client.responses.create(
             model="gpt-5.5",
             instructions="Return only valid JSON. No markdown.",
-            input=response_input_v69454,
+            input=extraction_prompt,
         )
         data = extract_json_object(response.output_text)
     except Exception:
@@ -52353,21 +49578,7 @@ RECENT CONTEXT:
     minimum_solution_length = 50 if explicit_requested else (
         30 if (staff_confirmed or staff_teaching) else 100
     )
-    # v69454: a body-less explicit command ("save this" / "learn and save this")
-    # intentionally derives authority from the immediately preceding redacted
-    # context or staged attachment. Do not reject it merely because the stripped
-    # command body is empty. Non-explicit learning still requires a real message.
-    explicit_source_present_v69454 = bool(
-        str(safe_question or "").strip()
-        or str(safe_context or "").strip()
-        or list(learning_attachments or [])
-    )
-    if len(solution) < minimum_solution_length:
-        should_learn = False
-    if explicit_requested:
-        if not explicit_source_present_v69454:
-            should_learn = False
-    elif len(safe_question) < 5:
+    if len(solution) < minimum_solution_length or len(safe_question) < 5:
         should_learn = False
     # Ordinary AI-generated drafts are not authoritative enough for permanent
     # learning. Auto Learn is intentionally staff-driven, like a durable company
@@ -52454,7 +49665,7 @@ Source Question:
 {safe_record.get("source_question", "")}
 
 Source Answer:
-{_learning_visible_source_answer_v69454(safe_record.get("source_answer", ""))}
+{safe_record.get("source_answer", "")}
 
 Retrieval Instruction:
 Prefer this approved record when its exact model number, product/SKU, vehicle/year,
@@ -52521,7 +49732,7 @@ def upload_learned_record_to_vector_store(
         try:
             _workspace_exact_retrieval_cache_clear_v69365()
         except Exception:
-            _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49739")
+            pass
         ready, ingestion_status = wait_for_learned_vector_file_ready(
             vector_store_id,
             openai_file_id,
@@ -52548,17 +49759,17 @@ def upload_learned_record_to_vector_store(
                     file_id=openai_file_id,
                 )
             except Exception:
-                _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49766")
+                pass
             try:
                 client.files.delete(openai_file_id)
             except Exception:
-                _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49770")
+                pass
         raise
     finally:
         try:
             os.remove(tmp_path)
         except Exception:
-            _observe_silent_exception_v69451("upload_learned_record_to_vector_store@L49776")
+            pass
 
 
 def remove_old_learned_vector_file(vector_store_id, file_id):
@@ -52577,278 +49788,41 @@ def remove_old_learned_vector_file(vector_store_id, file_id):
     try:
         client.files.delete(file_id)
     except Exception:
-        _observe_silent_exception_v69451("remove_old_learned_vector_file@L49795")
+        pass
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
-    except Exception:
-        _observe_silent_exception_v69451("remove_old_learned_vector_file@L49799")
-    return True
-
-
-
-LEARNING_SUPPORTING_FILES_PREFIX_V69454 = "[ATP_SUPPORTING_OPENAI_FILES_V69454]"
-_LEARNING_WRITE_LOCK_V69454 = threading.RLock()
-
-
-def _learning_supporting_file_ids_v69454(row):
-    """Recover internal supporting-file IDs without exposing them in retrieval text."""
-    raw = str((row or {}).get("source_answer") or "")
-    match = re.search(
-        re.escape(LEARNING_SUPPORTING_FILES_PREFIX_V69454) + r"(\[[^\n]*\])",
-        raw,
-    )
-    if not match:
-        return []
-    try:
-        values = json.loads(match.group(1))
-    except Exception:
-        return []
-    return [str(value).strip() for value in values if str(value).strip()]
-
-
-def _learning_visible_source_answer_v69454(value):
-    """Strip internal supporting-file registry metadata from vector documents."""
-    return re.sub(
-        re.escape(LEARNING_SUPPORTING_FILES_PREFIX_V69454) + r"\[[^\n]*\]",
-        "",
-        str(value or ""),
-    ).strip()
-
-
-def _learning_supporting_marker_v69454(file_ids):
-    clean = list(dict.fromkeys(
-        str(value).strip() for value in (file_ids or []) if str(value).strip()
-    ))
-    return (
-        LEARNING_SUPPORTING_FILES_PREFIX_V69454
-        + json.dumps(clean, ensure_ascii=False, separators=(",", ":"))
-        if clean else ""
-    )
-
-
-def _detach_learning_supporting_files_v69454(vector_store_id, file_ids):
-    for file_id in list(dict.fromkeys(str(x).strip() for x in (file_ids or []) if str(x).strip())):
-        try:
-            client.vector_stores.files.delete(
-                vector_store_id=str(vector_store_id or ""),
-                file_id=file_id,
-            )
-        except Exception as error:
-            text_v69454 = str(error or "").lower()
-            if not any(token in text_v69454 for token in ("404", "not found", "does not exist")):
-                diagnostic_log(
-                    "learning_supporting_detach_failed_v69454",
-                    file_id=file_id,
-                    error_type=type(error).__name__,
-                )
-
-
-def remove_learned_vector_file_strict_v69454(vector_store_id, file_id, *, attempts=3):
-    """Detach and delete a learned file with bounded retries; fail closed on uncertainty."""
-    vector_store_id = str(vector_store_id or "").strip()
-    file_id = str(file_id or "").strip()
-    if not file_id:
-        return True
-    if not vector_store_id.startswith("vs_"):
-        raise RuntimeError("A valid vector store is required to remove learned knowledge.")
-
-    last_error = None
-    detached = False
-    for attempt in range(max(1, int(attempts or 1))):
-        try:
-            client.vector_stores.files.delete(
-                vector_store_id=vector_store_id,
-                file_id=file_id,
-            )
-            detached = True
-            break
-        except Exception as error:
-            text_v69454 = str(error or "").lower()
-            if any(token in text_v69454 for token in ("404", "not found", "does not exist")):
-                detached = True
-                break
-            last_error = error
-            if attempt + 1 < max(1, int(attempts or 1)):
-                time.sleep(0.25 * (attempt + 1))
-    if not detached:
-        raise RuntimeError(
-            f"Could not detach stale learned vector file {file_id}: {type(last_error).__name__ if last_error else 'unknown error'}"
-        )
-
-    # Deleting the underlying OpenAI file is desirable but a successfully detached
-    # file is already non-searchable. Retry deletion and log any residual file.
-    file_deleted = False
-    for attempt in range(max(1, int(attempts or 1))):
-        try:
-            client.files.delete(file_id)
-            file_deleted = True
-            break
-        except Exception as error:
-            text_v69454 = str(error or "").lower()
-            if any(token in text_v69454 for token in ("404", "not found", "does not exist")):
-                file_deleted = True
-                break
-            last_error = error
-            if attempt + 1 < max(1, int(attempts or 1)):
-                time.sleep(0.25 * (attempt + 1))
-    if not file_deleted:
-        diagnostic_log(
-            "learned_file_delete_residual_v69454",
-            file_id=file_id,
-            error_type=type(last_error).__name__ if last_error else "Unknown",
-        )
-
-    try:
-        _workspace_exact_retrieval_cache_clear_v69365()
-    except Exception:
-        _observe_silent_exception_v69451("remove_learned_vector_file_strict_v69454")
-    return True
-
-
-def _delete_learned_row_transaction_v69454(row, *, admin_client=None):
-    """Delete vector authority first; never hide a DB row while its vector remains searchable."""
-    row = dict(row or {})
-    row_id = row.get("id")
-    if row_id is None:
-        raise RuntimeError("The learned record has no database ID.")
-    vector_store_id = str(row.get("vector_store_id") or "").strip()
-    main_file_id = str(row.get("openai_file_id") or "").strip()
-    supporting_ids = _learning_supporting_file_ids_v69454(row)
-    if (main_file_id or supporting_ids) and not vector_store_id.startswith("vs_"):
-        vector_store_id = get_learning_vector_store_id(row.get("assistant") or "")
-
-    if main_file_id:
-        remove_learned_vector_file_strict_v69454(vector_store_id, main_file_id)
-    for supporting_id in supporting_ids:
-        remove_learned_vector_file_strict_v69454(vector_store_id, supporting_id)
-
-    db = admin_client or supabase
-    result = db.table("learned_knowledge").delete().eq("id", row_id).execute()
-    diagnostic_log(
-        "learned_record_deleted_transactionally_v69454",
-        record_id=str(row_id),
-        supporting_files=len(supporting_ids),
-    )
-    try:
-        invalidate_admin_read_caches()
     except Exception:
         pass
-    return result
-
-
-def _reconcile_processing_learned_vectors_v69454(limit=8):
-    """Periodically repair rows whose vector ingestion completed after the original timeout."""
-    now_mono = time.monotonic()
-    last = float(st.session_state.get("_learning_vector_reconcile_at_v69454", 0.0) or 0.0)
-    if now_mono - last < 300.0:
-        return 0
-    st.session_state["_learning_vector_reconcile_at_v69454"] = now_mono
-    repaired = 0
-    try:
-        rows = (
-            supabase.table("learned_knowledge")
-            .select("id,openai_file_id,vector_store_id,synced,embedding_status")
-            .eq("synced", False)
-            .limit(max(1, int(limit or 8)))
-            .execute().data or []
-        )
-    except Exception as error:
-        diagnostic_log(
-            "learned_vector_reconcile_read_failed_v69454",
-            error_type=type(error).__name__,
-        )
-        return 0
-    for row in rows:
-        file_id = str(row.get("openai_file_id") or "").strip()
-        vector_store_id = str(row.get("vector_store_id") or "").strip()
-        if not file_id or not vector_store_id.startswith("vs_"):
-            continue
-        try:
-            vector_file = client.vector_stores.files.retrieve(
-                vector_store_id=vector_store_id,
-                file_id=file_id,
-            )
-            status = str(getattr(vector_file, "status", "") or "").lower()
-            if status == "completed":
-                safe_update_row(
-                    "learned_knowledge",
-                    {"synced": True, "embedding_status": "synced", "updated_at": now_iso()},
-                    row.get("id"),
-                )
-                repaired += 1
-            elif status in {"failed", "cancelled"}:
-                safe_update_row(
-                    "learned_knowledge",
-                    {"synced": False, "embedding_status": status, "updated_at": now_iso()},
-                    row.get("id"),
-                )
-        except Exception as error:
-            diagnostic_log(
-                "learned_vector_reconcile_item_failed_v69454",
-                record_id=str(row.get("id") or ""),
-                error_type=type(error).__name__,
-            )
-    if repaired:
-        diagnostic_log("learned_vector_reconciled_v69454", repaired=repaired)
-    return repaired
+    return True
 
 
 def find_duplicate_learned_knowledge(candidate, selected_assistant):
-    """Find duplicates across the full current department and fail closed on read errors."""
-    clean_assistant_label_v69454 = clean_assistant_label(selected_assistant).strip()
-    clean_assistant = clean_assistant_label_v69454.lower()
-    if not clean_assistant:
-        raise RuntimeError("A valid learning workspace is required for duplicate detection.")
-
-    query_error_v69454 = None
-    all_rows = []
     try:
-        # Query the department first so a busy global table cannot push older
-        # same-department knowledge outside an arbitrary newest-200 window.
-        query_v69454 = (
-            supabase.table("learned_knowledge")
-            .select("*")
-            .eq("assistant", clean_assistant_label_v69454)
-            .limit(2000)
+        all_rows = safe_select_rows(
+            "learned_knowledge",
+            order_columns=["updated_at", "created_at"],
+            limit=200,
         )
-        try:
-            query_v69454 = query_v69454.order("updated_at", desc=True)
-        except Exception:
-            pass
-        all_rows = list(query_v69454.execute().data or [])
-    except Exception as error_v69454:
-        query_error_v69454 = error_v69454
-        try:
-            all_rows = safe_select_rows(
-                "learned_knowledge",
-                order_columns=["updated_at", "created_at"],
-                limit=2000,
-            )
-        except Exception as fallback_error_v69454:
-            diagnostic_log(
-                "learned_duplicate_read_failed_v69454",
-                workspace=clean_assistant_label_v69454,
-                error_type=type(fallback_error_v69454).__name__,
-            )
-            raise RuntimeError(
-                "Duplicate safety check is unavailable; learning was not changed."
-            ) from fallback_error_v69454
 
-    approved_rows = [
-        row for row in all_rows
-        if not is_pending_knowledge_row(row)
-    ]
-    rows = [
-        row for row in approved_rows
-        if str(row.get("assistant") or "").strip().lower() == clean_assistant
-    ]
-    if query_error_v69454 is not None:
-        diagnostic_log(
-            "learned_duplicate_department_query_fallback_v69454",
-            workspace=clean_assistant_label_v69454,
-            rows=len(rows),
-            error_type=type(query_error_v69454).__name__,
-        )
+        approved_rows = [
+            row for row in all_rows
+            if not is_pending_knowledge_row(row)
+        ]
+
+        clean_assistant = clean_assistant_label(
+            selected_assistant
+        ).strip().lower()
+
+        # Duplicate merging is strictly department-scoped. Retrieval may be
+        # one-way across departments, but durable records must never be merged
+        # into or overwrite another department's knowledge.
+        rows = [
+            row for row in approved_rows
+            if str(row.get("assistant") or "").strip().lower()
+            == clean_assistant
+        ]
+    except Exception:
+        return None, 0
 
     best_row = None
     best_score = 0
@@ -53074,97 +50048,6 @@ def build_local_analytics_payload(question, answer, selected_assistant):
 
 
 
-def _stage_explicit_learning_attachments_v69454(uploaded_files):
-    """Stage explicit-learning attachments across the answer->postprocess rerun."""
-    staged = []
-    for uploaded_file in list(uploaded_files or [])[:8]:
-        name = str(getattr(uploaded_file, "name", "attachment") or "attachment")
-        mime = str(getattr(uploaded_file, "type", "") or "").lower()
-        try:
-            payload = _uploaded_file_bytes(uploaded_file)
-        except Exception as error:
-            diagnostic_log(
-                "learning_attachment_read_failed_v69454",
-                name=name[:160],
-                error_type=type(error).__name__,
-            )
-            raise RuntimeError(f"Could not read learning attachment: {name}") from error
-        if not payload:
-            continue
-        if len(payload) > 20 * 1024 * 1024:
-            raise RuntimeError(f"Learning attachment is too large: {name}")
-        if mime.startswith("image/"):
-            try:
-                image_url = normalized_image_data_url(uploaded_file)
-            except Exception:
-                image_url = ""
-            if not str(image_url or "").startswith("data:image/"):
-                encoded = base64.b64encode(payload).decode("ascii")
-                safe_mime = mime if mime.startswith("image/") else "image/png"
-                image_url = f"data:{safe_mime};base64,{encoded}"
-            staged.append({
-                "name": name,
-                "mime": mime,
-                "image_url": image_url,
-            })
-            continue
-        try:
-            try:
-                created = client.files.create(
-                    file=(name, payload),
-                    purpose="user_data",
-                )
-            except Exception:
-                created = client.files.create(
-                    file=(name, payload),
-                    purpose="assistants",
-                )
-        except Exception as error:
-            diagnostic_log(
-                "learning_attachment_stage_failed_v69454",
-                name=name[:160],
-                error_type=type(error).__name__,
-            )
-            raise RuntimeError(f"Could not stage learning attachment: {name}") from error
-        staged.append({
-            "name": name,
-            "mime": mime,
-            "file_id": str(getattr(created, "id", "") or ""),
-            "temporary": True,
-        })
-    diagnostic_log(
-        "learning_attachments_staged_v69454",
-        count=len(staged),
-        file_count=sum(bool(item.get("file_id")) for item in staged),
-        image_count=sum(bool(item.get("image_url")) for item in staged),
-    )
-    return staged
-
-
-def _cleanup_staged_learning_attachments_v69454(staged):
-    for item in staged or []:
-        file_id = str((item or {}).get("file_id") or "").strip()
-        if not file_id or not bool((item or {}).get("temporary")):
-            continue
-        try:
-            client.files.delete(file_id)
-        except Exception as error:
-            diagnostic_log(
-                "learning_attachment_cleanup_failed_v69454",
-                file_id=file_id,
-                error_type=type(error).__name__,
-            )
-
-
-def _sync_pending_postprocess_compat_v69454():
-    queue = st.session_state.get("_pending_ai_postprocess_queue_v69454")
-    if not isinstance(queue, list):
-        queue = []
-        st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
-    st.session_state["pending_ai_postprocess"] = queue[0] if queue else None
-    return queue
-
-
 def queue_ai_postprocess(
     question,
     answer,
@@ -53177,9 +50060,8 @@ def queue_ai_postprocess(
     is_structured_graphic_tool=False,
     explicit_learning=False,
     learning_context="",
-    learning_attachments=None,
 ):
-    """Queue learning/analytics FIFO so a later turn cannot overwrite an earlier job."""
+    """Queue non-visible learning and analytics for the next Streamlit run."""
     live_type = str(
         (
             detected_live_request
@@ -53198,18 +50080,11 @@ def queue_ai_postprocess(
             + "\n" + str(answer or "")
         ).encode("utf-8", errors="ignore")
     ).hexdigest()
-
-    queue = _sync_pending_postprocess_compat_v69454()
-    known = {
-        str(item.get("fingerprint") or "")
-        for item in queue if isinstance(item, dict)
-    }
-    if postprocess_fingerprint in known:
+    if st.session_state.get("last_queued_postprocess_fingerprint") == postprocess_fingerprint:
         return
-    if st.session_state.get("last_processed_postprocess_fingerprint") == postprocess_fingerprint:
-        return
+    st.session_state["last_queued_postprocess_fingerprint"] = postprocess_fingerprint
 
-    job = {
+    st.session_state["pending_ai_postprocess"] = {
         "fingerprint": postprocess_fingerprint,
         "question": str(question or ""),
         "answer": str(answer or ""),
@@ -53222,33 +50097,17 @@ def queue_ai_postprocess(
         "response_time": response_time,
         "tokens_used": tokens_used,
         "is_graphic_generation": bool(is_graphic_generation),
-        "is_structured_marketing_tool": bool(is_structured_marketing_tool),
-        "is_structured_graphic_tool": bool(is_structured_graphic_tool),
+        "is_structured_marketing_tool": bool(
+            is_structured_marketing_tool
+        ),
+        "is_structured_graphic_tool": bool(
+            is_structured_graphic_tool
+        ),
         "explicit_learning": bool(explicit_learning),
         "learning_context": str(learning_context or ""),
-        "learning_attachments": list(learning_attachments or []),
-        "attempts": 0,
-        "queued_at": now_iso(),
     }
-    queue.append(job)
-    # Bound ordinary maintenance without ever discarding an explicit learning job.
-    if len(queue) > 32:
-        removable = next(
-            (i for i, item in enumerate(queue) if not bool((item or {}).get("explicit_learning"))),
-            None,
-        )
-        if removable is not None:
-            queue.pop(removable)
-        elif len(queue) > 64:
-            raise RuntimeError("The learning queue is full; please allow pending saves to finish.")
-    st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
-    _sync_pending_postprocess_compat_v69454()
-    diagnostic_log(
-        "ai_postprocess_queued_v69454",
-        fingerprint=postprocess_fingerprint[:12],
-        queue_depth=len(queue),
-        explicit_learning=bool(explicit_learning),
-    )
+
+
 
 def process_pending_history_trim_v68864():
     """Run per-workspace conversation-limit housekeeping after visible output.
@@ -53305,33 +50164,25 @@ def process_pending_history_trim_v68864():
 
 
 def process_pending_ai_postprocess():
-    """Process the oldest queued job; explicit learning retries instead of disappearing."""
-    queue = _sync_pending_postprocess_compat_v69454()
-    if not queue:
-        return
-    job = queue[0]
+    """
+    Process one queued maintenance job after the answer has already been saved
+    and displayed. Failures remain non-blocking.
+    """
+    job = st.session_state.pop("pending_ai_postprocess", None)
     if not isinstance(job, dict):
-        queue.pop(0)
-        _sync_pending_postprocess_compat_v69454()
         return
 
     fingerprint = str(job.get("fingerprint") or "")
     if fingerprint and st.session_state.get("last_processed_postprocess_fingerprint") == fingerprint:
-        queue.pop(0)
-        _cleanup_staged_learning_attachments_v69454(job.get("learning_attachments"))
-        _sync_pending_postprocess_compat_v69454()
         return
+    if fingerprint:
+        st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
 
     postprocess_started_at = time.perf_counter()
+    # Keep diagnostics compact. Detailed failures are still logged below; normal
+    # maintenance runs only emit the final timing record.
+
     learning_result = None
-    learning_failed = False
-    learning_error = None
-
-    try:
-        _reconcile_processing_learned_vectors_v69454(limit=8)
-    except Exception:
-        pass
-
     if (
         not job.get("is_graphic_generation")
         and not job.get("is_structured_marketing_tool")
@@ -53345,22 +50196,16 @@ def process_pending_ai_postprocess():
                 detected_live_request=job.get("detected_live_request"),
                 explicit_learning=bool(job.get("explicit_learning")),
                 learning_context=job.get("learning_context"),
-                learning_attachments=job.get("learning_attachments"),
             )
             if learning_result and learning_result.get("learned"):
                 st.session_state["_case_learning_context_revision_v68864"] = (
-                    int(st.session_state.get("_case_learning_context_revision_v68864", 0) or 0) + 1
+                    int(st.session_state.get("_case_learning_context_revision_v68864", 0) or 0)
+                    + 1
                 )
                 st.session_state.pop("_case_learning_context_cache_v68864", None)
                 mode = learning_result.get("mode", "saved")
                 if learning_result.get("explicit_learning"):
                     message = f"Knowledge saved permanently ({mode})."
-                    diagnostic_log(
-                        "explicit_learning_persisted_v69452",
-                        workspace=str(job.get("selected_assistant") or ""),
-                        mode=str(mode),
-                        record_id=str(learning_result.get("record_id") or ""),
-                    )
                 elif learning_result.get("staff_confirmed"):
                     message = f"Confirmed staff solution learned ({mode})."
                 elif learning_result.get("unlabeled_final_reply"):
@@ -53370,18 +50215,8 @@ def process_pending_ai_postprocess():
                 else:
                     message = f"Knowledge learned from this case ({mode})."
                 st.toast(message, icon="🧠")
-            elif (
-                learning_result
-                and learning_result.get("authorization_denied")
-                and job.get("explicit_learning")
-            ):
-                st.toast(
-                    "Knowledge was not saved because administrator authorization could not be revalidated.",
-                    icon="🔒",
-                )
         except Exception as error:
-            learning_failed = True
-            learning_error = error
+            learning_result = None
             diagnostic_log(
                 "ai_postprocess_learning_failed",
                 error_type=type(error).__name__,
@@ -53389,8 +50224,6 @@ def process_pending_ai_postprocess():
                 fingerprint=fingerprint[:12],
             )
 
-    # Analytics is independent and should not make an authoritative learning retry
-    # repeat a successful write. It is therefore attempted after learning.
     try:
         log_ai_analytics(
             job.get("question"),
@@ -53408,51 +50241,14 @@ def process_pending_ai_postprocess():
             fingerprint=fingerprint[:12],
         )
 
-    if learning_failed and bool(job.get("explicit_learning")):
-        attempts = int(job.get("attempts") or 0) + 1
-        job["attempts"] = attempts
-        if attempts < 3:
-            queue[0] = job
-            st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
-            _sync_pending_postprocess_compat_v69454()
-            diagnostic_log(
-                "explicit_learning_retry_pending_v69454",
-                fingerprint=fingerprint[:12],
-                attempt=attempts,
-                error_type=type(learning_error).__name__ if learning_error else "Unknown",
-            )
-            st.toast(
-                "Knowledge save hit a temporary error and is queued to retry safely.",
-                icon="🧠",
-            )
-            return
-        st.toast(
-            "Knowledge was not saved after three safe attempts. Existing knowledge was left unchanged.",
-            icon="⚠️",
-        )
-        diagnostic_log(
-            "explicit_learning_retry_exhausted_v69454",
-            fingerprint=fingerprint[:12],
-            attempts=attempts,
-        )
-
-    # Consume only after success, a non-learning maintenance attempt, or exhausted
-    # retries. Marking processed happens here—not before the durable work.
-    queue.pop(0)
-    _cleanup_staged_learning_attachments_v69454(job.get("learning_attachments"))
-    if fingerprint:
-        st.session_state["last_processed_postprocess_fingerprint"] = fingerprint
-    st.session_state["_pending_ai_postprocess_queue_v69454"] = queue
-    _sync_pending_postprocess_compat_v69454()
-
     diagnostic_log(
         "ai_postprocess_finished",
         fingerprint=fingerprint[:12],
         elapsed_seconds=round(time.perf_counter() - postprocess_started_at, 3),
         logged_in=st.session_state.get("logged_in"),
-        queue_depth=len(queue),
-        learning_failed=bool(learning_failed),
     )
+
+
 
 def _auto_learning_is_eligible(question, selected_assistant, explicit_learning=False):
     """Return True only when a message can produce authoritative durable knowledge.
@@ -53479,33 +50275,9 @@ def auto_learn_from_latest_answer(
     detected_live_request=None,
     explicit_learning=False,
     learning_context="",
-    learning_attachments=None,
 ):
     if selected_assistant == "⚙️ Admin Panel":
         return None
-
-    # v69452 defense in depth: even if a future routing regression accidentally
-    # queues an explicit learning job, the durable writer itself fails closed
-    # unless the active account revalidates as admin at write time.
-    if bool(explicit_learning) and not _learning_admin_authorized_v69452(
-        revalidate=True
-    ):
-        diagnostic_log(
-            "explicit_learning_persistence_blocked_v69452",
-            workspace=str(selected_assistant),
-            role=str(st.session_state.get("role") or "").strip().lower() or "none",
-        )
-        return {
-            "learned": False,
-            "explicit_learning": True,
-            "authorization_denied": True,
-            "reason": "Admin authorization could not be verified.",
-            "analytics_payload": build_local_analytics_payload(
-                question,
-                answer,
-                selected_assistant,
-            ),
-        }
 
     # Ordinary Graphic Marketing generations are not auto-learned. Explicit
     # staff commands such as "learn this style" may save reusable design guidance.
@@ -53611,7 +50383,6 @@ def auto_learn_from_latest_answer(
         staff_teaching=staff_teaching,
         conversation_context=conversation_context,
         explicit_requested=explicit_learning,
-        learning_attachments=learning_attachments,
     )
     if candidate.get("should_learn"):
         candidate["confidence_score"] = max(
@@ -53641,15 +50412,6 @@ def auto_learn_from_latest_answer(
 
     if duplicate_row:
         improved = improve_existing_solution(duplicate_row, candidate)
-        if not bool(improved.get("merge_succeeded")):
-            diagnostic_log(
-                "learned_knowledge_merge_aborted_v69454",
-                record_id=str(duplicate_row.get("id") or ""),
-                workspace=str(selected_assistant or ""),
-            )
-            raise RuntimeError(
-                "The existing knowledge could not be safely merged. Nothing was changed."
-            )
 
         record_for_file = {
             "assistant": clean_assistant_label(selected_assistant),
@@ -53682,12 +50444,7 @@ def auto_learn_from_latest_answer(
             "question": safe_question,
             "keywords": improved["keywords"],
             "source_question": safe_question,
-            "source_answer": "\n".join(filter(None, [
-                safe_answer,
-                _learning_supporting_marker_v69454(
-                    _learning_supporting_file_ids_v69454(duplicate_row)
-                ),
-            ])),
+            "source_answer": safe_answer,
             "source_conversation_id": st.session_state.get("conversation_id"),
             "confidence_score": improved["confidence_score"],
             "times_seen": improved["times_seen"],
@@ -53719,42 +50476,14 @@ def auto_learn_from_latest_answer(
             remove_old_learned_vector_file(vector_store_id, openai_file_id)
             raise
 
-        # v69454 transactional supersession: a successful DB update is not enough
-        # if the stale vector remains searchable. If strict old-vector cleanup fails,
-        # restore the previous DB authority and remove the new vector.
+        # Only remove the superseded vector after the replacement has uploaded
+        # and the Supabase master record has been updated successfully.
         old_file_id = duplicate_row.get("openai_file_id")
         if old_file_id and old_file_id != openai_file_id:
-            try:
-                remove_learned_vector_file_strict_v69454(
-                    duplicate_row.get("vector_store_id") or vector_store_id,
-                    old_file_id,
-                )
-            except Exception as cleanup_error_v69454:
-                rollback_payload_v69454 = {
-                    key: value for key, value in dict(duplicate_row).items()
-                    if key != "id"
-                }
-                try:
-                    safe_update_row(
-                        "learned_knowledge",
-                        rollback_payload_v69454,
-                        duplicate_row["id"],
-                    )
-                finally:
-                    try:
-                        remove_learned_vector_file_strict_v69454(
-                            vector_store_id, openai_file_id
-                        )
-                    except Exception:
-                        remove_old_learned_vector_file(vector_store_id, openai_file_id)
-                diagnostic_log(
-                    "learned_supersession_rolled_back_v69454",
-                    record_id=str(duplicate_row.get("id") or ""),
-                    error_type=type(cleanup_error_v69454).__name__,
-                )
-                raise RuntimeError(
-                    "The old knowledge vector could not be removed, so the update was rolled back."
-                ) from cleanup_error_v69454
+            remove_old_learned_vector_file(
+                duplicate_row.get("vector_store_id") or vector_store_id,
+                old_file_id,
+            )
 
         return {
             "learned": True,
@@ -53839,18 +50568,6 @@ def auto_learn_from_latest_answer(
         "file_id": openai_file_id,
         "analytics_payload": candidate.get("analytics_payload"),
     }
-
-
-# v69454 process-local serialization closes the common multi-session race between
-# duplicate detection and insert/update. Database/vector rollback logic below remains
-# authoritative if an external worker or future multi-process deployment races it.
-_AUTO_LEARN_FROM_LATEST_ANSWER_V69454_BASE = auto_learn_from_latest_answer
-
-def _auto_learn_from_latest_answer_serialized_v69454(*args, **kwargs):
-    with _LEARNING_WRITE_LOCK_V69454:
-        return _AUTO_LEARN_FROM_LATEST_ANSWER_V69454_BASE(*args, **kwargs)
-
-auto_learn_from_latest_answer = _auto_learn_from_latest_answer_serialized_v69454
 
 
 # ============================================================
@@ -54062,7 +50779,7 @@ def safe_avg(rows, field):
             if row.get(field) is not None:
                 values.append(float(row.get(field)))
         except Exception:
-            _observe_silent_exception_v69451("safe_avg@L50786")
+            pass
     if not values:
         return 0
     return round(sum(values) / len(values), 2)
@@ -54088,7 +50805,7 @@ def total_numeric(rows, field):
         try:
             total += int(row.get(field) or 0)
         except Exception:
-            _observe_silent_exception_v69451("total_numeric@L50812")
+            pass
     return total
 
 
@@ -54268,7 +50985,7 @@ def generate_ai_conversation_title(
             words = title.split()[:5]
             return " ".join(words)[:36].rstrip()
     except Exception:
-        _observe_silent_exception_v69451("generate_ai_conversation_title@L50992")
+        pass
 
     return conversation_title_from_text(user_text)
 
@@ -54398,7 +51115,7 @@ def _history_http_session_v69322():
         session_v69322.mount("https://", adapter_v69322)
         session_v69322.mount("http://", adapter_v69322)
     except Exception:
-        _observe_silent_exception_v69451("_history_http_session_v69322@L51122")
+        pass
     return session_v69322
 
 
@@ -54437,7 +51154,7 @@ def _history_content_range_total_v69322(response):
             if total_v69322.isdigit():
                 return int(total_v69322)
     except Exception:
-        _observe_silent_exception_v69451("_history_content_range_total_v69322@L51161")
+        pass
     return None
 
 
@@ -54992,33 +51709,33 @@ def invalidate_history_cache(
         try:
             _load_conversations_cached.clear()
         except Exception:
-            _observe_silent_exception_v69451("invalidate_history_cache@L51716")
+            pass
         try:
             _conversation_summary_index_cached.clear()
         except Exception:
-            _observe_silent_exception_v69451("invalidate_history_cache@L51720")
+            pass
         try:
             _active_conversation_count_cached.clear()
         except Exception:
-            _observe_silent_exception_v69451("invalidate_history_cache@L51724")
+            pass
         try:
             _history_sidebar_snapshot_cached_v69322.clear()
         except Exception:
-            _observe_silent_exception_v69451("invalidate_history_cache@L51728")
+            pass
 
     if messages:
         try:
             _load_messages_cached.clear()
         except Exception:
-            _observe_silent_exception_v69451("invalidate_history_cache@L51734")
+            pass
         try:
             _conversation_owned_by_user_cached.clear()
         except Exception:
-            _observe_silent_exception_v69451("invalidate_history_cache@L51738")
+            pass
         try:
             _history_messages_after_workspace_proof_cached_v69322.clear()
         except Exception:
-            _observe_silent_exception_v69451("invalidate_history_cache@L51742")
+            pass
 
 
 def load_messages(conversation_id):
@@ -55081,7 +51798,7 @@ def delete_conversation(conversation_id):
             str(conversation_id)
         )
     except Exception:
-        _observe_silent_exception_v69451("delete_conversation@L51805")
+        pass
     invalidate_history_cache(
         conversations=True,
         messages=True,
@@ -55134,7 +51851,7 @@ def _cached_conversation_row(conversation_id):
             history_limit,
         ).get(str(conversation_id))
     except Exception:
-        _observe_silent_exception_v69451("_cached_conversation_row@L51858")
+        pass
 
     return None
 
@@ -55181,7 +51898,7 @@ def get_current_conversation_title():
             session_titles[conversation_key] = title
             return title
     except Exception:
-        _observe_silent_exception_v69451("get_current_conversation_title@L51905")
+        pass
     return "New Case"
 
 
@@ -55286,7 +52003,7 @@ def get_conversation_title_by_id(conversation_id):
             session_titles[conversation_key] = title
             return title
     except Exception:
-        _observe_silent_exception_v69451("get_conversation_title_by_id@L52010")
+        pass
     return "New Case"
 
 
@@ -59365,7 +56082,7 @@ def _graphic_v68993_authority_manifest(prompt_text, uploaded_files, forced_uploa
     try:
         roles = set(_graphic_project_role_set(project or {}))
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v68993_authority_manifest@L56089")
+        pass
     has_reference = bool(active_reference_id or ({"reference", "style_reference"} & roles))
     has_product = bool(active_product_id or ({"product", "product_photo"} & roles))
 
@@ -59583,7 +56300,7 @@ def _graphic_v68994_role_fingerprint(role_items, roles=None):
                 try:
                     item["_data_url_digest_v68983"] = digest
                 except Exception:
-                    _observe_silent_exception_v69451("_graphic_v68994_role_fingerprint@L56307")
+                    pass
         selected.append({
             "role": role,
             "name": str(item.get("name") or ""),
@@ -60037,7 +56754,7 @@ def _graphic_v68995_commit_slot_manifest(manifest):
     try:
         _graphic_v66100_cache_put(_graphic_v68995_manifest_cache_key(style_key), dict(manifest))
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v68995_commit_slot_manifest@L56761")
+        pass
     return True
 
 def _graphic_v68995_normalize_label(label):
@@ -60278,7 +56995,7 @@ def _graphic_v69272_protected_mode(prompt_text, uploaded_files=None, forced_uplo
         if bool(ns_v69272["_graphic_v68829_is_installed_request"](text_v69272)):
             return "installed", ns_v69272
     except Exception:
-        _observe_silent_exception_v69451("_graphic_v69272_protected_mode@L57002")
+        pass
     try:
         if bool(ns_v69272["_graphic_v68827_is_reference_mode"](text_v69272, uploaded_files, forced_upload_role)):
             return "reference", ns_v69272
@@ -60292,7 +57009,7 @@ def _graphic_v69272_protected_mode(prompt_text, uploaded_files=None, forced_uplo
             if str(project_v69272.get("active_reference_id") or "") and str(project_v69272.get("active_product_id") or ""):
                 return "reference", ns_v69272
         except Exception:
-            _observe_silent_exception_v69451("_graphic_v69272_protected_mode@L57016")
+            pass
     return "other", ns_v69272
 
 
@@ -60533,7 +57250,7 @@ def process_pending_graphic_regeneration():
         st.session_state.pop("_graphic_v68994_durable_authority_hint", None); return False
     try:
         with st.spinner("Creating another image version..."):
-            images = _GRAPHIC_V69451_FINAL_ENGINE(prompt_text, generation_files)
+            images = generate_graphic_marketing_images(prompt_text, generation_files)
             answer_text = generated_image_answer_text(images, regenerated=True)
             stored_content = answer_text + serialize_images_marker(images)
             st.session_state.messages.append({"role": "assistant", "content": stored_content})
@@ -60543,104 +57260,6 @@ def process_pending_graphic_regeneration():
             return True
     except Exception as error:
         st.error(f"Could not regenerate image: {error}"); return False
-
-
-# ============================================================
-# v69451 — Explicit final Graphic runtime pinning
-# ============================================================
-# Historical Graphic releases intentionally wrap earlier authorities. Their captured
-# base functions are part of the production behavior and must NOT be flattened.
-# Pin the final public entry points only after the complete wrapper stack is defined,
-# then route live call sites through these immutable aliases. This removes dependence
-# on later same-name rebinding while preserving the exact current function objects.
-_GRAPHIC_V69451_FINAL_ENGINE = generate_graphic_marketing_images
-_GRAPHIC_V69451_FINAL_PROCESS_PENDING = process_pending_graphic_regeneration
-_GRAPHIC_V69451_FINAL_RESEARCH_VEHICLE = research_graphic_vehicle_profile
-_GRAPHIC_V69451_FINAL_SAVE_STYLE_MEMORY = save_graphic_style_memory
-_GRAPHIC_V69451_FINAL_PUBLICATION_REPORT = _graphic_v68978_reference_publication_report
-_GRAPHIC_V69451_FINAL_QUEUE_DURABLE_JOB = _graphic_queue_durable_job_v68844
-_GRAPHIC_V69451_FINAL_PENDING_DURABLE_JOB = _graphic_pending_durable_job_v68844
-_GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_GET = _graphic_v69258_background_resume_get
-_GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_PUT = _graphic_v69258_background_resume_put
-_GRAPHIC_V69451_FINAL_AUX_CACHE_GET = _graphic_v69263_aux_cache_get
-_GRAPHIC_V69451_FINAL_AUX_CACHE_PUT = _graphic_v69263_aux_cache_put
-_GRAPHIC_V69451_FINAL_PRODUCT_STRUCTURE = _graphic_product_structure_profile_cached_v4300
-
-
-def _graphic_v69451_assert_wrapper_integrity():
-    """Fail closed only if the established Graphic wrapper topology is corrupted."""
-    final_bindings_v69451 = {
-        "engine": _GRAPHIC_V69451_FINAL_ENGINE,
-        "process_pending": _GRAPHIC_V69451_FINAL_PROCESS_PENDING,
-        "research_vehicle": _GRAPHIC_V69451_FINAL_RESEARCH_VEHICLE,
-        "save_style_memory": _GRAPHIC_V69451_FINAL_SAVE_STYLE_MEMORY,
-        "publication_report": _GRAPHIC_V69451_FINAL_PUBLICATION_REPORT,
-        "queue_durable_job": _GRAPHIC_V69451_FINAL_QUEUE_DURABLE_JOB,
-        "pending_durable_job": _GRAPHIC_V69451_FINAL_PENDING_DURABLE_JOB,
-        "background_resume_get": _GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_GET,
-        "background_resume_put": _GRAPHIC_V69451_FINAL_BACKGROUND_RESUME_PUT,
-        "aux_cache_get": _GRAPHIC_V69451_FINAL_AUX_CACHE_GET,
-        "aux_cache_put": _GRAPHIC_V69451_FINAL_AUX_CACHE_PUT,
-        "product_structure": _GRAPHIC_V69451_FINAL_PRODUCT_STRUCTURE,
-    }
-    missing_v69451 = sorted(
-        name_v69451
-        for name_v69451, value_v69451 in final_bindings_v69451.items()
-        if not callable(value_v69451)
-    )
-    if missing_v69451:
-        raise RuntimeError(
-            "Graphic final runtime binding integrity failure: "
-            + ", ".join(missing_v69451)
-        )
-
-    # These are intentionally captured predecessor engines. Equality with the final
-    # public wrapper would create recursion or bypass the protected release chain.
-    predecessor_checks_v69451 = (
-        ("v69272-current-engine", _GRAPHIC_V69272_CURRENT_ENGINE),
-        ("v68995-base-generator", _GRAPHIC_V68995_BASE_GENERATOR),
-        ("v68994-base-queue", _GRAPHIC_V68994_BASE_QUEUE_DURABLE_JOB),
-        ("v68994-base-pending", _GRAPHIC_V68994_BASE_PENDING_DURABLE_JOB),
-        ("v69264-base-resume-get", _GRAPHIC_V69264_BASE_BACKGROUND_RESUME_GET),
-        ("v69264-base-resume-put", _GRAPHIC_V69264_BASE_BACKGROUND_RESUME_PUT),
-        ("v69265-session-aux-get", _GRAPHIC_V69265_SESSION_AUX_GET),
-        ("v69265-session-aux-put", _GRAPHIC_V69265_SESSION_AUX_PUT),
-        ("v69265-original-research", _GRAPHIC_V69265_ORIGINAL_VEHICLE_RESEARCH),
-        ("v68987-base-publication", _GRAPHIC_V68987_BASE_PUBLICATION_REPORT),
-        ("v68827-base-style-memory", _GRAPHIC_V68827_BASE_SAVE_STYLE_MEMORY),
-    )
-    invalid_v69451 = sorted(
-        name_v69451
-        for name_v69451, value_v69451 in predecessor_checks_v69451
-        if (
-            not callable(value_v69451)
-            or value_v69451 is _GRAPHIC_V69451_FINAL_ENGINE
-            or value_v69451 is _GRAPHIC_V69451_FINAL_PROCESS_PENDING
-        )
-    )
-    if invalid_v69451:
-        raise RuntimeError(
-            "Graphic predecessor wrapper integrity failure: "
-            + ", ".join(invalid_v69451)
-        )
-
-    diagnostic_log(
-        "graphic_v69451_wrapper_integrity_verified",
-        final_bindings=len(final_bindings_v69451),
-        predecessor_bindings=len(predecessor_checks_v69451),
-        protected_source_sha=_GRAPHIC_V69271_V69248_SOURCE_SHA256[:16],
-    )
-    return True
-
-
-if str(locals().get("assistant") or "").strip() == "🎨 Graphic Marketing":
-    _GRAPHIC_V69451_WRAPPER_INTEGRITY_OK = _graphic_v69451_assert_wrapper_integrity()
-else:
-    _GRAPHIC_V69451_WRAPPER_INTEGRITY_OK = True
-    diagnostic_log(
-        "graphic_v69451_wrapper_integrity_deferred_v69484",
-        workspace=str(locals().get("assistant") or ""),
-    )
 
 
 # Chat History Sidebar
@@ -60829,7 +57448,7 @@ def _website_extract_atp_semantics_v69178(page_html, page_url=""):
         attr_parser.feed(value)
         attr_parser.close()
     except Exception:
-        _observe_silent_exception_v69451("_website_extract_atp_semantics_v69178@L57455")
+        pass
 
     if (
         not scripts
@@ -61585,7 +58204,7 @@ def canonical_website_url_identity(raw_url):
     try:
         hostname = hostname.encode("idna").decode("ascii")
     except Exception:
-        _observe_silent_exception_v69451("canonical_website_url_identity@L58211")
+        pass
 
     port = parsed.port
     if port in {80, 443}:
@@ -62360,7 +58979,7 @@ def _download_public_website_image(image_url, context_score=0, technical_context
         except ValueError:
             raise
         except Exception:
-            _observe_silent_exception_v69451("_download_public_website_image@L58986")
+            pass
 
     return {
         "source_url": final_url,
@@ -62458,7 +59077,7 @@ def _website_preview_visual_metrics_v68998(image_bytes):
             "border_background_difference_ratio": round(foreground_ratio, 6),
         })
     except Exception:
-        _observe_silent_exception_v69451("_website_preview_visual_metrics_v68998@L59084")
+        pass
     return metrics
 
 
@@ -63185,56 +59804,6 @@ def build_website_knowledge_package_document(
         "",
     ]
 
-    if (
-        str(database_choice or "") in {"Sales Database", "Marketing Database"}
-        and str(extraction.get("page_type_v69024") or "") == "woocommerce_product"
-    ):
-        structured_v69485 = dict(extraction.get("woocommerce_structured_content_v69485") or {})
-        short_v69485 = str(structured_v69485.get("short_description_text") or "").strip()
-        tabs_v69485 = [
-            dict(x) for x in (structured_v69485.get("custom_tab_sections") or [])
-            if isinstance(x, dict) and str(x.get("text") or "").strip()
-        ]
-        attrs_v69485 = dict(structured_v69485.get("semantic_attributes") or {})
-        if short_v69485 or tabs_v69485 or attrs_v69485:
-            lines.extend([
-                "WOOCOMMERCE STRUCTURED PRODUCT CONTENT V69485",
-                "============================================",
-                "WOO_SHORT_DESCRIPTION_V69485:",
-                short_v69485,
-                "WOO_CUSTOM_TABS_V69485:",
-            ])
-            for tab_v69485 in tabs_v69485[:32]:
-                lines.extend([
-                    f"TAB[{str(tab_v69485.get('title') or tab_v69485.get('id') or 'Custom tab')[:180]}]",
-                    str(tab_v69485.get("text") or "")[:20000],
-                ])
-            conditional_rules_v69486 = _workspace_sales_conditional_feature_rules_v69486(structured_v69485)
-            compatibility_facets_v69487 = _workspace_sales_compatibility_facets_v69487({}, structured_v69485)
-            conditional_rules_v69487 = _workspace_sales_conditional_feature_rules_v69487(structured_v69485)
-            lines.extend([
-                "WOO_SEMANTIC_ATTRIBUTES_JSON_V69485:",
-                json.dumps(attrs_v69485, ensure_ascii=False, separators=(",", ":"))[:60000],
-                "WOO_CONDITIONAL_FEATURE_RULES_JSON_V69486:",
-                json.dumps(conditional_rules_v69486, ensure_ascii=False, separators=(",", ":"))[:60000],
-                "WOO_COMPATIBILITY_FACETS_JSON_V69487:",
-                json.dumps(compatibility_facets_v69487, ensure_ascii=False, separators=(",", ":"))[:60000],
-                "WOO_CONDITIONAL_FEATURE_RULES_JSON_V69487:",
-                json.dumps(conditional_rules_v69487, ensure_ascii=False, separators=(",", ":"))[:60000],
-                "",
-            ])
-            diagnostic_log(
-                "website_sales_structured_product_content_learned_v69485",
-                destination=str(database_choice),
-                source_url=str(extraction.get("source_url") or "")[:700],
-                short_chars=len(short_v69485),
-                custom_tabs=len(tabs_v69485),
-                semantic_attributes=len(attrs_v69485),
-                conditional_rules=len(conditional_rules_v69486),
-                compatibility_facets_v69487=len(compatibility_facets_v69487),
-                conditional_rules_v69487=len(conditional_rules_v69487),
-            )
-
     media_links_v69323 = [
         dict(item) for item in (extraction.get("media_links_v69323") or [])
         if isinstance(item, dict) and str(item.get("url") or "").startswith("https://")
@@ -63317,7 +59886,6 @@ def build_website_knowledge_package_document(
             ])
 
     return "\n".join(lines).strip() + "\n"
-
 
 
 WEBSITE_IMAGE_INDEX_SOURCE_V68883 = "website_image_index_v68883"
@@ -63519,121 +60087,42 @@ def _website_image_schema_profile_reset_v69176():
 
 
 def _website_image_index_schema_profile_v69129():
-    """Detect the *actual* live image-index schema without trusting fallback columns.
-
-    v69457: ``get_table_columns`` intentionally has a broad production fallback for
-    learning durability. That fallback is not proof that an optional column exists
-    in an older Supabase schema. The image index therefore validates its own base
-    schema and optional columns with bounded read-only probes before selecting or
-    filtering on them. This prevents a missing optional field such as ``source_type``
-    from disabling exact product-image recovery.
-    """
+    """Detect usable modern/legacy/hybrid image-index schema from actual live columns."""
     now_value = time.monotonic()
     cached = dict(_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176.get("profile") or {})
     cached_at = float(_WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176.get("at") or 0.0)
-    if cached.get("ready") and (now_value - cached_at) < 300.0:
+    if cached.get("ready") and (now_value - cached_at) < 60.0:
         return cached
-
-    hinted_columns_v69457 = set()
+    actual_columns = set()
     try:
-        hinted_columns_v69457 = set(get_table_columns("learned_knowledge") or [])
+        actual_columns = set(get_table_columns("learned_knowledge") or [])
     except Exception as error:
-        diagnostic_log(
-            "website_image_index_column_introspection_failed_v69176",
-            error_type=type(error).__name__, error=str(error)[:400],
-        )
-
-    base_candidates_v69457 = (
-        ("modern", ["id", "issue", "solution"]),
-        ("modern", ["id", "issue", "approved_answer"]),
-        ("legacy", ["id", "question", "approved_answer"]),
-    )
-    selected_mode_v69457 = ""
-    actual_columns_v69457 = set()
-    base_probe_errors_v69457 = []
-    for mode_v69457, columns_v69457 in base_candidates_v69457:
+        diagnostic_log("website_image_index_column_introspection_failed_v69176", error_type=type(error).__name__, error=str(error)[:400])
+    def build_profile(columns):
+        cols=set(columns or [])
+        if "id" not in cols:
+            return None
+        if "issue" in cols and ("solution" in cols or "approved_answer" in cols):
+            return {"ready":True,"mode":"modern","columns":sorted(cols)}
+        if "question" in cols and "approved_answer" in cols:
+            return {"ready":True,"mode":"legacy","columns":sorted(cols)}
+        return None
+    profile=build_profile(actual_columns)
+    if profile:
+        _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"]=dict(profile)
+        _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"]=now_value
+        return profile
+    probes=(("modern",["id","issue","solution"]),("modern",["id","issue","approved_answer"]),("legacy",["id","question","approved_answer"]))
+    for mode, columns in probes:
         try:
-            supabase.table("learned_knowledge").select(
-                ",".join(columns_v69457)
-            ).limit(1).execute()
-            selected_mode_v69457 = mode_v69457
-            actual_columns_v69457.update(columns_v69457)
-            break
+            supabase.table("learned_knowledge").select(",".join(columns)).limit(1).execute()
+            profile={"ready":True,"mode":mode,"columns":list(columns)}
+            _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"]=dict(profile)
+            _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"]=now_value
+            return profile
         except Exception as error:
-            base_probe_errors_v69457.append({
-                "mode": mode_v69457,
-                "columns": ",".join(columns_v69457),
-                "error_type": type(error).__name__,
-                "error": str(error)[:240],
-            })
-
-    if not selected_mode_v69457:
-        diagnostic_log(
-            "website_image_index_schema_unavailable_v69457",
-            probes=base_probe_errors_v69457[:3],
-        )
-        return {
-            "ready": False,
-            "mode": "unavailable",
-            "columns": sorted(actual_columns_v69457),
-        }
-
-    # v69482: image rows share learned_knowledge with the learning subsystem.
-    # Production proved that ``question`` is NOT NULL even on the modern issue/solution
-    # schema. Probe every field this writer may need instead of treating the minimal
-    # modern read shape as the full insert contract. This keeps image persistence
-    # compatible with both old and new Supabase schemas without guessing.
-    optional_candidates_v69457 = (
-        (
-            "question", "vehicle", "assistant", "record_type",
-            "source_question", "source_answer", "source_conversation_id",
-            "confidence_score", "times_seen", "synced",
-            "solution", "approved_answer", "source_type",
-            "updated_at", "created_at", "keywords",
-        )
-        if selected_mode_v69457 == "modern"
-        else (
-            "issue", "solution", "vehicle", "assistant", "record_type",
-            "source_question", "source_answer", "source_conversation_id",
-            "confidence_score", "times_seen", "synced", "source_type",
-            "updated_at", "created_at", "keywords",
-        )
-    )
-    # Probe only columns that are useful to this subsystem. A one-column miss is
-    # isolated and cannot poison the entire schema profile.
-    for column_v69457 in optional_candidates_v69457:
-        if column_v69457 in actual_columns_v69457:
-            continue
-        # If introspection succeeded and definitively omitted the column, skip the
-        # network probe. If it returned the broad fallback, the probe below is the
-        # source of truth.
-        try:
-            supabase.table("learned_knowledge").select(
-                f"id,{column_v69457}"
-            ).limit(1).execute()
-            actual_columns_v69457.add(column_v69457)
-        except Exception as error:
-            diagnostic_log(
-                "website_image_index_optional_column_absent_v69457",
-                column=column_v69457,
-                error_type=type(error).__name__,
-            )
-
-    profile = {
-        "ready": True,
-        "mode": selected_mode_v69457,
-        "columns": sorted(actual_columns_v69457),
-    }
-    _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["profile"] = dict(profile)
-    _WEBSITE_IMAGE_SCHEMA_PROFILE_CACHE_V69176["at"] = now_value
-    diagnostic_log(
-        "website_image_index_schema_verified_v69457",
-        mode=selected_mode_v69457,
-        columns=sorted(actual_columns_v69457),
-        source_type_available="source_type" in actual_columns_v69457,
-        hinted_source_type="source_type" in hinted_columns_v69457,
-    )
-    return profile
+            diagnostic_log("website_image_index_schema_probe_failed_v69176", mode=mode, columns=",".join(columns), error_type=type(error).__name__, error=str(error)[:300])
+    return {"ready":False,"mode":"unavailable","columns":sorted(actual_columns)}
 
 
 
@@ -63693,34 +60182,13 @@ def _website_image_index_upsert_v68883(payload):
     solution=WEBSITE_IMAGE_INDEX_PREFIX_V68883+json.dumps(payload,ensure_ascii=False,separators=(",",":"))
     mode=str(profile.get("mode") or ""); available=set(profile.get("columns") or [])
     if mode=="modern":
-        # v69482: ``question`` is a required column in the live learned_knowledge
-        # schema even though image rows are addressed by ``issue``. Use the scoped
-        # image issue as a deterministic non-null question so the image subsystem
-        # cannot poison normal learned-answer recall with human-like questions.
-        base={
-            "issue":issue,
-            "question":issue,
-            "vehicle":str(payload.get("page_title") or "Website image")[:240],
-            "assistant":{"Technical Support Database":"Technical Support","Sales Database":"Sales","Marketing Database":"Marketing"}.get(str(payload.get("database_choice") or ""),"Technical Support"),
-            "record_type":"website_image",
-            "solution":solution,
-            "approved_answer":solution,
-            "keywords":str(payload.get("keywords") or "")[:5000],
-            "source_type":WEBSITE_IMAGE_INDEX_SOURCE_V68883,
-            "source_question":str(payload.get("source_page") or payload.get("requested_page") or "")[:1200],
-            "source_answer":str(payload.get("section_heading") or payload.get("caption") or "Website image")[:2000],
-            "source_conversation_id":None,
-            "confidence_score":100,
-            "times_seen":1,
-            "synced":True,
-            "updated_at":now_iso(),
-        }; lookup="issue"
+        base={"issue":issue,"vehicle":str(payload.get("page_title") or "")[:240],"solution":solution,"approved_answer":solution,"keywords":str(payload.get("keywords") or "")[:5000],"source_type":WEBSITE_IMAGE_INDEX_SOURCE_V68883,"updated_at":now_iso(),"question":str(payload.get("section_heading") or "Website image")[:500]}; lookup="issue"
     else:
         base={"question":issue,"approved_answer":solution,"keywords":(WEBSITE_IMAGE_INDEX_SOURCE_V68883+", "+str(payload.get("keywords") or ""))[:5000],"updated_at":now_iso()}; lookup="question"
     durable={k:v for k,v in base.items() if k in available}
     if lookup not in durable or not any(k in durable for k in ("solution","approved_answer")):
         _website_image_schema_profile_reset_v69176(); diagnostic_log("website_image_index_schema_payload_columns_missing_v69176",mode=mode); return False
-    optional={"assistant":{"Technical Support Database":"Technical Support","Sales Database":"Sales","Marketing Database":"Marketing"}.get(str(payload.get("database_choice") or ""),"Technical Support"),"record_type":"website_image","source_question":str(payload.get("source_page") or "")[:1200],"staff_confirmed":True,"confidence_score":100,"times_seen":1,"synced":True}
+    optional={"assistant":{"Technical Support Database":"Technical Support","Sales Database":"Sales","Marketing Database":"Marketing"}.get(str(payload.get("database_choice") or ""),"Technical Support"),"record_type":"website_image","source_question":str(payload.get("source_page") or "")[:1200],"staff_confirmed":True,"confidence_score":100}
     for k,v in optional.items():
         if k in available and k not in durable:
             durable[k]=v
@@ -63740,7 +60208,7 @@ def _website_image_index_upsert_v68883(payload):
     except Exception as error:
         _website_image_schema_profile_reset_v69176(); diagnostic_log("website_image_index_save_failed_v69176",mode=mode,issue=issue[:120],error_type=type(error).__name__,error=str(error)[:500]); return False
     try: _workspace_durable_image_payloads_v69041.clear()
-    except Exception: _observe_silent_exception_v69451("_website_image_index_upsert_v68883@L60216")
+    except Exception: pass
     return True
 
 
@@ -64087,11 +60555,11 @@ def _website_sync_page_image_index_v69003(
     try:
         _website_image_index_rows_v68883.clear()
     except Exception:
-        _observe_silent_exception_v69451("_website_sync_page_image_index_v69003@L60562")
+        pass
     try:
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
-        _observe_silent_exception_v69451("_website_sync_page_image_index_v69003@L60566")
+        pass
     return stats
 
 
@@ -64190,11 +60658,11 @@ def _website_image_transaction_rollback_v69177(
     try:
         _website_image_index_rows_v68883.clear()
     except Exception:
-        _observe_silent_exception_v69451("_website_image_transaction_rollback_v69177@L60665")
+        pass
     try:
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
-        _observe_silent_exception_v69451("_website_image_transaction_rollback_v69177@L60669")
+        pass
 
     cleanup_candidates = set(transaction_archive_paths or []) - prior_archive_paths
     archive_cleanup = _website_cleanup_unreferenced_archives_v69177(cleanup_candidates)
@@ -64290,7 +60758,7 @@ def _website_archive_and_index_images_v68883(
     try:
         _website_image_index_rows_v68883.clear()
     except Exception:
-        _observe_silent_exception_v69451("_website_archive_and_index_images_v68883@L60765")
+        pass
 
     return {
         "indexed": indexed,
@@ -65141,7 +61609,7 @@ def _website_image_atp_semantic_metadata_v69363(payload):
             if isinstance(parsed, dict):
                 return {str(k): str(v) for k, v in parsed.items() if str(k).startswith("data-atp-")}
         except Exception:
-            _observe_silent_exception_v69451("_website_image_atp_semantic_metadata_v69363@L61616")
+            pass
     return {}
 
 
@@ -65364,91 +61832,6 @@ def _website_identity_vehicle_families_v69022(value):
         return set()
     peak = max(positive.values())
     return {k for k, v in positive.items() if v >= max(1.0, peak - 1.0)}
-
-def _workspace_source_identity_vehicle_families_v69456(value):
-    """Preserve all families declared by a trusted product title/permalink.
-
-    The legacy parser intentionally applies frequency suppression to noisy prose.
-    That can be too aggressive when a trusted identity combines a title and URL:
-    models repeated in both can suppress a sibling model present only in one source.
-
-    v69456 does not introduce any vehicle/product lookup table. Instead it runs the
-    existing conservative parser independently over identity components and bounded
-    token windows, then unions only what that same parser already recognizes. This
-    removes cross-component frequency bias without broadening the parser vocabulary
-    or inspecting arbitrary page body prose.
-    """
-    text_v69456 = re.sub(r"\s+", " ", str(value or "")).strip()
-    if not text_v69456:
-        return set()
-
-    components_v69456 = [text_v69456]
-    # Titles, URLs, slugs and metadata fields are commonly joined with whitespace.
-    # Parse each bounded component independently so repetition in one component
-    # cannot suppress a valid family in another.
-    components_v69456.extend(
-        piece_v69456
-        for piece_v69456 in re.split(r"(?:https?://\S+|[|;])", text_v69456)
-        if str(piece_v69456 or "").strip()
-    )
-    for url_v69456 in re.findall(r"https?://\S+", text_v69456, flags=re.I):
-        try:
-            parsed_v69456 = urllib.parse.urlsplit(url_v69456)
-            components_v69456.extend([
-                str(parsed_v69456.path or ""),
-                str(parsed_v69456.query or ""),
-            ])
-        except Exception:
-            components_v69456.append(url_v69456)
-
-    # Also parse bounded token windows. The existing parser remains the only family
-    # recognizer; windows merely prevent unrelated repeated identity tokens from
-    # changing its frequency threshold.
-    normalized_v69456 = re.sub(r"[^A-Za-z0-9]+", " ", text_v69456).strip()
-    tokens_v69456 = normalized_v69456.split()
-    for index_v69456 in range(len(tokens_v69456)):
-        window_v69456 = " ".join(tokens_v69456[index_v69456:index_v69456 + 6])
-        if window_v69456:
-            components_v69456.append(window_v69456)
-
-    families_v69456 = set()
-    seen_components_v69456 = set()
-    for component_v69456 in components_v69456:
-        clean_v69456 = re.sub(r"\s+", " ", str(component_v69456 or "")).strip()
-        key_v69456 = clean_v69456.casefold()
-        if not clean_v69456 or key_v69456 in seen_components_v69456:
-            continue
-        seen_components_v69456.add(key_v69456)
-        families_v69456.update(
-            _website_identity_vehicle_families_v69022(clean_v69456) or set()
-        )
-
-    # Windows are recall-only. Re-apply polarity against the original trusted
-    # identity so a phrase such as "not for <model>" cannot become positive merely
-    # because a smaller window lost its negative prefix. This is vocabulary-free:
-    # it evaluates only families already recognized by the existing parser.
-    lowered_v69456 = text_v69456.casefold()
-    for family_v69456 in list(families_v69456):
-        chunks_v69456 = re.findall(r"[a-z]+|\d+", str(family_v69456).casefold())
-        if not chunks_v69456:
-            continue
-        family_pattern_v69456 = r"\b" + r"[-_\s]*".join(
-            re.escape(chunk_v69456) for chunk_v69456 in chunks_v69456
-        ) + r"\b"
-        score_v69456 = 0.0
-        for match_v69456 in re.finditer(family_pattern_v69456, lowered_v69456):
-            before_v69456 = lowered_v69456[max(0, match_v69456.start() - 100):match_v69456.start()]
-            negative_v69456 = bool(re.search(
-                r"(?:do\s+not\s+use|don't\s+use|not\s+for|not\s+the|wrong|avoid|"
-                r"instead\s+of|rather\s+than|do\s+not\s+apply|exclude(?:s|d)?|"
-                r"unsupported)[^.;:]{0,80}$",
-                before_v69456,
-            ))
-            score_v69456 += -5.0 if negative_v69456 else 2.0
-        if score_v69456 <= 0:
-            families_v69456.discard(family_v69456)
-    return families_v69456
-
 
 def _website_identity_years_v69022(value):
     text = re.sub(r"\s+", " ", str(value or "")).strip().casefold()
@@ -65687,7 +62070,7 @@ def _technical_configuration_query_v69361(prompt_text):
         if _website_image_query_role_v68884(prompt_text) in {"car_model_ac", "protocol"}:
             return True
     except Exception:
-        _observe_silent_exception_v69451("_technical_configuration_query_v69361@L62077")
+        pass
     return any(term in prompt for term in (
         "car model", "car-model", "a/c setting", "ac setting", "a/c type",
         "ac type", "protocol setting", "canbus setting", "can bus setting",
@@ -65927,35 +62310,6 @@ def _technical_final_image_rejection_reason_v69361(prompt_text, answer_text, ima
         if not payload:
             return ""
 
-        strict_camera_kind_v69482 = _technical_strict_camera_harness_request_v69482(prompt_text)
-        if strict_camera_kind_v69482:
-            # Exact semantic fast-path records are pre-verified against the confirmed
-            # package/year branch. Other website images must prove equivalent authored
-            # camera/harness diagnostic metadata or they are rejected.
-            if not bool(image_record.get("technical_camera_harness_exact_v69482")):
-                meta_v69482 = _website_image_atp_semantic_metadata_v69364(payload)
-                combined_v69482 = " ".join([
-                    " ".join(str(v) for v in meta_v69482.values()),
-                    str(payload.get("section_heading") or ""),
-                    str(payload.get("nearby_instruction_text") or ""),
-                    str(payload.get("caption") or ""),
-                    str(payload.get("visual_analysis") or ""),
-                ]).casefold()
-                if "camera" not in combined_v69482:
-                    return "strict_camera_metadata_missing"
-                harnessish_v69482 = any(term in combined_v69482 for term in ("harness", "wiring", "connector", "adapter", "ccd-v"))
-                diagnosticish_v69482 = any(term in combined_v69482 for term in (
-                    "no-camera", "no camera", "no-image", "no image",
-                    "reverse-no-trigger", "factory-camera-no-image",
-                    "reverse-camera-no-image", "harness-problem",
-                ))
-                if strict_camera_kind_v69482 == "camera_harness" and not harnessish_v69482:
-                    return "strict_camera_harness_role_mismatch"
-                if strict_camera_kind_v69482 == "camera_issue" and not (harnessish_v69482 or diagnosticish_v69482):
-                    return "strict_camera_diagnostic_role_mismatch"
-                if any(term in combined_v69482 for term in ("primary-product-image", "product hero", "after-installation-product-reference")):
-                    return "strict_camera_generic_product_image"
-
         fitment_text = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
         if not _website_identity_years_v69022(fitment_text):
             fitment_text = re.sub(
@@ -66018,7 +62372,7 @@ def _website_image_atp_semantic_metadata_v69364(payload):
                         if str(k).startswith("data-atp-") and str(v).strip()
                     }
             except Exception:
-                _observe_silent_exception_v69451("_website_image_atp_semantic_metadata_v69364@L62379")
+                pass
     return {}
 
 
@@ -66208,7 +62562,7 @@ def _technical_sales_product_image_bridge_v69364(prompt_text, answer_text, max_i
         try:
             score += min(float(meta.get("data-atp-ai-priority") or payload.get("atp_priority_v69178") or 0), 1000.0) / 100.0
         except Exception:
-            _observe_silent_exception_v69451("_technical_sales_product_image_bridge_v69364@L62569")
+            pass
         ranked.append((score, record, role))
 
     ranked.sort(key=lambda item: item[0], reverse=True)
@@ -66947,7 +63301,7 @@ def _technical_image_prefetch_cache_set_v69016(prompt_text, rows):
             cache = dict(ordered[:12])
         st.session_state["_technical_image_prefetch_cache_v69016"] = cache
     except Exception:
-        _observe_silent_exception_v69451("_technical_image_prefetch_cache_set_v69016@L63308")
+        pass
 
 
 def _website_image_dedicated_file_search_results_v69014(prompt_text, answer_text=""):
@@ -68604,7 +64958,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
             continue
         grouped.setdefault(file_id, {"rows":[], "score":0.0, "filename":str(row.get("filename") or "")})["rows"].append(dict(row))
         try: grouped[file_id]["score"] = max(float(grouped[file_id]["score"]), float(row.get("score") or 0.0))
-        except Exception: _observe_silent_exception_v69451("_workspace_atp_recovery_packages_from_rows_v69338@L64966")
+        except Exception: pass
 
     candidates=[]
     for file_id, info in grouped.items():
@@ -68632,7 +64986,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         # Retrieved package bodies may contain related-product links/snippets for other vehicles;
         # those must never grant the declared Final source URL authority for a different family.
         source_identity_text_v69358 = " ".join((title, source))
-        source_families_v69358 = set(_workspace_source_identity_vehicle_families_v69456(source_identity_text_v69358))
+        source_families_v69358 = set(_website_identity_vehicle_families_v69022(source_identity_text_v69358))
         source_years_v69358 = set(_website_identity_years_v69022(source_identity_text_v69358))
         body_families_v69358 = set(_website_identity_vehicle_families_v69022(text[:24000]))
         body_years_v69358 = set(_website_identity_years_v69022(text[:24000]))
@@ -68659,7 +65013,7 @@ def _workspace_atp_recovery_packages_from_rows_v69338(destination, prompt_text, 
         # This blocks cross-product leakage such as Colorado/Audi pages whose retrieved
         # body happened to mention a Dodge RAM related product.
         source_identity_text_v69358 = " ".join((str(c.get("title") or ""), str(c.get("source_url") or "")))
-        source_families_v69358 = set(_workspace_source_identity_vehicle_families_v69456(source_identity_text_v69358))
+        source_families_v69358 = set(_website_identity_vehicle_families_v69022(source_identity_text_v69358))
         source_years_v69358 = set(_website_identity_years_v69022(source_identity_text_v69358))
 
         # v69448: exact-current semantic product identity can safely expand a
@@ -69011,7 +65365,7 @@ def _workspace_atp_package_from_text_v69180(file_id, filename, package_text, des
     years = set()
     for raw in page_identity.get("years") or []:
         try: years.add(int(raw))
-        except Exception: _observe_silent_exception_v69451("_workspace_atp_package_from_text_v69180@L65373")
+        except Exception: pass
     if not years:
         years = set(_website_identity_years_v69022(identity_text))
     systems = {str(x) for x in (page_identity.get("systems") or []) if str(x)} or set(_website_identity_systems_v69022(identity_text))
@@ -69123,7 +65477,7 @@ def _workspace_atp_package_prewarm_start_v69180(destination):
         old_executor = bucket.get("executor")
         if old_executor is not None:
             try: old_executor.shutdown(wait=False, cancel_futures=True)
-            except Exception: _observe_silent_exception_v69451("_workspace_atp_package_prewarm_start_v69180@L65485")
+            except Exception: pass
         last_good = [dict(x) for x in (bucket.get("packages") or []) if isinstance(x,dict)]
         from concurrent.futures import ThreadPoolExecutor
         executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="atp-workspace-metadata-v69180")
@@ -69277,7 +65631,7 @@ def _workspace_atp_package_snapshot_v69180(destination, wait_seconds=0.25):
         )
     if not packages and future is not None and float(wait_seconds or 0)>0:
         try: future.result(timeout=max(0.05,float(wait_seconds)))
-        except Exception: _observe_silent_exception_v69451("_workspace_atp_package_snapshot_v69180@L65639")
+        except Exception: pass
         with state["lock"]:
             bucket=state["destinations"].get(target) or {}
             status=str(bucket.get("status") or "idle")
@@ -69446,7 +65800,7 @@ def _workspace_atp_product_contract_v69205(package):
                 try:
                     contract[dest] = int(str(row.get(key) or "").strip())
                 except Exception:
-                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65807")
+                    pass
         for item in split_values(row.get("data-atp-facts")):
             if item not in contract["facts"]:
                 contract["facts"].append(item)
@@ -69461,13 +65815,13 @@ def _workspace_atp_product_contract_v69205(package):
                 try:
                     years.append(int(raw))
                 except Exception:
-                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65822")
+                    pass
             excluded = []
             for raw in split_values(row.get("data-atp-excluded-years")):
                 try:
                     excluded.append(int(raw))
                 except Exception:
-                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65828")
+                    pass
             if not years:
                 try:
                     ys = int(str(row.get("data-atp-year-start") or "").strip())
@@ -69475,7 +65829,7 @@ def _workspace_atp_product_contract_v69205(package):
                     if ys <= ye and (ye - ys) <= 30:
                         years = list(range(ys, ye + 1))
                 except Exception:
-                    _observe_silent_exception_v69451("_workspace_atp_product_contract_v69205@L65836")
+                    pass
             branch = {
                 "branch_id": branch_id,
                 "make": str(row.get("data-atp-make") or contract.get("make") or "").strip(),
@@ -69741,159 +66095,6 @@ def _workspace_sales_select_reference_authority_v69434(
     return result
 
 
-def _workspace_sales_customer_product_title_v69450(raw_title, contract=None, fallback=""):
-    """Return a concise exact product label without losing variant identity.
-
-    ATP SEO titles legitimately use ``|`` both between vehicle siblings (for
-    example F250 | F350 | F450) and before feature suffixes. Historical display
-    code split at the first pipe, which could erase Android 13/14 and could also
-    corrupt sibling-model names. This helper keeps identity segments intact,
-    stops only when a known feature/platform suffix begins, and carries the exact
-    platform from the already-authoritative product contract when available.
-    It is display-only and performs no I/O.
-    """
-    contract = dict(contract or {})
-    raw = html.unescape(re.sub(r"\s+", " ", str(raw_title or ""))).strip()
-    if not raw:
-        return re.sub(r"\s+", " ", str(fallback or "")).strip()
-
-    segments = [
-        re.sub(r"\s+", " ", segment).strip()
-        for segment in raw.split("|")
-        if re.sub(r"\s+", " ", segment).strip()
-    ]
-    if not segments:
-        return raw
-
-    suffix_pattern = re.compile(
-        r"^(?:"
-        r"android\s*\d{1,2}(?:\s*(?:/|or|&|and)\s*\d{1,2})?"
-        r"|gps(?:\s+navigation)?"
-        r"|bt|bluetooth"
-        r"|wi[\s-]?fi"
-        r"|wireless\s+(?:apple\s+)?carplay|(?:apple\s+)?carplay"
-        r"|wireless\s+android\s+auto|android\s+auto"
-        r"|4g(?:\s+lte)?|lte"
-        r"|sync(?:\s*\d+)?"
-        r"|camera|backup\s+camera|reverse\s+camera"
-        r")\b",
-        flags=re.I,
-    )
-
-    identity_segments = []
-    platform_from_title = ""
-    for segment in segments:
-        if suffix_pattern.search(segment):
-            if not platform_from_title:
-                platform_match = re.search(
-                    r"\bAndroid\s*\d{1,2}(?:\s*(?:/|or|&|and)\s*\d{1,2})?\b",
-                    segment,
-                    flags=re.I,
-                )
-                if platform_match:
-                    platform_from_title = re.sub(
-                        r"\s+", " ", platform_match.group(0)
-                    ).strip()
-            break
-        identity_segments.append(segment)
-
-    base = " | ".join(identity_segments).strip() or segments[0]
-    platform = re.sub(
-        r"\s+",
-        " ",
-        str(contract.get("platform") or platform_from_title or ""),
-    ).strip()
-    if platform and platform.casefold() not in base.casefold():
-        base = f"{base} — {platform}"
-    return base
-
-
-def _workspace_sales_fitment_branch_rows_v69450(contract, requested_years=None):
-    """Normalize display-only fitment branches while preserving source authority.
-
-    A broad fallback/index branch can overlap a more specific trim-authored branch
-    after exact catalog reconciliation. Showing both produced labels such as
-    ``2019; 2019 — Classic Trim only``. For display, overlapping years are removed
-    from an untrimmed branch only when a trim-specific branch has the same model
-    scope. Exact trim branches are never removed or broadened.
-    """
-    contract = dict(contract or {})
-    requested = {int(y) for y in (requested_years or []) if str(y).isdigit()}
-    raw_rows = []
-    for branch in (contract.get("compatibility_branches") or []):
-        if not isinstance(branch, dict):
-            continue
-        years = {
-            int(y) for y in (branch.get("years") or [])
-            if str(y).isdigit()
-        }
-        excluded = {
-            int(y) for y in (branch.get("excluded_years") or [])
-            if str(y).isdigit()
-        }
-        years -= excluded
-        if requested:
-            years &= requested
-        if not years:
-            continue
-        models = {
-            re.sub(r"[\s_-]+", "", str(x or "")).casefold()
-            for x in (branch.get("models") or [])
-            if str(x or "").strip()
-        }
-        raw_rows.append({
-            "branch": dict(branch),
-            "years": set(years),
-            "trim": re.sub(r"\s+", " ", str(branch.get("trim") or "")).strip(),
-            "models": models,
-        })
-
-    for row in raw_rows:
-        if row["trim"]:
-            continue
-        covered = set()
-        for specific in raw_rows:
-            if not specific["trim"]:
-                continue
-            if row["models"] and specific["models"] and row["models"].isdisjoint(specific["models"]):
-                continue
-            covered |= (row["years"] & specific["years"])
-        row["years"] -= covered
-
-    output = []
-    seen = set()
-    for row in raw_rows:
-        years = sorted(row["years"])
-        if not years:
-            continue
-        key = (tuple(years), row["trim"].casefold(), tuple(sorted(row["models"])))
-        if key in seen:
-            continue
-        seen.add(key)
-        output.append({
-            "years": years,
-            "trim": row["trim"],
-            "models": sorted(row["models"]),
-            "branch": row["branch"],
-        })
-    return output
-
-
-def _workspace_sales_bounded_label_v69450(value, max_chars=180):
-    """Word-bound a display label so captions never end in a chopped token."""
-    text = re.sub(r"\s+", " ", str(value or "")).strip()
-    try:
-        limit = max(24, int(max_chars))
-    except Exception:
-        limit = 180
-    if len(text) <= limit:
-        return text
-    candidate = text[: limit + 1].rsplit(" ", 1)[0].rstrip(" ,;:|-–—")
-    if len(candidate) < max(16, limit // 2):
-        candidate = text[:limit].rstrip(" ,;:|-–—")
-    return candidate + "…"
-
-
 def _workspace_sales_safe_exact_authority_answer_v69434(authority):
     """Minimal exact-authority answer used only if richer deterministic formatting fails."""
     authority = dict(authority or {})
@@ -69918,12 +66119,11 @@ def _workspace_sales_safe_exact_authority_answer_v69434(authority):
         if not identity or identity in seen:
             continue
         seen.add(identity)
+        title = re.sub(
+            r"\s+", " ",
+            str(pkg.get("page_title") or pkg.get("title") or "AutoTecPro product").split("|", 1)[0],
+        ).strip()
         contract = _workspace_atp_product_contract_v69205(pkg)
-        title = _workspace_sales_customer_product_title_v69450(
-            pkg.get("page_title") or pkg.get("title") or "",
-            contract,
-            fallback="AutoTecPro product",
-        )
         fitment = _workspace_atp_first_response_fitment_v69348(contract, None) or "See exact product page"
         out.append((title, fitment, source))
     if not out:
@@ -69986,9 +66186,6 @@ def _workspace_sales_normalize_language_v69433(prompt_text):
         (r"\bshow\s+(?:me\s+)?(?:a\s+)?pic(?:ture)?\b", "show me photo"),
         (r"\bother\s+modles?\b", "other models"),
         (r"\bother\s+optons?\b", "other options"),
-        (r"\bhwo\s+much\b", "how much"),
-        (r"\bhow\s+muhc\b", "how much"),
-        (r"\bhow\s+mutch\b", "how much"),
     )
     for pattern, replacement in phrase_aliases:
         raw = re.sub(pattern, replacement, raw, flags=re.I)
@@ -70062,13 +66259,7 @@ def _workspace_sales_intent_v69433(prompt_text):
         r"what do (?:they|these|those)(?:\s+[a-z0-9][a-z0-9 ./'-]{0,50})? have|"
         r"what can [a-z0-9][a-z0-9 ./'-]{0,60} do|"
         r"what comes with|what features come with|capability|capabilities|"
-        r"key feature|key features|main feature|main features|"
-        r"does (?:it|this|that|the unit|the system|this unit|this system) (?:support|retain|keep|have)|"
-        r"does\s+.{1,90}?\s+(?:support|retain|keep|have)|"
-        r"do (?:they|these|those) (?:support|retain|keep|have)|"
-        r"can (?:it|this|that|the unit|the system|this unit|this system) (?:support|retain|keep)|"
-        r"can\s+.{1,90}?\s+(?:support|retain|keep)|"
-        r"is .{1,70} supported|are .{1,70} supported)\b", p
+        r"key feature|key features|main feature|main features)\b", p
     ))
     sibling_request = bool(re.search(
         r"\b(other|others|the rest|rest of|remaining|remainder|"
@@ -70082,8 +66273,6 @@ def _workspace_sales_intent_v69433(prompt_text):
     ))
     price_request = bool(re.search(
         r"\b(price|pricing|cost|costs|quote|how much|dealer price|wholesale)\b", p
-    )) and not bool(re.search(
-        r"\bhow much\s+(?:ram|storage|memory)\b", p
     ))
     link_request = bool(re.search(
         r"\b(product link|product links|link|links|url|urls|product page|page)\b", p
@@ -70108,35 +66297,12 @@ def _workspace_sales_intent_v69433(prompt_text):
         ("reverse_camera", r"\b(reverse camera|backup camera|factory camera)\b"),
         ("cargo_camera", r"\b(cargo camera)\b"),
         ("premium_audio", r"\b(premium sound|premium audio|bose|alpine|harman)\b"),
-        ("factory_sync", r"\b(?:original|factory|oem|microsoft|ford)\s+(?:ford\s+)?sync(?:\s*[1234])?\b"),
         ("installation_video", r"\b(installation video|install video)\b"),
     )
     for topic, pattern in feature_topics:
         if re.search(pattern, p):
             specific_feature = topic
             break
-
-    # v69481: generic source-driven feature questions must not depend on a small
-    # hard-coded feature vocabulary. Extract the requested feature phrase while
-    # leaving factual support/retention authority to the exact current product page.
-    if not specific_feature and feature_request:
-        generic_patterns_v69481 = (
-            r"\b(?:does|do)\s+(?:it|this|that|they|these|those|the\s+unit|the\s+system|this\s+unit|this\s+system)\s+(?:support|retain|keep|have)\s+(.{2,80}?)(?:[?.!]|$)",
-            r"\bdoes\s+.{1,90}?\s+(?:support|retain|keep|have)\s+(.{2,80}?)(?:[?.!]|$)",
-            r"\bcan\s+.{1,90}?\s+(?:support|retain|keep)\s+(.{2,80}?)(?:[?.!]|$)",
-            r"\bcan\s+(?:it|this|that|the\s+unit|the\s+system|this\s+unit|this\s+system)\s+(?:support|retain|keep)\s+(.{2,80}?)(?:[?.!]|$)",
-            r"\bis\s+(.{2,80}?)\s+(?:supported|retained|compatible)(?:[?.!]|$)",
-            r"\bare\s+(.{2,80}?)\s+(?:supported|retained|compatible)(?:[?.!]|$)",
-        )
-        for pattern_v69481 in generic_patterns_v69481:
-            match_v69481 = re.search(pattern_v69481, p, flags=re.I)
-            if not match_v69481:
-                continue
-            phrase_v69481 = re.sub(r"\s+", " ", str(match_v69481.group(1) or "")).strip(" ?.!,:;-_")
-            phrase_v69481 = re.sub(r"^(?:the|a|an)\s+", "", phrase_v69481, flags=re.I)
-            if phrase_v69481 and phrase_v69481 not in {"feature", "features", "it", "this", "that"}:
-                specific_feature = "free:" + phrase_v69481[:80]
-                break
 
     return {
         "normalized": p,
@@ -70408,20 +66574,17 @@ def _workspace_atp_first_response_fitment_v69348(contract, requested_years=None)
     contract = dict(contract or {})
     requested = {int(y) for y in (requested_years or []) if str(y).isdigit()}
     parts = []
-    for row_v69450 in _workspace_sales_fitment_branch_rows_v69450(
-        contract,
-        requested_years,
-    ):
-        years = list(row_v69450.get("years") or [])
+    for branch in (contract.get("compatibility_branches") or []):
+        if not isinstance(branch, dict):
+            continue
+        years = sorted({int(y) for y in (branch.get("years") or []) if str(y).isdigit()})
+        if requested:
+            years = sorted(requested & set(years))
         if not years:
             continue
         span = str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}"
-        trim = re.sub(r"\s+", " ", str(row_v69450.get("trim") or "")).strip()
-        if trim:
-            suffix = trim if re.search(r"\bonly\s*$", trim, flags=re.I) else f"{trim} only"
-            label = f"{span} — {suffix}"
-        else:
-            label = span
+        trim = re.sub(r"\s+", " ", str(branch.get("trim") or "")).strip()
+        label = span + (f" — {trim} only" if trim else "")
         if label not in parts:
             parts.append(label)
     if parts:
@@ -70569,19 +66732,6 @@ def _workspace_sales_feature_intro_v69426(package, contract=None):
     return "Key confirmed features include " + ", ".join(parts) + "."
 
 
-def _workspace_sales_family_display_label_v69457(family):
-    """Display one already-authoritative internal family token without changing fitment."""
-    value_v69457 = re.sub(r"\s+", " ", str(family or "")).strip().casefold()
-    if re.fullmatch(r"[fe]\d{3}", value_v69457):
-        return value_v69457.upper()
-    ram_v69457 = re.fullmatch(r"ram(1500|2500|3500)", value_v69457)
-    if ram_v69457:
-        return f"RAM {ram_v69457.group(1)}"
-    if value_v69457 == "ram":
-        return "RAM"
-    return value_v69457.replace("_", " ").title()
-
-
 def _workspace_sales_first_turn_fitment_direct_answer_v69405(
     workspace_label,
     prompt_text,
@@ -70613,18 +66763,18 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
 
     prompt_years = sorted(_website_identity_years_v69022(prompt))
     prompt_families = sorted(_website_identity_vehicle_families_v69022(prompt))
-    sales_intent_v69433 = _workspace_sales_intent_v69433(prompt_text)
-    feature_request_v69427 = bool(
-        sales_intent_v69433.get("feature_request")
-    )
     fitment_or_discovery = bool(re.search(
         r"\b(fit|fits|compatible|compatibility|work with|works with|for my|"
         r"support(?:s|ed)?|which|what|offer|offers|carry|available|have|"
         r"screen|radio|stereo|infotainment|head unit|unit|model|models|"
         r"option|options)\b",
         p,
-    )) or feature_request_v69427
-    if not fitment_or_discovery or (not (prompt_years or prompt_families) and not feature_request_v69427):
+    ))
+    sales_intent_v69433 = _workspace_sales_intent_v69433(prompt_text)
+    feature_request_v69427 = bool(
+        sales_intent_v69433.get("feature_request")
+    )
+    if not fitment_or_discovery or not (prompt_years or prompt_families):
         return ""
 
     packages = (
@@ -70653,129 +66803,41 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
             continue
 
         contract = _workspace_atp_product_contract_v69205(pkg)
-        # v69460: the customer's requested year is an eligibility filter, not the
-        # display range. Once this exact product is proven compatible, show its
-        # complete authoritative fitment span (for example 2009–2016), rather
-        # than collapsing the Fitment cell to only the queried year (2014).
         fitment = _workspace_atp_first_response_fitment_v69348(
             contract,
-            None,
+            prompt_years,
         )
         if prompt_years and not fitment:
             continue
 
-        title = _workspace_sales_customer_product_title_v69450(
-            pkg.get("page_title") or pkg.get("title") or "",
-            contract,
-        )
+        title = re.sub(
+            r"\s+",
+            " ",
+            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
+        ).strip()
         if not title:
             try:
-                title = _workspace_sales_customer_product_title_v69450(
-                    _technical_package_header_value_v69113(
-                        str(pkg.get("package_text") or ""),
-                        "Page title",
-                    ),
-                    contract,
-                )
+                title = re.sub(
+                    r"\s+",
+                    " ",
+                    str(
+                        _technical_package_header_value_v69113(
+                            str(pkg.get("package_text") or ""),
+                            "Page title",
+                        )
+                        or ""
+                    ).split("|", 1)[0],
+                ).strip()
             except Exception:
                 title = ""
         if not title:
             title = "AutoTecPro infotainment system"
 
-        # v69460: keep the Fitment column semantically pure: it displays the
-        # complete authoritative product year/trim range. Vehicle-model matching
-        # remains enforced by the existing family gates and product authority.
-        fitment_display_v69457 = fitment or "Compatible"
-
         seen_pages.add(page_id)
-        rows.append((title, fitment_display_v69457, source, contract, pkg))
+        rows.append((title, fitment or "Compatible", source, contract, pkg))
 
     if not rows:
         return ""
-
-    # v69487: an explicit first-turn "which version fits?" request must also use
-    # the universal discriminator before showing multiple unresolved variants. Broad
-    # catalog browsing (for example "what do you have") still returns the catalog.
-    exact_fitment_question_v69487 = bool(re.search(
-        r"\b(which one|which version|which model|correct version|correct model|right version|right model|"
-        r"which .* fits?|what .* fits?|compatible with my|work with my|works with my)\b",
-        p, flags=re.I,
-    ))
-    if exact_fitment_question_v69487 and len(rows) >= 1:
-        fitment_rows_v69487 = [
-            {"title": title_v69487, "source": source_v69487, "package": pkg_v69487, "contract": contract_v69487, "fitment": fitment_v69487}
-            for title_v69487, fitment_v69487, source_v69487, contract_v69487, pkg_v69487 in rows
-        ]
-        fitment_resolver_v69487 = _workspace_sales_best_discriminator_v69487(
-            fitment_rows_v69487, prompt_text, allow_single=True
-        )
-        fitment_dimension_v69487 = str(fitment_resolver_v69487.get("dimension") or "")
-        fitment_options_v69487 = list(fitment_resolver_v69487.get("options") or [])
-        if fitment_dimension_v69487 and len(fitment_options_v69487) >= 2:
-            diagnostic_log(
-                "workspace_sales_first_turn_fitment_clarification_required_v69487",
-                dimension=fitment_dimension_v69487,
-                options=[str(x.get("label") or "") for x in fitment_options_v69487[:8]],
-                products=len(rows),
-            )
-            return _workspace_sales_clarification_text_v69487(fitment_dimension_v69487, fitment_options_v69487)
-
-    # v69487: configuration-dependent feature facts are resolved against generic
-    # authored compatibility facets (factory system, climate, audio, camera, radio,
-    # trim/body/cab/market/etc.), never a vehicle-specific checklist.
-    specific_topic_v69487 = str(sales_intent_v69433.get("specific_feature") or "")
-    if feature_request_v69427 and specific_topic_v69487:
-        feature_label_v69487 = _workspace_sales_feature_label_v69486(specific_topic_v69487)
-        evidence_by_source_v69487 = {}
-        adaptive_rows_v69487 = []
-        for title_v69487, fitment_v69487, source_v69487, contract_v69487, pkg_v69487 in rows:
-            learned_v69487 = _workspace_sales_learned_structured_facts_v69487(str(pkg_v69487.get("package_text") or ""))
-            facets_v69487 = dict(learned_v69487.get("compatibility_facets_v69487") or _workspace_sales_compatibility_facets_v69487(pkg_v69487, learned_v69487))
-            selected_v69487 = _workspace_sales_recent_compatibility_selections_v69487(prompt_text, facets_v69487)
-            evidence_v69487 = _workspace_sales_feature_evidence_v69487(
-                feature_label_v69487, specific_topic_v69487,
-                [
-                    ("contract_feature_summary", str(contract_v69487.get("feature_summary") or "")),
-                    ("package_webpage_text", str(pkg_v69487.get("webpage_text") or "")),
-                    ("learned_short_description", str(learned_v69487.get("short_description_text") or "")),
-                    ("learned_custom_tabs", list(learned_v69487.get("custom_tab_sections") or [])),
-                    ("learned_semantic_attributes", dict(learned_v69487.get("semantic_attributes") or {})),
-                    ("learned_conditional_rules", list(learned_v69487.get("conditional_feature_rules_v69487") or [])),
-                ],
-                selected_facets=selected_v69487, available_facets=facets_v69487,
-            )
-            evidence_by_source_v69487[source_v69487] = evidence_v69487
-            adaptive_rows_v69487.append({"title": title_v69487, "source": source_v69487, "package": pkg_v69487, "contract": contract_v69487})
-        clarification_v69487 = _workspace_sales_adaptive_feature_clarification_v69487(
-            prompt_text, adaptive_rows_v69487, specific_topic_v69487, evidence_by_source_v69487
-        )
-        if clarification_v69487:
-            return clarification_v69487
-        resolved_feature_answer_v69487 = _workspace_sales_same_case_factual_direct_answer_v69408(
-            workspace_label, prompt_text, authority, followup_reused=True
-        )
-        if str(resolved_feature_answer_v69487 or "").strip():
-            diagnostic_log("workspace_sales_first_turn_feature_answer_v69487", topic=specific_topic_v69487, products=len(rows))
-            return resolved_feature_answer_v69487
-
-        feature_label_v69489 = _workspace_sales_feature_label_v69486(specific_topic_v69487)
-        requested_sync_v69489 = re.search(r"\bsync\s*([123])\b", p, flags=re.I)
-        if requested_sync_v69489:
-            feature_scope_v69489 = f"You indicated factory SYNC {requested_sync_v69489.group(1)}, but the exact product information did not verify whether **{feature_label_v69489}** is retained for that setup."
-            feature_followup_v69489 = "Please send a clear photo of the original radio/dashboard and climate-control panel so I can check the exact configuration before recommending a unit."
-        else:
-            feature_scope_v69489 = f"The exact product information did not verify whether **{feature_label_v69489}** is retained for the configuration you described."
-            feature_followup_v69489 = "Please confirm the factory SYNC version (SYNC 1, SYNC 2, or SYNC 3) and send a clear photo of the original radio/dashboard and climate-control panel so I can check the exact configuration before recommending a unit."
-        diagnostic_log(
-            "workspace_sales_first_turn_feature_fail_closed_v69489",
-            topic=specific_topic_v69487,
-            products=len(rows),
-        )
-        return (
-            f"## {feature_label_v69489} — Requires Verification\n\n"
-            f"I found matching products for the vehicle. {feature_scope_v69489} I won’t infer support from the screen size or model year.\n\n"
-            f"{feature_followup_v69489}"
-        )
 
     plural = "product" if len(rows) == 1 else "products"
     lines = [
@@ -70834,7 +66896,7 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
             ),
         ])
 
-    # Image publication happens later in the runtime; do not promise photos here.
+    lines.extend(["", "The main product photo for each matching product is shown below."])
 
     diagnostic_log(
         "workspace_sales_first_turn_fitment_provider_bypass_v69405",
@@ -70843,7 +66905,6 @@ def _workspace_sales_first_turn_fitment_direct_answer_v69405(
         prompt_families=prompt_families[:8],
     )
     return "\n".join(lines)
-
 
 
 
@@ -71057,20 +67118,7 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
     if status not in {"recovered", "recovered_multi"}:
         return ""
 
-    pending_v69487 = _workspace_sales_pending_clarification_v69487(prompt_text)
-    effective_prompt_v69487 = str(prompt_text or "")
-    if pending_v69487 and re.search(r"\b(?:not sure|unsure|don['’]?t know|do not know|no idea|can['’]?t tell|cannot tell)\b", str(prompt_text or ""), flags=re.I):
-        return (
-            "No problem — please send me a clear photo of the **original dashboard/radio**. "
-            "I’ll use it to identify the missing vehicle configuration before giving you a configuration-dependent answer."
-        )
-    if pending_v69487:
-        option_rows_v69487 = [{"token": _workspace_sales_option_token_v69487(x), "label": x} for x in (pending_v69487.get("option_labels") or [])]
-        selected_pending_v69487 = _workspace_sales_match_option_v69487(prompt_text, option_rows_v69487, pending_v69487.get("dimension") or "")
-        if selected_pending_v69487:
-            effective_prompt_v69487 = str(pending_v69487.get("original_prompt") or prompt_text)
-            diagnostic_log("workspace_sales_adaptive_clarification_resumed_v69487", route="fitment", dimension=str(pending_v69487.get("dimension") or ""))
-    prompt = re.sub(r"\s+", " ", effective_prompt_v69487).strip()
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     p = prompt.casefold()
     if not p or _website_image_explicit_visual_request_v68888(prompt):
         return ""
@@ -71123,19 +67171,24 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
         seen.add(page_id)
 
         contract = _workspace_sales_followup_contract_v69417(pkg)
-        title = _workspace_sales_customer_product_title_v69450(
-            pkg.get("page_title") or pkg.get("title") or "",
-            contract,
-        )
+        title = re.sub(
+            r"\s+",
+            " ",
+            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
+        ).strip()
         if not title:
             try:
-                title = _workspace_sales_customer_product_title_v69450(
-                    _technical_package_header_value_v69113(
-                        str(pkg.get("package_text") or ""),
-                        "Page title",
-                    ),
-                    contract,
-                )
+                title = re.sub(
+                    r"\s+",
+                    " ",
+                    str(
+                        _technical_package_header_value_v69113(
+                            str(pkg.get("package_text") or ""),
+                            "Page title",
+                        )
+                        or ""
+                    ).split("|", 1)[0],
+                ).strip()
             except Exception:
                 title = ""
         if not title:
@@ -71158,22 +67211,13 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
     if not rows:
         return ""
 
-    resolver_v69487 = _workspace_sales_best_discriminator_v69487(
-        rows, prompt_text, allow_single=bool(re.search(r"\b(which version|which model|correct version|correct model|right version|right model)\b", p))
-    )
-    rows = list(resolver_v69487.get("rows") or rows)
-    dimension_v69487 = str(resolver_v69487.get("dimension") or "")
-    options_v69487 = list(resolver_v69487.get("options") or [])
-    if dimension_v69487 and len(options_v69487) >= 2:
-        diagnostic_log(
-            "workspace_sales_adaptive_fitment_clarification_required_v69487",
-            dimension=dimension_v69487, options=[str(x.get("label") or "") for x in options_v69487[:8]], products=len(rows),
-        )
-        return _workspace_sales_clarification_text_v69487(dimension_v69487, options_v69487)
-
     if len(rows) == 1:
         row = rows[0]
-        details = [x for x in (row["display"], row["factory_setup"], row["fitment"]) if x]
+        details = [
+            x
+            for x in (row["display"], row["factory_setup"], row["fitment"])
+            if x
+        ]
         detail_text = " · ".join(details)
         answer = f"Yes — the matching option is **{row['title']}**."
         if detail_text:
@@ -71182,7 +67226,11 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
             "\n\nIf you want, send me a clear photo of the factory dashboard/radio "
             "and I can double-check the configuration before you order."
         )
-        diagnostic_log("workspace_sales_same_case_fitment_provider_bypass_v69407", products=1, mode="single_v69487")
+        diagnostic_log(
+            "workspace_sales_same_case_fitment_provider_bypass_v69407",
+            products=1,
+            mode="single",
+        )
         return answer
 
     lines = [
@@ -71238,7 +67286,6 @@ def _workspace_sales_same_case_fitment_direct_answer_v69407(
         mode="multi",
     )
     return "\n".join(lines)
-
 
 
 
@@ -71357,78 +67404,6 @@ def _workspace_sales_same_case_fact_intent_v69408(prompt_text):
     return {"category": "provider_fallback", "topic": ""}
 
 
-def _workspace_sales_same_case_subject_rows_v69485(prompt_text, rows):
-    """Narrow pronoun follow-ups only when prior user text identifies one exact option.
-
-    The helper fails open to the full row set when focus is ambiguous. It never chooses
-    a product from ranking/order alone.
-    """
-    rows_v69485 = [dict(x) for x in (rows or []) if isinstance(x, dict)]
-    if len(rows_v69485) <= 1:
-        return rows_v69485
-    prompt_v69485 = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    if not re.search(r"\b(?:it|this one|this unit|this product|that one|that unit|that product)\b", prompt_v69485):
-        return rows_v69485
-
-    # Current-turn explicit URL/title/size is always stronger than pronoun history.
-    explicit_matches_v69485 = []
-    for row_v69485 in rows_v69485:
-        title_v69485 = str(row_v69485.get("title") or "").casefold()
-        source_v69485 = str(row_v69485.get("source") or "").casefold()
-        if source_v69485 and source_v69485 in prompt_v69485:
-            explicit_matches_v69485.append(row_v69485)
-            continue
-        sizes_v69485 = re.findall(r"\b\d{2}(?:\.\d)?(?=\s*(?:inch|inches|[\"″]))", title_v69485)
-        if sizes_v69485 and any(re.search(rf"\b{re.escape(size_v69485)}\s*(?:inch|inches|[\"″])?\b", prompt_v69485) for size_v69485 in sizes_v69485):
-            explicit_matches_v69485.append(row_v69485)
-    if len(explicit_matches_v69485) == 1:
-        diagnostic_log("workspace_sales_same_case_subject_narrowed_v69485", mode="current_turn", products_before=len(rows_v69485), products_after=1)
-        return explicit_matches_v69485
-
-    # Inspect only prior USER turns. A prior assistant table/order is not enough to
-    # infer which product the customer means.
-    prior_user_texts_v69485 = []
-    try:
-        messages_v69485 = list(st.session_state.get("messages") or [])
-        skipped_current_v69485 = False
-        for message_v69485 in reversed(messages_v69485):
-            if not isinstance(message_v69485, dict) or str(message_v69485.get("role") or "") != "user":
-                continue
-            value_v69485 = re.sub(r"\s+", " ", str(message_v69485.get("content") or "")).strip().casefold()
-            if not value_v69485:
-                continue
-            if not skipped_current_v69485 and value_v69485 == prompt_v69485:
-                skipped_current_v69485 = True
-                continue
-            prior_user_texts_v69485.append(value_v69485)
-            if len(prior_user_texts_v69485) >= 4:
-                break
-    except Exception:
-        return rows_v69485
-
-    for prior_v69485 in prior_user_texts_v69485:
-        option_match_v69485 = re.search(r"\b(?:option|choice|#)\s*([1-9][0-9]?)\b", prior_v69485)
-        if option_match_v69485:
-            index_v69485 = int(option_match_v69485.group(1)) - 1
-            if 0 <= index_v69485 < len(rows_v69485):
-                diagnostic_log("workspace_sales_same_case_subject_narrowed_v69485", mode="prior_user_option", products_before=len(rows_v69485), products_after=1, option=index_v69485 + 1)
-                return [rows_v69485[index_v69485]]
-        matched_v69485 = []
-        for row_v69485 in rows_v69485:
-            title_v69485 = str(row_v69485.get("title") or "").casefold()
-            source_v69485 = str(row_v69485.get("source") or "").casefold()
-            if source_v69485 and source_v69485 in prior_v69485:
-                matched_v69485.append(row_v69485)
-                continue
-            size_hits_v69485 = re.findall(r"\b\d{2}(?:\.\d)?(?=\s*(?:inch|inches|[\"″]))", title_v69485)
-            if size_hits_v69485 and any(re.search(rf"\b{re.escape(size_v69485)}\s*(?:inch|inches|[\"″])?\b", prior_v69485) for size_v69485 in size_hits_v69485):
-                matched_v69485.append(row_v69485)
-        if len(matched_v69485) == 1:
-            diagnostic_log("workspace_sales_same_case_subject_narrowed_v69485", mode="prior_user_explicit", products_before=len(rows_v69485), products_after=1)
-            return matched_v69485
-    return rows_v69485
-
-
 def _workspace_sales_same_case_factual_direct_answer_v69408(
     workspace_label,
     prompt_text,
@@ -71449,20 +67424,7 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
     if status not in {"recovered", "recovered_multi"}:
         return ""
 
-    pending_v69487 = _workspace_sales_pending_clarification_v69487(prompt_text)
-    effective_prompt_v69487 = str(prompt_text or "")
-    if pending_v69487 and re.search(r"\b(?:not sure|unsure|don['’]?t know|do not know|no idea|can['’]?t tell|cannot tell)\b", str(prompt_text or ""), flags=re.I):
-        return (
-            "No problem — please send me a clear photo of the **original dashboard/radio**. "
-            "I’ll use it to identify the missing vehicle configuration before giving you a configuration-dependent answer."
-        )
-    if pending_v69487:
-        option_rows_v69487 = [{"token": _workspace_sales_option_token_v69487(x), "label": x} for x in (pending_v69487.get("option_labels") or [])]
-        selected_pending_v69487 = _workspace_sales_match_option_v69487(prompt_text, option_rows_v69487, pending_v69487.get("dimension") or "")
-        if selected_pending_v69487:
-            effective_prompt_v69487 = str(pending_v69487.get("original_prompt") or prompt_text)
-            diagnostic_log("workspace_sales_adaptive_clarification_resumed_v69487", route="factual", dimension=str(pending_v69487.get("dimension") or ""))
-    intent = _workspace_sales_same_case_fact_intent_v69408(effective_prompt_v69487)
+    intent = _workspace_sales_same_case_fact_intent_v69408(prompt_text)
     category = str(intent.get("category") or "")
     topic = str(intent.get("topic") or "")
     if category in {"visual_existing_path", "provider_required", "provider_fallback"}:
@@ -71508,19 +67470,24 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
         seen.add(page_id)
 
         contract = _workspace_atp_product_contract_cached_v69227(pkg)
-        title = _workspace_sales_customer_product_title_v69450(
-            pkg.get("page_title") or pkg.get("title") or "",
-            contract,
-        )
+        title = re.sub(
+            r"\s+",
+            " ",
+            str(pkg.get("page_title") or pkg.get("title") or "").split("|", 1)[0],
+        ).strip()
         if not title:
             try:
-                title = _workspace_sales_customer_product_title_v69450(
-                    _technical_package_header_value_v69113(
-                        str(pkg.get("package_text") or ""),
-                        "Page title",
-                    ),
-                    contract,
-                )
+                title = re.sub(
+                    r"\s+",
+                    " ",
+                    str(
+                        _technical_package_header_value_v69113(
+                            str(pkg.get("package_text") or ""),
+                            "Page title",
+                        )
+                        or ""
+                    ).split("|", 1)[0],
+                ).strip()
             except Exception:
                 title = ""
         if not title:
@@ -71542,8 +67509,6 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
 
     if not rows:
         return ""
-
-    rows = _workspace_sales_same_case_subject_rows_v69485(prompt_text, rows)
 
     def table(headers, data_rows):
         return "\n".join([
@@ -71574,35 +67539,22 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
         )
         for row_v69436 in rows:
             source_v69436 = str(row_v69436.get("source") or "").strip()
-            recent_snapshot_v69457 = _workspace_sales_recent_catalog_price_v69457(
-                row_v69436.get("package") or {}
+            woo_lookup_v69436 = _woocommerce_product_by_source_url_v69326(
+                source_v69436
             )
-            woo_lookup_v69436 = {}
+            price_label_v69436 = _woocommerce_price_label_v69326(
+                woo_lookup_v69436
+            )
+            price_source_v69436 = "WooCommerce"
             page_lookup_v69436 = {}
-            if recent_snapshot_v69457:
-                price_label_v69436 = str(recent_snapshot_v69457.get("price_label") or "")
-                price_source_v69436 = "Current WooCommerce catalog snapshot"
-                diagnostic_log(
-                    "workspace_sales_same_case_price_snapshot_reused_v69457",
-                    source_url=source_v69436[:700],
-                    price=price_label_v69436[:120],
-                )
-            else:
-                woo_lookup_v69436 = _woocommerce_product_by_source_url_v69326(
+            if not price_label_v69436:
+                page_lookup_v69436 = _current_product_page_price_by_exact_url_v69340(
                     source_v69436
                 )
-                price_label_v69436 = _woocommerce_price_label_v69326(
-                    woo_lookup_v69436
+                price_label_v69436 = _current_product_page_price_label_v69340(
+                    page_lookup_v69436
                 )
-                price_source_v69436 = "WooCommerce"
-                if not price_label_v69436:
-                    page_lookup_v69436 = _current_product_page_price_by_exact_url_v69340(
-                        source_v69436
-                    )
-                    price_label_v69436 = _current_product_page_price_label_v69340(
-                        page_lookup_v69436
-                    )
-                    price_source_v69436 = "Current product page"
+                price_source_v69436 = "Current product page"
 
             if price_label_v69436:
                 verified_v69436 += 1
@@ -71845,7 +67797,6 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             "reverse_camera": "Original reverse-camera retention",
             "cargo_camera": "Cargo-camera retention",
             "premium_audio": "Premium-sound-system support",
-            "factory_sync": "Original factory SYNC retention",
             "installation_video": "Installation video available",
         }
         evidence_terms_v69436 = {
@@ -71859,217 +67810,89 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
             "reverse_camera": r"(?:reverse|backup|factory)\s+camera",
             "cargo_camera": r"cargo\s+camera",
             "premium_audio": r"premium\s+(?:sound|audio)|bose|alpine|harman",
-            "factory_sync": r"(?:original|factory|oem|microsoft|ford)\s+(?:ford\s+)?sync(?:\s*(?:version\s*)?[1234])?",
             "installation_video": r"installation\s+video|install\s+video",
         }
-        free_feature_v69481 = str(topic or "").startswith("free:")
-        free_phrase_v69481 = (str(topic or "")[5:].strip() if free_feature_v69481 else "")
-        label = label_map.get(topic, "") or free_phrase_v69481
+        label = label_map.get(topic, "")
         evidence_term_v69436 = evidence_terms_v69436.get(topic, "")
-        if free_feature_v69481 and free_phrase_v69481:
-            evidence_term_v69436 = re.escape(free_phrase_v69481).replace(r"\ ", r"\s+")
         if label:
-            # v69485: evaluate durable learned/package evidence first, with polarity
-            # scoped to the requested feature. Only unresolved products require a live
-            # page fetch. Short description, each custom tab, and ATP semantic attrs
-            # remain separate sources instead of one giant flattened blob.
-            row_evidence_v69485 = {}
-            unresolved_sources_v69485 = []
-            for row_v69485 in rows:
-                pkg_v69485 = dict(row_v69485.get("package") or {})
-                contract_v69485 = dict(row_v69485.get("contract") or {})
-                learned_v69485 = _workspace_sales_learned_structured_facts_v69487(
-                    str(pkg_v69485.get("package_text") or "")
-                )
-                evidence_sources_v69485 = [
-                    ("contract_feature_summary", str(contract_v69485.get("feature_summary") or "")),
-                    ("package_webpage_text", str(pkg_v69485.get("webpage_text") or "")),
-                    ("learned_short_description", str(learned_v69485.get("short_description_text") or "")),
-                    ("learned_custom_tabs", list(learned_v69485.get("custom_tab_sections") or [])),
-                    ("learned_semantic_attributes", dict(learned_v69485.get("semantic_attributes") or {})),
-                    ("learned_conditional_rules", list(learned_v69485.get("conditional_feature_rules_v69486") or [])),
-                ]
-                facets_v69487 = dict(learned_v69485.get("compatibility_facets_v69487") or _workspace_sales_compatibility_facets_v69487(pkg_v69485, learned_v69485))
-                selections_v69487 = _workspace_sales_recent_compatibility_selections_v69487(prompt_text, facets_v69487)
-                evaluated_v69485 = _workspace_sales_feature_evidence_v69487(
-                    label, topic, evidence_sources_v69485,
-                    selected_facets=selections_v69487, available_facets=facets_v69487,
-                )
-                source_v69485 = str(row_v69485.get("source") or "").strip()
-                row_evidence_v69485[source_v69485] = evaluated_v69485
-                if str(evaluated_v69485.get("status") or "") in {"not_stated", "conditional"}:
-                    unresolved_sources_v69485.append(source_v69485)
-
-            # If durable exact learned authority already proves a configuration
-            # dependency, ask immediately. Do not spend 3 seconds re-fetching the
-            # same product page merely to rediscover the same clarification.
-            early_clarification_v69487 = _workspace_sales_adaptive_feature_clarification_v69487(
-                effective_prompt_v69487, rows, topic, row_evidence_v69485
-            )
-            if early_clarification_v69487:
-                diagnostic_log("workspace_sales_adaptive_clarification_fastpath_v69487", topic=str(topic or "")[:120], live_fetches=0)
-                return early_clarification_v69487
-
-            live_facts_v69481 = {}
-            if unresolved_sources_v69485:
-                try:
-                    from concurrent.futures import ThreadPoolExecutor, as_completed
-                    unique_sources_v69481 = list(dict.fromkeys(x for x in unresolved_sources_v69485 if x))
-                    with ThreadPoolExecutor(max_workers=min(8, max(1, len(unique_sources_v69481))), thread_name_prefix="atp-live-facts-v69492") as pool_v69481:
-                        futures_v69481 = {
-                            pool_v69481.submit(_workspace_sales_exact_product_page_facts_v69481, source_v69481, 1.75): source_v69481
-                            for source_v69481 in unique_sources_v69481
-                        }
-                        for future_v69481 in as_completed(futures_v69481):
-                            source_v69481 = futures_v69481[future_v69481]
-                            try:
-                                live_facts_v69481[source_v69481] = dict(future_v69481.result() or {})
-                            except Exception as error_v69481:
-                                live_facts_v69481[source_v69481] = {"status": "unavailable", "error_type": type(error_v69481).__name__}
-                except Exception as error_v69481:
-                    diagnostic_log("workspace_sales_exact_live_product_facts_batch_failed_v69481", error_type=type(error_v69481).__name__)
-
-            # Merge any exact live-page conditional authority before deciding whether
-            # a clarification is required. This closes the path where a pre-v69485
-            # learned package is incomplete but the current Woo page clearly scopes
-            # the feature by factory configuration.
-            for row_v69486 in rows:
-                source_v69486 = str(row_v69486.get("source") or "").strip()
-                current_evidence_v69486 = dict(row_evidence_v69485.get(source_v69486) or {})
-                if str(current_evidence_v69486.get("status") or "") not in {"not_stated", "conditional"}:
-                    continue
-                live_v69486 = dict(live_facts_v69481.get(source_v69486) or {})
-                if str(live_v69486.get("status") or "") != "verified":
-                    continue
-                live_facets_v69487 = _workspace_sales_compatibility_facets_v69487(row_v69486.get("package") or {}, live_v69486)
-                live_selections_v69487 = _workspace_sales_recent_compatibility_selections_v69487(prompt_text, live_facets_v69487)
-                live_eval_v69486 = _workspace_sales_feature_evidence_v69487(
-                    label, topic,
-                    [
-                        ("live_short_description", str(live_v69486.get("short_description_text") or "")),
-                        ("live_custom_tabs", list(live_v69486.get("custom_tab_sections") or [])),
-                        ("live_semantic_attributes", dict(live_v69486.get("semantic_attributes") or {})),
-                        ("live_conditional_rules", _workspace_sales_conditional_feature_rules_v69487(live_v69486)),
-                    ],
-                    selected_facets=live_selections_v69487, available_facets=live_facets_v69487,
-                )
-                if str(live_eval_v69486.get("status") or "") != "not_stated" or bool(live_eval_v69486.get("excluded_by_configuration")):
-                    row_evidence_v69485[source_v69486] = live_eval_v69486
-
-            clarification_v69487 = _workspace_sales_adaptive_feature_clarification_v69487(
-                effective_prompt_v69487, rows, topic, row_evidence_v69485
-            )
-            if clarification_v69487:
-                return clarification_v69487
-
             data_v69436 = []
             positive_v69436 = 0
             negative_v69436 = 0
-            conditional_v69485 = 0
-            live_resolved_v69485 = 0
             for i_v69436, row_v69436 in enumerate(rows, 1):
                 feature_set_v69436 = set(row_v69436.get("features") or [])
                 status_v69436 = ""
-                detail_v69485 = ""
-                source_url_v69485 = str(row_v69436.get("source") or "").strip()
-
-                evidence_v69485 = dict(row_evidence_v69485.get(source_url_v69485) or {})
-                state_v69485 = str(evidence_v69485.get("status") or "not_stated")
-
-                # v69486: exact configuration-scoped evidence outranks a broad contract
-                # feature list. A generic "feature present" flag must never erase a
-                # more specific SYNC/factory-system condition or explicit negative.
-                if state_v69485 == "not_stated" and not bool(evidence_v69485.get("excluded_by_configuration")) and not bool(evidence_v69485.get("authority_conflict")) and label in feature_set_v69436:
+                if label in feature_set_v69436:
                     status_v69436 = "Listed / supported"
-                    detail_v69485 = label
                     positive_v69436 += 1
                 else:
-                    if state_v69485 in {"not_stated", "conditional"}:
-                        live_v69485 = dict(live_facts_v69481.get(source_url_v69485) or {})
-                        if str(live_v69485.get("status") or "") == "verified":
-                            live_facets_v69487 = _workspace_sales_compatibility_facets_v69487(row_v69436.get("package") or {}, live_v69485)
-                            live_selections_v69487 = _workspace_sales_recent_compatibility_selections_v69487(prompt_text, live_facets_v69487)
-                            live_evidence_v69485 = _workspace_sales_feature_evidence_v69487(
-                                label,
-                                topic,
-                                [
-                                    ("live_short_description", str(live_v69485.get("short_description_text") or "")),
-                                    ("live_custom_tabs", list(live_v69485.get("custom_tab_sections") or [])),
-                                    ("live_semantic_attributes", dict(live_v69485.get("semantic_attributes") or {})),
-                                    ("live_conditional_rules", _workspace_sales_conditional_feature_rules_v69487(live_v69485)),
-                                ],
-                                selected_facets=live_selections_v69487, available_facets=live_facets_v69487,
-                            )
-                            if str(live_evidence_v69485.get("status") or "") != "not_stated" or bool(live_evidence_v69485.get("excluded_by_configuration")):
-                                evidence_v69485 = live_evidence_v69485
-                                state_v69485 = str(evidence_v69485.get("status") or "not_stated")
-                                live_resolved_v69485 += 1
+                    pkg_v69436 = dict(row_v69436.get("package") or {})
+                    contract_v69436 = dict(row_v69436.get("contract") or {})
+                    exact_text_v69436 = " ".join(
+                        str(x or "")
+                        for x in (
+                            pkg_v69436.get("package_text"),
+                            pkg_v69436.get("page_text"),
+                            pkg_v69436.get("content"),
+                            contract_v69436.get("feature_summary"),
+                        )
+                    )
+                    exact_text_v69436 = re.sub(
+                        r"\s+", " ", exact_text_v69436
+                    ).strip().casefold()
 
-                    detail_v69485 = str(evidence_v69485.get("detail") or "")[:500]
-                    if state_v69485 == "supported":
-                        status_v69436 = "Listed / supported"
-                        positive_v69436 += 1
-                    elif state_v69485 == "unsupported":
+                    explicit_negative_v69436 = False
+                    if evidence_term_v69436 and exact_text_v69436:
+                        neg_patterns_v69436 = (
+                            rf"\b(?:does\s+not|doesn't|not|without|no)\b.{{0,55}}\b(?:{evidence_term_v69436})\b",
+                            rf"\b(?:{evidence_term_v69436})\b.{{0,55}}\b(?:not\s+supported|unsupported|not\s+available|not\s+included)\b",
+                        )
+                        explicit_negative_v69436 = any(
+                            re.search(
+                                pattern_v69436,
+                                exact_text_v69436,
+                                flags=re.I,
+                            )
+                            for pattern_v69436 in neg_patterns_v69436
+                        )
+
+                    if explicit_negative_v69436:
                         status_v69436 = "Explicitly not supported"
                         negative_v69436 += 1
-                    elif state_v69485 == "conditional":
-                        status_v69436 = "Conditional / check exact configuration"
-                        conditional_v69485 += 1
                     else:
-                        if bool(evidence_v69485.get("authority_conflict")):
-                            status_v69436 = "Conflicting exact sources / requires verification"
-                        elif bool(evidence_v69485.get("excluded_by_configuration")):
-                            status_v69436 = "Not stated for this confirmed factory configuration"
-                        else:
-                            status_v69436 = "Not stated on the current product page"
+                        status_v69436 = "Not stated on the current product page"
 
                 data_v69436.append((
                     str(i_v69436),
                     row_v69436["title"],
                     status_v69436,
-                    detail_v69485 or "—",
                     row_v69436["source"],
                 ))
 
             diagnostic_log(
-                "workspace_sales_specific_feature_evidence_v69485",
+                "workspace_sales_specific_feature_evidence_v69436",
                 topic=topic,
                 products=len(data_v69436),
                 positive=positive_v69436,
                 explicit_negative=negative_v69436,
-                conditional=conditional_v69485,
-                not_stated=max(0, len(data_v69436) - positive_v69436 - negative_v69436 - conditional_v69485),
-                live_fetches=len(live_facts_v69481),
-                live_resolved=live_resolved_v69485,
-                polarity_scope="feature_subject_segment",
+                not_stated=max(
+                    0,
+                    len(data_v69436)
+                    - positive_v69436
+                    - negative_v69436,
+                ),
             )
 
             if len(data_v69436) == 1:
-                _, title_v69436, status_v69436, detail_v69485, source_v69436 = data_v69436[0]
+                _, title_v69436, status_v69436, source_v69436 = data_v69436[0]
                 if status_v69436 == "Listed / supported":
                     answer = (
                         f"Yes — **{label}** is listed for **{title_v69436}**.\n\n"
-                        f"Source detail: {detail_v69485}\n\n"
                         f"Product link: {source_v69436}"
                     )
                 elif status_v69436 == "Explicitly not supported":
                     answer = (
                         f"No — the current exact product information explicitly indicates "
                         f"that **{label}** is not supported for **{title_v69436}**.\n\n"
-                        f"Source detail: {detail_v69485}\n\n"
-                        f"Product link: {source_v69436}"
-                    )
-                elif status_v69436 == "Conditional / check exact configuration":
-                    answer = (
-                        f"**{label} depends on the exact factory configuration** for **{title_v69436}**.\n\n"
-                        f"Source detail: {detail_v69485}\n\n"
-                        f"Product link: {source_v69436}"
-                    )
-                elif status_v69436 == "Not stated for this confirmed factory configuration":
-                    answer = (
-                        f"For the **confirmed vehicle configuration**, the exact product source does **not state that {label} is retained/supported**. "
-                        "The source scopes that feature to a different configuration, so I won't guess beyond the published information.\n\n"
-                        f"Source detail: {detail_v69485}\n\n"
                         f"Product link: {source_v69436}"
                     )
                 else:
@@ -72083,7 +67906,7 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
                 answer = (
                     f"For **{label}**, this is what the current exact product information shows:\n\n"
                     + table(
-                        ("Option", "Product", label, "Source detail", "Product link"),
+                        ("Option", "Product", label, "Product link"),
                         data_v69436,
                     )
                     + "\n\n“Not stated” means I don’t have enough exact page evidence "
@@ -72215,7 +68038,6 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
         products=len(rows),
     )
     return answer
-
 
 
 def _workspace_sales_visual_followup_direct_answer_v69403(
@@ -72500,11 +68322,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 except Exception:
                     title = ""
             if title:
-                return _workspace_sales_customer_product_title_v69450(
-                    title,
-                    contract,
-                    fallback="Current product",
-                )
+                return re.sub(r"\s+", " ", title).strip()
             source = str(pkg.get("source_url") or "").strip()
             try:
                 slug = urllib.parse.urlsplit(source).path.rstrip("/").split("/")[-1]
@@ -72530,12 +68348,31 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 continue
             seen_sources_v69325.add(source_identity)
             contract = _workspace_atp_product_contract_v69205(pkg)
-            fit_label = _workspace_atp_first_response_fitment_v69348(
-                contract,
-                requested_years_v69325 or None,
-            )
-            if requested_years_v69325 and not fit_label:
-                continue
+            branches = list(contract.get("compatibility_branches") or [])
+            if requested_years_v69325:
+                requested_set = set(requested_years_v69325)
+                matching = [b for b in branches if requested_set & set(b.get("years") or [])]
+                if not matching:
+                    continue
+                fit_parts = []
+                for branch in matching:
+                    years = sorted(requested_set & set(branch.get("years") or []))
+                    if not years:
+                        continue
+                    year_label = ", ".join(str(y) for y in years)
+                    trim = str(branch.get("trim") or "").strip()
+                    fit_parts.append(year_label + (f" — {trim} only" if trim else ""))
+                fit_label = "; ".join(dict.fromkeys(fit_parts)) or ", ".join(map(str, requested_years_v69325))
+            else:
+                fit_parts = []
+                for branch in branches:
+                    years = sorted(set(branch.get("years") or []))
+                    if not years:
+                        continue
+                    span = str(years[0]) if len(years) == 1 else f"{years[0]}–{years[-1]}"
+                    trim = str(branch.get("trim") or "").strip()
+                    fit_parts.append(span + (f" — {trim} only" if trim else ""))
+                fit_label = "; ".join(dict.fromkeys(fit_parts))
             if bool(pkg.get("workspace_atp_turn_local_recovery_v69338")) and str(contract.get("platform") or "").strip():
                 fit_label = str(contract.get("platform") or "").strip()
             rows_v69325.append((_multi_title_v69325(pkg, contract), fit_label, source))
@@ -72806,9 +68643,11 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                 live_rows_v69326,
             ):
                 raw_store_price_v69437 = original_row_v69437[2]
-                table_title_v69437 = _workspace_sales_customer_product_title_v69450(
-                    title_v69437,
-                )
+                table_title_v69437 = re.sub(
+                    r"\s+",
+                    " ",
+                    str(title_v69437 or "").split("|", 1)[0],
+                ).strip()
                 lines_v69326.append(
                     "| "
                     + " | ".join([
@@ -72914,7 +68753,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
             ])
             for note_v69348 in list(dict.fromkeys(all_notes_v69348))[:4]:
                 lines.append(f"- {note_v69348}")
-            # Exact image publication is finalized after this answer is built.
+            lines.append("- The main product photo for each option is shown below.")
             diagnostic_log(
                 "workspace_sales_first_response_table_v69350",
                 product_count=len(rows_v69325),
@@ -73112,7 +68951,7 @@ def _workspace_atp_product_direct_answer_v69205(workspace_label, prompt_text, au
                     if notes_v69348:
                         lines_v69350.extend(["", "### Compatibility notes", ""])
                         lines_v69350.extend(f"- {note}" for note in notes_v69348)
-                    # Exact image publication is finalized after this answer is built.
+                    lines_v69350.append("\nThe main product photo is shown below.")
                     diagnostic_log(
                         "workspace_sales_first_response_table_v69350",
                         product_count=1,
@@ -73818,7 +69657,7 @@ def _workspace_sales_woocommerce_store_api_page_v69414(search_term, page=1):
     return safe_json_response(response)
 
 
-@st.cache_data(ttl=300, max_entries=8, show_spinner=False)
+@st.cache_data(ttl=90, max_entries=8, show_spinner=False)
 def _workspace_sales_woocommerce_store_api_full_scan_v69415():
     """Read storefront-visible Woo products without relying on search-token behavior."""
     if not WOOCOMMERCE_STORE_URL:
@@ -74113,134 +69952,6 @@ def _workspace_sales_woocommerce_search_v69413(search_term):
     }
 
 
-def _workspace_sales_trusted_identity_generic_families_v69457(value):
-    """Extract brand-adjacent model tokens from trusted product identity, exactly.
-
-    This is deliberately *not* a typo corrector. It preserves support for catalog
-    families outside the legacy parser vocabulary (for example NX, Q5 or 3 Series)
-    while preventing SequenceMatcher repairs such as E280 -> E250 from being applied
-    to authoritative Woo product metadata. Customer-query typo repair remains
-    unchanged in ``_workspace_sales_fuzzy_vehicle_families_v69416``.
-    """
-    text_v69457 = html.unescape(re.sub(r"\s+", " ", str(value or ""))).strip().casefold()
-    if not text_v69457:
-        return set()
-    tokens_v69457 = re.findall(r"[a-z0-9]+", text_v69457)
-    brands_v69457 = {
-        "chevy", "chevrolet", "gmc", "ford", "dodge", "ram", "jeep",
-        "toyota", "honda", "nissan", "infiniti", "lexus", "acura",
-        "bmw", "audi", "mercedes", "porsche", "cadillac", "buick",
-        "chrysler", "hyundai", "kia", "lincoln", "mazda", "subaru",
-        "tesla", "volkswagen", "volvo",
-    }
-    skip_v69457 = {
-        "autotecpro", "product", "products", "screen", "radio", "stereo",
-        "navigation", "infotainment", "android", "touch", "touchscreen",
-        "system", "unit", "head", "style", "tesla", "hd", "ips", "qhd",
-        "gps", "wifi", "carplay", "camera", "cluster", "cockpit", "digital",
-        "oem", "fit", "inch", "inches", "benz",
-    }
-    out_v69457 = set()
-    for index_v69457, token_v69457 in enumerate(tokens_v69457):
-        if token_v69457 not in brands_v69457:
-            continue
-        nearby_v69457 = []
-        for candidate_v69457 in tokens_v69457[index_v69457 + 1:index_v69457 + 7]:
-            if re.fullmatch(r"(?:19|20)\d{2}", candidate_v69457):
-                continue
-            if candidate_v69457 in brands_v69457 or candidate_v69457 in skip_v69457:
-                continue
-            nearby_v69457.append(candidate_v69457)
-            if len(nearby_v69457) >= 2:
-                break
-        if not nearby_v69457:
-            continue
-        first_v69457 = nearby_v69457[0]
-        family_v69457 = first_v69457
-        if len(nearby_v69457) >= 2:
-            second_v69457 = nearby_v69457[1]
-            if first_v69457.isdigit() and second_v69457 == "series":
-                family_v69457 = f"{first_v69457} series"
-            elif len(first_v69457) == 1 and second_v69457 == "class":
-                family_v69457 = f"{first_v69457} class"
-            elif first_v69457 in {"land", "range"} and second_v69457 in {"cruiser", "rover"}:
-                family_v69457 = f"{first_v69457} {second_v69457}"
-            elif re.fullmatch(r"[a-z]{1,3}", first_v69457) and re.fullmatch(r"\d{1,3}", second_v69457):
-                family_v69457 = first_v69457 + second_v69457
-        compact_v69457 = re.sub(r"[^a-z0-9]", "", family_v69457)
-        if len(compact_v69457) < 2:
-            continue
-        family_pattern_v69457 = r"\b" + r"[-_\s]*".join(
-            re.escape(piece_v69457)
-            for piece_v69457 in re.findall(r"[a-z]+|\d+", family_v69457)
-        ) + r"\b"
-        positive_v69457 = False
-        for match_v69457 in re.finditer(family_pattern_v69457, text_v69457):
-            before_v69457 = text_v69457[max(0, match_v69457.start() - 90):match_v69457.start()]
-            after_v69457 = text_v69457[match_v69457.end():match_v69457.end() + 70]
-            negative_v69457 = bool(re.search(
-                r"(?:do\s+not\s+use|don't\s+use|not\s+for|wrong|avoid|"
-                r"instead\s+of|rather\s+than|exclude(?:s|d)?|unsupported)"
-                r"[^.;:]{0,70}$",
-                before_v69457,
-            )) or bool(re.search(
-                r"^\s*(?:is\s+)?(?:not\s+supported|unsupported|excluded)",
-                after_v69457,
-            ))
-            if not negative_v69457:
-                positive_v69457 = True
-                break
-        if positive_v69457:
-            out_v69457.add(family_v69457.replace(" ", "_"))
-    return out_v69457
-
-
-def _workspace_sales_exact_factory_system_v69457(description_html):
-    """Return a factory-system label only from exact-current ATP product semantics."""
-    raw_v69457 = str(description_html or "")
-    if not raw_v69457:
-        return ""
-    current_tags_v69457 = re.findall(
-        r"<[^>]+data-atp-current-source\s*=\s*[\"'](?:true|1|yes)[\"'][^>]*>",
-        raw_v69457,
-        flags=re.I | re.S,
-    )
-    evidence_v69457 = " ".join(current_tags_v69457)
-    for attr_v69457 in (
-        "data-atp-factory-system",
-        "data-atp-retained-factory-system",
-        "data-atp-factory-system-scope",
-    ):
-        match_v69457 = re.search(
-            rf"{re.escape(attr_v69457)}\s*=\s*[\"']([^\"']+)[\"']",
-            evidence_v69457,
-            flags=re.I,
-        )
-        if match_v69457:
-            return re.sub(r"\s+", " ", html.unescape(match_v69457.group(1))).strip()
-
-    feature_values_v69457 = " ".join(re.findall(
-        r"data-atp-feature\s*=\s*[\"']([^\"']+)[\"']",
-        evidence_v69457,
-        flags=re.I,
-    )).casefold()
-    negative_v69457 = re.search(
-        r"(?:non|no|without)[-_\s]*sync[-_\s]*([1-4])",
-        feature_values_v69457,
-        flags=re.I,
-    )
-    if negative_v69457:
-        return f"Without Original Microsoft SYNC {negative_v69457.group(1)}"
-    positive_v69457 = re.search(
-        r"(?:original[-_\s]*)?sync[-_\s]*([1-4])",
-        feature_values_v69457,
-        flags=re.I,
-    )
-    if positive_v69457:
-        return f"Original Microsoft SYNC {positive_v69457.group(1)}"
-    return ""
-
-
 def _workspace_sales_woocommerce_contract_v69413(product):
     """Build deterministic fitment/display facts from one published WooCommerce product."""
     product = dict(product or {})
@@ -74270,11 +69981,7 @@ def _workspace_sales_woocommerce_contract_v69413(product):
     ])
     families = sorted({
         str(x or "").casefold().strip()
-        for x in (
-            set(_website_identity_vehicle_families_v69022(identity_text) or set())
-            | set(_workspace_source_identity_vehicle_families_v69456(identity_text) or set())
-            | set(_workspace_sales_trusted_identity_generic_families_v69457(identity_text) or set())
-        )
+        for x in (_workspace_sales_fuzzy_vehicle_families_v69416(identity_text) or [])
         if str(x or "").strip()
     })
 
@@ -74585,93 +70292,10 @@ def _workspace_sales_woocommerce_contract_v69413(product):
         "facts": facts,
         "features": list(facts),
         "feature_summary": exact_feature_summary_v69426,
-        "factory_system": _workspace_sales_exact_factory_system_v69457(
-            description_html_v69421
-        ),
         "compatibility_branches": branches,
         "related_products": [],
         "primary_images": primary_images[:1],
     }
-
-
-def _workspace_sales_woocommerce_price_snapshot_v69457(product):
-    """Capture a verified storefront price already present in the catalog response.
-
-    The public Woo Store API includes both currency metadata and integer minor-unit
-    prices. Reusing that fresh same-request value makes an immediate price follow-up
-    deterministic and avoids re-querying the same product. Authenticated wc/v3 rows
-    without explicit currency metadata are intentionally not guessed.
-    """
-    product_v69457 = dict(product or {})
-    prices_v69457 = product_v69457.get("prices")
-    if not isinstance(prices_v69457, dict):
-        return {}
-    currency_v69457 = str(prices_v69457.get("currency_code") or "").strip().upper()
-    if not re.fullmatch(r"[A-Z]{3}", currency_v69457):
-        return {}
-    try:
-        minor_v69457 = int(prices_v69457.get("currency_minor_unit"))
-        if minor_v69457 < 0 or minor_v69457 > 6:
-            return {}
-    except Exception:
-        return {}
-    scale_v69457 = float(10 ** minor_v69457)
-    raw_values_v69457 = []
-    price_range_v69457 = prices_v69457.get("price_range")
-    if isinstance(price_range_v69457, dict):
-        for key_v69457 in ("min_amount", "max_amount"):
-            if str(price_range_v69457.get(key_v69457) or "").strip():
-                raw_values_v69457.append(price_range_v69457.get(key_v69457))
-    if not raw_values_v69457:
-        for key_v69457 in ("price", "sale_price", "regular_price"):
-            value_v69457 = prices_v69457.get(key_v69457)
-            if str(value_v69457 or "").strip():
-                raw_values_v69457.append(value_v69457)
-                if key_v69457 == "price":
-                    break
-    numeric_v69457 = []
-    for value_v69457 in raw_values_v69457:
-        try:
-            numeric_v69457.append(float(str(value_v69457).replace(",", "")) / scale_v69457)
-        except Exception:
-            continue
-    if not numeric_v69457:
-        return {}
-    low_v69457 = min(numeric_v69457)
-    high_v69457 = max(numeric_v69457)
-    label_v69457 = (
-        f"{currency_v69457} {low_v69457:,.2f}"
-        if abs(high_v69457 - low_v69457) < 0.005
-        else f"{currency_v69457} {low_v69457:,.2f}–{high_v69457:,.2f}"
-    )
-    return {
-        "status": "verified",
-        "currency": currency_v69457,
-        "min_price": low_v69457,
-        "max_price": high_v69457,
-        "price_label": label_v69457,
-        "captured_at_epoch": time.time(),
-        "source": "woocommerce_store_catalog_snapshot_v69457",
-    }
-
-
-def _workspace_sales_recent_catalog_price_v69457(package, max_age_seconds=180.0):
-    package_v69457 = dict(package or {})
-    snapshot_v69457 = package_v69457.get("workspace_sales_woocommerce_price_snapshot_v69457")
-    if not isinstance(snapshot_v69457, dict):
-        return {}
-    if str(snapshot_v69457.get("status") or "") != "verified":
-        return {}
-    try:
-        age_v69457 = max(0.0, time.time() - float(snapshot_v69457.get("captured_at_epoch") or 0.0))
-    except Exception:
-        return {}
-    if age_v69457 > float(max_age_seconds):
-        return {}
-    label_v69457 = str(snapshot_v69457.get("price_label") or "").strip()
-    if not label_v69457:
-        return {}
-    return dict(snapshot_v69457)
 
 
 def _workspace_sales_woocommerce_package_v69413(product):
@@ -74692,17 +70316,8 @@ def _workspace_sales_woocommerce_package_v69413(product):
     })
     years = sorted({
         int(x)
-        for x in (
-            list(_workspace_sales_woocommerce_years_v69413(
-                " ".join([name, str(product.get("slug") or ""), permalink])
-            ) or [])
-            + [
-                year_v69456
-                for branch_v69456 in (contract.get("compatibility_branches") or [])
-                if isinstance(branch_v69456, dict)
-                and bool(branch_v69456.get("current_source", True))
-                for year_v69456 in (branch_v69456.get("years") or [])
-            ]
+        for x in _workspace_sales_woocommerce_years_v69413(
+            " ".join([name, str(product.get("slug") or ""), permalink])
         )
         if str(x).isdigit()
     })
@@ -74772,331 +70387,7 @@ def _workspace_sales_woocommerce_package_v69413(product):
         "workspace_sales_woocommerce_catalog_v69415": True,
         "workspace_sales_woocommerce_product_id_v69413": product.get("id"),
         "workspace_sales_woocommerce_primary_v69413": hero,
-        "workspace_sales_woocommerce_price_snapshot_v69457": (
-            _workspace_sales_woocommerce_price_snapshot_v69457(product)
-        ),
     }
-
-
-@st.cache_data(ttl=300, max_entries=8, show_spinner=False)
-def _workspace_sales_woocommerce_authenticated_full_scan_v69456():
-    """Read the published Woo catalog without search-token filtering.
-
-    This is a generic completeness source for installations where the public Store
-    API is unavailable or incomplete. It is bounded exactly like the public scan and
-    uses the already-configured authenticated Woo client; no product-specific query
-    is introduced.
-    """
-    if not woocommerce_is_configured():
-        return {
-            "status": "unavailable",
-            "reason": "woocommerce_credentials_not_configured",
-            "products": [],
-        }
-    products_v69456 = {}
-    try:
-        for page_v69456 in range(1, 21):
-            batch_v69456 = woocommerce_api_request(
-                "products",
-                params={
-                    "status": "publish",
-                    "per_page": 100,
-                    "page": page_v69456,
-                },
-            )
-            if not isinstance(batch_v69456, list):
-                raise RuntimeError("Unexpected authenticated Woo full-catalog response.")
-            for item_v69456 in batch_v69456:
-                if not isinstance(item_v69456, dict):
-                    continue
-                key_v69456 = str(
-                    item_v69456.get("id")
-                    or item_v69456.get("permalink")
-                    or item_v69456.get("slug")
-                    or ""
-                ).strip()
-                if key_v69456:
-                    products_v69456[key_v69456] = dict(item_v69456)
-            if len(batch_v69456) < 100:
-                return {
-                    "status": "ok",
-                    "provider": "wc_v3_full_scan",
-                    "products": list(products_v69456.values()),
-                    "pages": page_v69456,
-                }
-        return {
-            "status": "unavailable",
-            "reason": "woocommerce_authenticated_catalog_exceeds_verified_bound",
-            "products": [],
-        }
-    except Exception as error_v69456:
-        return {
-            "status": "unavailable",
-            "reason": "woocommerce_authenticated_full_scan_failed",
-            "error_type": type(error_v69456).__name__,
-            "error": str(error_v69456)[:500],
-            "products": [],
-        }
-
-
-def _workspace_sales_woocommerce_complete_full_scan_v69456():
-    """Return one complete published catalog with the storefront path first.
-
-    v69457: the public Store API is the exact customer-visible published catalog and
-    was healthy in the v69456 production trace, while authenticated wc/v3 repeatedly
-    timed out. Try the complete public catalog first; use authenticated wc/v3 only as
-    a failover. Completeness authority is unchanged and no search-token result is
-    treated as exhaustive.
-    """
-    public_v69457 = _workspace_sales_woocommerce_store_api_full_scan_v69415()
-    if str(public_v69457.get("status") or "") == "ok":
-        return dict(public_v69457)
-    authenticated_v69457 = _workspace_sales_woocommerce_authenticated_full_scan_v69456()
-    if str(authenticated_v69457.get("status") or "") == "ok":
-        return dict(authenticated_v69457)
-    diagnostic_log(
-        "workspace_sales_woo_complete_scan_unavailable_v69456",
-        public_reason=str(public_v69457.get("reason") or "")[:240],
-        authenticated_reason=str(authenticated_v69457.get("reason") or "")[:240],
-    )
-    return {
-        "status": "unavailable",
-        "reason": "woocommerce_complete_catalog_unavailable",
-        "authenticated": dict(authenticated_v69457 or {}),
-        "public": dict(public_v69457 or {}),
-        "products": [],
-    }
-
-
-def _workspace_sales_merge_full_scan_completeness_v69455(
-    products_by_id,
-    requested_years,
-):
-    """Supplement search results with the complete published catalog generically.
-
-    v69456 removes the last discovery-time assumption that title/permalink years are
-    sufficient to decide whether a product deserves validation. The full scan is
-    already bounded and cached, so every published product can safely reach the
-    existing product-kind, exact-current semantic family, and year gates. Those gates
-    remain authoritative; this helper changes candidate recall only.
-    """
-    merged_v69456 = {
-        str(key_v69456): dict(value_v69456)
-        for key_v69456, value_v69456 in dict(products_by_id or {}).items()
-        if str(key_v69456).strip() and isinstance(value_v69456, dict)
-    }
-    full_scan_v69456 = _workspace_sales_woocommerce_complete_full_scan_v69456()
-    if str(full_scan_v69456.get("status") or "") != "ok":
-        diagnostic_log(
-            "workspace_sales_woo_completeness_scan_unavailable_v69455",
-            reason=str(full_scan_v69456.get("reason") or "")[:240],
-            existing_products=len(merged_v69456),
-        )
-        return merged_v69456
-
-    scanned_v69456 = 0
-    added_v69456 = 0
-    for product_v69456 in full_scan_v69456.get("products") or []:
-        if not isinstance(product_v69456, dict):
-            continue
-        scanned_v69456 += 1
-        product_id_v69456 = str(
-            product_v69456.get("id")
-            or product_v69456.get("permalink")
-            or product_v69456.get("slug")
-            or ""
-        ).strip()
-        if not product_id_v69456 or product_id_v69456 in merged_v69456:
-            continue
-        merged_v69456[product_id_v69456] = dict(product_v69456)
-        added_v69456 += 1
-
-    diagnostic_log(
-        "workspace_sales_woo_completeness_scan_v69455",
-        requested_years=sorted({
-            int(x_v69456) for x_v69456 in (requested_years or [])
-            if str(x_v69456).isdigit()
-        }),
-        provider=str(full_scan_v69456.get("provider") or "unknown"),
-        scanned_products=scanned_v69456,
-        added_products=added_v69456,
-        merged_products=len(merged_v69456),
-        pages=int(full_scan_v69456.get("pages") or 0),
-        validation="existing_exact_family_year_kind_gates",
-    )
-    return merged_v69456
-
-
-
-@st.cache_data(ttl=180, max_entries=128, show_spinner=False)
-def _workspace_sales_fast_public_family_catalog_v69483(search_term):
-    """Fast public Store-API family lookup for broad Sales discovery.
-
-    Broad vehicle/year discovery does not need authenticated wc/v3, vector search,
-    or a complete 137-product scan before it can answer.  Query the public current
-    storefront directly with a tight timeout; the existing complete-catalog path
-    remains the fail-closed fallback when this fast path cannot verify a result.
-    """
-    term_v69483 = re.sub(r"\s+", " ", str(search_term or "")).strip()
-    if not term_v69483 or not WOOCOMMERCE_STORE_URL:
-        return {"status": "unavailable", "reason": "missing_search_term", "products": []}
-
-    variants_v69483 = _workspace_sales_woocommerce_search_terms_v69414(term_v69483)[:2]
-    products_v69483 = {}
-    errors_v69483 = []
-    started_v69483 = time.monotonic()
-    # Bound the fast lookup as a whole (not once per spelling variant). If it
-    # cannot verify results within this budget, the existing complete-catalog
-    # fallback remains authoritative and preserves recall.
-    fast_budget_v69490 = 1.85
-    deadline_v69490 = started_v69483 + fast_budget_v69490
-    attempts_v69490 = 0
-    for variant_v69483 in variants_v69483:
-        remaining_v69490 = deadline_v69490 - time.monotonic()
-        if remaining_v69490 <= 0.05:
-            break
-        attempts_v69490 += 1
-        try:
-            response_v69483 = http_session.get(
-                f"{WOOCOMMERCE_STORE_URL}/wp-json/wc/store/v1/products",
-                params={
-                    "search": variant_v69483,
-                    "status": "publish",
-                    "per_page": 100,
-                    "page": 1,
-                },
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": "AutoTecPro-AI/1.0",
-                },
-                timeout=min(
-                    float(LIVE_HTTP_TIMEOUT or 15.0),
-                    max(0.05, remaining_v69490),
-                ),
-            )
-            batch_v69483 = safe_json_response(response_v69483)
-            if not isinstance(batch_v69483, list):
-                raise RuntimeError("Unexpected Woo Store API fast-search response.")
-            for item_v69483 in batch_v69483:
-                if not isinstance(item_v69483, dict):
-                    continue
-                key_v69483 = str(
-                    item_v69483.get("id")
-                    or item_v69483.get("permalink")
-                    or item_v69483.get("slug")
-                    or ""
-                ).strip()
-                if key_v69483:
-                    products_v69483[key_v69483] = dict(item_v69483)
-            # A current family search that returned products is sufficient; do not
-            # spend another network round trip on spelling variants.
-            if products_v69483:
-                break
-        except Exception as error_v69483:
-            errors_v69483.append({
-                "term": variant_v69483,
-                "error_type": type(error_v69483).__name__,
-                "error": str(error_v69483)[:300],
-            })
-
-    elapsed_v69490 = time.monotonic() - started_v69483
-    diagnostic_log(
-        "workspace_sales_fast_public_family_catalog_v69483",
-        search_term=term_v69483[:120],
-        products=len(products_v69483),
-        elapsed_seconds=round(elapsed_v69490, 3),
-        errors=len(errors_v69483),
-        error_types=sorted({str(row.get("error_type") or "") for row in errors_v69483 if isinstance(row, dict)}),
-        attempts=attempts_v69490,
-        fast_budget_seconds=fast_budget_v69490,
-        budget_exhausted=bool(elapsed_v69490 >= fast_budget_v69490),
-    )
-    if products_v69483:
-        return {
-            "status": "ok",
-            "provider": "wc_store_v1_fast_family_v69483",
-            "products": list(products_v69483.values()),
-            "errors": errors_v69483,
-        }
-    return {
-        "status": "unavailable",
-        "reason": "fast_public_family_search_empty_or_unavailable",
-        "products": [],
-        "errors": errors_v69483,
-    }
-
-
-def _workspace_sales_canonical_catalog_member_v69483(prompt_text, product, package):
-    """Fail closed on promotional/mis-scoped broad-catalog rows.
-
-    Current Woo descriptions can contain related vehicles, tags, marketing copy and
-    cross-links.  Those are useful for facts, but they must not make an unrelated
-    product appear in a broad vehicle/year result.  Membership therefore requires
-    the requested family in either the canonical product identity (title/slug/URL)
-    or an exact-current authored ATP compatibility branch.
-    """
-    prompt_v69483 = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    requested_v69483 = {
-        str(x or "").casefold().strip()
-        for x in (_workspace_sales_fuzzy_vehicle_families_v69416(prompt_v69483) or [])
-        if str(x or "").strip()
-    }
-    if not requested_v69483:
-        return True, "no_requested_family"
-
-    product_v69483 = dict(product or {})
-    identity_text_v69483 = " ".join([
-        str(product_v69483.get("name") or ""),
-        str(product_v69483.get("slug") or ""),
-        str(product_v69483.get("permalink") or ""),
-    ])
-    identity_families_v69483 = {
-        str(x or "").casefold().strip()
-        for x in (
-            set(_website_identity_vehicle_families_v69022(identity_text_v69483) or set())
-            | set(_workspace_source_identity_vehicle_families_v69456(identity_text_v69483) or set())
-            | set(_workspace_sales_trusted_identity_generic_families_v69457(identity_text_v69483) or set())
-        )
-        if str(x or "").strip()
-    }
-    semantic_families_v69483 = {
-        str(x or "").casefold().strip()
-        for x in _workspace_exact_current_semantic_families_v69448(
-            str(product_v69483.get("description") or "")
-        )
-        if str(x or "").strip()
-    }
-
-    identity_lower_v69483 = identity_text_v69483.casefold()
-    promotional_v69483 = bool(re.search(
-        r"(?:end[-_\s]*of[-_\s]*year|members?[-_\s]*only|"
-        r"exclusive[-_\s]*members?|holiday[-_\s]*special|"
-        r"clearance[-_\s]*special|special[-_\s]*sale)",
-        identity_lower_v69483,
-    ))
-    promo_requested_v69483 = bool(re.search(
-        r"\b(special|sale|deal|promotion|promo|clearance|member(?:s)? only)\b",
-        prompt_v69483.casefold(),
-    ))
-    if promotional_v69483 and not promo_requested_v69483:
-        return False, "promotional_landing_page_not_requested"
-
-    if identity_families_v69483:
-        if _workspace_sales_family_sets_match_v69416(
-            requested_v69483, identity_families_v69483
-        ):
-            return True, "canonical_identity"
-        # When the canonical title/slug/URL names vehicle families, those explicit
-        # identity fields control broad catalog membership.  Description metadata
-        # may contain related/cross-sell families and cannot broaden this list.
-        return False, "canonical_identity_names_different_family"
-
-    if semantic_families_v69483 and _workspace_sales_family_sets_match_v69416(
-        requested_v69483, semantic_families_v69483
-    ):
-        return True, "exact_current_semantic_branch_without_identity_family"
-
-    return False, "requested_family_absent_from_canonical_identity"
 
 
 @st.cache_data(ttl=90, max_entries=128, show_spinner=False)
@@ -75121,61 +70412,23 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
 
     products_by_id = {}
     failures = []
-
-    # v69483: broad vehicle/year discovery is a current-catalog lookup, not a
-    # semantic-retrieval problem.  Use the public Store API family search first so
-    # cold-path response time is bounded by one small storefront request.  The full
-    # verified catalog scan remains the fail-closed fallback only when the fast
-    # family lookup cannot verify any current product.
-    for family_v69483 in families:
-        fast_result_v69483 = _workspace_sales_fast_public_family_catalog_v69483(
-            family_v69483
-        )
-        if str(fast_result_v69483.get("status") or "") != "ok":
-            failures.append(dict(fast_result_v69483 or {}))
+    for family in families:
+        result = _workspace_sales_woocommerce_search_v69413(family)
+        if str(result.get("status") or "") != "ok":
+            failures.append(dict(result))
             continue
-        for product_v69483 in fast_result_v69483.get("products") or []:
-            if not isinstance(product_v69483, dict):
-                continue
-            product_id_v69483 = str(
-                product_v69483.get("id")
-                or product_v69483.get("permalink")
-                or product_v69483.get("slug")
-                or ""
-            ).strip()
-            if product_id_v69483:
-                products_by_id[product_id_v69483] = dict(product_v69483)
-
-    if products_by_id:
         diagnostic_log(
-            "workspace_sales_fast_family_catalog_authority_v69483",
-            families=list(families),
-            years=list(years),
-            products=len(products_by_id),
-            provider="wc_store_v1_fast_family_v69483",
+            "workspace_sales_woocommerce_family_search_v69415",
+            family=family,
+            provider=str(result.get("provider") or "unknown"),
+            products=len(result.get("products") or []),
         )
-    else:
-        complete_scan_v69457 = _workspace_sales_woocommerce_complete_full_scan_v69456()
-        if str(complete_scan_v69457.get("status") or "") == "ok":
-            for product_v69457 in complete_scan_v69457.get("products") or []:
-                if not isinstance(product_v69457, dict):
-                    continue
-                product_id_v69457 = str(
-                    product_v69457.get("id")
-                    or product_v69457.get("permalink")
-                    or product_v69457.get("slug")
-                    or ""
-                ).strip()
-                if product_id_v69457:
-                    products_by_id[product_id_v69457] = dict(product_v69457)
-            diagnostic_log(
-                "workspace_sales_complete_catalog_direct_v69457",
-                provider=str(complete_scan_v69457.get("provider") or "unknown"),
-                products=len(products_by_id),
-                pages=int(complete_scan_v69457.get("pages") or 0),
-            )
-        else:
-            failures.append(dict(complete_scan_v69457 or {}))
+        for product in result.get("products") or []:
+            if not isinstance(product, dict):
+                continue
+            product_id = str(product.get("id") or product.get("permalink") or product.get("slug") or "")
+            if product_id:
+                products_by_id[product_id] = dict(product)
 
     if failures and not products_by_id:
         reason = str((failures[0] or {}).get("reason") or "woocommerce_catalog_unavailable")
@@ -75191,7 +70444,6 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
     rejected = {
         "status": 0,
         "kind": 0,
-        "identity": 0,
         "family": 0,
         "year": 0,
         "package": 0,
@@ -75215,25 +70467,6 @@ def _workspace_sales_broad_woocommerce_catalog_v69413(prompt_text):
         package = _workspace_sales_woocommerce_package_v69413(product)
         if not package:
             rejected["package"] += 1
-            continue
-        canonical_ok_v69483, canonical_reason_v69483 = (
-            _workspace_sales_canonical_catalog_member_v69483(
-                prompt,
-                product,
-                package,
-            )
-        )
-        if not canonical_ok_v69483:
-            rejected["identity"] += 1
-            diagnostic_log(
-                "workspace_sales_noncanonical_catalog_item_suppressed_v69483",
-                reason=str(canonical_reason_v69483),
-                product_name=re.sub(
-                    r"\s+", " ", str(product.get("name") or "")
-                ).strip()[:220],
-                product_slug=str(product.get("slug") or "")[:180],
-                requested_families=sorted(requested_families),
-            )
             continue
         product_families = set(package.get("vehicle_families") or [])
         product_years = {
@@ -75516,34 +70749,6 @@ def _workspace_sales_parallel_discovery_inputs_v69445(destination, prompt_text):
     started_v69445 = time.time()
     recovered_v69445 = []
     woo_catalog_v69445 = {"status": "unavailable", "reason": "parallel_not_started", "packages": []}
-
-    # v69483: a broad vehicle/year question is answered by the current Woo catalog.
-    # Do not run four vector-recovery queries before showing storefront products.
-    # Vector/learned authority remains available for non-broad and follow-up facts.
-    if _workspace_sales_broad_discovery_prompt_v69411(prompt):
-        try:
-            woo_catalog_v69445 = dict(
-                _workspace_sales_broad_woocommerce_catalog_v69413(prompt) or {}
-            )
-        except Exception as woo_fast_error_v69483:
-            woo_catalog_v69445 = {
-                "status": "unavailable",
-                "reason": "fast_broad_woocommerce_exception",
-                "packages": [],
-            }
-            diagnostic_log(
-                "workspace_sales_fast_broad_catalog_failed_v69483",
-                error_type=type(woo_fast_error_v69483).__name__,
-                error=str(woo_fast_error_v69483)[:300],
-            )
-        if str(woo_catalog_v69445.get("status") or "") == "ok":
-            diagnostic_log(
-                "workspace_sales_broad_vector_bypassed_v69483",
-                woo_products=len(woo_catalog_v69445.get("packages") or []),
-                elapsed_seconds=round(time.time() - started_v69445, 3),
-            )
-            return [], woo_catalog_v69445
-
     try:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(
@@ -75736,7 +70941,7 @@ def _workspace_sales_manifest_metadata_v69411(payload):
     try:
         meta.update(_website_image_atp_semantic_metadata_v69364(payload) or {})
     except Exception:
-        _observe_silent_exception_v69451("_workspace_sales_manifest_metadata_v69411@L71073")
+        pass
 
     raw = payload.get("image_structured_metadata_v69017")
     if isinstance(raw, str) and raw.strip():
@@ -75988,7 +71193,7 @@ def _workspace_sales_broad_product_manifest_v69411(prompt_text):
         ])
         row_families = {
             str(x or "").casefold().strip()
-            for x in (_workspace_source_identity_vehicle_families_v69456(identity_blob) or [])
+            for x in (_website_identity_vehicle_families_v69022(identity_blob) or [])
             if str(x or "").strip()
         }
         if not row_families or not pf.issubset(row_families):
@@ -76002,11 +71207,11 @@ def _workspace_sales_broad_product_manifest_v69411(prompt_text):
         if not page_id:
             continue
 
-        title = html.unescape(re.sub(
+        title = re.sub(
             r"\s+",
             " ",
-            str(payload.get("page_title") or payload.get("title") or ""),
-        )).strip()
+            str(payload.get("page_title") or payload.get("title") or "").split("|", 1)[0],
+        ).strip()
         image_url = str(payload.get("image_url") or "").strip()
         meta_row = dict(meta)
         if image_url:
@@ -76417,11 +71622,11 @@ def _workspace_sales_broad_product_manifest_v69410(prompt_text):
         if not page_id:
             continue
 
-        title = html.unescape(re.sub(
+        title = re.sub(
             r"\s+",
             " ",
-            str(payload.get("page_title") or payload.get("title") or ""),
-        )).strip()
+            str(payload.get("page_title") or payload.get("title") or "").split("|", 1)[0],
+        ).strip()
         image_url = str(payload.get("image_url") or "").strip()
         meta_row = dict(meta)
         if image_url:
@@ -77731,16 +72936,6 @@ def _workspace_sales_normalize_visual_query_v69446(prompt_text):
     if not value:
         return ""
 
-    # v69493: recover common typo/malformed noun phrasing from Sales follow-ups.
-    # Keep these rewrites local to visual compatibility intent; don't mutate the
-    # customer's raw message or any product/vehicle identity.
-    value = re.sub(r"\bhwo(?=\s+(?:to|do|can|could|should)\b)", "how", value)
-    value = re.sub(
-        r"\b(my|your|our)\s+compatible(?=\s*(?:[?.!,;:]|$))",
-        r"\1 compatibility",
-        value,
-    )
-
     canonical_terms = (
         "compatibility", "compatible", "identification", "installation",
         "connector", "wiring", "harness", "camera", "resolution",
@@ -77782,7 +72977,6 @@ def _workspace_sales_auto_compatibility_visual_intent_v69418(prompt_text):
 
     compatibility_subject = bool(re.search(
         r"\b(compatib(?:le|ility)|factory setup|factory radio|factory dashboard|"
-        r"factory climate|(?:original\s+)?climate[-\s]*control(?:\s+(?:panel|controls?|setup|configuration))?|"
         r"correct version|right version|correct model|right model)\b",
         value,
     ))
@@ -77795,9 +72989,7 @@ def _workspace_sales_auto_compatibility_visual_intent_v69418(prompt_text):
         r"how\s+to\s+(?:check|tell|know|identify|confirm|determine)|"
         r"(?:check|identify|confirm|determine)\s+(?:the\s+)?compatib(?:le|ility)|"
         r"which\s+(?:one|version|model)|"
-        r"what\s+(?:version|model)\s+(?:do|should)\s+i|"
-        r"what(?:\s+is|'s|s)\s+(?:(?:my|your|our|the)\s+)?compatib(?:le|ility)\b|"
-        r"what(?:\s+is|'s|s)\s+compatib(?:le|ility)\s+(?:with|for)\b"
+        r"what\s+(?:version|model)\s+(?:do|should)\s+i"
         r")\b",
         value,
     ))
@@ -78371,13 +73563,13 @@ def _workspace_sales_fast_primary_manifest_v69420(
     for pkg in packages:
         source = str(pkg.get("source_url") or "").strip()
         if not source:
-            continue
+            return []
         try:
             page_id = _workspace_product_page_identity_v69396(source)
         except Exception:
-            continue
+            return []
         if not page_id:
-            continue
+            return []
         if page_id not in expected_pages:
             expected_pages.append(page_id)
         if page_id in seen_pages:
@@ -78388,14 +73580,14 @@ def _workspace_sales_fast_primary_manifest_v69420(
             prompt_text,
         )
         if not isinstance(record, dict):
-            continue
+            return []
         image_url = str(
             record.get("archive_web_url")
             or record.get("data_url")
             or ""
         ).strip()
         if not image_url.startswith("https://"):
-            continue
+            return []
 
         record = dict(record)
         record["website_sales_exact_primary_final_lock_v69398"] = True
@@ -78405,7 +73597,7 @@ def _workspace_sales_fast_primary_manifest_v69420(
         output.append(record)
         seen_pages.add(page_id)
 
-    if not output:
+    if len(output) != len(expected_pages):
         return []
 
     output = output[: max(1, int(max_images or 1))]
@@ -78413,8 +73605,6 @@ def _workspace_sales_fast_primary_manifest_v69420(
         "workspace_sales_fast_primary_manifest_v69420",
         products=len(expected_pages),
         published=len(output),
-        missing=max(0, len(expected_pages) - len(output)),
-        instant_partial_allowed_v69483=True,
     )
     return output
 
@@ -78636,108 +73826,6 @@ def _workspace_sales_product_aware_image_dedupe_v69419(images):
 
 
 
-def _workspace_sales_unique_topical_visuals_v69475(images):
-    """Collapse the same authored topical visual to one visible image.
-
-    Exact Sales/Marketing product bindings remain preserved as metadata, but when
-    multiple exact products point to the same compatibility/reference image,
-    customers should see that visual once rather than duplicate cards. Distinct
-    authored topical images remain separate. Ordinary product/hero images are
-    intentionally untouched.
-    """
-    output_v69475 = []
-    visual_index_v69475 = {}
-    suppressed_v69475 = 0
-
-    for record_v69475 in images or []:
-        if not isinstance(record_v69475, dict):
-            continue
-        item_v69475 = dict(record_v69475)
-        exact_topical_v69475 = bool(
-            item_v69475.get("website_sales_exact_topic_visual_lock_v69399")
-            or item_v69475.get("website_sales_exact_topic_semantic_fallback_v69401")
-            or item_v69475.get("website_sales_fast_manifest_mode_v69420") == "topical"
-        )
-        sha_v69475 = str(item_v69475.get("website_image_sha256") or "").strip().casefold()
-        raw_image_v69475 = str(
-            item_v69475.get("archive_web_url")
-            or item_v69475.get("data_url")
-            or ""
-        ).strip()
-        if sha_v69475:
-            visual_key_v69475 = "sha256:" + sha_v69475
-        elif raw_image_v69475.startswith(("http://", "https://")):
-            try:
-                parsed_v69475 = urlparse(raw_image_v69475)
-                visual_key_v69475 = (
-                    "url:"
-                    + str(parsed_v69475.netloc or "").casefold()
-                    + str(parsed_v69475.path or "").casefold()
-                )
-            except Exception:
-                visual_key_v69475 = "url:" + raw_image_v69475.split("?", 1)[0].split("#", 1)[0].casefold()
-        elif raw_image_v69475:
-            visual_key_v69475 = "data:" + hashlib.sha256(
-                raw_image_v69475.encode("utf-8", errors="ignore")
-            ).hexdigest()
-        else:
-            visual_key_v69475 = ""
-        if not exact_topical_v69475 or not visual_key_v69475:
-            output_v69475.append(item_v69475)
-            continue
-        product_identity_v69475 = str(
-            item_v69475.get("website_sales_exact_product_identity_v69399")
-            or item_v69475.get("website_sales_exact_product_identity_v69401")
-            or ""
-        ).strip()
-        display_name_v69475 = str(
-            item_v69475.get("website_sales_exact_product_caption_v69450")
-            or item_v69475.get("website_sales_exact_product_display_name_v69449")
-            or item_v69475.get("name")
-            or ""
-        ).strip()
-
-        if visual_key_v69475 not in visual_index_v69475:
-            bindings_v69475 = [product_identity_v69475] if product_identity_v69475 else []
-            labels_v69475 = [display_name_v69475] if display_name_v69475 else []
-            item_v69475["website_sales_shared_visual_product_bindings_v69475"] = bindings_v69475
-            item_v69475["website_sales_shared_visual_labels_v69475"] = labels_v69475
-            visual_index_v69475[visual_key_v69475] = len(output_v69475)
-            output_v69475.append(item_v69475)
-            continue
-
-        suppressed_v69475 += 1
-        index_v69475 = visual_index_v69475[visual_key_v69475]
-        kept_v69475 = output_v69475[index_v69475]
-        bindings_v69475 = list(kept_v69475.get("website_sales_shared_visual_product_bindings_v69475") or [])
-        if product_identity_v69475 and product_identity_v69475 not in bindings_v69475:
-            bindings_v69475.append(product_identity_v69475)
-        labels_v69475 = list(kept_v69475.get("website_sales_shared_visual_labels_v69475") or [])
-        if display_name_v69475 and display_name_v69475 not in labels_v69475:
-            labels_v69475.append(display_name_v69475)
-        kept_v69475["website_sales_shared_visual_product_bindings_v69475"] = bindings_v69475
-        kept_v69475["website_sales_shared_visual_labels_v69475"] = labels_v69475
-        if len(labels_v69475) > 1:
-            concise_v69475 = []
-            for label_v69475 in labels_v69475:
-                clean_v69475 = re.sub(r"^Compatibility\s*[—-]\s*", "", str(label_v69475), flags=re.I).strip()
-                if clean_v69475 and clean_v69475.casefold() not in {x.casefold() for x in concise_v69475}:
-                    concise_v69475.append(clean_v69475)
-            if concise_v69475:
-                kept_v69475["name"] = _workspace_sales_bounded_label_v69450(
-                    "Compatibility — " + " / ".join(concise_v69475),
-                    220,
-                )
-
-    diagnostic_log(
-        "workspace_sales_duplicate_topical_visuals_collapsed_v69475",
-        input_count=len([x for x in (images or []) if isinstance(x, dict)]),
-        published=len(output_v69475),
-        suppressed=suppressed_v69475,
-    )
-    return output_v69475
-
-
 def _workspace_sales_shared_topical_image_dedupe_v69440(images):
     """Preserve exact topical image bindings per product identity.
 
@@ -78772,59 +73860,30 @@ def _workspace_sales_shared_topical_image_dedupe_v69440(images):
 
 
 def _workspace_sales_bind_topical_product_caption_v69449(record, package):
-    """Attach a concise exact-product caption without changing image selection.
-
-    v69449 correctly preserved one compatibility image per exact product, but the
-    full SEO title made PDF/mobile captions wrap excessively and the 180-character
-    slice could end mid-word. v69450 keeps the exact product identity in metadata
-    and builds the visible caption only from already-authoritative screen/platform/
-    fitment facts, falling back to the concise exact title when those facts are
-    sparse. No image selection, dedupe, provenance, or I/O behavior changes.
-    """
+    """Attach exact product identity to a topical image caption without changing selection."""
     if not isinstance(record, dict):
         return record
     item = dict(record)
     package = dict(package or {})
-    raw_product_name = html.unescape(re.sub(
+    product_name = html.unescape(re.sub(
         r"\s+",
         " ",
         str(package.get("page_title") or package.get("title") or ""),
     )).strip()
-    if not raw_product_name:
+    if not product_name:
         return item
-
-    contract = _workspace_atp_product_contract_v69205(package)
-    concise_title = _workspace_sales_customer_product_title_v69450(
-        raw_product_name,
-        contract,
-        fallback=raw_product_name,
-    )
-    screen = re.sub(r"\s+", " ", str(contract.get("screen_size") or "")).strip()
-    platform = re.sub(r"\s+", " ", str(contract.get("platform") or "")).strip()
-    fitment = _workspace_atp_first_response_fitment_v69348(contract, None)
-
-    identity_bits = []
-    for value in (screen, platform, fitment):
-        value = re.sub(r"\s+", " ", str(value or "")).strip()
-        if value and value.casefold() not in {x.casefold() for x in identity_bits}:
-            identity_bits.append(value)
-    product_label = " · ".join(identity_bits)
-    if len(identity_bits) < 2:
-        product_label = concise_title
-
+    # Keep the exact product identity visible. Some ATP product names use | between
+    # vehicle siblings (for example F250 | F350 | F450), so splitting on the first
+    # pipe would corrupt the product name. The renderer already caps the final label.
+    concise_name = product_name
     base_name = re.sub(r"\s+", " ", str(item.get("name") or "Compatibility")).strip()
     if "compat" in (
         str(item.get("website_atp_topic_v69399") or "") + " "
         + str(item.get("website_atp_image_role_v69399") or "")
     ).casefold():
         base_name = "Compatibility"
-
-    item["name"] = _workspace_sales_bounded_label_v69450(
-        f"{base_name} — {product_label}",
-        180,
-    )
-    item["website_sales_exact_product_display_name_v69449"] = raw_product_name[:500]
-    item["website_sales_exact_product_caption_v69450"] = item["name"]
+    item["name"] = f"{base_name} — {concise_name}"[:180]
+    item["website_sales_exact_product_display_name_v69449"] = product_name[:500]
     return item
 
 
@@ -79620,7 +74679,7 @@ def _website_image_self_heal_index_v69047(prompt_text, payload):
     try:
         st.session_state["_website_image_self_heal_attempts_v69047"] = list(attempted)[-64:]
     except Exception:
-        _observe_silent_exception_v69451("_website_image_self_heal_index_v69047@L74840")
+        pass
 
     durable = {
         key: value for key, value in dict(payload).items()
@@ -79649,7 +74708,7 @@ def _website_image_self_heal_index_v69047(prompt_text, payload):
             try:
                 _website_image_index_rows_v68883.clear()
             except Exception:
-                _observe_silent_exception_v69451("_website_image_self_heal_index_v69047@L74869")
+                pass
         diagnostic_log(
             "website_image_index_self_heal_v69047",
             saved=saved,
@@ -80177,7 +75236,7 @@ def _website_learning_canonical_identity_v69175(raw_url):
     try:
         hostname = hostname.encode("idna").decode("ascii")
     except Exception:
-        _observe_silent_exception_v69451("_website_learning_canonical_identity_v69175@L75397")
+        pass
     port = parsed.port
     if port in {80, 443}:
         port = None
@@ -80219,7 +75278,7 @@ def _website_learning_url_identities_v69175(extraction):
         try:
             identities.add(_website_learning_canonical_identity_v69175(raw))
         except Exception:
-            _observe_silent_exception_v69451("_website_learning_url_identities_v69175@L75439")
+            pass
     return identities
 
 
@@ -80232,7 +75291,7 @@ def _website_package_learning_url_identities_v69175(package_text):
             try:
                 identities.add(_website_learning_canonical_identity_v69175(raw))
             except Exception:
-                _observe_silent_exception_v69451("_website_package_learning_url_identities_v69175@L75452")
+                pass
     return identities
 
 
@@ -80333,7 +75392,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69175(
     try:
         _vector_store_file_catalog_v69040.clear()
     except Exception:
-        _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69175@L75553")
+        pass
     catalog = list(_vector_store_file_catalog_v69040(vector_store_id) or [])
     matched = 0
     retired_ids = []
@@ -80388,7 +75447,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69175(
                 _vector_store_file_catalog_v69040.clear()
                 vector_store_has_filename.clear()
             except Exception:
-                _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69175@L75608")
+                pass
         if ok:
             retired_ids.append(file_id)
             if candidate.get("source_url"):
@@ -80571,7 +75630,7 @@ def _website_retire_conflicting_image_rows_v69174(source_urls):
     try:
         _workspace_durable_image_payloads_v69041.clear()
     except Exception:
-        _observe_silent_exception_v69451("_website_retire_conflicting_image_rows_v69174@L75791")
+        pass
     return {"matched": matched, "retired": retired, "failed": failed}
 
 
@@ -80606,7 +75665,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69174(
     try:
         _vector_store_file_catalog_v69040.clear()
     except Exception:
-        _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69174@L75826")
+        pass
     try:
         catalog = list(_vector_store_file_catalog_v69040(vector_store_id) or [])
     except Exception as error:
@@ -80684,7 +75743,7 @@ def _website_supersede_conflicting_technical_website_vectors_v69174(
         _vector_store_file_catalog_v69040.clear()
         vector_store_has_filename.clear()
     except Exception:
-        _observe_silent_exception_v69451("_website_supersede_conflicting_technical_website_vectors_v69174@L75904")
+        pass
     diagnostic_log(
         "technical_conflicting_website_supersession_v69174",
         matched=matched, retired=retired, failed=failed,
@@ -80823,7 +75882,7 @@ def _website_supersede_conflicting_technical_learned_records_v69123(
                     row_id,
                 )
             except Exception:
-                _observe_silent_exception_v69451("_website_supersede_conflicting_technical_learned_records_v69123@L76043")
+                pass
 
     diagnostic_log(
         "technical_learned_supersession_v69123",
@@ -82308,7 +77367,7 @@ def _technical_exact_package_image_evidence_v69155(package_text, selected_image_
             )
         )
     except Exception:
-        _observe_silent_exception_v69451("_technical_exact_package_image_evidence_v69155@L77528")
+        pass
     try:
         payloads.extend(
             _website_legacy_html_payloads_from_file_v69012(
@@ -82316,7 +77375,7 @@ def _technical_exact_package_image_evidence_v69155(package_text, selected_image_
             )
         )
     except Exception:
-        _observe_silent_exception_v69451("_technical_exact_package_image_evidence_v69155@L77536")
+        pass
 
     out, seen = [], set()
     for item in payloads:
@@ -83373,7 +78432,7 @@ def _technical_package_candidate_score_v69157(prompt_text, package):
     years = set()
     for raw in (package.get('years') or []):
         try: years.add(int(raw))
-        except Exception: _observe_silent_exception_v69451("_technical_package_candidate_score_v69157@L78594")
+        except Exception: pass
     systems = set(str(x) for x in (package.get('systems') or []) if str(x))
     codes = set(str(x).casefold() for x in (package.get('product_codes') or []) if str(x))
     prompt_codes_cf = set(str(x).casefold() for x in prompt_codes)
@@ -83676,7 +78735,7 @@ def _technical_vector_store_generation_v69161(store, *, max_age_seconds=0.75):
                 try:
                     counts[key] = getattr(file_counts, key)
                 except Exception:
-                    _observe_silent_exception_v69451("_technical_vector_store_generation_v69161@L78896")
+                    pass
         fallback = {
             "id": clean_store,
             "status": str(getattr(vector_store, "status", "") or ""),
@@ -84116,7 +79175,7 @@ def _technical_registry_upsert_package_v69162(package, vector_store_id=""):
         try:
             _technical_registry_rows_v69162.clear()
         except Exception:
-            _observe_silent_exception_v69451("_technical_registry_upsert_package_v69162@L79336")
+            pass
         return True
     except Exception as error:
         diagnostic_log(
@@ -84708,7 +79767,7 @@ def _technical_current_package_authority_v69157(prompt_text):
             store,
         )
     except Exception:
-        _observe_silent_exception_v69451("_technical_current_package_authority_v69157@L79928")
+        pass
 
     return {
         "status": "recovered",
@@ -85592,7 +80651,7 @@ def _technical_exact_source_auto_repair_v69172(prompt_text, current_payload, vec
     try:
         _technical_package_prewarm_inject_v69121(file_id, filename, package_text)
     except Exception:
-        _observe_silent_exception_v69451("_technical_exact_source_auto_repair_v69172@L80812")
+        pass
     diagnostic_log(
         "technical_exact_source_auto_repair_verified_v69172",
         source_url=source_url[:700],
@@ -85824,7 +80883,7 @@ def _technical_durable_snapshot_commit_verified_v69171(package, vector_store_id=
     try:
         _technical_durable_snapshot_row_v69171.clear()
     except Exception:
-        _observe_silent_exception_v69451("_technical_durable_snapshot_commit_verified_v69171@L81044")
+        pass
     diagnostic_log(
         "technical_durable_snapshot_commit_verified_v69171",
         file_id=str(package.get("file_id") or "")[:160],
@@ -85943,18 +81002,18 @@ def _technical_scope_from_package_and_source_v69236(package, payload=None):
             if str(x).strip()
         )
     except Exception:
-        _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81163")
+        pass
 
     years = set()
     for raw_year in package.get("years") or []:
         try:
             years.add(int(raw_year))
         except Exception:
-            _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81170")
+            pass
     try:
         years.update(int(x) for x in (_website_identity_years_v69022(source_identity_text) or set()))
     except Exception:
-        _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81174")
+        pass
 
     systems = {str(x) for x in (package.get("systems") or []) if str(x).strip()}
     system_tokens = set(_technical_factory_system_tokens_v69231(source_identity_text, systems) or [])
@@ -85962,7 +81021,7 @@ def _technical_scope_from_package_and_source_v69236(package, payload=None):
     try:
         identity_systems.update(_website_identity_systems_v69022(source_identity_text) or set())
     except Exception:
-        _observe_silent_exception_v69451("_technical_scope_from_package_and_source_v69236@L81182")
+        pass
     return {
         "families": families,
         "years": years,
@@ -86122,7 +81181,7 @@ def _technical_registry_verify_exact_package_v69233(package, vector_store_id="")
     try:
         _technical_registry_rows_v69162.clear()
     except Exception:
-        _observe_silent_exception_v69451("_technical_registry_verify_exact_package_v69233@L81342")
+        pass
     try:
         rows = list(_technical_registry_rows_v69162(vector_store_id) or [])
     except Exception:
@@ -86357,7 +81416,7 @@ def _technical_active_authority_upsert_package_v69164(
                 try:
                     _technical_active_authority_row_v69164.clear()
                 except Exception:
-                    _observe_silent_exception_v69451("_technical_active_authority_upsert_package_v69164@L81577")
+                    pass
             except Exception as error:
                 stats["failed"] += 1
                 diagnostic_log(
@@ -86451,7 +81510,7 @@ def _technical_active_authority_commit_verified_v69167(
     try:
         _technical_active_authority_row_v69164.clear()
     except Exception:
-        _observe_silent_exception_v69451("_technical_active_authority_commit_verified_v69167@L81671")
+        pass
 
     verified = []
     for family in families:
@@ -86578,7 +81637,7 @@ def _technical_exact_file_text_v69182(file_id, *, timeout_seconds=3.5):
             )
             return ""
     except Exception:
-        _observe_silent_exception_v69451("_technical_exact_file_text_v69182@L81798")
+        pass
 
     capability_state_v69324 = _technical_file_content_capability_state_v69324()
     unsupported_v69324 = bool(
@@ -86726,7 +81785,7 @@ def _technical_active_authority_bootstrap_v69164(prompt_text, vector_store_id):
             try:
                 py.add(int(raw))
             except Exception:
-                _observe_silent_exception_v69451("_technical_active_authority_bootstrap_v69164@L81946")
+                pass
         if pf and family not in pf:
             continue
         if py and year not in py:
@@ -87429,7 +82488,7 @@ def _technical_bound_image_urls_v69169(prompt_text, authority, max_images=8):
             str(authority.get("file_id") or ""),
         ))
     except Exception:
-        _observe_silent_exception_v69451("_technical_bound_image_urls_v69169@L82649")
+        pass
     try:
         payloads.extend(_website_legacy_html_payloads_from_file_v69012(
             package_text,
@@ -87437,7 +82496,7 @@ def _technical_bound_image_urls_v69169(prompt_text, authority, max_images=8):
             str(authority.get("file_id") or ""),
         ))
     except Exception:
-        _observe_silent_exception_v69451("_technical_bound_image_urls_v69169@L82657")
+        pass
     if not payloads:
         return []
 
@@ -87665,14 +82724,14 @@ def _technical_exact_authority_chat_images_v69170(prompt_text, authority, max_im
             ) or []:
                 add_payload(raw, "exact_package")
         except Exception:
-            _observe_silent_exception_v69451("_technical_exact_authority_chat_images_v69170@L82885")
+            pass
         try:
             for raw in _website_legacy_html_payloads_from_file_v69012(
                 package_text, filename, file_id
             ) or []:
                 add_payload(raw, "exact_package")
         except Exception:
-            _observe_silent_exception_v69451("_technical_exact_authority_chat_images_v69170@L82892")
+            pass
 
     # Durable-index fallback is still exact-source-bound: no semantic search, no
     # another page, and no different file when the durable row carries file identity.
@@ -88639,10 +83698,6 @@ def extract_public_webpage(url, page_password=""):
             _website_technical_hierarchy_v69143(page_text, final_url)
             if page_type_v69024 == "technical_article" else {}
         )
-        woocommerce_structured_content_v69485 = (
-            _workspace_sales_woocommerce_structured_content_v69485(page_text)
-            if page_type_v69024 == "woocommerce_product" else {}
-        )
 
         return {
             "requested_url": requested_url,
@@ -88664,7 +83719,6 @@ def extract_public_webpage(url, page_password=""):
             "password_protected_access": bool(clean_page_password),
             "technical_hierarchy_v69143": technical_hierarchy_v69143,
             "atp_semantic_metadata_v69178": atp_semantic_metadata_v69178,
-            "woocommerce_structured_content_v69485": woocommerce_structured_content_v69485,
             "media_links_v69323": media_links_v69323,
             "youtube_url_count_v69323": sum(
                 1 for item in media_links_v69323
@@ -89025,7 +84079,7 @@ def _website_openai_file_text_v68892(file_id):
             if isinstance(value, str):
                 return value
         except Exception:
-            _observe_silent_exception_v69451("_website_openai_file_text_v68892@L84240")
+            pass
 
     return ""
 
@@ -89223,7 +84277,7 @@ def _technical_admin_website_package_catalog_v69113(vector_store_id, learning_re
             try:
                 years.add(int(value))
             except Exception:
-                _observe_silent_exception_v69451("_technical_admin_website_package_catalog_v69113@L84438")
+                pass
         if not years:
             years = set(_website_identity_years_v69022(identity_text))
         systems = set(str(x) for x in (page_identity.get("systems") or []) if str(x))
@@ -89312,7 +84366,7 @@ def _technical_package_prewarm_start_v69119(store, revision):
             try:
                 stale_executor.shutdown(wait=False, cancel_futures=True)
             except Exception:
-                _observe_silent_exception_v69451("_technical_package_prewarm_start_v69119@L84527")
+                pass
 
         last_good = [
             dict(item) for item in (state.get("packages") or [])
@@ -89504,7 +84558,7 @@ def _technical_package_prewarm_snapshot_v69119(
         try:
             future.result(timeout=max(0.05, float(wait_seconds)))
         except Exception:
-            _observe_silent_exception_v69451("_technical_package_prewarm_snapshot_v69119@L84719")
+            pass
 
     with state["lock"]:
         packages = [
@@ -89524,7 +84578,7 @@ def _technical_package_prewarm_invalidate_v69119():
             try:
                 executor.shutdown(wait=False, cancel_futures=True)
             except Exception:
-                _observe_silent_exception_v69451("_technical_package_prewarm_invalidate_v69119@L84739")
+                pass
         has_packages = bool(state.get("packages"))
         state.update({
             "key": "",
@@ -90714,7 +85768,7 @@ def _technical_package_from_text_v69121(file_id, filename, package_text):
         try:
             years.add(int(raw_year))
         except Exception:
-            _observe_silent_exception_v69451("_technical_package_from_text_v69121@L85929")
+            pass
     if not years:
         years = set(_website_identity_years_v69022(identity_text))
 
@@ -90899,7 +85953,7 @@ def _technical_compile_one_package_v69199(package):
         try:
             runtime_years.append(int(raw_year))
         except Exception:
-            _observe_silent_exception_v69451("_technical_compile_one_package_v69199@L86114")
+            pass
     runtime_systems = [str(x) for x in (package.get("systems") or []) if str(x).strip()]
     runtime_codes = [str(x) for x in (package.get("product_codes") or []) if str(x).strip()]
     if not runtime_families or not runtime_years:
@@ -91098,7 +86152,7 @@ def _technical_resolve_family_year_v69199(prompt_text, store="", allow_registry=
             try:
                 row_years.add(int(raw_year))
             except Exception:
-                _observe_silent_exception_v69451("_technical_resolve_family_year_v69199@L86313")
+                pass
         if year not in row_years:
             continue
         for raw_family in row.get("vehicle_families") or []:
@@ -91465,7 +86519,7 @@ def _technical_package_model_year_eligible_v69242(package, family, year):
         try:
             years.add(int(raw))
         except Exception:
-            _observe_silent_exception_v69451("_technical_package_model_year_eligible_v69242@L86680")
+            pass
     if years:
         return clean_year in years
     # Last exact-package fallback: root year-start/end is permitted only when no
@@ -92865,7 +87919,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             try:
                 row_years_v69228.add(int(raw_year_v69228))
             except Exception:
-                _observe_silent_exception_v69451("_technical_compiled_on_demand_hydrate_v69199@L88080")
+                pass
         if family not in row_families_v69228 or int(year) not in row_years_v69228:
             continue
         row_systems_v69228 = {
@@ -93105,7 +88159,7 @@ def _technical_compiled_on_demand_hydrate_v69199(prompt_text, store):
             try:
                 package_years_v69228.add(int(raw_year_v69228))
             except Exception:
-                _observe_silent_exception_v69451("_technical_compiled_on_demand_hydrate_v69199@L88320")
+                pass
         if family not in package_families_v69228 or int(year) not in package_years_v69228:
             rejected_v69228 += 1
             diagnostic_log(
@@ -93550,7 +88604,7 @@ def _technical_compile_one_package_v69198(package):
         try:
             years.append(int(raw_year))
         except Exception:
-            _observe_silent_exception_v69451("_technical_compile_one_package_v69198@L88765")
+            pass
     if not families or not years:
         return []
 
@@ -94954,13 +90008,13 @@ def _website_remove_vector_file_v68892(vector_store_id, file_id):
         client.files.delete(file_id)
     except Exception:
         # Vector-store detachment is authoritative. OpenAI file cleanup is best-effort.
-        _observe_silent_exception_v69451("_website_remove_vector_file_v68892@L90168")
+        pass
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
         _vector_store_file_catalog_v69040.clear()
         vector_store_has_filename.clear()
     except Exception:
-        _observe_silent_exception_v69451("_website_remove_vector_file_v68892@L90175")
+        pass
     return True
 
 
@@ -95039,11 +90093,11 @@ def _website_invalidate_learning_caches_v69109(database_choices):
     try:
         _workspace_exact_retrieval_cache_clear_v69365()
     except Exception:
-        _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90254")
+        pass
     try:
         _technical_package_prewarm_invalidate_v69119()
     except Exception:
-        _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90258")
+        pass
     destinations = [
         str(x or "").strip() for x in (database_choices or [])
         if str(x or "").strip() in _WEBSITE_LEARNING_REVISIONS_V69109
@@ -95063,7 +90117,7 @@ def _website_invalidate_learning_caches_v69109(database_choices):
             if callable(clear):
                 clear()
         except Exception:
-            _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90278")
+            pass
     try:
         for key in (
             "_technical_image_prefetch_cache_v69016",
@@ -95073,7 +90127,7 @@ def _website_invalidate_learning_caches_v69109(database_choices):
         ):
             st.session_state.pop(key, None)
     except Exception:
-        _observe_silent_exception_v69451("_website_invalidate_learning_caches_v69109@L90288")
+        pass
     bumped_revisions_v69119 = {
         d: _website_bump_destination_revision_v69109(d)
         for d in destinations
@@ -95195,7 +90249,7 @@ def _website_remove_superseded_vectors_v69109(vector_store_id, rows):
                 _vector_store_file_catalog_v69040.clear()
                 vector_store_has_filename.clear()
             except Exception:
-                _observe_silent_exception_v69451("_website_remove_superseded_vectors_v69109@L90410")
+                pass
         if ok:
             removed += 1
         else:
@@ -95592,7 +90646,7 @@ def render_learn_from_website(database_choice):
             or extraction.get("source_url")
         )
     except Exception:
-        _observe_silent_exception_v69451("render_learn_from_website@L90807")
+        pass
 
     if (
         current_url_identity
@@ -96109,7 +91163,7 @@ def invalidate_admin_read_caches():
         try:
             cached_function.clear()
         except Exception:
-            _observe_silent_exception_v69451("invalidate_admin_read_caches@L91324")
+            pass
 
 
 @_admin_upload_fragment_decorator
@@ -96251,7 +91305,7 @@ def _document_visual_events_docx_v69017(file_bytes):
                 if rid and target:
                     rels[rid] = target
         except Exception:
-            _observe_silent_exception_v69451("_document_visual_events_docx_v69017@L91466")
+            pass
         events = []
         body = document_xml.find("w:body", ns)
         current_heading = ""
@@ -96678,7 +91732,7 @@ def _upload_knowledge_transaction_v69040(
                 try:
                     _product_library_storage_remove([archive_path])
                 except Exception:
-                    _observe_silent_exception_v69451("_upload_knowledge_transaction_v69040@L91893")
+                    pass
         raise
     old_rows = [
         row for row in _vector_store_file_catalog_v69040(vector_store_id)
@@ -96930,7 +91984,7 @@ def _create_pending_openai_file(uploaded_file):
     try:
         uploaded_file.seek(0)
     except Exception:
-        _observe_silent_exception_v69451("_create_pending_openai_file@L92145")
+        pass
     created = client.files.create(file=uploaded_file, purpose="assistants")
     return {
         "file_id": created.id,
@@ -97241,7 +92295,7 @@ def _delete_pending_openai_files(attachments):
         try:
             client.files.delete(file_id)
         except Exception:
-            _observe_silent_exception_v69451("_delete_pending_openai_files@L92456")
+            pass
 
 
 
@@ -97414,10 +92468,6 @@ def approve_pending_knowledge(row, edited_solution=None):
                 duplicate_row,
                 candidate,
             )
-            if not bool(improved.get("merge_succeeded")):
-                raise RuntimeError(
-                    "The existing knowledge could not be safely merged. Nothing was changed."
-                )
 
             record_for_file = {
                 "assistant": str(
@@ -97462,9 +92512,7 @@ def approve_pending_knowledge(row, edited_solution=None):
                     or row.get("question")
                     or ""
                 ),
-                "source_answer": _learning_supporting_marker_v69454(
-                    _learning_supporting_file_ids_v69454(duplicate_row) + attached_file_ids
-                ),
+                "source_answer": "",
                 "confidence_score": (
                     record_for_file["confidence_score"]
                 ),
@@ -97495,28 +92543,10 @@ def approve_pending_knowledge(row, edited_solution=None):
 
             old_file_id = duplicate_row.get("openai_file_id")
             if old_file_id and old_file_id != learned_file_id:
-                try:
-                    remove_learned_vector_file_strict_v69454(
-                        duplicate_row.get("vector_store_id") or vector_store_id,
-                        old_file_id,
-                    )
-                except Exception as cleanup_error_v69454:
-                    rollback_payload_v69454 = {
-                        key: value for key, value in dict(duplicate_row).items()
-                        if key != "id"
-                    }
-                    try:
-                        admin_update_pending_row(duplicate_row["id"], rollback_payload_v69454)
-                    finally:
-                        try:
-                            remove_learned_vector_file_strict_v69454(
-                                vector_store_id, learned_file_id
-                            )
-                        except Exception:
-                            remove_old_learned_vector_file(vector_store_id, learned_file_id)
-                    raise RuntimeError(
-                        "The old knowledge vector could not be removed, so approval was rolled back."
-                    ) from cleanup_error_v69454
+                remove_old_learned_vector_file(
+                    duplicate_row.get("vector_store_id") or vector_store_id,
+                    old_file_id,
+                )
             admin_delete_pending_row(row.get("id"))
 
             return {
@@ -97542,7 +92572,7 @@ def approve_pending_knowledge(row, edited_solution=None):
                 or row.get("question")
                 or ""
             ),
-            "source_answer": _learning_supporting_marker_v69454(attached_file_ids),
+            "source_answer": "",
             "confidence_score": candidate["confidence_score"],
             "times_seen": int(row.get("times_seen") or 1),
             "times_used": int(row.get("times_used") or 0),
@@ -97594,25 +92624,9 @@ def approve_pending_knowledge(row, edited_solution=None):
         }
 
     except Exception as error:
-        try:
-            _detach_learning_supporting_files_v69454(
-                locals().get("vector_store_id", ""),
-                locals().get("attached_file_ids", []),
-            )
-        except Exception:
-            pass
         raise RuntimeError(
             f"Approval failed while {approval_stage}: {error}"
         ) from error
-
-_APPROVE_PENDING_KNOWLEDGE_V69454_BASE = approve_pending_knowledge
-
-def _approve_pending_knowledge_serialized_v69454(*args, **kwargs):
-    with _LEARNING_WRITE_LOCK_V69454:
-        return _APPROVE_PENDING_KNOWLEDGE_V69454_BASE(*args, **kwargs)
-
-approve_pending_knowledge = _approve_pending_knowledge_serialized_v69454
-
 
 def reject_pending_knowledge(row):
     """Reject one pending submission and remove its temporary attachments."""
@@ -100907,7 +95921,7 @@ def _technical_registry_overlap_options_v69379(store, family, year):
                     ):
                         continue
                 except Exception:
-                    _observe_silent_exception_v69451("_technical_registry_overlap_options_v69379@L96082")
+                    pass
             packages.append(dict(row))
 
     options = []
@@ -101349,19 +96363,19 @@ def _technical_package_option_v69377(package, family=""):
             if 1980 <= lo <= hi <= 2100:
                 years.update(range(lo, hi + 1))
         except Exception:
-            _observe_silent_exception_v69451("_technical_package_option_v69377@L96524")
+            pass
     if not years:
         try:
             mapping = _technical_model_year_scope_map_v69242(package)
             years.update(int(x) for x in (mapping.get(clean_family) or set()))
         except Exception:
-            _observe_silent_exception_v69451("_technical_package_option_v69377@L96530")
+            pass
     if not years:
         for raw in package.get("years") or []:
             try:
                 years.add(int(raw))
             except Exception:
-                _observe_silent_exception_v69451("_technical_package_option_v69377@L96536")
+                pass
     year_label = ""
     if years:
         lo, hi = min(years), max(years)
@@ -101440,7 +96454,7 @@ def _technical_package_overlap_ambiguity_v69377(prompt_text):
         if _technical_explicit_factory_system_v69228(prompt):
             return {}
     except Exception:
-        _observe_silent_exception_v69451("_technical_package_overlap_ambiguity_v69377@L96615")
+        pass
     if re.search(r"\b(?:19|20)\d{2}\s*[-–—]\s*(?:19|20)\d{2}\b", prompt):
         return {}
     if re.search(r"\b(?:old|new|newer|legacy)[\s-]*body(?:\s+style)?\b", prompt, flags=re.I):
@@ -101989,7 +97003,7 @@ def _technical_confirmed_payload_scope_match_v69384(payload, state):
             if target_page and _website_image_page_identity_v69003(payload) == target_page:
                 return True
         except Exception:
-            _observe_silent_exception_v69451("_technical_confirmed_payload_scope_match_v69384@L97164")
+            pass
 
     meta = _website_image_atp_semantic_metadata_v69363(payload)
     workspace = str(meta.get("data-atp-workspace") or "").casefold().strip()
@@ -102103,7 +97117,7 @@ def _technical_confirmed_snapshot_v69387(state):
             if cached:
                 cache_state["entries"].pop(cache_key, None)
     except Exception:
-        _observe_silent_exception_v69451("_technical_confirmed_snapshot_v69387@L97278")
+        pass
 
     started = time.perf_counter()
     try:
@@ -102137,7 +97151,7 @@ def _technical_confirmed_snapshot_v69387(state):
                 )
                 entries.pop(oldest, None)
     except Exception:
-        _observe_silent_exception_v69451("_technical_confirmed_snapshot_v69387@L97312")
+        pass
     diagnostic_log(
         "technical_confirmed_snapshot_cache_store_v69392",
         key=cache_key[:16],
@@ -102565,7 +97579,7 @@ def _technical_confirmed_topic_index_v69395(state):
                 if cached:
                     cache_state["entries"].pop(cache_key, None)
         except Exception:
-            _observe_silent_exception_v69451("_technical_confirmed_topic_index_v69395@L97740")
+            pass
 
     started = time.perf_counter()
     snapshot = _technical_confirmed_snapshot_v69387(state)
@@ -102704,7 +97718,7 @@ def _technical_confirmed_topic_index_v69395(state):
                 )
                 entries.pop(oldest, None)
     except Exception:
-        _observe_silent_exception_v69451("_technical_confirmed_topic_index_v69395@L97879")
+        pass
     diagnostic_log(
         "technical_topic_index_built_v69395",
         key=cache_key[:16],
@@ -103345,183 +98359,14 @@ def _technical_confirmed_car_model_fast_image_v69393(prompt_text, state):
     return output_v69393
 
 
-def _technical_strict_camera_harness_request_v69482(prompt_text):
-    """Classify camera/harness requests that require exact authored Technical imagery."""
-    value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    if not value:
-        return ""
-    camera = bool(re.search(r"\b(?:camera|reverse camera|backup camera|rear camera)\b", value))
-    if not camera:
-        return ""
-    if re.search(r"\b(?:camera harness|camera wiring|camera connector|camera adapter|show|photo|image|picture|diagram|wiring diagram)\b", value):
-        if any(term in value for term in ("harness", "wiring", "connector", "adapter", "show", "photo", "image", "picture", "diagram")):
-            return "camera_harness"
-    if re.search(r"\b(?:no camera|camera (?:not|isn['’]?t|is not) (?:working|showing)|no image|black screen|reverse (?:does not|doesn['’]?t) trigger|not trigger|camera problem|camera issue)\b", value):
-        return "camera_issue"
-    return ""
-
-
-def _technical_confirmed_camera_harness_images_v69482(prompt_text, state, max_images=2):
-    """Bind only exact current-source camera/harness imagery from the confirmed package.
-
-    The route is intentionally generic. It reads authored data-atp metadata from the
-    selected package and hard-gates year/year-branch before scoring query-key, aliases,
-    problem-intents, topic and image-role. A generic product/reverse-display photo can
-    never outrank an exact year-specific wiring/harness leaf.
-    """
-    request_kind = _technical_strict_camera_harness_request_v69482(prompt_text)
-    if not request_kind or not isinstance(state, dict):
-        return []
-    snapshot = _technical_confirmed_snapshot_v69387(state)
-    if not snapshot:
-        return []
-    semantics = dict(snapshot.get("atp_semantics_v69178") or {})
-    if not semantics:
-        semantics = _technical_package_atp_semantics_v69178(snapshot.get("package_text") or "")
-    rows = [dict(row) for row in (semantics.get("images") or []) if isinstance(row, dict)]
-    if not rows:
-        return []
-
-    try:
-        state_year = int(state.get("year"))
-    except Exception:
-        state_year = None
-    prompt_norm = re.sub(r"[^a-z0-9]+", " ", str(prompt_text or "").casefold()).strip()
-    prompt_tokens = {tok for tok in prompt_norm.split() if len(tok) >= 3 and tok not in {"the","and","for","show","does","with","this","that","tundra"}}
-
-    ranked = []
-    for order, row in enumerate(rows):
-        current = str(row.get("data-atp-current-source") or "").casefold().strip()
-        status = str(row.get("data-atp-source-status") or "").casefold().strip()
-        auto = str(row.get("data-atp-auto-display") or "").casefold().strip()
-        content_type = str(row.get("data-atp-content-type") or "").casefold().strip()
-        authority = str(row.get("data-atp-authority") or "").casefold().strip()
-        routing_authority = str(row.get("data-atp-routing-authority") or "").casefold().strip()
-        if current and current not in {"true","1","yes"}:
-            continue
-        if status and "current" not in status:
-            continue
-        if auto and auto not in {"true","1","yes"}:
-            continue
-        if content_type == "navigation-icon" or authority == "navigation-only":
-            continue
-
-        try:
-            start = int(str(row.get("data-atp-year-start") or "").strip())
-            end = int(str(row.get("data-atp-year-end") or "").strip())
-        except Exception:
-            start = end = None
-        if state_year is not None and start is not None and end is not None and not (start <= state_year <= end):
-            continue
-
-        combined = " ".join(str(row.get(key) or "") for key in (
-            "data-atp-query-key", "data-atp-aliases", "data-atp-problem-intents",
-            "data-atp-image-role", "data-atp-topic", "data-atp-section",
-            "data-atp-intent", "data-atp-answer-bundle", "alt",
-        )).casefold()
-        if "camera" not in combined:
-            continue
-        harnessish = any(term in combined for term in ("harness", "wiring", "connector", "adapter", "ccd-v"))
-        diagnosticish = any(term in combined for term in (
-            "no-camera", "no camera", "no-image", "no image", "reverse-no-trigger",
-            "factory-camera-no-image", "reverse-camera-no-image", "harness-problem",
-        ))
-        if request_kind == "camera_harness" and not harnessish:
-            continue
-        if request_kind == "camera_issue" and not (diagnosticish or harnessish):
-            continue
-
-        score = 0
-        role = str(row.get("data-atp-image-role") or "").casefold().strip()
-        if "wiring-diagram" in role or "wiring diagram" in combined:
-            score += 7000
-        if harnessish:
-            score += 3000
-        if diagnosticish:
-            score += 2500
-        if routing_authority in {"true","1","yes"}:
-            score += 1200
-        if authority == "primary":
-            score += 800
-        if state_year is not None and start is not None and end is not None:
-            score += 1600 if start <= state_year <= end else 0
-            if start == end == state_year:
-                score += 400
-            if end - start <= 5:
-                score += 300
-        overlap = sum(1 for token in prompt_tokens if token in combined)
-        score += overlap * 180
-        try:
-            score += int(row.get("data-atp-first-response-priority") or row.get("data-atp-priority") or 0)
-        except Exception:
-            pass
-
-        url = str(row.get("data-atp-full-resolution-url") or row.get("data-atp-canonical-image-url") or row.get("src") or "").strip()
-        if not url.startswith("https://"):
-            continue
-        semantic_meta = {str(k): str(v) for k, v in row.items() if str(k).startswith("data-atp-")}
-        payload = {
-            "image_url": url,
-            "source_page": str(state.get("source_url") or ""),
-            "page_title": str(snapshot.get("title") or ""),
-            "section_heading": str(row.get("data-atp-heading-title") or row.get("data-atp-section") or "Camera / Harness"),
-            "nearby_instruction_text": str(row.get("data-atp-query-key") or row.get("data-atp-problem-intents") or ""),
-            "caption": str(row.get("alt") or row.get("data-atp-heading-title") or "Camera / harness reference"),
-            "visual_analysis": str(row.get("alt") or "Exact authored camera/harness Technical reference"),
-            "atp_semantic_metadata_v69363": semantic_meta,
-        }
-        record = _website_image_record_for_chat_v68883(payload)
-        if not isinstance(record, dict):
-            continue
-        record["_technical_exact_semantic_payload_v69387"] = payload
-        record["technical_confirmed_package_image_v69382"] = True
-        record["technical_confirmed_semantic_fast_v69392"] = True
-        record["technical_camera_harness_exact_v69482"] = True
-        record["technical_camera_harness_request_kind_v69482"] = request_kind
-        record["technical_confirmed_package_label_v69382"] = str(state.get("label") or "")
-        record["technical_confirmed_package_file_id_v69382"] = str(state.get("file_id") or "")
-        ranked.append((score, -order, role, record))
-
-    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
-    output, seen = [], set()
-    # For an explicit camera/harness request, one exact routing-authority image is
-    # normally superior to a gallery. Keep at most two only when both are distinct
-    # exact references from the same compatible branch.
-    limit = 1 if request_kind == "camera_issue" else max(1, min(2, int(max_images or 2)))
-    for _, _, _, record in ranked:
-        key = str(record.get("archive_web_url") or record.get("data_url") or "").strip()
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        output.append(record)
-        if len(output) >= limit:
-            break
-    if output:
-        diagnostic_log(
-            "technical_camera_harness_exact_images_v69482",
-            request_kind=request_kind,
-            year=state_year,
-            published=len(output),
-            urls=[str(x.get("archive_web_url") or x.get("data_url") or "")[:500] for x in output],
-        )
-    else:
-        diagnostic_log(
-            "technical_camera_harness_exact_images_fail_closed_v69482",
-            request_kind=request_kind,
-            year=state_year,
-            reason="no_exact_current_compatible_semantic_image",
-        )
-    return output
-
-
 def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_images=2):
     """Fast exact-image path from the already-confirmed package snapshot.
 
     This avoids page-index Supabase reads, full Technical image-index scans, and
     dedicated vector image search when authored semantic metadata already names the
-    exact first-response image. v69482 extends the proven exact-semantic path to
-    camera/harness diagnostics with strict year-branch gating; unrelated topics still
-    fall back to the unchanged legacy image authority.
+    exact first-response image. The function is deliberately narrow: Car Model/A-C
+    and the established AUX/factory-amp audio roles only. Other topics fall back to
+    the unchanged legacy image authority.
     """
     if not isinstance(state, dict):
         return []
@@ -103535,17 +98380,6 @@ def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_ima
             prompt_raw,
             state,
         )
-
-    camera_harness_exact_v69482 = _technical_confirmed_camera_harness_images_v69482(
-        prompt_raw, state, max_images=max_images
-    )
-    if camera_harness_exact_v69482:
-        return camera_harness_exact_v69482
-    # A strict camera/harness visual request must never be satisfied by a generic
-    # product/reverse-display image. If the exact selected package has no compatible
-    # authored leaf, fail closed here and let the answer remain text-only.
-    if _technical_strict_camera_harness_request_v69482(prompt_raw):
-        return []
 
     audio_like = bool(re.search(
         r"\b(?:no audio|no sound|audio|sound|aux|factory amp|amplifier|speakers?)\b",
@@ -103925,11 +98759,11 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
         try:
             score += int(meta.get("data-atp-first-response-priority") or 0)
         except Exception:
-            _observe_silent_exception_v69451("_technical_confirmed_package_exact_images_v69382@L98920")
+            pass
         try:
             score += int(meta.get("data-atp-priority") or payload.get("atp_priority_v69178") or 0)
         except Exception:
-            _observe_silent_exception_v69451("_technical_confirmed_package_exact_images_v69382@L98924")
+            pass
         # For audio, the two installation/routing images are the intended first response.
         # Secondary replacement/amp diagnostics cannot outrank them.
         ranked.append((score, role, payload))
@@ -104297,137 +99131,15 @@ def _product_library_reply_facets(prompt):
     }
 
 
-def _product_library_candidate_facets_v69488(candidate):
-    """Generic Product Library discriminators for Technical across vehicle families."""
-    candidate_v69488 = dict(candidate or {})
-    legacy_v69488 = _product_library_candidate_facets(candidate_v69488)
-    aliases_v69488 = candidate_v69488.get("aliases") or []
-    if not isinstance(aliases_v69488, list):
-        aliases_v69488 = [aliases_v69488]
-    original_v69488 = " ".join(str(x or "") for x in (
-        candidate_v69488.get("product_name"), candidate_v69488.get("vehicle_compatibility"),
-        candidate_v69488.get("description"), *aliases_v69488,
-    ))
-    facets_v69488 = {}
-
-    def add_v69488(dimension_v69488, token_v69488, label_v69488):
-        token_v69488 = str(token_v69488 or "").strip()
-        label_v69488 = re.sub(r"\s+", " ", str(label_v69488 or "")).strip()
-        if not token_v69488 or not label_v69488:
-            return
-        bucket_v69488 = facets_v69488.setdefault(dimension_v69488, {"label": _workspace_sales_dimension_label_v69487(dimension_v69488), "options": []})
-        if not any(str(x.get("token") or "") == token_v69488 for x in bucket_v69488["options"]):
-            bucket_v69488["options"].append({"token": token_v69488, "label": label_v69488})
-
-    for sync_v69488 in sorted(legacy_v69488.get("sync_versions") or set()):
-        add_v69488("factory_system", f"sync_{sync_v69488}", f"SYNC {sync_v69488}")
-    for size_v69488 in sorted(legacy_v69488.get("screen_sizes") or set()):
-        add_v69488("screen_size", _workspace_sales_option_token_v69487(size_v69488), f'{size_v69488}" screen')
-    for climate_v69488 in sorted(legacy_v69488.get("climate_terms") or set()):
-        add_v69488("climate_control", climate_v69488, "Automatic climate control" if climate_v69488 == "automatic" else "Manual climate control")
-
-    for dim_v69488 in ("audio_system", "camera_system", "body_style", "steering_position"):
-        for opt_v69488 in _workspace_sales_value_options_v69487(dim_v69488, original_v69488):
-            add_v69488(dim_v69488, opt_v69488.get("token"), opt_v69488.get("label"))
-
-    # Generic explicit key/value metadata written into Product Library description.
-    keyed_v69488 = (
-        ("factory_system", r"(?:factory|oem|original)\s+(?:system|radio\s+system)\s*[:=]\s*([^;|,]+)"),
-        ("audio_system", r"(?:factory\s+)?(?:audio|sound)\s+(?:system|type)?\s*[:=]\s*([^;|,]+)"),
-        ("camera_system", r"(?:factory\s+)?camera\s+(?:system|type|configuration)?\s*[:=]\s*([^;|,]+)"),
-        ("factory_radio", r"(?:factory|original|oem)\s+(?:radio|screen)\s*[:=]\s*([^;|,]+)"),
-        ("trim", r"\btrim\s*[:=]\s*([^;|,]+)"),
-        ("cab_style", r"\bcab(?:\s+style|\s+type)?\s*[:=]\s*([^;|,]+)"),
-        ("market", r"\b(?:market|region)\s*[:=]\s*([^;|,]+)"),
-        ("connector_variant", r"\b(?:connector|harness)(?:\s+variant|\s+type)?\s*[:=]\s*([^;|,]+)"),
-    )
-    for dim_v69488, pattern_v69488 in keyed_v69488:
-        for match_v69488 in re.finditer(pattern_v69488, original_v69488, flags=re.I):
-            value_v69488 = str(match_v69488.group(1) or "").strip()
-            options_v69488 = _workspace_sales_value_options_v69488(dim_v69488, value_v69488)
-            if not options_v69488 and 1 <= len(value_v69488) <= 60 and not re.search(r"[.!?]", value_v69488):
-                options_v69488 = [{"token": _workspace_sales_option_token_v69487(value_v69488), "label": value_v69488}]
-            for opt_v69488 in options_v69488:
-                add_v69488(dim_v69488, opt_v69488.get("token"), opt_v69488.get("label"))
-
-    # Slash-separated uppercase factory systems such as NBT/EVO are common in
-    # product names.  Restrict this fallback to explicit pairs and exclude generic
-    # display/connectivity acronyms so it cannot invent a discriminator from specs.
-    excluded_v69488 = {"HD","QHD","IPS","GPS","BT","WIFI","LTE","USB","RCA","OEM","LED","LCD","CPU","RAM","ROM","HDMI"}
-    for left_v69488, right_v69488 in re.findall(r"\b([A-Z][A-Z0-9]{1,9})\s*/\s*([A-Z][A-Z0-9]{1,9})\b", original_v69488):
-        if left_v69488 not in excluded_v69488 and right_v69488 not in excluded_v69488:
-            add_v69488("factory_system", _workspace_sales_option_token_v69487(left_v69488), left_v69488)
-            add_v69488("factory_system", _workspace_sales_option_token_v69487(right_v69488), right_v69488)
-    return facets_v69488
-
-
-def _product_library_best_discriminator_v69488(candidates):
-    values_v69488 = [dict(x) for x in (candidates or []) if isinstance(x, dict)]
-    if not values_v69488:
-        return {"dimension":"", "options":[], "facets":{}}
-    rows_v69488 = [(item_v69488, _product_library_candidate_facets_v69488(item_v69488)) for item_v69488 in values_v69488]
-    dimensions_v69488 = {}
-    rank_v69488 = {"factory_system":0,"screen_size":1,"climate_control":2,"audio_system":3,"camera_system":4,"factory_radio":5,"body_style":6,"trim":7,"cab_style":8,"steering_position":9,"market":10,"connector_variant":11}
-    for _, facets_v69488 in rows_v69488:
-        for dim_v69488, facet_v69488 in facets_v69488.items():
-            bucket_v69488 = dimensions_v69488.setdefault(dim_v69488, {"options":[]})
-            for opt_v69488 in facet_v69488.get("options") or []:
-                if not any(str(x.get("token") or "") == str(opt_v69488.get("token") or "") for x in bucket_v69488["options"]):
-                    bucket_v69488["options"].append(dict(opt_v69488))
-    candidates_ranked_v69488 = []
-    for dim_v69488, combined_v69488 in dimensions_v69488.items():
-        signatures_v69488 = []
-        union_v69488 = set()
-        for _, facets_v69488 in rows_v69488:
-            sig_v69488 = frozenset(str(x.get("token") or "") for x in (facets_v69488.get(dim_v69488, {}).get("options") or []) if str(x.get("token") or ""))
-            signatures_v69488.append(sig_v69488)
-            union_v69488 |= set(sig_v69488)
-        distinct_v69488 = {x for x in signatures_v69488 if x}
-        # A useful discriminator must actually separate candidate rows.  Unknown
-        # metadata does not count as proof that a row belongs to an option.
-        if len(distinct_v69488) < 2 or len(union_v69488) < 2:
-            continue
-        options_v69488 = [x for x in combined_v69488.get("options") or [] if str(x.get("token") or "") in union_v69488]
-        candidates_ranked_v69488.append((len(distinct_v69488)*100-len(options_v69488), -rank_v69488.get(dim_v69488,50), dim_v69488, options_v69488))
-    if not candidates_ranked_v69488:
-        return {"dimension":"", "options":[], "facets":dimensions_v69488}
-    _, _, dim_v69488, options_v69488 = max(candidates_ranked_v69488)
-    return {"dimension":dim_v69488, "options":options_v69488[:10], "facets":dimensions_v69488}
-
-
-def _product_library_reply_generic_facets_v69488(prompt, candidates):
-    combined_v69488 = {}
-    for candidate_v69488 in candidates or []:
-        for dim_v69488, facet_v69488 in _product_library_candidate_facets_v69488(candidate_v69488).items():
-            bucket_v69488 = combined_v69488.setdefault(dim_v69488, {"options":[]})
-            for opt_v69488 in facet_v69488.get("options") or []:
-                if not any(str(x.get("token") or "") == str(opt_v69488.get("token") or "") for x in bucket_v69488["options"]):
-                    bucket_v69488["options"].append(dict(opt_v69488))
-    selected_v69488 = {}
-    for dim_v69488, facet_v69488 in combined_v69488.items():
-        token_v69488 = _workspace_sales_match_option_v69487(prompt, facet_v69488.get("options") or [], dim_v69488)
-        if token_v69488:
-            selected_v69488[dim_v69488] = token_v69488
-    return selected_v69488
-
-
-def _product_library_filter_generic_facets_v69488(candidates, selections):
-    values_v69488 = []
-    for candidate_v69488 in candidates or []:
-        facets_v69488 = _product_library_candidate_facets_v69488(candidate_v69488)
-        reject_v69488 = False
-        for dim_v69488, token_v69488 in dict(selections or {}).items():
-            options_v69488 = {str(x.get("token") or "") for x in (facets_v69488.get(dim_v69488, {}).get("options") or [])}
-            if options_v69488 and token_v69488 not in options_v69488:
-                reject_v69488 = True
-                break
-        if not reject_v69488:
-            values_v69488.append(candidate_v69488)
-    return values_v69488
-
-
 def _product_library_resolve_pending_selection(prompt):
-    """Resolve Product Library clarification replies with universal discriminators."""
+    """Resolve a clarification reply and auto-open once one product remains.
+
+    The narrowed candidate list is preserved between turns. Factory-system and
+    screen-size replies are applied as structured facets, including Product Library
+    rows that rely on AutoTecPro product-code conventions instead of dedicated
+    metadata fields. As soon as one verified candidate remains, it is returned to
+    the normal image lookup in the same turn—no final option-number confirmation.
+    """
     candidates = _product_library_pending_candidates()
     if not candidates:
         return None
@@ -104442,6 +99154,7 @@ def _product_library_resolve_pending_selection(prompt):
 
     value = re.sub(r"\s+", " ", str(prompt or "")).strip()
     lowered = value.casefold()
+
     if lowered in {"cancel", "none", "neither", "start over"}:
         st.session_state.pop("product_library_pending_candidates", None)
         st.session_state.pop("product_library_pending_filters", None)
@@ -104463,30 +99176,49 @@ def _product_library_resolve_pending_selection(prompt):
             st.session_state.pop("product_library_pending_filters", None)
             return {"product": candidate}
 
-    previous_v69488 = st.session_state.get("product_library_pending_filters")
-    if not isinstance(previous_v69488, dict):
-        previous_v69488 = {}
-    cumulative_v69488 = dict(previous_v69488.get("generic") or {}) if isinstance(previous_v69488.get("generic"), dict) else {}
-    cumulative_v69488.update(_product_library_reply_generic_facets_v69488(value, candidates))
+    reply_facets = _product_library_reply_facets(value)
+    previous_filters = st.session_state.get("product_library_pending_filters")
+    if not isinstance(previous_filters, dict):
+        previous_filters = {}
+    cumulative = {
+        "sync_versions": set(previous_filters.get("sync_versions") or []),
+        "screen_sizes": set(previous_filters.get("screen_sizes") or []),
+        "climate_terms": set(previous_filters.get("climate_terms") or []),
+    }
+    for key in cumulative:
+        cumulative[key].update(reply_facets.get(key) or set())
 
-    # Preserve legacy filter keys from sessions created before v69488.
-    legacy_reply_v69488 = _product_library_reply_facets(value)
-    legacy_map_v69488 = {"sync_versions":"factory_system", "screen_sizes":"screen_size", "climate_terms":"climate_control"}
-    for legacy_key_v69488, dim_v69488 in legacy_map_v69488.items():
-        vals_v69488 = set(legacy_reply_v69488.get(legacy_key_v69488) or [])
-        if len(vals_v69488) == 1 and dim_v69488 not in cumulative_v69488:
-            raw_v69488 = next(iter(vals_v69488))
-            cumulative_v69488[dim_v69488] = f"sync_{raw_v69488}" if dim_v69488 == "factory_system" else _workspace_sales_option_token_v69487(raw_v69488)
+    has_structured_facets = any(cumulative.values())
+    filtered = []
+    if has_structured_facets:
+        for candidate in candidates:
+            facets = _product_library_candidate_facets(candidate)
+            if cumulative["sync_versions"] and not (
+                cumulative["sync_versions"] & facets["sync_versions"]
+            ):
+                continue
+            if cumulative["screen_sizes"] and not (
+                cumulative["screen_sizes"] & facets["screen_sizes"]
+            ):
+                continue
+            if cumulative["climate_terms"] and not (
+                cumulative["climate_terms"] & facets["climate_terms"]
+            ):
+                continue
+            filtered.append(candidate)
 
-    filtered = _product_library_filter_generic_facets_v69488(candidates, cumulative_v69488) if cumulative_v69488 else []
-
-    if not cumulative_v69488:
+    # Preserve legacy natural text matching for aliases or model wording that is not
+    # represented by the structured facets above.
+    if not has_structured_facets:
         normalized_text = re.sub(r"[^a-z0-9.]+", " ", lowered).strip()
         compact_text = _product_library_normalize_code(value)
         reply_tokens = [token for token in normalized_text.split() if token]
         for candidate in candidates:
             facets = _product_library_candidate_facets(candidate)
-            token_match = bool(reply_tokens) and all(token in facets["normalized"] or token in facets["compact"] for token in reply_tokens)
+            token_match = bool(reply_tokens) and all(
+                token in facets["normalized"] or token in facets["compact"]
+                for token in reply_tokens
+            )
             compact_match = bool(compact_text) and compact_text in facets["compact"]
             if token_match or compact_match:
                 filtered.append(candidate)
@@ -104495,37 +99227,28 @@ def _product_library_resolve_pending_selection(prompt):
         selected = filtered[0]
         st.session_state.pop("product_library_pending_candidates", None)
         st.session_state.pop("product_library_pending_filters", None)
-        diagnostic_log("technical_product_library_universal_auto_resolved_v69488", dimensions=sorted(cumulative_v69488.keys()))
         return {"product": selected, "auto_resolved": True}
 
     if len(filtered) > 1:
         st.session_state["product_library_pending_candidates"] = filtered
-        st.session_state["product_library_pending_filters"] = {"generic": dict(cumulative_v69488)}
-        return {"clarification": True, "candidates": filtered, "narrowed": True}
+        st.session_state["product_library_pending_filters"] = {
+            key: sorted(values) for key, values in cumulative.items()
+        }
+        return {
+            "clarification": True,
+            "candidates": filtered,
+            "narrowed": True,
+        }
 
-    if len(value) <= 60 and re.fullmatch(
-        r"(?:i(?:'m| am)\s+not\s+sure|unsure|i\s+don't\s+know|i\s+do\s+not\s+know|"
-        r"no\s+idea|can't\s+tell|cannot\s+tell)",
-        lowered,
-        flags=re.I,
-    ):
-        return {"clarification": True, "candidates": candidates, "images": [], "unsure": True}
-
-    # Unrelated short questions must expire a pending candidate choice. Keeping
-    # it alive lets a later "I'm not sure" revive an older product topic.
-    selection_shaped_v69489 = bool(re.search(
-        r"\b(?:option|product|model|code|sync|screen|climate|manual|automatic|auto\s*a/?c|"
-        r"audio|camera|radio|factory|version|inch|inches|first|second|third|one|other|"
-        r"neither|none|cancel|start\s+over)\b",
-        lowered,
-        flags=re.I,
-    ))
-    if len(value) <= 60 and selection_shaped_v69489:
-        return {"clarification": True, "candidates": candidates, "invalid_selection": True}
+    if len(value) <= 40:
+        return {
+            "clarification": True,
+            "candidates": candidates,
+            "invalid_selection": True,
+        }
 
     st.session_state.pop("product_library_pending_candidates", None)
     st.session_state.pop("product_library_pending_filters", None)
-    diagnostic_log("product_library_pending_clarification_expired_unrelated_turn_v69489", prompt_chars=len(value), candidate_count=len(candidates))
     return None
 
 
@@ -104750,7 +99473,7 @@ def _product_library_clear_read_caches():
     try:
         _product_library_asset_data_url.clear()
     except Exception:
-        _observe_silent_exception_v69451("_product_library_clear_read_caches@L99634")
+        pass
 
 
 def _product_library_fact_lookup(prompt):
@@ -104792,25 +99515,11 @@ def _product_library_fact_lookup(prompt):
     if top_score < minimum_score:
         return None
 
-    # v69488: when Technical has multiple credible structured products, ask the
-    # highest-information verification question instead of silently dropping into
-    # vector search where the exact model may remain ambiguous.
+    # Do not inject a possibly wrong structured record when two products are nearly
+    # tied. In that case, preserve the existing vector-store answer flow.
     if not exact_code_match and len(ranked) > 1:
         second_score = ranked[1][0]
         if second_score >= max(minimum_score, top_score - 8):
-            candidates_v69488 = [product for score, product in ranked if score >= max(minimum_score, top_score - 8)][:8]
-            candidates_v69488 = _product_library_filter_for_technical_case_v69362(candidates_v69488, prompt)
-            if str(assistant or "") == "🔧 Technical Support" and len(candidates_v69488) > 1:
-                resolver_v69488 = _product_library_best_discriminator_v69488(candidates_v69488)
-                if str(resolver_v69488.get("dimension") or ""):
-                    st.session_state["product_library_pending_candidates"] = list(candidates_v69488)
-                    st.session_state.pop("product_library_pending_filters", None)
-                    diagnostic_log(
-                        "technical_product_library_fact_clarification_required_v69488",
-                        dimension=str(resolver_v69488.get("dimension") or ""),
-                        candidate_count=len(candidates_v69488),
-                    )
-                    return {"clarification": True, "candidates": candidates_v69488, "images": [], "fact_only": True}
             return None
 
     return {
@@ -105163,39 +99872,67 @@ def _product_library_chat_context(lookup):
 
     if lookup.get("clarification"):
         candidates = lookup.get("candidates") or []
-        if lookup.get("unsure"):
-            return (
-                "\n\nPRODUCT LIBRARY CLARIFICATION RESPONSE:\n"
-                "The user does not know the requested discriminator. Do not choose a product or infer a configuration. "
-                "Ask for a clear photo of the original factory dashboard/radio and climate-control panel, then offer to identify the correct option."
-            )
-        candidate_lines = [f"{index}. {_product_library_candidate_label(product)}" for index, product in enumerate(candidates, start=1)]
-        invalid_note = "The user's last selection was not valid. " if lookup.get("invalid_selection") else ""
-        resolver_v69488 = _product_library_best_discriminator_v69488(candidates)
-        dimension_v69488 = str(resolver_v69488.get("dimension") or "")
-        options_v69488 = list(resolver_v69488.get("options") or [])
-        if dimension_v69488 and len(options_v69488) >= 2:
-            dimension_label_v69488 = _workspace_sales_dimension_label_v69487(dimension_v69488)
-            option_labels_v69488 = [str(x.get("label") or "").strip() for x in options_v69488 if str(x.get("label") or "").strip()]
-            option_text_v69488 = ", ".join(option_labels_v69488[:-1]) + (f" or {option_labels_v69488[-1]}" if len(option_labels_v69488) > 1 else (option_labels_v69488[0] if option_labels_v69488 else ""))
-            diagnostic_log("technical_product_library_dynamic_clarification_v69488", dimension=dimension_v69488, options=option_labels_v69488[:8], candidate_count=len(candidates))
-            ask_v69488 = (
-                f"Ask only for **{dimension_label_v69488}**. The known choices are {option_text_v69488}. "
-                "Accept the natural answer and automatically narrow the Product Library candidates. "
-                "Do not ask for an option number or product code when this detail is enough. "
-            )
-        else:
-            ask_v69488 = (
-                "The structured records do not expose a safe textual discriminator. Ask for a clear photo of the original dashboard/radio "
-                "so the exact product can be identified; do not guess from the model year alone. "
-            )
+        candidate_lines = [
+            f"{index}. {_product_library_candidate_label(product)}"
+            for index, product in enumerate(candidates, start=1)
+        ]
+        invalid_note = (
+            "The user's last selection was not valid. "
+            if lookup.get("invalid_selection")
+            else ""
+        )
+        candidate_facets = [
+            _product_library_candidate_facets(product)
+            for product in candidates
+        ]
+        sync_options = sorted({
+            value
+            for facets in candidate_facets
+            for value in facets.get("sync_versions", set())
+        })
+        screen_options = sorted({
+            value
+            for facets in candidate_facets
+            for value in facets.get("screen_sizes", set())
+        })
+        missing_detail = "the remaining distinguishing detail"
+        case_brands_v69362, case_families_v69362 = _technical_case_identity_sets_v69362("")
+        ford_case_v69362 = bool(
+            "ford" in case_brands_v69362
+            or any(x.startswith(("f150", "f250", "f350", "f450", "f550", "f650")) for x in case_families_v69362)
+        )
+        if len(sync_options) > 1 and (str(assistant or "") != "🔧 Technical Support" or ford_case_v69362):
+            missing_detail = "the factory SYNC version"
+        elif len(screen_options) > 1:
+            if (
+                str(assistant or "") == "🔧 Technical Support"
+                and _technical_confirmed_shared_screen_scope_v69391("")
+            ):
+                return (
+                    "\n\nTECHNICAL SHARED-SCREEN AUTHORITY:\n"
+                    "The exact confirmed Technical source explicitly uses one shared "
+                    "instruction branch across the supported screen sizes. "
+                    "Do NOT ask the customer for screen size and do NOT use Product "
+                    "Library screen-size differences to block the Technical answer. "
+                    "Continue from the confirmed Technical source."
+                )
+            missing_detail = "the desired screen size"
+
+        natural_examples_v69362 = "14.4 or 17"
+        if str(assistant or "") != "🔧 Technical Support" or ford_case_v69362:
+            natural_examples_v69362 = "SYNC 1, 14.4, or 17"
+
         return (
             "\n\nPRODUCT LIBRARY CLARIFICATION REQUIRED:\n"
-            f"{invalid_note}I found {len(candidates)} possible matching products.\n"
+            f"{invalid_note}"
+            f"I found {len(candidates)} possible matching products.\n"
             + "\n".join(candidate_lines)
-            + "\n" + ask_v69488
-            + "Once one candidate remains, continue automatically with that exact verified product. "
-              "Do not add unrelated technical details while clarification is still required."
+            + f"\nAsk only for {missing_detail}. Accept a natural reply such as "
+              f"{natural_examples_v69362}. Do not ask for an option number or product "
+              "code when the supplied detail leaves exactly one candidate. Once "
+              "one candidate remains, the app will automatically load and display "
+              "its verified Product Library photos in the same turn. Do not add "
+              "unrelated technical details while clarification is still required."
         )
 
     if not lookup.get("product"):
@@ -107019,8 +101756,7 @@ def render_admin_latest_learned_fragment():
                 st.caption(f"OpenAI File ID: {row.get('openai_file_id') or 'N/A'}")
 
                 if st.button("Delete learned record", key=f"delete_learned_{row.get('id')}"):
-                    with _LEARNING_WRITE_LOCK_V69454:
-                        _delete_learned_row_transaction_v69454(row)
+                    supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
                     remaining_records = max(0, learned_total_records - 1)
                     remaining_pages = max(
                         1,
@@ -107035,7 +101771,7 @@ def render_admin_latest_learned_fragment():
                     try:
                         _admin_learned_records_view_cached.clear()
                     except Exception:
-                        _observe_silent_exception_v69451("render_admin_latest_learned_fragment@L101932")
+                        pass
                     st.session_state[learned_page_key] = min(
                         current_learned_page, remaining_pages,
                     )
@@ -107780,7 +102516,7 @@ def _graphic_style_row_profile(row):
                 if isinstance(parsed, list):
                     paths.extend(str(x).strip() for x in parsed if str(x).strip())
             except Exception:
-                _observe_silent_exception_v69451("_graphic_style_row_profile@L102677")
+                pass
     if not paths:
         match = re.search(r"Image Storage Path:\s*([^\n]+)", solution, flags=re.I)
         if match and match.group(1).strip():
@@ -107850,7 +102586,6 @@ def _graphic_style_rebuild_solution(row, *, name=None, tags=None, extra_note="")
 
 
 def _graphic_style_update_record(row, *, name=None, tags=None, source_type=None, note=""):
-    """Update Graphic style DB + vector authority as one rollback-safe transaction."""
     _graphic_style_version_snapshot(row, action="update")
     solution, clean_name, clean_tags = _graphic_style_rebuild_solution(
         row, name=name, tags=tags, extra_note=note
@@ -107865,68 +102600,20 @@ def _graphic_style_update_record(row, *, name=None, tags=None, source_type=None,
     }
     if source_type is not None:
         payload["source_type"] = source_type
-
-    updated_record_v69454 = dict(row or {})
-    updated_record_v69454.update(payload)
-    updated_record_v69454["assistant"] = "Graphic Marketing"
-    updated_record_v69454["vector_store_id"] = GRAPHIC_VECTOR_STORE_ID
-    new_file_id_v69454, vector_ready_v69454, status_v69454 = (
-        upload_learned_record_to_vector_store(
-            updated_record_v69454,
-            GRAPHIC_VECTOR_STORE_ID,
-            return_status=True,
-        )
-    )
-    payload.update({
-        "openai_file_id": new_file_id_v69454,
-        "vector_store_id": GRAPHIC_VECTOR_STORE_ID,
-        "synced": bool(vector_ready_v69454),
-        "embedding_status": "synced" if vector_ready_v69454 else (status_v69454 or "processing"),
-    })
-    try:
-        result = safe_update_row("learned_knowledge", payload, row.get("id"))
-        if not getattr(result, "data", None):
-            raise RuntimeError("Graphic style update returned no saved row.")
-    except Exception:
-        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, new_file_id_v69454)
-        raise
-
-    old_file_id_v69454 = str((row or {}).get("openai_file_id") or "").strip()
-    if old_file_id_v69454 and old_file_id_v69454 != new_file_id_v69454:
-        try:
-            remove_learned_vector_file_strict_v69454(
-                str((row or {}).get("vector_store_id") or GRAPHIC_VECTOR_STORE_ID),
-                old_file_id_v69454,
-            )
-        except Exception as cleanup_error_v69454:
-            rollback_payload_v69454 = {
-                key: value for key, value in dict(row or {}).items() if key != "id"
-            }
-            try:
-                safe_update_row("learned_knowledge", rollback_payload_v69454, row.get("id"))
-            finally:
-                try:
-                    remove_learned_vector_file_strict_v69454(
-                        GRAPHIC_VECTOR_STORE_ID, new_file_id_v69454
-                    )
-                except Exception:
-                    remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, new_file_id_v69454)
-            raise RuntimeError(
-                "Graphic style vector replacement failed; the previous style was restored."
-            ) from cleanup_error_v69454
-    diagnostic_log(
-        "graphic_style_vector_resynced_v69454",
-        record_id=str((row or {}).get("id") or ""),
-        vector_ready=bool(vector_ready_v69454),
-    )
-    return result
+    return safe_update_row("learned_knowledge", payload, row.get("id"))
 
 
 def _graphic_style_delete_record(row):
-    """Permanently delete one style only after its searchable vector authority is gone."""
+    """Permanently delete one style and remove its vector file when possible."""
     _graphic_style_version_snapshot(row, action="delete")
-    with _LEARNING_WRITE_LOCK_V69454:
-        return _delete_learned_row_transaction_v69454(row)
+    openai_file_id = str(row.get("openai_file_id") or "").strip()
+    try:
+        result = supabase.table("learned_knowledge").delete().eq("id", row.get("id")).execute()
+    except Exception as error:
+        raise RuntimeError(f"Supabase deletion failed: {error}") from error
+    if openai_file_id:
+        remove_old_learned_vector_file(GRAPHIC_VECTOR_STORE_ID, openai_file_id)
+    return result
 
 
 def _graphic_style_set_default(rows, selected_id):
@@ -108206,7 +102893,7 @@ def render_graphic_intelligence_center():
             try:
                 quality_scores.append(float(review.get("product_accuracy_score")))
             except Exception:
-                _observe_silent_exception_v69451("render_graphic_intelligence_center@L103054")
+                pass
         st.write(f"**Workflow usage:** Standard {workflow_counts['standard']} · Cleanup {workflow_counts['cleanup']} · Comparison {workflow_counts['comparison']}")
         if quality_scores:
             st.write(f"**Average product-accuracy score:** {round(sum(quality_scores)/len(quality_scores), 1)} / 100")
@@ -108227,7 +102914,6 @@ def render_graphic_intelligence_center():
 
 if (
     assistant == "⚙️ Admin Panel"
-    and str(st.session_state.get("role") or "").strip().lower() == "admin"
     and user_can_access_workspace("admin")
 ):
 
@@ -108893,11 +103579,7 @@ else:
     )
     st.session_state["chat_submission_upload_count_v68620"] = len(uploaded_files)
     st.caption("Drag and drop files anywhere in the chat, or paste a screenshot with Ctrl+V.")
-    _run_legacy_ui_runtime_without_deprecated_html_v69459(install_global_chat_file_dropzone)
-
-    # v69473: preserve every completed middle turn from durable history before
-    # the next Streamlit render can replace the live DOM.
-    _reconcile_live_chat_with_durable_history_v69473()
+    install_global_chat_file_dropzone()
 
     # v69026: bound the live DOM on long conversations. Persistent history is
     # unchanged; only the newest messages are mounted into the active browser DOM.
@@ -108914,49 +103596,23 @@ else:
         _chat_messages_all_v69026[_chat_render_start_v69026:],
         start=_chat_render_start_v69026,
     ):
-        _message_owner_key_v69473 = (
-            f"chat_message_v69473_{st.session_state.get('conversation_id') or 'local'}_{message_index}"
+        render_chat_message(
+            msg["role"],
+            msg["content"],
+            message_index=message_index,
         )
-        with st.container(key=_message_owner_key_v69473):
-            render_chat_message(
-                msg["role"],
-                msg["content"],
-                message_index=message_index,
-            )
 
     # v69018: create the browser-print transcript during the normal chat render,
     # not at the very end of the Streamlit run.  The same placeholder is updated
     # again immediately after a new assistant message is committed, so native
     # browser Print/Ctrl+P never needs a second attempt to see the full transcript.
-    _print_transcript_root_v69480 = st.container(key="atp_print_transcript_root_v69480")
-    _print_transcript_placeholder_v69018 = _print_transcript_root_v69480.empty()
+    _print_transcript_placeholder_v69018 = st.empty()
     try:
         render_print_transcript_v69007(
             list(st.session_state.get("messages") or []),
             assistant_label=assistant,
             target=_print_transcript_placeholder_v69018,
         )
-        _print_message_count_v69484 = len(list(st.session_state.get("messages") or []))
-        _first_authenticated_empty_render_v69484 = bool(
-            _print_message_count_v69484 == 0
-            and (
-                locals().get("_auth_restore_result_v69043") is True
-                or str(st.session_state.get("_auth_transition") or "").strip().lower() == "login"
-            )
-        )
-        if not _first_authenticated_empty_render_v69484:
-            _install_print_ancestor_marker_v69480()
-            diagnostic_log(
-                "print_transcript_ancestor_marker_ready_v69480",
-                message_count=_print_message_count_v69484,
-                workspace=str(assistant),
-            )
-        else:
-            diagnostic_log(
-                "print_transcript_marker_deferred_on_login_v69484",
-                message_count=0,
-                workspace=str(assistant),
-            )
     except Exception as _early_print_error_v69018:
         diagnostic_log(
             "print_transcript_early_render_failed_v69018",
@@ -108975,36 +103631,20 @@ else:
             st.session_state.pop("pending_graphic_regeneration", None)
             diagnostic_log("graphic_v69022_stale_regeneration_blocked_on_manual_entry")
         else:
-            _GRAPHIC_V69451_FINAL_PROCESS_PENDING()
+            process_pending_graphic_regeneration()
 
     st.markdown('<div id="chat-bottom-anchor"></div>', unsafe_allow_html=True)
     if st.session_state.get("scroll_to_bottom"):
-        _run_legacy_ui_runtime_without_deprecated_html_v69459(auto_scroll_to_latest)
+        auto_scroll_to_latest()
         st.session_state.scroll_to_bottom = False
 
-    _run_legacy_ui_runtime_without_deprecated_html_v69459(install_email_safe_assistant_copy_v69359)
-    # v69460: restore the proven v69456 transport for the two controllers that
-    # mutate the live st.chat_input DOM. The v69459 iframe lifecycle can be torn
-    # down after a Streamlit result rerun, which removes the microphone/send
-    # controls and can leave the composer owner with stale inline layout. Direct
-    # components.html is intentionally retained only for these two trusted local
-    # controllers until they are migrated to a native component.
+    install_email_safe_assistant_copy_v69359()
     install_browser_voice_dictation()
     install_chat_composer_autogrow()
     install_composer_width_safety_css()
-    _install_composer_top_left_fallback_v69459()
-    # v69468: Streamlit 1.61 natively serializes chat submissions with submit_mode="disable".
-    # The browser bridge overlays a body-level draft textarea only while the native widget
-    # is disabled. The draft stays outside Streamlit/React's managed chat subtree, so staff
-    # can prepare the next inquiry without exposing that text to widget reconciliation.
-    _install_chat_turn_guard_v69468()
     # Keep the original stable composer. Attachments remain in the proven managed
     # uploader above, while the normal bottom-right send arrow submits the turn.
-    chat_prompt = st.chat_input(
-        "Message AutoTecPro AI...",
-        key="atp_chat_input_v69468",
-        submit_mode="disable",
-    )
+    chat_prompt = st.chat_input("Message AutoTecPro AI...")
 
     # v68844: a recoverable Graphic retry resumes as a new controlled Streamlit
     # execution. The user message was already committed on the first execution, so
@@ -109117,27 +103757,7 @@ else:
             )
 
 
-    if not prompt:
-        # A controlled rerun after a terminal/direct answer has no new prompt. Ensure
-        # any client-side guard inherited from the completed turn is released.
-        _set_chat_composer_busy_v69468(False)
-
     if prompt:
-        # For a real st.chat_input submission, Streamlit 1.61 has already entered its
-        # native submit_mode="disable" running scope in the frontend before Python starts.
-        # Do not add a second Python busy latch for that path: an unhandled Python exception
-        # could otherwise leave a stale browser-side busy flag after Streamlit correctly
-        # re-enables the widget. Keep the Python latch only for structured/tool submissions
-        # that did not originate from the native chat input.
-        native_chat_submission_v69468 = bool(chat_prompt)
-        _set_chat_composer_busy_v69468(not native_chat_submission_v69468)
-        diagnostic_log(
-            "chat_native_submit_guard_active_v69468",
-            workspace=str(assistant),
-            conversation_id=st.session_state.get("conversation_id"),
-            native_chat_submission=native_chat_submission_v69468,
-            python_fallback_busy=not native_chat_submission_v69468,
-        )
         command_preflight_started_v68864 = time.perf_counter()
         # v69355: exact-key vector-search memoization is valid for this user turn only.
         # Reset before any Sales/Marketing authority/search work so no result can carry
@@ -109145,7 +103765,7 @@ else:
         try:
             st.session_state["_workspace_vector_search_turn_cache_v69355"] = {}
         except Exception:
-            _observe_silent_exception_v69451("<module>@L103926")
+            pass
         graphic_early_status_v68865 = None
         if _graphic_v68865_should_show_early_status(
             prompt,
@@ -109252,8 +103872,6 @@ else:
             )
         except ArchiveValidationError as error:
             st.error(f"ZIP analysis was stopped: {error}")
-            _set_chat_composer_busy_v69468(False)
-            diagnostic_log("chat_native_submit_guard_released_on_archive_error_v69468")
             st.stop()
 
         technical_followup_prompt_v68879 = interaction_prompt
@@ -109335,7 +103953,7 @@ else:
                         expanded=False,
                     )
                 except Exception:
-                    _observe_silent_exception_v69451("<module>@L104114")
+                    pass
             _graphic_v68854_rehydrate_project_if_needed()
 
         if assistant == "🎨 Graphic Marketing" and not is_graphic_resume_v68844:
@@ -109350,7 +103968,7 @@ else:
                     try:
                         current_edit_upload_v69319.graphic_role = "supporting"
                     except Exception:
-                        _observe_silent_exception_v69451("<module>@L104129")
+                        pass
                 diagnostic_log("graphic_v69319_current_turn_assets_protected_from_product_authority", upload_count=sum(1 for x in (effective_uploaded_files or []) if str(getattr(x,"type","") or "").casefold().startswith("image/")))
             added_assets_v69319 = remember_graphic_project_assets(
                 effective_uploaded_files,
@@ -109481,68 +104099,31 @@ else:
                 assistant,
             )
         )
-        technical_website_learning_detected_v69452 = bool(
+        technical_website_learning_requested_v68870 = bool(
             technical_website_learning_url_v68870
         )
-        explicit_learning_detected_v69452 = (
+
+        explicit_learning_requested = (
             False
-            if technical_website_learning_detected_v69452
+            if technical_website_learning_requested_v68870
             else detect_explicit_learning_command(
                 interaction_prompt,
                 has_recent_context=bool(st.session_state.get("messages")),
                 has_attachments=bool(effective_uploaded_files),
             )
         )
-        learning_command_detected_v69452 = bool(
-            technical_website_learning_detected_v69452
-            or explicit_learning_detected_v69452
-        )
-        learning_admin_authorized_v69452 = (
-            _learning_admin_authorized_v69452(revalidate=True)
-            if learning_command_detected_v69452
-            else False
-        )
-        explicit_learning_access_denied_v69452 = bool(
-            learning_command_detected_v69452
-            and not learning_admin_authorized_v69452
-        )
-        technical_website_learning_requested_v68870 = bool(
-            technical_website_learning_detected_v69452
-            and learning_admin_authorized_v69452
-        )
-        explicit_learning_requested = bool(
-            explicit_learning_detected_v69452
-            and learning_admin_authorized_v69452
-        )
         learning_context_snapshot = (
             recent_learning_conversation_context(max_messages=8)
             if explicit_learning_requested
             else ""
         )
-        learning_attachments_v69454 = []
-        learning_attachment_stage_error_v69454 = ""
-        if (
-            explicit_learning_requested
-            and effective_uploaded_files
-            and not is_graphic_workspace(assistant)
-        ):
-            try:
-                learning_attachments_v69454 = _stage_explicit_learning_attachments_v69454(
-                    effective_uploaded_files
-                )
-            except Exception as attachment_error_v69454:
-                learning_attachment_stage_error_v69454 = str(attachment_error_v69454)[:500]
-                diagnostic_log(
-                    "learning_attachment_stage_aborted_v69454",
-                    workspace=str(assistant),
-                    error_type=type(attachment_error_v69454).__name__,
-                )
 
-        # v69452: every explicit durable-learning command is routed as a storage
-        # workflow even when authorization is denied. This prevents a denied
-        # "learn and save" message from falling through into product lookup,
-        # provider generation, Graphic style saving, or another learning path.
-        if learning_command_detected_v69452:
+        # Explicit learning is a storage workflow, not a product-library lookup.
+        # A long pasted knowledge block may contain model numbers that would
+        # otherwise trigger unrelated product photos and attach them to the AI
+        # acknowledgement. Keep the uploaded evidence, but suppress automatic
+        # Product Library enrichment for this turn.
+        if explicit_learning_requested:
             product_library_lookup = None
             product_library_images = []
 
@@ -109589,7 +104170,7 @@ else:
                 try:
                     st.session_state.messages[-1]["content"] = user_content_to_save
                 except Exception:
-                    _observe_silent_exception_v69451("<module>@L104331")
+                    pass
 
             # v69226: immediate acknowledgement. Presentation-only. For v69381
             # text-only turns the placeholder is already on-screen; other paths use
@@ -109765,7 +104346,7 @@ else:
                 if early_loading_status_placeholder_v69226 is not None:
                     early_loading_status_placeholder_v69226.empty()
             except Exception:
-                _observe_silent_exception_v69451("<module>@L104507")
+                pass
 
             direct_content_v69388 = (
                 direct_answer_v69388
@@ -109904,7 +104485,7 @@ else:
                     if early_loading_status_placeholder_v69226 is not None:
                         early_loading_status_placeholder_v69226.empty()
                 except Exception:
-                    _observe_silent_exception_v69451("<module>@L104646")
+                    pass
 
                 visual_content_v69393 = (
                     visual_answer_v69393
@@ -109978,7 +104559,7 @@ else:
                 if early_loading_status_placeholder_v69226 is not None:
                     early_loading_status_placeholder_v69226.empty()
             except Exception:
-                _observe_silent_exception_v69451("<module>@L104720")
+                pass
 
             assistant_content_v69380 = terminal_answer_v69380
             st.session_state.messages.append({
@@ -110031,7 +104612,7 @@ else:
                     "Checking generation intent and project readiness..."
                 )
             except Exception:
-                _observe_silent_exception_v69451("<module>@L104773")
+                pass
         diagnostic_log(
             "command_preflight_ready_v68864",
             workspace=str(assistant),
@@ -110043,10 +104624,13 @@ else:
             upload_count=len(effective_uploaded_files or []),
         )
 
-        # v69452: an explicit learning command takes precedence over every
-        # content detector whether it is authorized or denied. A denied command
-        # must fail closed instead of falling through to another tool/provider.
-        if learning_command_detected_v69452:
+        # A staff command such as "learn this and save this" must take
+        # precedence over every content detector. The pasted material can
+        # legitimately mention PDF, document, weather, order numbers, product
+        # models, compatibility, or other trigger words; none of those should
+        # launch a document export, live integration, workspace tool, vector
+        # search, or product-library enrichment during the learning turn.
+        if explicit_learning_requested:
             execution_plan = {
                 **execution_plan,
                 "document": None,
@@ -110055,11 +104639,7 @@ else:
                 "workspace": {"type": "none"},
                 "response_mode": {
                     "type": "complete_standard",
-                    "label": (
-                        "Learning Confirmation"
-                        if learning_admin_authorized_v69452
-                        else "Admin Authorization Required"
-                    ),
+                    "label": "Learning Confirmation",
                 },
                 "use_file_search": False,
             }
@@ -110566,7 +105146,7 @@ else:
                         expanded=False,
                     )
                 except Exception:
-                    _observe_silent_exception_v69451("<module>@L105307")
+                    pass
             graphic_early_status_v68865 = None
         is_graphic_project_ready_ack = bool(
             assistant == "🎨 Graphic Marketing"
@@ -110755,26 +105335,7 @@ else:
         previous_response_export_requested = False
         direct_document_export_requested = False
 
-        if explicit_learning_access_denied_v69452:
-            response_start_time = time.time()
-            answer = (
-                "Learn and save is restricted to administrator accounts. "
-                "No shared knowledge was saved or changed."
-            )
-            diagnostic_log(
-                "learning_command_blocked_non_admin_v69452",
-                role=str(st.session_state.get("role") or "").strip().lower() or "none",
-                workspace=str(assistant),
-                website_learning=bool(technical_website_learning_detected_v69452),
-            )
-            response_time = round(time.time() - response_start_time, 2)
-            tokens_used = None
-            render_chat_message(
-                "assistant",
-                answer,
-                message_index=len(st.session_state.messages),
-            )
-        elif is_graphic_reference_learning:
+        if is_graphic_reference_learning:
             response_start_time = time.time()
             try:
                 with st.spinner("Analyzing and saving reference style..."):
@@ -110846,11 +105407,11 @@ else:
         ):
             response_start_time = time.time()
             website_chat_images_v68870 = []
-            if not learning_admin_authorized_v69452:
+            if str(st.session_state.get("role") or "").strip().lower() != "admin":
                 answer = (
                     "Website learning changes the shared Technical Support knowledge base, "
-                    "so this command is restricted to administrator accounts. "
-                    "No shared knowledge was saved or changed."
+                    "so this command is restricted to admin accounts. Please use an admin "
+                    "account or submit the page through Admin Panel → Upload Knowledge."
                 )
             else:
                 try:
@@ -110928,12 +105489,7 @@ else:
         elif explicit_learning_requested and not is_graphic_generation:
             response_start_time = time.time()
             inline_learning_payload = extract_explicit_learning_payload(interaction_prompt)
-            if learning_attachment_stage_error_v69454:
-                answer = (
-                    "I could not stage the attached learning source safely, so nothing was queued or saved. "
-                    f"Details: {learning_attachment_stage_error_v69454}"
-                )
-            elif inline_learning_payload:
+            if inline_learning_payload:
                 answer = (
                     "Knowledge received. I will extract only the new or changed reusable "
                     "facts, merge them with matching approved knowledge, and avoid saving "
@@ -110988,7 +105544,7 @@ else:
                         ).hexdigest()
                     )
                 except Exception:
-                    _observe_silent_exception_v69451("<module>@L105705")
+                    pass
             project_before_generation_v68837 = get_graphic_project_state()
             switch_v68837 = dict(
                 project_before_generation_v68837.get(
@@ -111046,8 +105602,6 @@ else:
             if not lease_token_v68848:
                 diagnostic_log("graphic_v68848_duplicate_execution_blocked", job_id=str(durable_job_v68844.get("job_id") or ""))
                 st.info("This image request is already processing in another session. The result will appear when it completes.")
-                _set_chat_composer_busy_v69468(False)
-                diagnostic_log("chat_native_submit_guard_released_on_graphic_duplicate_v69468")
                 st.stop()
             durable_job_v68844["lease_token_local"] = lease_token_v68848
             current_attempt_v68844 = int(durable_job_v68844.get("attempt") or 0)
@@ -111083,7 +105637,7 @@ else:
                 try:
                     graphic_early_status_v68865.empty()
                 except Exception:
-                    _observe_silent_exception_v69451("<module>@L105798")
+                    pass
                 graphic_early_status_v68865 = None
 
             _graphic_v68874_release_transient_memory("before_graphic_generation")
@@ -111122,7 +105676,7 @@ else:
             followup_interruption_retry_exhausted_v69317 = False
             try:
                 with _heavy_work_guard_v69188("graphic-generation"):
-                    generated_images = _GRAPHIC_V69451_FINAL_ENGINE(
+                    generated_images = generate_graphic_marketing_images(
                         prompt,
                         graphic_generation_files,
                         use_approved_style=graphic_options.get("use_approved_style", True),
@@ -111773,30 +106327,7 @@ else:
                                 detected_request,
                             )
                         )
-                        exact_learned_recall_v69474 = None
-                        if (
-                            not direct_order_lookup_v69370
-                            and not explicit_learning_requested
-                            and not graphic_generation_files
-                            and active_structured_tool is None
-                        ):
-                            exact_learned_recall_v69474 = _cross_conversation_exact_learned_answer_v69474(
-                                interaction_prompt,
-                                assistant,
-                                detected_live_request=detected_request,
-                            )
-                        if exact_learned_recall_v69474:
-                            stream_source_v69370 = (
-                                str(exact_learned_recall_v69474.get("answer") or ""),
-                            )
-                            use_file_search = False
-                            diagnostic_log(
-                                "cross_case_exact_learned_answer_committed_v69474",
-                                workspace=str(assistant),
-                                record_id=str(exact_learned_recall_v69474.get("record_id") or ""),
-                                confidence=int(exact_learned_recall_v69474.get("confidence") or 0),
-                            )
-                        elif direct_order_lookup_v69370:
+                        if direct_order_lookup_v69370:
                             # v69371: A simple WooCommerce order lookup is already a complete,
                             # deterministic app-owned answer.  v69370 only *logged* that the
                             # result was committed, then continued through the normal image /
@@ -112176,7 +106707,7 @@ else:
                                     unsafe_allow_html=True,
                                 )
                             except Exception:
-                                _observe_silent_exception_v69451("<module>@L106868")
+                                pass
 
                             # Record a safe diagnostic in Streamlit Cloud logs without
                             # exposing request contents, uploaded-file data, or secrets.
@@ -112571,7 +107102,7 @@ else:
                                         product_context_v69156, ""
                                     )
                             except Exception:
-                                _observe_silent_exception_v69451("<module>@L107263")
+                                pass
 
                             # Remove any earlier v69124 sibling context from this request.
                             # v69155 has now hydrated the full exact package and is the
@@ -112588,7 +107119,7 @@ else:
                                         "\n\n" + prior_variant_context_v69124, ""
                                     ).replace(prior_variant_context_v69124, "")
                             except Exception:
-                                _observe_silent_exception_v69451("<module>@L107280")
+                                pass
 
                             # Persist exact structural provenance for rerun/history.
                             st.session_state["_technical_last_section_authority_v69142"] = {
@@ -113525,78 +108056,46 @@ else:
                                     ),
                                 )
                             elif workspace_sales_manifest_key_v69420:
-                                # v69483: current Woo packages already contain the primary
-                                # storefront images. Build that manifest synchronously from
-                                # memory so it is ready the instant the text finishes. Only
-                                # topical/missing-image cases need the legacy async recovery.
-                                instant_primary_v69483 = []
-                                if (
-                                    is_sales_workspace(assistant)
-                                    and _workspace_sales_broad_discovery_prompt_v69411(
-                                        interaction_prompt
+                                from concurrent.futures import ThreadPoolExecutor
+                                workspace_sales_image_prefetch_executor_v69420 = (
+                                    ThreadPoolExecutor(
+                                        max_workers=1,
+                                        thread_name_prefix="atp-sales-image-prefetch",
                                     )
-                                ):
-                                    instant_primary_v69483 = (
-                                        _workspace_sales_fast_primary_manifest_v69420(
-                                            assistant,
-                                            interaction_prompt,
-                                            workspace_atp_authority_v69180,
-                                            12,
+                                )
+                                workspace_sales_image_prefetch_future_v69420 = (
+                                    workspace_sales_image_prefetch_executor_v69420.submit(
+                                        _workspace_sales_exact_image_manifest_v69420,
+                                        assistant,
+                                        interaction_prompt,
+                                        workspace_atp_authority_v69180,
+                                        12,
+                                    )
+                                )
+                                diagnostic_log(
+                                    "workspace_sales_exact_image_prefetch_started_v69420",
+                                    workspace=str(assistant),
+                                    authority_status=str(
+                                        workspace_atp_authority_v69180.get("status")
+                                        or ""
+                                    ),
+                                    products=(
+                                        len(
+                                            workspace_atp_authority_v69180.get(
+                                                "packages"
+                                            )
+                                            or []
                                         )
-                                    )
-                                if instant_primary_v69483:
-                                    workspace_sales_prefetched_manifest_v69420 = {
-                                        "mode": "primary",
-                                        "images": [
-                                            dict(x) for x in instant_primary_v69483
-                                            if isinstance(x, dict)
-                                        ],
-                                    }
-                                    diagnostic_log(
-                                        "workspace_sales_primary_manifest_instant_ready_v69483",
-                                        published=len(instant_primary_v69483),
-                                    )
-                                else:
-                                    from concurrent.futures import ThreadPoolExecutor
-                                    workspace_sales_image_prefetch_executor_v69420 = (
-                                        ThreadPoolExecutor(
-                                            max_workers=1,
-                                            thread_name_prefix="atp-sales-image-prefetch",
-                                        )
-                                    )
-                                    workspace_sales_image_prefetch_future_v69420 = (
-                                        workspace_sales_image_prefetch_executor_v69420.submit(
-                                            _workspace_sales_exact_image_manifest_v69420,
-                                            assistant,
-                                            interaction_prompt,
-                                            workspace_atp_authority_v69180,
-                                            12,
-                                        )
-                                    )
-                                    diagnostic_log(
-                                        "workspace_sales_exact_image_prefetch_started_v69420",
-                                        workspace=str(assistant),
-                                        authority_status=str(
-                                            workspace_atp_authority_v69180.get("status")
+                                        if str(
+                                            workspace_atp_authority_v69180.get(
+                                                "status"
+                                            )
                                             or ""
-                                        ),
-                                        products=(
-                                            len(
-                                                workspace_atp_authority_v69180.get(
-                                                    "packages"
-                                                )
-                                                or []
-                                            )
-                                            if str(
-                                                workspace_atp_authority_v69180.get(
-                                                    "status"
-                                                )
-                                                or ""
-                                            )
-                                            == "recovered_multi"
-                                            else 1
-                                        ),
-                                    )
+                                        )
+                                        == "recovered_multi"
+                                        else 1
+                                    ),
+                                )
                         except Exception as prefetch_error_v69420:
                             workspace_sales_image_prefetch_executor_v69420 = None
                             workspace_sales_image_prefetch_future_v69420 = None
@@ -114454,7 +108953,7 @@ else:
                                     unsafe_allow_html=True,
                                 )
                             except Exception:
-                                _observe_silent_exception_v69451("<module>@L109114")
+                                pass
 
                             # Record a safe diagnostic in Streamlit Cloud logs without
                             # exposing request contents, uploaded-file data, or secrets.
@@ -114561,10 +109060,6 @@ else:
                         if isinstance(x, dict)
                     ]
                     if fast_images_v69420:
-                        if str(fast_manifest_v69420.get("mode") or "") == "topical":
-                            fast_images_v69420 = _workspace_sales_unique_topical_visuals_v69475(
-                                fast_images_v69420
-                            )
                         generated_images.extend(
                             fast_images_v69420
                         )
@@ -114574,8 +109069,7 @@ else:
                             )
                         )
                         preview_html_v69420 = render_image_previews(
-                            fast_images_v69420,
-                            loading_mode="eager",
+                            fast_images_v69420
                         )
                         if preview_html_v69420:
                             st.markdown(
@@ -115738,96 +110232,34 @@ else:
                     topical_visual_request_v69403
                     and not sales_exact_topic_visuals_v69399
                 ):
-                    # An implicit compatibility-identification follow-up may use
-                    # exact product primary photos as a clearly labeled fallback
-                    # when no exact dashboard/reference image exists. Explicit
-                    # topical-photo requests still fail closed.
-                    implicit_compatibility_visual_v69492 = bool(
-                        is_sales_workspace(assistant)
-                        and _workspace_sales_auto_compatibility_visual_intent_v69418(
-                            interaction_prompt
+                    # Explicit topical visual requests fail closed. Never replace
+                    # a missing compatibility/reference image with a general hero.
+                    generated_images = [
+                        image
+                        for image in (generated_images or [])
+                        if not (
+                            isinstance(image, dict)
+                            and str(image.get("source") or "") == "website_knowledge"
                         )
-                        and not _website_image_explicit_visual_request_v68888(
-                            interaction_prompt
-                        )
+                    ]
+                    topical_product_count_v69405 = (
+                        len(workspace_atp_authority_v69180.get("packages") or [])
+                        if str(workspace_atp_authority_v69180.get("status") or "")
+                        == "recovered_multi"
+                        else 1
                     )
-                    if implicit_compatibility_visual_v69492:
-                        sales_exact_primaries_v69398 = (
-                            _workspace_sales_exact_primary_final_lock_v69398(
-                                assistant,
-                                interaction_prompt,
-                                workspace_atp_authority_v69180,
-                                max_images=6,
-                            )
-                        )
-                        if sales_exact_primaries_v69398:
-                            fallback_note_v69492 = (
-                                "The product photos below show the replacement units, not a reference image of your original dashboard setup. "
-                                "Upload a clear dashboard/radio photo and I can help identify your exact configuration."
-                            )
-                            answer = str(answer or "")
-                            replaced_claim_v69492 = False
-                            for stale_claim_v69492 in (
-                                "The main product photo for each matching product is shown below.",
-                                "The main product photo for each option is shown below.",
-                                "The main product photo is shown below.",
-                            ):
-                                if stale_claim_v69492 in answer:
-                                    answer = answer.replace(stale_claim_v69492, fallback_note_v69492)
-                                    replaced_claim_v69492 = True
-                            if not replaced_claim_v69492:
-                                answer = (answer.rstrip() + "\n\n" + fallback_note_v69492).strip()
-                            diagnostic_log(
-                                "workspace_sales_compatibility_visual_primary_fallback_v69492",
-                                products=len(sales_exact_primaries_v69398),
-                                prompt_tokens=sorted(topical_tokens_v69403)[:20],
-                            )
-                        else:
-                            no_image_note_v69492 = (
-                                "I couldn't find an exact dashboard-reference image in the current product sources. "
-                                "Upload a clear dashboard/radio photo and I can help identify your exact configuration."
-                            )
-                            answer = str(answer or "")
-                            for stale_claim_v69492 in (
-                                "The main product photo for each matching product is shown below.",
-                                "The main product photo for each option is shown below.",
-                                "The main product photo is shown below.",
-                            ):
-                                answer = answer.replace(stale_claim_v69492, no_image_note_v69492)
-                            generated_images = [
-                                image for image in (generated_images or [])
-                                if not (isinstance(image, dict) and str(image.get("source") or "") == "website_knowledge")
-                            ]
-                            diagnostic_log(
-                                "workspace_sales_compatibility_visual_no_exact_images_v69492",
-                                products=len(workspace_atp_authority_v69180.get("packages") or []),
-                                prompt_tokens=sorted(topical_tokens_v69403)[:20],
-                            )
-                    else:
-                        # Explicit topical visual requests fail closed. Never replace
-                        # a missing compatibility/reference image with a general hero.
-                        generated_images = [
-                            image for image in (generated_images or [])
-                            if not (isinstance(image, dict) and str(image.get("source") or "") == "website_knowledge")
-                        ]
-                        topical_product_count_v69405 = (
-                            len(workspace_atp_authority_v69180.get("packages") or [])
-                            if str(workspace_atp_authority_v69180.get("status") or "") == "recovered_multi"
-                            else 1
-                        )
+                    diagnostic_log(
+                        "workspace_topical_visual_fail_closed_v69405",
+                        workspace=str(assistant),
+                        prompt_tokens=sorted(topical_tokens_v69403)[:20],
+                        products=topical_product_count_v69405,
+                    )
+                    if is_sales_workspace(assistant):
                         diagnostic_log(
-                            "workspace_topical_visual_fail_closed_v69405",
-                            workspace=str(assistant),
+                            "workspace_sales_topical_visual_fail_closed_v69403",
                             prompt_tokens=sorted(topical_tokens_v69403)[:20],
                             products=topical_product_count_v69405,
                         )
-                        if is_sales_workspace(assistant):
-                            diagnostic_log(
-                                "workspace_sales_topical_visual_fail_closed_v69403",
-                                prompt_tokens=sorted(topical_tokens_v69403)[:20],
-                                products=topical_product_count_v69405,
-                            )
-
 
                 sales_final_exact_images_v69399 = (
                     list(sales_exact_topic_visuals_v69399)
@@ -115835,16 +110267,6 @@ else:
                     else list(sales_exact_primaries_v69398)
                 )
                 if sales_final_exact_images_v69399:
-                    if sales_exact_topic_visuals_v69399:
-                        for stale_claim_v69492 in (
-                            "The main product photo for each matching product is shown below.",
-                            "The main product photo for each option is shown below.",
-                            "The main product photo is shown below.",
-                        ):
-                            answer = str(answer or "").replace(
-                                stale_claim_v69492,
-                                "A relevant image from the exact product page is shown below.",
-                            )
                     non_web_v69398 = [
                         image
                         for image in (generated_images or [])
@@ -115921,14 +110343,6 @@ else:
                 diagnostic_event="technical_v69050_late_image_publication_restored_v69363",
             )
 
-        # v69475: identical exact topical compatibility/reference visuals can be
-        # shared by multiple exact products. Show the authored image once while
-        # retaining every exact product binding in metadata/caption.
-        if generated_images and (is_sales_workspace(assistant) or is_marketing_workspace(assistant)):
-            generated_images = _workspace_sales_unique_topical_visuals_v69475(
-                generated_images
-            )
-
         # v69346: once a Sales/Marketing product image has already been displayed
         # earlier in this same case, do not repeat it on follow-up questions about
         # that same product. A different exact /product/.../ identity remains
@@ -115993,7 +110407,7 @@ else:
             try:
                 technical_image_prefetch_executor_active_v69015.shutdown(wait=False)
             except Exception:
-                _observe_silent_exception_v69451("<module>@L110568")
+                pass
 
         # Product Library photos are stored with the assistant message just like
         # uploaded/generated images. This keeps them visible after Streamlit
@@ -116422,7 +110836,6 @@ else:
                         "assistant",
                         assistant_content_to_save,
                     )
-                    st.session_state["_chat_durable_sync_pending_v69473"] = True
                 except Exception as e:
                     st.warning(f"AI answer was not saved to history: {e}")
 
@@ -116465,8 +110878,6 @@ else:
             not is_woocommerce_request
             and not is_graphic_reference_learning
             and not technical_website_learning_requested_v68870
-            and not explicit_learning_access_denied_v69452
-            and not learning_attachment_stage_error_v69454
         ):
             queue_ai_postprocess(
                 interaction_prompt,
@@ -116480,7 +110891,6 @@ else:
                 is_structured_graphic_tool=is_structured_graphic_tool,
                 explicit_learning=explicit_learning_requested,
                 learning_context=learning_context_snapshot,
-                learning_attachments=learning_attachments_v69454,
             )
 
         # Complete the idempotent submission lifecycle before clearing uploads.
@@ -116508,7 +110918,7 @@ else:
                     cancel_futures=False,
                 )
             except Exception:
-                _observe_silent_exception_v69451("<module>@L111079")
+                pass
 
         st.session_state.scroll_to_bottom = True
         diagnostic_log(
@@ -116523,33 +110933,7 @@ else:
                 st.session_state.get("pending_ai_postprocess")
             ),
         )
-        # v69468: keep the Python-side structured-tool bridge busy through final maintenance. Native
-        # Streamlit remains disabled until scriptFinished, so the draft overlay is not
-        # transferred back into the real composer until the framework itself declares the
-        # run complete.
-        _release_chat_guard_at_script_end_v69468 = True
-
-        # v69461: normal text workspaces must not immediately destroy the just-rendered
-        # answer/composer DOM. The user-observed production failure happened after the
-        # answer was correctly committed and saved, exactly when this unconditional rerun
-        # rebuilt the page. Keep the completed Sales/Technical/Marketing answer mounted;
-        # the next genuine user interaction naturally reruns Streamlit and reconstructs
-        # the saved message from session_state/history. Graphic Marketing retains its
-        # controlled rerun because its durable generation lifecycle depends on it.
-        if assistant == "🎨 Graphic Marketing":
-            diagnostic_log(
-                "ai_response_graphic_controlled_rerun_v69461",
-                conversation_id=st.session_state.get("conversation_id"),
-                message_count=len(st.session_state.get("messages", [])),
-            )
-            st.rerun()
-        else:
-            diagnostic_log(
-                "ai_response_dom_preserved_without_forced_rerun_v69461",
-                workspace=str(assistant),
-                conversation_id=st.session_state.get("conversation_id"),
-                message_count=len(st.session_state.get("messages", [])),
-            )
+        st.rerun()
 
 # Process maintenance only after the completed answer has already been
 # persisted and displayed on the previous run. On the first destination render
@@ -117595,88 +111979,6 @@ def _render_final_print_authority_v69009():
 
 
 _render_final_print_authority_v69009()
-
-
-def _render_print_ancestor_authority_v69480():
-    """Final native-print fallback using explicit DOM ancestry markers.
-
-    This intentionally comes after the untouched v69449 print authority. It only
-    changes print-time visibility/layout for the transcript branch and does not
-    modify the normal application UI or any Graphic/Technical/Sales logic.
-    """
-    st.markdown(
-        r"""
-        <style>
-        @media print {
-            /* Current Streamlit 1.61 can snapshot the page after the v69449
-               display:none rule but before :has() restores the transcript branch.
-               Explicit classes stamped on the real ancestry remove that race. */
-            html body .atp-print-keep-v69480.atp-print-keep-v69480.atp-print-keep-v69480 {
-                display: block !important;
-                visibility: visible !important;
-                float: none !important;
-                flex: none !important;
-                width: auto !important;
-                min-width: 0 !important;
-                max-width: none !important;
-                height: auto !important;
-                min-height: 0 !important;
-                max-height: none !important;
-                overflow: visible !important;
-                overflow-x: visible !important;
-                overflow-y: visible !important;
-                position: static !important;
-                inset: auto !important;
-                transform: none !important;
-                contain: none !important;
-                clip: auto !important;
-                clip-path: none !important;
-                background: #ffffff !important;
-                color-scheme: light !important;
-            }
-
-            [data-testid="stMainBlockContainer"]
-            div[data-testid="stElementContainer"].atp-print-keep-v69480 {
-                display: block !important;
-                visibility: visible !important;
-                width: auto !important;
-                height: auto !important;
-                max-height: none !important;
-                overflow: visible !important;
-                position: static !important;
-                contain: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                background: #ffffff !important;
-            }
-
-            html body .st-key-atp_print_transcript_root_v69480,
-            html body .st-key-atp_print_transcript_root_v69480 *,
-            html body .atp-print-transcript-v69007,
-            html body .atp-print-transcript-v69007 * {
-                visibility: visible !important;
-                opacity: 1 !important;
-            }
-
-            html body .st-key-atp_print_transcript_root_v69480 {
-                display: block !important;
-                width: 100% !important;
-                height: auto !important;
-                max-height: none !important;
-                overflow: visible !important;
-                position: static !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                background: #ffffff !important;
-            }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-_render_print_ancestor_authority_v69480()
 
 
 # Authentication transition cleanup must be the final UI operation.  Keeping
