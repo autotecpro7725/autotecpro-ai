@@ -1,4 +1,4 @@
-# AutoTecPro AI v69449-tech-speed-08 - full source steps + clickable exact-topic videos
+# AutoTecPro AI v69449-tech-speed-09 - render clickable Watch Video links
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
 # AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
@@ -92,8 +92,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-08"
-AUTOTECPRO_RELEASE_BUILD = "v69449-tech-speed-08-full-steps-clickable-topic-videos-20260929"
+AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-09"
+AUTOTECPRO_RELEASE_BUILD = "v69449-tech-speed-09-technical-watch-video-render-20260929"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -8019,6 +8019,30 @@ def normalize_assistant_markdown(text):
     return repaired
 
 
+def _technical_related_video_bullet_html_v69516(item_text):
+    """Render only verified YouTube Markdown links inside Technical video lists."""
+    value = str(item_text or "")
+    link_pattern = re.compile(r"\[Watch Video\]\((https://[^)\s]+)\)", flags=re.I)
+    matches = list(link_pattern.finditer(value))
+    if not matches:
+        return ""
+    parts = []
+    cursor = 0
+    for match in matches:
+        url = str(match.group(1) or "").strip()
+        if not re.match(r"^https://(?:www\.)?(?:youtu\.be/|youtube(?:-nocookie)?\.com/)", url, flags=re.I):
+            return ""
+        parts.append(html.escape(value[cursor:match.start()]))
+        safe_url = html.escape(url, quote=True)
+        parts.append(
+            f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer" '
+            'style="color:#79b8ff;text-decoration:underline;font-weight:700">Watch Video</a>'
+        )
+        cursor = match.end()
+    parts.append(html.escape(value[cursor:]))
+    return "".join(parts)
+
+
 @st.cache_data(ttl=900, max_entries=512, show_spinner=False)
 def html_from_text(text, assistant_mode=False):
     """Render safe markdown-like chat HTML with richer assistant spacing."""
@@ -8206,9 +8230,13 @@ def html_from_text(text, assistant_mode=False):
             elif active_section == "known limitations":
                 section_class = " atp-section-list-item atp-warning-item"
                 marker = "!"
+            if assistant_mode and active_section == "related videos":
+                video_html = _technical_related_video_bullet_html_v69516(item_text)
+            else:
+                video_html = ""
             html_lines.append(
                 f'<div class="atp-copy-list-item atp-copy-bullet{section_class}">'
-                f'{marker} {inline_format(item_text)}'
+                f'{marker} {video_html or inline_format(item_text)}'
                 '</div>'
             )
         elif assistant_mode and numbered_item:
@@ -96254,7 +96282,11 @@ def _technical_exact_topic_direct_answer_v69409(direct_evidence):
             if key in seen_video_urls_v69515:
                 continue
             seen_video_urls_v69515.add(key)
-            lines.append(f"- [{label}]({url})")
+            context = re.sub(r"^watch\s+", "", label, flags=re.I)
+            context = re.sub(r"\s+video$", "", context, flags=re.I).strip()
+            context = re.sub(r"\s+setup$", "", context, flags=re.I).strip()
+            prefix = f"{context}: " if context else ""
+            lines.append(f"- {prefix}[Watch Video]({url})")
         lines.append("")
 
     answer = "\n".join(lines).strip()
