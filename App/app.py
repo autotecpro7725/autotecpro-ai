@@ -1,4 +1,4 @@
-# AutoTecPro AI v69449-tech-speed-09 - render clickable Watch Video links
+# AutoTecPro AI v69449-tech-speed-11 - render verified Technical video tabs in their topic sections
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
 # AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
@@ -92,8 +92,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-09"
-AUTOTECPRO_RELEASE_BUILD = "v69449-tech-speed-09-technical-watch-video-render-20260929"
+AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-11"
+AUTOTECPRO_RELEASE_BUILD = "v69449-tech-speed-11-technical-section-video-tabs-20260929"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -8019,24 +8019,89 @@ def normalize_assistant_markdown(text):
     return repaired
 
 
+def _technical_related_video_entries_v69517(text):
+    """Extract exact-topic Watch Video links for final rendering/persistence."""
+    entries = []
+    seen = set()
+    for line in str(text or "").splitlines():
+        match = re.match(
+            r"^\s*[-•]\s*(?:(.*?)\s*:\s*)?\[Watch Video\]\((https://[^)\s]+)\)\s*$",
+            line,
+            flags=re.I,
+        )
+        if not match:
+            continue
+        context = re.sub(r"\s+", " ", str(match.group(1) or "")).strip(" -*•")
+        url = str(match.group(2) or "").strip()
+        if not re.match(r"^https://(?:www\.)?(?:youtu\.be/|youtube(?:-nocookie)?\.com/)", url, flags=re.I):
+            continue
+        key = url.split("?", 1)[0].rstrip("/").casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        entries.append({"context": context, "url": url})
+    return entries[:12]
+
+
+def _technical_preserve_topic_videos_v69517(answer_text, exact_source_answer):
+    """Re-attach source-verified links after later Technical answer formatters."""
+    answer = str(answer_text or "").strip()
+    source = str(exact_source_answer or "").strip()
+    entries = _technical_related_video_entries_v69517(source)
+    if not entries:
+        return answer, 0
+    # A URL elsewhere in the response (for example a product link or a source
+    # citation) must not count as a displayed video link. Only preserve videos
+    # that are already represented by the exact Watch Video markdown label.
+    present = {
+        str(match.group(1) or match.group(2)).split("?", 1)[0].rstrip("/").casefold()
+        for match in re.finditer(
+            r"\[Watch Video\]\((https://[^)\s]+)\)"
+            r"|(?<!\w)(?:\*\*)?Watch Video(?:\*\*)?:\s*(https://[^\s<>)]+)",
+            answer, flags=re.I,
+        )
+    }
+    missing = [
+        item for item in entries
+        if item["url"].split("?", 1)[0].rstrip("/").casefold() not in present
+    ]
+    if not missing:
+        return answer, len(entries)
+    lines = []
+    if "related videos" not in answer.casefold():
+        lines.extend(["### Related videos", ""])
+    for item in missing:
+        prefix = f"{item['context']}: " if item["context"] else ""
+        lines.append(f"- {prefix}[Watch Video]({item['url']})")
+    answer = (answer + "\n\n" if answer else "") + "\n".join(lines)
+    return answer.strip(), len(entries)
+
+
 def _technical_related_video_bullet_html_v69516(item_text):
-    """Render only verified YouTube Markdown links inside Technical video lists."""
+    """Render Technical Watch Video labels as links within their topic section."""
     value = str(item_text or "")
-    link_pattern = re.compile(r"\[Watch Video\]\((https://[^)\s]+)\)", flags=re.I)
+    link_pattern = re.compile(
+        r"\[Watch Video\]\((https://[^)\s]+)\)"
+        r"|(?<!\w)(?:\*\*)?Watch Video(?:\*\*)?:\s*"
+        r"(https://[^\s<>)]+)",
+        flags=re.I,
+    )
     matches = list(link_pattern.finditer(value))
     if not matches:
         return ""
     parts = []
     cursor = 0
     for match in matches:
-        url = str(match.group(1) or "").strip()
+        url = str(match.group(1) or match.group(2) or "").strip()
         if not re.match(r"^https://(?:www\.)?(?:youtu\.be/|youtube(?:-nocookie)?\.com/)", url, flags=re.I):
             return ""
         parts.append(html.escape(value[cursor:match.start()]))
         safe_url = html.escape(url, quote=True)
         parts.append(
             f'<a href="{safe_url}" target="_blank" rel="noopener noreferrer" '
-            'style="color:#79b8ff;text-decoration:underline;font-weight:700">Watch Video</a>'
+            'style="display:inline-flex;align-items:center;padding:6px 12px;'
+            'border:1px solid #79b8ff;border-radius:9px;background:#14284a;'
+            'color:#dcecff;text-decoration:none;font-weight:700">Watch Video</a>'
         )
         cursor = match.end()
     parts.append(html.escape(value[cursor:]))
@@ -8044,7 +8109,7 @@ def _technical_related_video_bullet_html_v69516(item_text):
 
 
 @st.cache_data(ttl=900, max_entries=512, show_spinner=False)
-def html_from_text(text, assistant_mode=False):
+def html_from_text(text, assistant_mode=False, technical_mode=False):
     """Render safe markdown-like chat HTML with richer assistant spacing."""
     if text is None:
         return ""
@@ -8230,7 +8295,7 @@ def html_from_text(text, assistant_mode=False):
             elif active_section == "known limitations":
                 section_class = " atp-section-list-item atp-warning-item"
                 marker = "!"
-            if assistant_mode and active_section == "related videos":
+            if assistant_mode and technical_mode:
                 video_html = _technical_related_video_bullet_html_v69516(item_text)
             else:
                 video_html = ""
@@ -8270,8 +8335,12 @@ def html_from_text(text, assistant_mode=False):
                         f'{inline_format(reply_text)}<br><br>'
                     )
             elif assistant_mode:
+                video_html = (
+                    _technical_related_video_bullet_html_v69516(stripped)
+                    if technical_mode else ""
+                )
                 html_lines.append(
-                    f'<p class="atp-chat-paragraph">{inline_format(stripped)}</p>'
+                    f'<p class="atp-chat-paragraph">{video_html or inline_format(stripped)}</p>'
                 )
             else:
                 html_lines.append(f"<div>{inline_format(stripped)}</div>")
@@ -8350,7 +8419,7 @@ def render_chat_message(
         f'<div class="chat-row">'
         f'<div class="chat-icon {icon_class}">{icon_html}</div>'
         f'<div class="chat-bubble {bubble_class}">'
-        f'{html_from_text(visible_content, assistant_mode=(role != "user"))}'
+        f'{html_from_text(visible_content, assistant_mode=(role != "user"), technical_mode=(_normalized_workspace_name() == "technical support"))}'
         f'{render_image_previews(html_regular_images_v69271)}'
         f'</div>'
         f'</div>'
@@ -8439,7 +8508,7 @@ def _build_print_transcript_html_v69007(messages, assistant_label="Technical Sup
 
         role_label = "You" if role == "user" else "AutoTecPro AI"
         role_class = "user" if role == "user" else "assistant"
-        body_html = html_from_text(visible_content, assistant_mode=(role != "user"))
+        body_html = html_from_text(visible_content, assistant_mode=(role != "user"), technical_mode=(str(assistant_label).strip().casefold() == "technical support"))
 
         image_html = []
         for image_index, image in enumerate(list(stored_images or []), start=1):
@@ -43680,7 +43749,7 @@ def _assistant_stream_html(visible_text):
         '<div class="chat-row">'
         f'<div class="chat-icon assistant-icon">{icon_html}</div>'
         '<div class="chat-bubble assistant-bubble">'
-        f'{html_from_text(visible_text, assistant_mode=True)}'
+        f'{html_from_text(visible_text, assistant_mode=True, technical_mode=(_normalized_workspace_name() == "technical support"))}'
         '</div>'
         '</div>'
     )
@@ -109312,6 +109381,21 @@ else:
                                 )
                                 if exact_video_answer_v69369:
                                     answer_body = exact_video_answer_v69369
+
+                            if bool(locals().get("technical_exact_topic_authority_v69409")):
+                                answer_body, preserved_video_count_v69517 = (
+                                    _technical_preserve_topic_videos_v69517(
+                                        answer_body,
+                                        locals().get("technical_exact_topic_answer_v69409") or "",
+                                    )
+                                )
+                                if preserved_video_count_v69517:
+                                    diagnostic_log(
+                                        "technical_final_topic_videos_preserved_v69517",
+                                        count=preserved_video_count_v69517,
+                                        answer_chars=len(answer_body),
+                                        visible_link_markers=answer_body.count("[Watch Video]("),
+                                    )
 
                         answer = answer_body
                         if order_display_text:
