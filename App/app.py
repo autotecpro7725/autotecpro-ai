@@ -1,3 +1,4 @@
+# AutoTecPro AI v69449-tech-speed-05 - source-complete audio alternatives + exact-topic YouTube links
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
 # AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
@@ -91,8 +92,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-04"
-AUTOTECPRO_RELEASE_BUILD = "v69449-technical-routing-response-speed-20260929"
+AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-05"
+AUTOTECPRO_RELEASE_BUILD = "v69449-tech-speed-05-audio-alternatives-topic-youtube-20260929"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -97817,6 +97818,17 @@ def _technical_confirmed_topic_index_v69395(state):
             "route": route,
             "priority": priority,
             "fact_ids": str(heading.get("data-atp-fact-ids") or ""),
+            # Keep source-authored alternatives available for broad symptom queries.
+            # These attributes are authored on the topic heading, so this remains
+            # generic across vehicles and products.
+            "audio_paths": [
+                re.sub(r"\s+", " ", value).strip()
+                for value in str(heading.get("data-atp-audio-paths") or "").split("|")
+                if re.sub(r"\s+", " ", value).strip()
+            ],
+            "audio_mutual_exclusion": str(
+                heading.get("data-atp-audio-mutual-exclusion") or ""
+            ).casefold() in {"true", "1", "yes"},
             "tokens": sorted(topic_tokens),
             "query_tokens": sorted(query_tokens),
             "excerpt": str(bound.get("excerpt") or "")[:7000],
@@ -97871,6 +97883,42 @@ def _technical_confirmed_topic_match_v69395(prompt_text, state):
     prompt_tokens = _technical_topic_tokens_v69395(prompt) - identity_tokens
     if not prompt_tokens:
         prompt_tokens = _technical_topic_tokens_v69395(prompt)
+
+    # Broad audio failures should receive the source-authored alternatives
+    # together. A leaf alias such as "no sound" can otherwise outrank the
+    # overview and hide the other valid, mutually exclusive audio method.
+    # An explicit path request (AUX/Bluetooth) remains on its exact leaf.
+    broad_audio_symptom_v69510 = bool(
+        re.search(r"\b(?:audio|sound)\b", prompt_norm)
+        and re.search(
+            r"\b(?:no|not|without|doesn['’]?t|does not|won['’]?t|silent|missing|issue|problem|trouble|work(?:ing)?|play(?:ing)?)\b",
+            prompt_norm,
+        )
+        and not re.search(r"\b(?:aux|bluetooth|bt)\b", prompt_norm)
+    )
+    if broad_audio_symptom_v69510:
+        audio_overviews_v69510 = [
+            row for row in topics
+            if str(row.get("route") or "").casefold().strip() == "overview"
+            and row.get("audio_mutual_exclusion")
+            and len(row.get("audio_paths") or []) >= 2
+        ]
+        if audio_overviews_v69510:
+            audio_overviews_v69510.sort(
+                key=lambda row: int(row.get("priority") or 0), reverse=True
+            )
+            result = dict(audio_overviews_v69510[0])
+            result.update({
+                "match_mode_v69395": "source_audio_alternatives_v69510",
+                "score_v69395": 0.0,
+                "margin_v69395": 0.0,
+            })
+            diagnostic_log(
+                "technical_audio_alternatives_selected_v69510",
+                topic=str(result.get("id") or "")[:160],
+                paths="|".join(result.get("audio_paths") or [])[:240],
+            )
+            return result
 
     scored = []
     for row in topics:
@@ -98043,6 +98091,66 @@ def _technical_confirmed_topic_match_v69395(prompt_text, state):
     return {}
 
 
+def _technical_topic_youtube_links_v69510(package_text, topic, prompt_text=""):
+    """Return exact learned YouTube links whose labels/context match this topic."""
+    topic = dict(topic or {})
+    text = str(package_text or "")
+    start = text.find("WEBSITE VIDEO LINKS")
+    if start < 0:
+        return []
+    blocks = re.split(r"(?m)^VIDEO\s+\d+\s*$", text[start:])[1:]
+    topic_text = " ".join((
+        str(topic.get("title") or ""), str(topic.get("topic") or ""),
+        " ".join(str(x) for x in (topic.get("aliases") or [])),
+        " ".join(str(x) for x in (topic.get("branch_paths") or [])),
+        str(prompt_text or ""),
+    ))
+    topic_tokens = _technical_topic_tokens_v69395(topic_text) - {
+        "youtube", "video", "watch", "link", "method", "instructions",
+        "verification", "technical", "support", "guide",
+    }
+    explicit_audio_path = ""
+    if re.search(r"\baux\b", str(prompt_text or ""), flags=re.I):
+        explicit_audio_path = "aux"
+    elif re.search(r"\b(?:bluetooth|bt)\b", str(prompt_text or ""), flags=re.I):
+        explicit_audio_path = "bluetooth"
+    output, seen = [], set()
+    for block in blocks:
+        def field(name):
+            match = re.search(rf"(?m)^{re.escape(name)}:\s*(.*?)\s*$", block)
+            return str(match.group(1) or "").strip() if match else ""
+
+        url = field("VIDEO_URL")
+        if not re.match(
+            r"^https://(?:www\.)?(?:youtu\.be/|youtube(?:-nocookie)?\.com/)",
+            url, flags=re.I,
+        ):
+            continue
+        label = field("VIDEO_LABEL_V69369")
+        metadata = " ".join((
+            label, field("VIDEO_CONTEXT_V69369"), field("VIDEO_BRANCHES_V69369")
+        ))
+        video_tokens = _technical_topic_tokens_v69395(metadata) - {
+            "youtube", "video", "watch", "link", "method", "instructions",
+            "verification", "technical", "support", "guide",
+        }
+        if explicit_audio_path and explicit_audio_path not in video_tokens:
+            continue
+        overlap = topic_tokens & video_tokens
+        if not overlap:
+            continue
+        key = url.split("?", 1)[0].rstrip("/").casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        output.append({
+            "label": (label or field("VIDEO_BRANCHES_V69369") or "Related setup video")[:220],
+            "url": url,
+            "overlap": sorted(overlap),
+        })
+    return output[:8]
+
+
 def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results=50):
     """Recover one selected package without broad discovery.
 
@@ -98102,6 +98210,15 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
                 (topic_match_v69395 or {}).get("excerpt") or ""
             ).strip()
             if topic_excerpt_v69395:
+                related_youtube_v69510 = _technical_topic_youtube_links_v69510(
+                    package_text_v69392, topic_match_v69395, clean_prompt
+                )
+                if related_youtube_v69510:
+                    topic_excerpt_v69395 += "\n\nSOURCE-VERIFIED RELATED YOUTUBE LINKS:\n"
+                    topic_excerpt_v69395 += "\n".join(
+                        f"{item['label']}: {item['url']}"
+                        for item in related_youtube_v69510
+                    )
                 topic_budget_v69395 = 6000
                 topic_excerpt_v69395 = topic_excerpt_v69395[:topic_budget_v69395]
                 topic_title_v69395 = str(
@@ -98139,8 +98256,8 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
                           "section for topic-specific facts. Preserve authored order, "
                           "branch conditions, warnings, and uncertainty. Do not invent "
                           "missing values or broaden to another topic/generation. "
-                          "Format the answer naturally and concisely.\n\n"
-                        + topic_excerpt_v69395
+                          "Format the answer naturally and concisely. Show every source-verified YouTube link included below as a clickable link with its source label, and do not add links from other sections.\n\n"
+                + topic_excerpt_v69395
                     ),
                 }
                 diagnostic_log(
