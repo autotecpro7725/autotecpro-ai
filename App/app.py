@@ -91,8 +91,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69449"
-AUTOTECPRO_RELEASE_BUILD = "v69449-product-bound-compatibility-image-stability-20260924"
+AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-03"
+AUTOTECPRO_RELEASE_BUILD = "v69449-technical-image-persistence-speed-20260929"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -14051,6 +14051,7 @@ def serialize_images_marker(images):
         "name", "data_url", "generated", "prompt", "created_at", "model",
         "size", "resolution", "mime_type", "filename", "source",
         "asset_type", "storage_path", "content_type", "archive_web_url",
+        "technical_website_image_storage_path_v69449",
         "graphic_display_storage_path_v69271", "graphic_display_url_v69271",
         "graphic_v69271_isolated_v69248", "graphic_v69271_mode",
         "graphic_v69271_source_sha256", "graphic_v69272_isolated_v69248",
@@ -14293,6 +14294,7 @@ def extract_images_from_message_content(content):
             "graphic_v69271_mode",
             "graphic_v69271_source_sha256",
             "website_image_index_v68883",
+            "technical_website_image_storage_path_v69449",
             "website_image_sha256",
             "website_image_match_score_v68883",
             "website_image_recovery_v68975",
@@ -14336,6 +14338,21 @@ def extract_images_from_message_content(content):
             if key in image:
                 clean_image[key] = image.get(key)
 
+        technical_archive_path_v69449 = str(
+            clean_image.get("technical_website_image_storage_path_v69449") or ""
+        ).strip()
+        if (
+            technical_archive_path_v69449
+            and str(clean_image.get("source") or "") == "website_knowledge"
+        ):
+            refreshed_signed_url_v69449 = _technical_website_image_signed_display_url_v69449(
+                technical_archive_path_v69449,
+                expires=86400,
+            )
+            if refreshed_signed_url_v69449.startswith("https://"):
+                clean_image["data_url"] = refreshed_signed_url_v69449
+            elif not str(clean_image.get("data_url") or "").startswith("https://"):
+                clean_image["data_url"] = str(clean_image.get("archive_web_url") or "")
         clean_images.append(clean_image)
 
     return visible_text, clean_images
@@ -64073,6 +64090,23 @@ def _website_storage_bytes_v68883(path):
     return _extract(payload)
 
 
+@st.cache_data(ttl=300, max_entries=512, show_spinner=False)
+def _technical_website_image_signed_display_url_v69449(storage_path, expires=86400):
+    """Issue a cached short-lived URL for an exact archived Technical image."""
+    clean_path = str(storage_path or "").strip().lstrip("/")
+    if not clean_path:
+        return ""
+    try:
+        return str(_product_library_signed_url(clean_path, expires=int(expires or 86400)) or "").strip()
+    except Exception as error:
+        diagnostic_log(
+            "technical_website_image_signed_display_url_failed_v69449",
+            error_type=type(error).__name__,
+            error=str(error)[:300],
+        )
+        return ""
+
+
 def _website_image_record_for_chat_v68883(payload):
     # v69032: file_search-reconstructed website payloads carry the v69017 archive
     # field names while durable index rows use the legacy names.  Accept both so
@@ -64089,7 +64123,16 @@ def _website_image_record_for_chat_v68883(payload):
         or "image/jpeg"
     ).strip()
     data_url = ""
-    if archive_path:
+    technical_archive_path_v69449 = ""
+    if archive_path and str(assistant or "") == "🔧 Technical Support":
+        signed_archive_url_v69449 = _technical_website_image_signed_display_url_v69449(
+            archive_path,
+            expires=86400,
+        )
+        if signed_archive_url_v69449.startswith("https://"):
+            data_url = signed_archive_url_v69449
+            technical_archive_path_v69449 = archive_path
+    if archive_path and not data_url:
         raw = _website_storage_bytes_v68883(archive_path)
         if raw:
             data_url = (
@@ -64114,6 +64157,7 @@ def _website_image_record_for_chat_v68883(payload):
         "archive_web_url": str(payload.get("image_url") or "").strip(),
         "generated": False,
         "website_image_index_v68883": True,
+        **({"technical_website_image_storage_path_v69449": technical_archive_path_v69449} if technical_archive_path_v69449 else {}),
         "website_image_sha256": str(payload.get("image_sha256") or ""),
         "website_source_page_v69010": str(payload.get("source_page") or "").strip(),
         "website_page_title_v69010": str(payload.get("page_title") or "").strip(),
@@ -75911,6 +75955,7 @@ def save_website_knowledge_package(
     Any precommit image failure restores the exact prior image metadata and removes
     transaction-owned orphan archives before the new vector is discarded.
     """
+    technical_learning_total_started_v69449 = time.perf_counter()
     diagnostic_log(
         "website_learning_memory_checkpoint_v69188",
         stage="before_save_package",
@@ -75929,6 +75974,7 @@ def save_website_knowledge_package(
         "Graphic Marketing Database": GRAPHIC_VECTOR_STORE_ID,
     }[database_choice]
 
+    technical_image_analysis_started_v69449 = time.perf_counter()
     if include_images and image_analysis_override_v69029 is not None:
         image_analysis = dict(image_analysis_override_v69029 or {})
         image_analysis["shared_analysis_reused_v69029"] = True
@@ -75937,6 +75983,17 @@ def save_website_knowledge_package(
             analyze_website_images(extraction, database_choice, selected_urls=selected_image_urls)
             if include_images else
             {"images": [], "attempted": 0, "skipped": 0, "failures": 0, "discovered": 0, "limited": False}
+        )
+    if database_choice == "Technical Support Database":
+        diagnostic_log(
+            "technical_learning_image_analysis_timing_v69449",
+            elapsed_seconds=round(time.perf_counter() - technical_image_analysis_started_v69449, 3),
+            attempted=int(image_analysis.get("attempted") or 0),
+            approved=len(image_analysis.get("images") or []),
+            reused=int(image_analysis.get("reused") or 0),
+            provider_calls=int(image_analysis.get("provider_calls") or 0),
+            failures=int(image_analysis.get("failures") or 0),
+            discovered=int(image_analysis.get("discovered") or 0),
         )
     approved_images = [
         dict(x) for x in (image_analysis.get("images") or [])
@@ -75984,6 +76041,7 @@ def save_website_knowledge_package(
                 error=str(compiled_embed_error_v69199)[:500],
             )
 
+    technical_vector_index_started_v69449 = time.perf_counter()
     file_id = ""
     newly_uploaded = False
     if exact_current_exists:
@@ -76018,7 +76076,16 @@ def save_website_knowledge_package(
                 "The new website package did not finish indexing. "
                 "Prior production authority was preserved."
             )
+    if database_choice == "Technical Support Database":
+        diagnostic_log(
+            "technical_learning_vector_index_timing_v69449",
+            elapsed_seconds=round(time.perf_counter() - technical_vector_index_started_v69449, 3),
+            already_indexed=bool(exact_current_exists),
+            status=str(indexing_status or ""),
+            package_chars=len(package_text),
+        )
 
+    technical_image_transaction_started_v69449 = time.perf_counter()
     image_snapshot_v69177 = None
     transaction_archives_v69177 = []
     image_sync = {
@@ -76103,6 +76170,16 @@ def save_website_knowledge_package(
         if include_images and not bool(image_durability.get("complete")):
             raise RuntimeError(
                 "Image learning did not pass durable write/read-back verification."
+            )
+        if database_choice == "Technical Support Database":
+            diagnostic_log(
+                "technical_learning_image_transaction_timing_v69449",
+                elapsed_seconds=round(time.perf_counter() - technical_image_transaction_started_v69449, 3),
+                approved=len(approved_images),
+                indexed=int(image_stats.get("indexed") or 0),
+                image_failures=int(image_stats.get("failures") or 0),
+                sync_completed=bool(image_sync.get("completed")),
+                durability_complete=bool(image_durability.get("complete")),
             )
 
     except Exception as image_transaction_error_v69177:
@@ -76354,6 +76431,14 @@ def save_website_knowledge_package(
     _graphic_v68874_release_transient_memory(
         "after_website_learning_package_v69189"
     )
+    if database_choice == "Technical Support Database":
+        diagnostic_log(
+            "technical_learning_post_commit_timing_v69449",
+            elapsed_seconds=round(time.perf_counter() - technical_learning_total_started_v69449, 3),
+            authority_commit=bool(technical_active_authority_commit_v69192.get("complete")),
+            verified_years=len(technical_active_authority_commit_v69192.get("verified") or []),
+            replaced_files=int(replaced_file_count or 0),
+        )
 
     return {
         "already_saved": bool(exact_current_exists),
@@ -98829,6 +98914,25 @@ def _technical_clear_photo_context_v68879():
     st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
 
 
+def _technical_troubleshooting_catalog_lookup_unneeded_v69449(prompt_text):
+    """Recognize clear symptom diagnosis that does not need catalogue discovery.
+
+    This controls optional Product Library enrichment only. Technical source
+    retrieval, package ambiguity checks, and visual authority remain unchanged.
+    """
+    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
+    return bool(re.search(
+        r"\b(?:no audio|no sound|no power|no camera|no gps|no signal|"
+        r"camera no (?:image|signal)|camera (?:not working|doesn['’]?t work|has no image)|"
+        r"gps (?:not working|doesn['’]?t work)|bluetooth disconnect(?:s|ed|ing)?|"
+        r"wifi (?:not connecting|disconnect(?:s|ed|ing)?)|carplay (?:not working|disconnect(?:s|ed)?)|"
+        r"android auto (?:not working|disconnect(?:s|ed)?)|touch(?:screen)? not responding|"
+        r"won['’]?t power|won['’]?t turn on|black screen|blank screen|screen flicker|"
+        r"keeps rebooting|not booting|error code|fault code)\b",
+        prompt,
+    ))
+
+
 PRODUCT_LIBRARY_SCOPE_KEY_V69362 = "_product_library_state_scope_v69362"
 
 
@@ -105262,6 +105366,25 @@ else:
                     )
                     or ""
                 )[:80],
+            )
+
+        # Technical symptom diagnosis does not need a separate catalogue scan.
+        # Preserve package ambiguity checks, Technical file_search, and exact image
+        # retrieval; only suppress optional Product Library enrichment for explicit
+        # symptom cases. Explicit product/photo requests retain the normal lookup.
+        technical_symptom_catalog_bypass_v69449 = bool(
+            assistant == "🔧 Technical Support"
+            and _technical_troubleshooting_catalog_lookup_unneeded_v69449(
+                technical_request_prompt_v68879
+            )
+            and not _explicit_product_library_request(technical_request_prompt_v68879)
+            and not _product_library_prompt_requests_images(technical_request_prompt_v68879)
+        )
+        if technical_symptom_catalog_bypass_v69449:
+            allow_product_library_lookup = False
+            diagnostic_log(
+                "technical_symptom_catalog_lookup_bypassed_v69449",
+                prompt_chars=len(str(technical_request_prompt_v68879 or "")),
             )
 
         if assistant == "🎨 Graphic Marketing":
