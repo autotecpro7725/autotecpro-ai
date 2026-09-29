@@ -1,4 +1,4 @@
-# AutoTecPro AI v69495 - canonicalize encoded product paths and prewarm compatibility images
+# AutoTecPro AI v69493 - typo-tolerant compatibility identification images
 # Preserves v69491 climate-panel routing and v69490 fast catalog lookup / eager primary images.
 # Preserves v69489 clarification and SYNC routing fixes.
 # AutoTecPro AI v69489 - expire unrelated Product Library clarifications + classify screen-specific factory-feature questions
@@ -106,9 +106,8 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-# AutoTecPro AI v69497 - vehicle-aware fast exact-image candidate filtering
-AUTOTECPRO_RELEASE_VERSION = "v69497"
-AUTOTECPRO_RELEASE_BUILD = "v69497-fast-exact-image-candidate-filter-20260928"
+AUTOTECPRO_RELEASE_VERSION = "v69493"
+AUTOTECPRO_RELEASE_BUILD = "v69493-typo-tolerant-compatibility-visuals-20260927"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -513,35 +512,6 @@ diagnostic_log(
     possessive_compatible_to_compatibility_repaired=True,
     natural_what_is_my_compatibility_intent_detected=True,
     same_case_nonvisual_image_suppression_respected=True,
-)
-diagnostic_log(
-    "v69494_exact_compatibility_image_prewarm_ready",
-    prewarms_only_exact_current_sales_product_pages=True,
-    overlaps_with_initial_product_answer=True,
-    uses_existing_120_second_page_semantics_cache=True,
-    new_authority_revalidates_page_identity=True,
-    bounded_shared_worker_pool=True,
-    image_timing_observability=True,
-)
-diagnostic_log(
-    "v69495_percent_encoded_product_identity_ready",
-    percent_escape_hex_case_canonicalized=True,
-    exact_product_path_still_required=True,
-    volatile_v_query_only_ignored=True,
-)
-diagnostic_log(
-    "v69496_analytics_scope_and_view_links_ready",
-    generic_how_about_vehicle_turns_excluded_from_analytics=True,
-    analytics_followup_scoped_to_conversation_and_assistant=True,
-    year_make_fitment_followups_excluded_from_analytics=True,
-    raw_autotecpro_product_urls_labeled_view_link=True,
-)
-diagnostic_log(
-    "v69497_fast_exact_image_candidate_filter_ready",
-    unrelated_vehicle_year_pages_skipped_before_image_fetch=True,
-    exact_product_and_final_fitment_gates_preserved=True,
-    topical_and_primary_sales_images_supported=True,
-    exact_page_prewarm_limited_to_images_already_available_instantly=True,
 )
 diagnostic_log(
     "v69484_login_fastpath_ready",
@@ -2106,17 +2076,8 @@ def _exact_product_page_identity_v69342(raw_url):
     except Exception:
         identity = str(raw_url or "").strip().rstrip("/").casefold()
     base, sep, query = identity.partition("?")
-    # URL percent-escape hex digits are case-insensitive. WooCommerce/CDN redirects
-    # can change `%e2` to `%E2` without changing the product path. Canonicalize only
-    # escape spelling; keep the exact decoded path, host, port, and remaining query
-    # checks below intact so this cannot authorize a different product.
-    base = re.sub(
-        r"%[0-9a-fA-F]{2}",
-        lambda match: match.group(0).upper(),
-        base,
-    )
     if not sep or not query:
-        return base
+        return identity
     try:
         pairs = urllib.parse.parse_qsl(query, keep_blank_values=True)
     except Exception:
@@ -6630,6 +6591,8 @@ def detect_live_request(prompt, selected_assistant=None):
             "top-selling",
             "best selling",
             "best-selling",
+            "how about",
+            "what about",
             "same model",
             "same product",
             "same sku",
@@ -6644,18 +6607,6 @@ def detect_live_request(prompt, selected_assistant=None):
         #   How about in May?
         #   Revenue for the same model last month
         previous_analytics = st.session_state.get("woocommerce_analytics_context") or {}
-        current_conversation_id_v69496 = str(
-            st.session_state.get("conversation_id") or ""
-        ).strip()
-        if (
-            not isinstance(previous_analytics, dict)
-            or not current_conversation_id_v69496
-            or str(previous_analytics.get("conversation_id") or "").strip()
-            != current_conversation_id_v69496
-            or str(previous_analytics.get("assistant") or "").strip()
-            != str(selected_assistant or "").strip()
-        ):
-            previous_analytics = {}
         followup_prefix = bool(re.match(
             r"^\s*(?:and\s+)?(?:how|what)\s+about\b|"
             r"^\s*(?:and\s+)?(?:for|of)\s+the\s+same\s+(?:model|product|sku)\b|"
@@ -6666,21 +6617,11 @@ def detect_live_request(prompt, selected_assistant=None):
             phrase in lower
             for phrase in (
                 "same model", "same product", "same sku",
+                "how about", "what about",
             )
         )
 
-        # "How about 2016 Chrysler 300 SRT?" is a vehicle fitment/discovery
-        # turn, even if it follows an analytics question in the same chat.
-        vehicle_fitment_followup_v69496 = bool(
-            re.search(r"\b(?:19|20)\d{2}\b", lower)
-            and _workspace_sales_fuzzy_vehicle_families_v69416(value)
-        )
-
-        if (
-            previous_analytics
-            and not vehicle_fitment_followup_v69496
-            and (followup_prefix or followup_sales_language)
-        ):
+        if previous_analytics and (followup_prefix or followup_sales_language):
             # Start with any explicit product parsed by the normal analytics parser.
             product_query = _extract_analytics_product_query(value)
 
@@ -7105,8 +7046,6 @@ def get_live_data_for_prompt(
                 "start_iso": request_type.get("start_iso"),
                 "end_iso": request_type.get("end_iso"),
                 "period_label": request_type.get("period_label", ""),
-                "conversation_id": str(st.session_state.get("conversation_id") or "").strip(),
-                "assistant": str(selected_assistant or "").strip(),
             }
             return result
 
@@ -9910,7 +9849,7 @@ def safe_update_row(table_name, payload, row_id):
     return supabase.table(table_name).update(clean_payload).eq("id", row_id).execute()
 
 def inline_format(text):
-    """Escape text, render bold, and label AutoTecPro product URLs as links."""
+    """Escape text and support simple markdown bold inside custom HTML bubbles."""
     safe = html.escape(str(text or ""))
     parts = safe.split("**")
     if len(parts) > 1:
@@ -9918,25 +9857,6 @@ def inline_format(text):
         for i, part in enumerate(parts):
             rebuilt += f"<strong>{part}</strong>" if i % 2 else part
         safe = rebuilt
-    product_url_pattern_v69496 = re.compile(
-        r"https?://(?:www\.)?autotecpro\.com/product/[^\s<>\"']+",
-        flags=re.IGNORECASE,
-    )
-
-    def product_link_v69496(match):
-        raw_url = match.group(0)
-        trailing = ""
-        while raw_url and raw_url[-1] in ".,;!?":
-            trailing = raw_url[-1] + trailing
-            raw_url = raw_url[:-1]
-        if not raw_url:
-            return match.group(0)
-        return (
-            f'<a href="{raw_url}" target="_blank" '
-            f'rel="noopener noreferrer">View Link</a>{trailing}'
-        )
-
-    safe = product_url_pattern_v69496.sub(product_link_v69496, safe)
     return safe
 
 
@@ -10029,14 +9949,12 @@ def table_to_html(table_lines):
         for h in headers
     )
     product_results_table_v69412 = bool(
-        "product" in normalized_headers_v69412
-        and any(
-            header in normalized_headers_v69412
-            for header in ("link", "product link", "view link")
-        )
-        and any(
-            header in normalized_headers_v69412
-            for header in ("fitment", "supported years", "factory setup")
+        "option" in normalized_headers_v69412
+        and "product" in normalized_headers_v69412
+        and "product link" in normalized_headers_v69412
+        and (
+            "fitment" in normalized_headers_v69412
+            or "factory setup" in normalized_headers_v69412
         )
     )
     extra_table_class_v69412 = (
@@ -10106,17 +10024,14 @@ def table_to_html(table_lines):
             if normalized_headers_v69412[cell_index_v69410] in {
                 "product link",
                 "view link",
-            } or (
-                product_results_table_v69412
-                and normalized_headers_v69412[cell_index_v69410] == "link"
-            ):
+            }:
                 raw_url_v69412 = str(cell or "").strip()
                 if re.match(r"^https?://[^\s]+$", raw_url_v69412, flags=re.I):
                     safe_url_v69412 = html.escape(raw_url_v69412, quote=True)
                     cell_html_v69412 = (
                         f'<a class="atp-view-product-link-v69412" '
                         f'href="{safe_url_v69412}" target="_blank" '
-                        f'rel="noopener noreferrer">View Link</a>'
+                        f'rel="noopener noreferrer">View Product →</a>'
                     )
             html_rows.append(
                 f'<td data-atp-label="{label_attr_v69410}"{style_attr}>'
@@ -10173,17 +10088,14 @@ def table_to_html(table_lines):
                     continue
 
                 value_html_v69444 = inline_format(cell_v69444)
-                if normalized_header_v69444 in {"product link", "view link"} or (
-                    product_results_table_v69412
-                    and normalized_header_v69444 == "link"
-                ):
+                if normalized_header_v69444 in {"product link", "view link"}:
                     raw_url_v69444 = str(cell_v69444 or "").strip()
                     if re.match(r"^https?://[^\s]+$", raw_url_v69444, flags=re.I):
                         safe_url_v69444 = html.escape(raw_url_v69444, quote=True)
                         value_html_v69444 = (
                             f'<a class="atp-view-product-link-v69412" '
                             f'href="{safe_url_v69444}" target="_blank" '
-                            f'rel="noopener noreferrer">View Link</a>'
+                            f'rel="noopener noreferrer">View Product →</a>'
                         )
 
                 card_bits_v69444.extend([
@@ -71882,7 +71794,7 @@ def _workspace_sales_same_case_factual_direct_answer_v69408(
     elif category == "product_links":
         lines = ["Here are the exact product pages for the options already matched to this case:"]
         for index, row in enumerate(rows, 1):
-            lines.append(f"{index}. **{row['title']}** — [View Link]({row['source']})")
+            lines.append(f"{index}. **{row['title']}** — {row['source']}")
         answer = "\n".join(lines)
 
     elif category == "display_fact":
@@ -77420,27 +77332,17 @@ def _workspace_atp_exact_images_v69180(workspace_label, prompt_text, authority, 
             # primary, recover ONLY the WooCommerce main gallery image from that same
             # exact product URL. This cannot create/broaden product authority.
             if not any(bool(record.get("website_atp_primary_product_image_v69325")) for record in output):
-                in_scope_v69497, scope_reason_v69497 = (
-                    _workspace_sales_image_candidate_scope_v69497(prompt_text, pkg)
+                fallback_v69354 = _workspace_exact_product_primary_page_fallback_v69354(
+                    str(pkg.get("source_url") or ""),
+                    destination,
+                    prompt_text,
+                    str(pkg.get("page_title") or pkg.get("title") or ""),
                 )
-                if in_scope_v69497:
-                    fallback_v69354 = _workspace_exact_product_primary_page_fallback_v69354(
-                        str(pkg.get("source_url") or ""),
-                        destination,
-                        prompt_text,
-                        str(pkg.get("page_title") or pkg.get("title") or ""),
+                if fallback_v69354:
+                    fallback_v69354["website_atp_product_identity_key_v69325"] = str(
+                        contract.get("product_identity_key") or ""
                     )
-                    if fallback_v69354:
-                        fallback_v69354["website_atp_product_identity_key_v69325"] = str(
-                            contract.get("product_identity_key") or ""
-                        )
-                        output.append(fallback_v69354)
-                else:
-                    diagnostic_log(
-                        "workspace_sales_image_page_fetch_skipped_scope_v69497",
-                        reason=scope_reason_v69497,
-                        source_url=str(pkg.get("source_url") or "")[:400],
-                    )
+                    output.append(fallback_v69354)
 
             supporting_rows.sort(key=lambda x: (x[0], x[1]), reverse=True)
             for overlap, priority, url, meta in supporting_rows:
@@ -78384,109 +78286,6 @@ def _workspace_sales_authority_packages_v69420(authority):
     return []
 
 
-@st.cache_resource(show_spinner=False)
-def _workspace_sales_semantics_prewarm_state_v69494():
-    """Shared bounded worker pool for public exact-product-page cache warming."""
-    from concurrent.futures import ThreadPoolExecutor
-    import threading
-
-    return {
-        "pool": ThreadPoolExecutor(
-            max_workers=4,
-            thread_name_prefix="atp-sales-semantic-warm",
-        ),
-        "lock": threading.Lock(),
-        "jobs": {},
-    }
-
-
-def _workspace_sales_prewarm_exact_semantics_v69494(
-    workspace_label,
-    authority,
-    prompt_text="",
-):
-    """Warm page semantics for exact Sales products during broad catalog answers.
-
-    This reads only public current product pages already selected by the exact
-    Sales authority. It does not widen product search, use chat text as a cache
-    key, or publish an image. Later compatibility follow-ups reuse the existing
-    short-lived exact-page semantics cache, then run the normal image gates.
-    """
-    if not is_sales_workspace(workspace_label):
-        return {"scheduled": 0, "reused": 0, "products": 0}
-
-    packages = _workspace_sales_authority_packages_v69420(authority)
-    state = _workspace_sales_semantics_prewarm_state_v69494()
-    now = time.monotonic()
-    scheduled = 0
-    reused = 0
-    products = 0
-    urls = []
-    seen = set()
-    for package in packages[:8]:
-        if str(package.get("destination") or "") != "Sales Database":
-            continue
-        in_scope_v69497, _scope_reason_v69497 = (
-            _workspace_sales_image_candidate_scope_v69497(prompt_text, package)
-        )
-        if not in_scope_v69497:
-            continue
-        source = str(package.get("source_url") or "").strip()
-        if not source:
-            continue
-        try:
-            parsed = urllib.parse.urlsplit(source)
-            if parsed.scheme.casefold() != "https" or parsed.netloc.casefold() not in {
-                "autotecpro.com", "www.autotecpro.com"
-            }:
-                continue
-            page_id = _workspace_product_page_identity_v69396(source)
-        except Exception:
-            continue
-        if not str(page_id).startswith("product:") or page_id in seen:
-            continue
-        seen.add(page_id)
-        products += 1
-        revision = "|".join((
-            page_id,
-            str(package.get("extracted_at") or "").strip(),
-            str(package.get("workspace_sales_woocommerce_product_id_v69413") or "").strip(),
-        ))
-        job_key = hashlib.sha256(revision.encode("utf-8")).hexdigest()[:24]
-        urls.append((job_key, source))
-
-    with state["lock"]:
-        jobs = state["jobs"]
-        for job_key, source in urls:
-            old = jobs.get(job_key)
-            if old and (not old["future"].done() or now - old["started"] < 110.0):
-                reused += 1
-                continue
-            future = state["pool"].submit(
-                _workspace_exact_product_atp_semantics_v69402,
-                source,
-            )
-            jobs[job_key] = {"future": future, "started": now}
-            scheduled += 1
-        # Keep the process-wide registry bounded even when many products rotate.
-        for key, job in list(jobs.items()):
-            if now - float(job.get("started") or 0.0) > 180.0 and job["future"].done():
-                jobs.pop(key, None)
-        while len(jobs) > 256:
-            first_key = next(iter(jobs))
-            if not jobs[first_key]["future"].done():
-                break
-            jobs.pop(first_key, None)
-
-    diagnostic_log(
-        "workspace_sales_exact_page_semantics_prewarm_v69494",
-        products=products,
-        scheduled=scheduled,
-        reused=reused,
-    )
-    return {"scheduled": scheduled, "reused": reused, "products": products}
-
-
 def _workspace_sales_image_manifest_key_v69420(
     workspace_label,
     prompt_text,
@@ -78549,98 +78348,6 @@ def _workspace_sales_image_manifest_key_v69420(
         *authority_versions_v69449,
     ])
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
-
-
-def _workspace_sales_image_candidate_scope_v69497(prompt_text, package):
-    """Reject only exact-page image candidates with clear vehicle/year conflicts."""
-    pkg = dict(package or {}) if isinstance(package, dict) else {}
-    source = str(pkg.get("source_url") or "").strip()
-    identity_text = " ".join(
-        str(value or "").strip()
-        for value in (
-            pkg.get("page_title"),
-            pkg.get("title"),
-            pkg.get("name"),
-            source,
-        )
-        if str(value or "").strip()
-    )
-    try:
-        requested_years = set(_website_identity_years_v69022(prompt_text) or set())
-        source_years = set(_website_identity_years_v69022(identity_text) or set())
-        if requested_years and source_years and requested_years.isdisjoint(source_years):
-            return False, "year_mismatch"
-    except Exception:
-        pass
-
-    known_brands_v69497 = {
-        "acura", "audi", "bmw", "buick", "cadillac", "chevrolet",
-        "chevy", "chrysler", "dodge", "ford", "gmc", "honda",
-        "hyundai", "infiniti", "jeep", "kia", "lexus", "lincoln",
-        "mazda", "mercedes", "nissan", "porsche", "ram", "subaru",
-        "tesla", "toyota", "volkswagen", "volvo", "genesis", "jaguar",
-        "mini", "mitsubishi", "pontiac", "saturn", "scion",
-    }
-    multiword_brands_v69497 = {"land rover"}
-    try:
-        requested_words = set(re.findall(r"[a-z]+", str(prompt_text or "").casefold()))
-        source_words = set(re.findall(r"[a-z]+", identity_text.casefold()))
-        requested_brands = requested_words & known_brands_v69497
-        source_brands = source_words & known_brands_v69497
-        requested_brand_text = str(prompt_text or "").casefold()
-        for brand in multiword_brands_v69497:
-            if re.search(r"\b" + re.escape(brand) + r"\b", requested_brand_text):
-                requested_brands.add(brand)
-            if re.search(r"\b" + re.escape(brand) + r"\b", identity_text.casefold()):
-                source_brands.add(brand)
-        brand_aliases_v69497 = {"chevy": "chevrolet"}
-        requested_brands = {
-            brand_aliases_v69497.get(brand, brand) for brand in requested_brands
-        }
-        source_brands = {
-            brand_aliases_v69497.get(brand, brand) for brand in source_brands
-        }
-        if requested_brands and source_brands and requested_brands.isdisjoint(source_brands):
-            return False, "vehicle_brand_mismatch"
-
-        requested_families = set(
-            _workspace_source_identity_vehicle_families_v69456(prompt_text) or set()
-        ) | set(_workspace_sales_fuzzy_vehicle_families_v69416(prompt_text) or set())
-        trusted_title_v69497 = " ".join(
-            str(value or "").strip()
-            for value in (pkg.get("page_title"), pkg.get("title"), pkg.get("name"))
-            if str(value or "").strip()
-        )
-        source_families = set(
-            _workspace_source_identity_vehicle_families_v69456(identity_text) or set()
-        ) | set(
-            _workspace_sales_fuzzy_vehicle_families_v69416(trusted_title_v69497) or set()
-        )
-        compatible_pairs_v69497 = set()
-        for requested_family in requested_families:
-            for source_family in source_families:
-                requested_normalized = re.sub(
-                    r"[^a-z0-9]", "", str(requested_family or "").casefold()
-                )
-                source_normalized = re.sub(
-                    r"[^a-z0-9]", "", str(source_family or "").casefold()
-                )
-                if requested_normalized == source_normalized:
-                    compatible_pairs_v69497.add((requested_family, source_family))
-                elif (
-                    requested_normalized == "ram"
-                    and source_normalized.startswith("ram")
-                ) or (
-                    source_normalized == "ram"
-                    and requested_normalized.startswith("ram")
-                ):
-                    compatible_pairs_v69497.add((requested_family, source_family))
-        if requested_families and source_families and not compatible_pairs_v69497:
-            return False, "vehicle_family_mismatch"
-    except Exception:
-        pass
-
-    return True, "candidate"
 
 
 def _workspace_sales_fast_primary_manifest_v69420(
@@ -78739,11 +78446,6 @@ def _workspace_sales_fast_topical_manifest_v69420(
         return []
 
     def resolve_one(pkg):
-        in_scope_v69497, _scope_reason_v69497 = (
-            _workspace_sales_image_candidate_scope_v69497(prompt_text, pkg)
-        )
-        if not in_scope_v69497:
-            return None
         try:
             record = _workspace_sales_exact_topic_semantic_record_v69401(
                 workspace_label,
@@ -113777,7 +113479,6 @@ else:
                     workspace_sales_image_prefetch_future_v69420 = None
                     workspace_sales_prefetched_manifest_v69420 = {}
                     workspace_sales_manifest_key_v69420 = ""
-                    workspace_sales_prefetch_started_at_v69494 = time.perf_counter()
                     if (
                         (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
                         and str(
@@ -113844,22 +113545,6 @@ else:
                                         )
                                     )
                                 if instant_primary_v69483:
-                                    # Only prewarm later compatibility turns when
-                                    # this first product image is already instant.
-                                    # Missing-image requests will fetch only their
-                                    # in-scope exact page through the manifest worker.
-                                    try:
-                                        _workspace_sales_prewarm_exact_semantics_v69494(
-                                            assistant,
-                                            workspace_atp_authority_v69180,
-                                            prompt_text=interaction_prompt,
-                                        )
-                                    except Exception as prewarm_error_v69494:
-                                        diagnostic_log(
-                                            "workspace_sales_exact_page_semantics_prewarm_failed_v69494",
-                                            error_type=type(prewarm_error_v69494).__name__,
-                                            error=str(prewarm_error_v69494)[:300],
-                                        )
                                     workspace_sales_prefetched_manifest_v69420 = {
                                         "mode": "primary",
                                         "images": [
@@ -114792,7 +114477,6 @@ else:
         # after text completes, before the legacy late image-recovery/save pipeline.
         workspace_sales_early_images_rendered_v69420 = False
         workspace_sales_early_image_signature_v69420 = ()
-        workspace_sales_text_ready_at_v69494 = time.perf_counter()
         if (
             not is_graphic_generation
             and (is_sales_workspace(assistant) or is_marketing_workspace(assistant))
@@ -114913,15 +114597,6 @@ else:
                                 published=len(
                                     fast_images_v69420
                                 ),
-                                prefetch_elapsed_seconds=round(
-                                    workspace_sales_text_ready_at_v69494
-                                    - float(locals().get(
-                                        "workspace_sales_prefetch_started_at_v69494",
-                                        workspace_sales_text_ready_at_v69494,
-                                    )),
-                                    3,
-                                ),
-                                delay_after_text_seconds=0.0,
                             )
             except Exception as early_image_error_v69420:
                 diagnostic_log(
@@ -116687,18 +116362,6 @@ else:
             image_count=len(generated_images or []),
             early_exact_manifest=bool(
                 locals().get("workspace_sales_early_manifest_final_v69441")
-            ),
-            image_commit_delay_after_text_seconds=(
-                round(
-                    time.perf_counter()
-                    - float(locals().get(
-                        "workspace_sales_text_ready_at_v69494",
-                        time.perf_counter(),
-                    )),
-                    3,
-                )
-                if bool(locals().get("workspace_sales_early_images_rendered_v69420"))
-                else None
             ),
         )
         st.session_state.messages.append({
