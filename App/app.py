@@ -1,4 +1,4 @@
-# AutoTecPro AI v69449-tech-speed-05 - source-complete audio alternatives + exact-topic YouTube links
+# AutoTecPro AI v69449-tech-speed-08 - full source steps + clickable exact-topic videos
 # AutoTecPro AI v69449 - product-bound compatibility images + cache provenance + vector make isolation
 # AutoTecPro AI v69448 - exact-current semantic fitment recovery + early-family rejection repair
 # AutoTecPro AI v69444 - robust mobile cards + old-output cleanup + catalog reconciliation
@@ -92,8 +92,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-05"
-AUTOTECPRO_RELEASE_BUILD = "v69449-tech-speed-05-audio-alternatives-topic-youtube-20260929"
+AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-08"
+AUTOTECPRO_RELEASE_BUILD = "v69449-tech-speed-08-full-steps-clickable-topic-videos-20260929"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -96200,10 +96200,19 @@ def _technical_exact_topic_direct_answer_v69409(direct_evidence):
         return ""
 
     blocks = []
+    video_links_v69515 = []
     current_branch = ""
     for raw_line in excerpt.splitlines():
         line = str(raw_line or "").strip()
         if not line:
+            continue
+        if line.startswith("SOURCE_YOUTUBE_LINK_V69515:"):
+            raw_link = line.split(":", 1)[-1].strip()
+            label, separator, url = raw_link.partition("|")
+            label = re.sub(r"\s+", " ", label).strip()
+            url = url.strip()
+            if separator and label and re.match(r"^https://(?:www\.)?(?:youtu\.be/|youtube(?:-nocookie)?\.com/)", url, flags=re.I):
+                video_links_v69515.append((label, url))
             continue
         if line.startswith("SOURCE_TOPIC_V69395:"):
             if not title:
@@ -96229,10 +96238,24 @@ def _technical_exact_topic_direct_answer_v69409(direct_evidence):
     for branch, content in blocks:
         clean_branch = re.sub(r"\s+", " ", str(branch or "")).strip()
         leaf = clean_branch.split(" > ")[-1].strip() if clean_branch else ""
-        if leaf and leaf.casefold() != str(title or "").casefold() and leaf != last_branch:
+        leaf_tokens = set(re.findall(r"[a-z0-9]+", leaf.casefold()))
+        title_tokens = set(re.findall(r"[a-z0-9]+", str(title or "").casefold()))
+        redundant_title_branch = bool(leaf_tokens and leaf_tokens.issubset(title_tokens))
+        if leaf and not redundant_title_branch and leaf != last_branch:
             lines.extend([f"### {leaf}", ""])
             last_branch = leaf
         lines.extend([_technical_readable_layout_v69379(content), ""])
+
+    if video_links_v69515:
+        lines.extend(["### Related videos", ""])
+        seen_video_urls_v69515 = set()
+        for label, url in video_links_v69515:
+            key = url.split("?", 1)[0].rstrip("/").casefold()
+            if key in seen_video_urls_v69515:
+                continue
+            seen_video_urls_v69515.add(key)
+            lines.append(f"- [{label}]({url})")
+        lines.append("")
 
     answer = "\n".join(lines).strip()
     if not answer:
@@ -96454,13 +96477,26 @@ def _technical_readable_layout_v69379(text):
     # line before later list items so Streamlit Markdown and PDF printing cannot
     # collapse them back into a single visual paragraph.
     value = re.sub(r"(?<!\n)\s+(?=(?:[2-9]|1[0-9])\.\s)", "\n\n", value)
+    # Flattened learned HTML can preserve ordered-list numbers without punctuation
+    # (for example, "1 Connect ... 2 Open ..."). Restore those as readable Markdown.
+    action_start_v69515 = r"(?:Connect|The original|Keep|Open|Place|Delete|Remove|In(?: the)?|Pair|Select|Return|Press|Tap|Check|Confirm|If|Turn|Choose|Set|Use|Wait|Restart|Disconnect|Install|Insert|Route|Attach|Do not|Do)\b"
+    value = re.sub(
+        rf"(?<![\w.])([1-9]|1[0-9])\s+(?={action_start_v69515})",
+        lambda match: "\n\n" + match.group(1) + ". ",
+        value,
+    )
     # Each bullet is its own visible line/block.
     value = re.sub(r"[ \t]*•[ \t]*", "\n• ", value)
     # Operational labels are always separate blocks.
     value = re.sub(r"[ \t]*(Expected result:)[ \t]*", r"\n\n\1\n", value, flags=re.I)
     value = re.sub(r"[ \t]*(What it means:)[ \t]*", r"\n\n\1\n", value, flags=re.I)
+    value = re.sub(
+        r"[ \t]*(AUX availability:|Phone pairing:|Prevent interruptions:)[ \t]*",
+        r"\n\n**\1** ", value, flags=re.I,
+    )
     # Keep Step headings visually separated even if provider omitted spacing.
     value = re.sub(r"(?<![\n#])(?=#+\s*Step\s+\d+)", "\n\n", value, flags=re.I)
+    value = re.sub(r"[ \t]+\n", "\n", value)
     value = re.sub(r"\n{3,}", "\n\n", value)
     return value.strip()
 
@@ -97818,6 +97854,7 @@ def _technical_confirmed_topic_index_v69395(state):
             "route": route,
             "priority": priority,
             "fact_ids": str(heading.get("data-atp-fact-ids") or ""),
+            "audio_path": re.sub(r"\s+", " ", str(heading.get("data-atp-audio-path") or "")).strip(),
             # Keep source-authored alternatives available for broad symptom queries.
             # These attributes are authored on the topic heading, so this remains
             # generic across vehicles and products.
@@ -97908,6 +97945,40 @@ def _technical_confirmed_topic_match_v69395(prompt_text, state):
                 key=lambda row: int(row.get("priority") or 0), reverse=True
             )
             result = dict(audio_overviews_v69510[0])
+            path_by_key_v69515 = {
+                re.sub(r"[^a-z0-9]+", " ", str(path).casefold()).strip(): str(path)
+                for path in (result.get("audio_paths") or [])
+            }
+            detailed_rows_v69515 = []
+            for candidate in topics:
+                if str(candidate.get("route") or "").casefold().strip() not in {"exact-leaf", "exact_leaf"}:
+                    continue
+                candidate_path = re.sub(r"\s+", " ", str(candidate.get("audio_path") or "")).strip()
+                candidate_key = re.sub(r"[^a-z0-9]+", " ", candidate_path.casefold()).strip()
+                if candidate_path and candidate_key in path_by_key_v69515:
+                    detailed_rows_v69515.append((path_by_key_v69515[candidate_key], candidate))
+            if detailed_rows_v69515:
+                preface = str(result.get("excerpt") or "").split("SOURCE_BRANCH_V69395:", 1)[0]
+                first_branch = str(result.get("branch_paths", [""])[0] if result.get("branch_paths") else "")
+                if first_branch:
+                    first_content = str(result.get("excerpt") or "").split("SOURCE_BRANCH_V69395:", 1)[1].split("SOURCE_BRANCH_V69395:", 1)[0]
+                    result["excerpt"] = preface + "SOURCE_BRANCH_V69395:" + first_content
+                detail_blocks = []
+                detail_images = list(result.get("image_urls") or [])
+                for path_label, detail_row in detailed_rows_v69515:
+                    detail_blocks.append(
+                        f"\n\nSOURCE_BRANCH_V69395: Full {path_label} instructions\n"
+                        + str(detail_row.get("excerpt") or "")
+                    )
+                    detail_images.extend(detail_row.get("image_urls") or [])
+                result["excerpt"] = (str(result.get("excerpt") or "") + "".join(detail_blocks))[:7000]
+                result["image_urls"] = list(dict.fromkeys(detail_images))
+                diagnostic_log(
+                    "technical_audio_full_leaf_instructions_added_v69515",
+                    detail_topics="|".join(str(row.get("id") or "") for _, row in detailed_rows_v69515)[:240],
+                    images=len(result["image_urls"]),
+                    chars=len(result["excerpt"]),
+                )
             result.update({
                 "match_mode_v69395": "source_audio_alternatives_v69510",
                 "score_v69395": 0.0,
@@ -97917,6 +97988,65 @@ def _technical_confirmed_topic_match_v69395(prompt_text, state):
                 "technical_audio_alternatives_selected_v69510",
                 topic=str(result.get("id") or "")[:160],
                 paths="|".join(result.get("audio_paths") or [])[:240],
+            )
+            return result
+
+        # Backward-compatible source fallback: older vehicle manuals may have
+        # explicit AUX and Bluetooth Audio leaf headings without the newer
+        # overview attributes. Combine only both exact leaves from this already
+        # confirmed package; never search sibling vehicles or infer their steps.
+        def _audio_path_kind_v69510(row):
+            source_label = " ".join((
+                str(row.get("title") or ""), str(row.get("topic") or ""),
+                " ".join(str(x) for x in (row.get("aliases") or [])),
+                " ".join(str(x) for x in (row.get("branch_paths") or [])),
+            )).casefold()
+            if re.search(r"\baux\b", source_label) and re.search(r"\baudio\b", source_label):
+                return "AUX"
+            if re.search(r"\bbluetooth\b", source_label) and re.search(r"\baudio\b", source_label):
+                return "Bluetooth Audio"
+            return ""
+
+        path_topics_v69510 = {}
+        for candidate in topics:
+            path_kind = _audio_path_kind_v69510(candidate)
+            if path_kind and str(candidate.get("route") or "").casefold().strip() in {"exact-leaf", "exact_leaf", ""}:
+                path_topics_v69510.setdefault(path_kind, candidate)
+        if {"AUX", "Bluetooth Audio"}.issubset(path_topics_v69510):
+            ordered_paths = [path_topics_v69510["AUX"], path_topics_v69510["Bluetooth Audio"]]
+            result = {
+                "id": "source-audio-methods-v69510",
+                "title": "Source-documented AUX and Bluetooth Audio methods",
+                "topic": "audio-methods",
+                "route": "source-limited",
+                "priority": max(int(row.get("priority") or 0) for row in ordered_paths),
+                "fact_ids": "|".join(dict.fromkeys(
+                    fact.strip()
+                    for row in ordered_paths
+                    for fact in str(row.get("fact_ids") or "").split("|")
+                    if fact.strip()
+                )),
+                "audio_paths": ["AUX", "Bluetooth Audio"],
+                "audio_mutual_exclusion": False,
+                "branch_paths": [
+                    f"{path_kind}: {row.get('title') or path_kind}"
+                    for path_kind, row in zip(("AUX", "Bluetooth Audio"), ordered_paths)
+                ],
+                "image_urls": list(dict.fromkeys(
+                    url for row in ordered_paths for url in (row.get("image_urls") or [])
+                )),
+                "excerpt": "\n\n".join(
+                    f"SOURCE_TOPIC: {row.get('title') or path_kind}\n{row.get('excerpt') or ''}"
+                    for path_kind, row in zip(("AUX", "Bluetooth Audio"), ordered_paths)
+                )[:7000],
+                "match_mode_v69395": "same_package_audio_leaf_fallback_v69510",
+                "score_v69395": 0.0,
+                "margin_v69395": 0.0,
+            }
+            diagnostic_log(
+                "technical_audio_leaf_fallback_selected_v69510",
+                topics="|".join(str(row.get("id") or "") for row in ordered_paths)[:240],
+                chars=len(result["excerpt"]),
             )
             return result
 
@@ -98096,18 +98226,16 @@ def _technical_topic_youtube_links_v69510(package_text, topic, prompt_text=""):
     topic = dict(topic or {})
     text = str(package_text or "")
     start = text.find("WEBSITE VIDEO LINKS")
-    if start < 0:
-        return []
-    blocks = re.split(r"(?m)^VIDEO\s+\d+\s*$", text[start:])[1:]
+    blocks = re.split(r"(?m)^VIDEO\s+\d+\s*$", text[start:])[1:] if start >= 0 else []
     topic_text = " ".join((
         str(topic.get("title") or ""), str(topic.get("topic") or ""),
         " ".join(str(x) for x in (topic.get("aliases") or [])),
         " ".join(str(x) for x in (topic.get("branch_paths") or [])),
-        str(prompt_text or ""),
     ))
     topic_tokens = _technical_topic_tokens_v69395(topic_text) - {
         "youtube", "video", "watch", "link", "method", "instructions",
-        "verification", "technical", "support", "guide",
+        "verification", "technical", "support", "guide", "setup",
+        "installation", "install", "connection", "related",
     }
     explicit_audio_path = ""
     if re.search(r"\baux\b", str(prompt_text or ""), flags=re.I):
@@ -98115,6 +98243,58 @@ def _technical_topic_youtube_links_v69510(package_text, topic, prompt_text=""):
     elif re.search(r"\b(?:bluetooth|bt)\b", str(prompt_text or ""), flags=re.I):
         explicit_audio_path = "bluetooth"
     output, seen = [], set()
+    semantics = _technical_package_atp_semantics_v69178(text)
+    for element in (semantics.get("elements") or []):
+        if not isinstance(element, dict) or str(element.get("tag") or "").casefold() != "a":
+            continue
+        url = str(element.get("data-atp-video-url") or element.get("href") or "").strip()
+        if not re.match(r"^https://(?:www\.)?(?:youtu\.be/|youtube(?:-nocookie)?\.com/)", url, flags=re.I):
+            continue
+        workspace = str(element.get("data-atp-workspace") or "").casefold().strip()
+        current = str(element.get("data-atp-current-source") or "").casefold().strip()
+        status = str(element.get("data-atp-source-status") or "").casefold().strip()
+        media_type = str(element.get("data-atp-media-type") or element.get("data-atp-media") or "").casefold().strip()
+        role = str(element.get("data-atp-link-role") or "").strip()
+        if workspace and workspace != "technical":
+            continue
+        if current and current not in {"true", "1", "yes"}:
+            continue
+        if status and "current" not in status:
+            continue
+        if media_type and media_type != "video":
+            continue
+        if not (role or media_type == "video" or element.get("data-atp-video-url")):
+            continue
+        if explicit_audio_path:
+            role_tokens = _technical_topic_tokens_v69395(role + " " + str(element.get("data-atp-fact-ids") or ""))
+            if explicit_audio_path not in role_tokens and not (
+                explicit_audio_path == "bluetooth" and "bt" in role_tokens
+            ):
+                continue
+        row_facts = {x.strip().casefold() for x in str(element.get("data-atp-fact-ids") or "").split("|") if x.strip()}
+        topic_facts = {x.strip().casefold() for x in str(topic.get("fact_ids") or "").split("|") if x.strip()}
+        metadata = " ".join(str(element.get(key) or "") for key in (
+            "data-atp-link-role", "data-atp-section", "data-atp-topic",
+            "data-atp-aliases", "data-atp-query-key", "data-atp-fact-ids",
+        ))
+        metadata_tokens = _technical_topic_tokens_v69395(metadata)
+        if not ((row_facts & topic_facts) or (topic_tokens & metadata_tokens)):
+            continue
+        key = url.split("?", 1)[0].rstrip("/").casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        label = re.sub(r"[-_]+", " ", role).strip()
+        label = " ".join(
+            "AUX" if word.casefold() == "aux" else "Bluetooth" if word.casefold() in {"bt", "bluetooth"} else word.capitalize()
+            for word in label.split()
+        ) or "Related video"
+        if not label.casefold().startswith("watch "):
+            label = f"Watch {label}"
+        if not label.casefold().endswith("video"):
+            label = f"{label} Video"
+        output.append({"label": label, "url": url, "overlap": sorted(row_facts & topic_facts) or sorted(topic_tokens & metadata_tokens)})
+
     for block in blocks:
         def field(name):
             match = re.search(rf"(?m)^{re.escape(name)}:\s*(.*?)\s*$", block)
@@ -98216,8 +98396,21 @@ def _technical_confirmed_package_direct_evidence_v69382(prompt_text, max_results
                 if related_youtube_v69510:
                     topic_excerpt_v69395 += "\n\nSOURCE-VERIFIED RELATED YOUTUBE LINKS:\n"
                     topic_excerpt_v69395 += "\n".join(
-                        f"{item['label']}: {item['url']}"
+                        f"SOURCE_YOUTUBE_LINK_V69515: {item['label']} | {item['url']}"
                         for item in related_youtube_v69510
+                    )
+                    diagnostic_log(
+                        "technical_topic_youtube_links_selected_v69515",
+                        topic=str((topic_match_v69395 or {}).get("id") or "")[:160],
+                        count=len(related_youtube_v69510),
+                        labels=[str(item.get("label") or "")[:120] for item in related_youtube_v69510],
+                    )
+                else:
+                    diagnostic_log(
+                        "technical_topic_youtube_links_missing_v69515",
+                        topic=str((topic_match_v69395 or {}).get("id") or "")[:160],
+                        semantic_element_count=len((_technical_package_atp_semantics_v69178(package_text_v69392).get("elements") or [])),
+                        video_section_present="WEBSITE VIDEO LINKS" in package_text_v69392,
                     )
                 topic_budget_v69395 = 6000
                 topic_excerpt_v69395 = topic_excerpt_v69395[:topic_budget_v69395]
