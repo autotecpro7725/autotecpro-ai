@@ -91,8 +91,8 @@
 # Sales, or Marketing pipelines without a targeted regression audit.
 # ============================================================
 
-AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-03"
-AUTOTECPRO_RELEASE_BUILD = "v69449-technical-image-persistence-speed-20260929"
+AUTOTECPRO_RELEASE_VERSION = "v69449-tech-speed-04"
+AUTOTECPRO_RELEASE_BUILD = "v69449-technical-routing-response-speed-20260929"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -47188,7 +47188,10 @@ def _build_ai_request(
             "Put a blank line before and after each Step heading. Put 'Expected result:' on its own line, followed by the result on the next line. "
             "Put 'What it means:' on its own line, then put each explanation as a separate bullet on its own line. "
             "Put each requested photo/information item and each installation resource on its own line. "
-            "Do not use backslash line-break escapes and do not compress numbered instructions into paragraph text."
+            "Do not use backslash line-break escapes and do not compress numbered instructions into paragraph text. "
+            "For a numbered troubleshooting answer, preserve the source's order and include its verified Step 1 before later steps. "
+            "Never begin at Step 2 or a later number when an earlier step exists in the exact selected source. "
+            "If the supplied exact-source section genuinely starts later and does not contain Step 1, do not invent it or renumber the source; state that the excerpt begins at the later step and ask only for the detail needed to proceed."
         )
         try:
             technical_speed_profile_v69376 = _technical_speed_response_profile_v69376(prompt_text)
@@ -47207,6 +47210,19 @@ def _build_ai_request(
         "input": user_input,
         "max_output_tokens": int(technical_speed_profile_v69376.get("max_output_tokens") or MAX_AI_OUTPUT_TOKENS),
     }
+    # Keep reduced reasoning/verbosity strictly within short, text-only Technical
+    # support turns. Preserve the default reasoning budget for visual, uploaded,
+    # multi-part, document, and all non-Technical requests.
+    simple_technical_symptom_v69450 = bool(
+        assistant == "🔧 Technical Support"
+        and technical_speed_profile_v69376
+        and not uploaded_files
+        and _technical_troubleshooting_catalog_lookup_unneeded_v69449(prompt_text)
+        and not re.search(r"\b(?:and|also|compare|versus|full|detailed|all steps|why exactly)\b", str(prompt_text or "").casefold())
+    )
+    if simple_technical_symptom_v69450:
+        request["reasoning"] = {"effort": "low"}
+        request["text"] = {"verbosity": "low"}
     if tools:
         request["tools"] = tools
         # v69012: Technical automatic image recovery must use the exact file_search
@@ -47742,6 +47758,13 @@ def _stream_one_ai_response(request):
     retried_without_file_search = False
     retried_without_file_search_results_include_v69012 = False
     transient_pre_token_retry_used_v69400 = False
+    technical_fast_request_v69450 = bool(
+        str(assistant or "") == "🔧 Technical Support"
+        and str((active_request or {}).get("reasoning", {}).get("effort") or "") == "low"
+    )
+    technical_request_started_v69450 = time.perf_counter()
+    technical_first_token_logged_v69450 = False
+    technical_stream_chars_v69450 = 0
     chat_client_v69400 = _openai_chat_client_v69400()
 
     while True:
@@ -47751,6 +47774,12 @@ def _stream_one_ai_response(request):
                     **active_request,
                     stream=True,
                 )
+                if technical_fast_request_v69450:
+                    diagnostic_log(
+                        "technical_fast_response_request_open_v69450",
+                        elapsed_seconds=round(time.perf_counter() - technical_request_started_v69450, 3),
+                        max_output_tokens=int(active_request.get("max_output_tokens") or 0),
+                    )
                 break
             except TypeError as error:
                 error_text = str(error or "").lower()
@@ -47844,6 +47873,13 @@ def _stream_one_ai_response(request):
                     delta = str(getattr(event, "delta", "") or "")
                     if delta:
                         received_text = True
+                        technical_stream_chars_v69450 += len(delta)
+                        if technical_fast_request_v69450 and not technical_first_token_logged_v69450:
+                            technical_first_token_logged_v69450 = True
+                            diagnostic_log(
+                                "technical_fast_response_first_text_v69450",
+                                elapsed_seconds=round(time.perf_counter() - technical_request_started_v69450, 3),
+                            )
                         yield delta
                 elif event_type == "response.refusal.delta":
                     delta = str(getattr(event, "delta", "") or "")
@@ -47882,6 +47918,13 @@ def _stream_one_ai_response(request):
             raise
 
         if final_response is not None:
+            if technical_fast_request_v69450:
+                diagnostic_log(
+                    "technical_fast_response_stream_finished_v69450",
+                    elapsed_seconds=round(time.perf_counter() - technical_request_started_v69450, 3),
+                    streamed_chars=technical_stream_chars_v69450,
+                    status=str(getattr(final_response, "status", "") or "")[:40],
+                )
             _capture_response_file_search_results_v69012(final_response)
             final_text = str(
                 getattr(final_response, "output_text", "") or ""
@@ -97903,7 +97946,20 @@ def _technical_confirmed_topic_match_v69395(prompt_text, state):
     # overview over one arbitrarily winning child. This is generic hierarchy
     # behavior; no product/topic vocabulary is encoded here.
     overview_forced_v69395 = False
-    if scored and not any(item[1] > 0 for item in scored[:3]) and len(prompt_tokens) <= 3:
+    # A short symptom report ("no audio", "screen not working") is not a broad
+    # topic request. Do not let the one-token overview shortcut override the
+    # symptom's exact troubleshooting route on a weak/negative score margin.
+    symptom_specific_v69450 = bool(re.search(
+        r"\b(?:no|not|without|doesn['’]?t|does not|won['’]?t|failed|failure|"
+        r"silent|blank|black|flicker|reboot(?:s|ing)?|disconnect(?:s|ed|ing)?)\b",
+        prompt_norm,
+    ))
+    if (
+        scored
+        and not symptom_specific_v69450
+        and not any(item[1] > 0 for item in scored[:3])
+        and len(prompt_tokens) <= 3
+    ):
         overview_rows_v69395 = [
             item for item in scored
             if str((item[4] or {}).get("route") or "").casefold().strip() == "overview"
