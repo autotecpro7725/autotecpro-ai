@@ -107,9 +107,9 @@
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
 # AutoTecPro AI v69509 - Technical troubleshooting and visual claim alignment
-# AutoTecPro AI v69511 - camera symptom routing, bounded Technical responses, and exact image recovery
-AUTOTECPRO_RELEASE_VERSION = "v69511"
-AUTOTECPRO_RELEASE_BUILD = "v69511-camera-diagnostic-image-speed-20260928"
+# AutoTecPro AI v69513 - bounded Technical retrieval, concise complete responses, and auditable release proof
+AUTOTECPRO_RELEASE_VERSION = "v69513"
+AUTOTECPRO_RELEASE_BUILD = "v69513-technical-search-latency-completion-20260929"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -1408,6 +1408,19 @@ st.set_page_config(
     page_icon=PAGE_ICON,
     layout="wide",
     initial_sidebar_state="auto"
+)
+
+# v69513: expose an invisible, read-only release marker in the rendered DOM.
+# Production audits can now prove the exact deployed build without changing the
+# visible interface or relying on Streamlit server-log access.
+st.markdown(
+    (
+        '<span id="atp-runtime-release" '
+        f'data-atp-release="{html.escape(AUTOTECPRO_RELEASE_VERSION, quote=True)}" '
+        f'data-atp-build="{html.escape(AUTOTECPRO_RELEASE_BUILD, quote=True)}" '
+        'style="display:none!important" aria-hidden="true"></span>'
+    ),
+    unsafe_allow_html=True,
 )
 
 # v69007: browser-print flow/color hardening built only on the v69006 print layer.
@@ -45369,6 +45382,9 @@ For every Technical Support response:
   needed to verify; never substitute a nearby-year or different-screen product.
 - Present verified AutoTecPro website citations as a clickable “View Link” label.
   Do not expose raw URLs unless the user asks to see them. Never invent a link.
+- Do not add an Installation Resources, Helpful Resources, or installation-link
+  section to an ordinary answer unless the user explicitly asks for a link,
+  manual, video, diagram, or installation resource. Answer the question directly.
 
 TECHNICAL ORDER ENRICHMENT WORKFLOW:
 When the application has already displayed a WooCommerce order, preserve that
@@ -46854,7 +46870,10 @@ def _technical_recent_conversation_context_v69106(limit=6):
     if not rows:
         return ""
     bounded = []
-    for row in rows[-max(2, min(int(limit or 6), 10)):]:
+    total_chars = 0
+    # This context is supplementary only. Keep it small so prior long answers do
+    # not dominate the new query's prompt or prefill latency.
+    for row in rows[-max(2, min(int(limit or 6), 6)):]:
         if not isinstance(row, dict):
             continue
         role = str(row.get("role") or "").strip().lower()
@@ -46864,9 +46883,15 @@ def _technical_recent_conversation_context_v69106(limit=6):
         value = re.sub(r"\s+", " ", value).strip()
         if not value:
             continue
-        # Keep enough exact menu/vehicle wording for identity continuity while
-        # preventing a long old transcript from dominating the current query.
-        bounded.append((role, value[:1800]))
+        # Preserve exact user vehicle/menu wording. Assistant text is shorter
+        # because Technical file_search remains the factual authority.
+        value = value[: (700 if role == "user" else 450)]
+        remaining = 2200 - total_chars
+        if remaining <= 0:
+            break
+        value = value[:remaining]
+        total_chars += len(value)
+        bounded.append((role, value))
     if not bounded:
         return ""
     lines = [
@@ -49941,7 +49966,14 @@ def build_user_input(
             "text": response_mode_instruction,
         })
 
-    memory_text = _build_recent_memory_text_cached(_recent_memory_rows(10))
+    # Technical follow-ups have their own explicitly non-authoritative
+    # continuity block below. The generic ten-message memory duplicated that
+    # history and could add long prior answers to every request.
+    memory_text = (
+        ""
+        if str(assistant or "") == "🔧 Technical Support"
+        else _build_recent_memory_text_cached(_recent_memory_rows(10))
+    )
     if memory_text:
         content.append({"type": "input_text", "text": memory_text})
 
@@ -50196,6 +50228,37 @@ def _build_ai_request(
         "input": user_input,
         "max_output_tokens": int(technical_speed_profile_v69376.get("max_output_tokens") or MAX_AI_OUTPUT_TOKENS),
     }
+    if technical_speed_profile_v69376:
+        # v69513: Routine Technical answers are source-backed and tightly scoped.
+        # Avoid spending latency on hidden reasoning, request concise prose, and
+        # allow only the one file-search call already configured for this turn.
+        # Explicit deep/full requests do not receive this profile.
+        request["reasoning"] = {"effort": "none"}
+        request["text"] = {"verbosity": "low"}
+        request["max_tool_calls"] = 1
+        for tool in tools:
+            if isinstance(tool, dict) and tool.get("type") == "file_search":
+                # Six results keeps multiple source passages available while
+                # preventing broad Technical retrieval from dominating latency.
+                tool["max_num_results"] = 6
+        diagnostic_log(
+            "technical_latency_request_profile_v69513",
+            reasoning_effort="none",
+            text_verbosity="low",
+            max_tool_calls=1,
+            max_num_results=6,
+            max_output_tokens=int(request["max_output_tokens"]),
+            input_text_chars=sum(
+                len(str(part.get("text") or ""))
+                for message in user_input
+                for part in (message.get("content") or [])
+                if isinstance(part, dict) and part.get("type") == "input_text"
+            ),
+            file_search=any(
+                isinstance(tool, dict) and tool.get("type") == "file_search"
+                for tool in tools
+            ),
+        )
     if tools:
         request["tools"] = tools
         # v69012: Technical automatic image recovery must use the exact file_search
@@ -104873,26 +104936,29 @@ def _technical_speed_response_profile_v69576(prompt_text):
     strict_camera_kind = _technical_strict_camera_harness_request_v69482(prompt)
     if strict_camera_kind == "camera_harness":
         return {
-            "max_output_tokens": 240,
+            # Keep sufficient completion headroom: max_output_tokens also
+            # accounts for model reasoning tokens, not just visible prose.
+            "max_output_tokens": 700,
             "instruction": (
-                "FAST EXACT CAMERA/HARNESS RESPONSE (v69505): Answer in at most 120 words. "
+                "FAST EXACT CAMERA/HARNESS RESPONSE (v69513): Answer in at most 120 words. "
                 "State only the vehicle/year branch, exact source-supported camera/harness labels, "
                 "and any source-stated trigger condition or warning. Do not add generic installation "
                 "steps, guessed pin numbers, or claims that a photo/diagram is displayed. Say clearly "
                 "when the retrieved source does not confirm a camera-specific visual. Keep the exact "
-                "source link. Preserve all existing vehicle, year, package, and source authority rules."
+                "source internally; show its link only when the user asks for a link or resource. Preserve "
+                "all existing vehicle, year, package, and source authority rules."
             ),
         }
 
     if strict_camera_kind == "camera_issue":
         return {
-            "max_output_tokens": 420,
+            "max_output_tokens": 900,
             "instruction": (
-                "FAST CAMERA-DIAGNOSTIC RESPONSE (v69511): Answer in at most 160 words. "
-                "Give the likely signal-path cause and no more than four ordered checks. "
+                "FAST CAMERA-DIAGNOSTIC RESPONSE (v69513): Answer in at most 130 words. "
+                "Give the likely signal-path cause and no more than three ordered checks. "
                 "Keep trigger detection separate from camera video. Use only verified vehicle/year "
                 "source facts; do not claim a wiring photo or diagram is displayed unless it is "
-                "actually attached. Include the exact source link when available."
+                "actually attached. Show a source link only when the user asks for a link or resource."
             ),
         }
 
@@ -104902,14 +104968,16 @@ def _technical_speed_response_profile_v69576(prompt_text):
         lower,
     ))
     return {
-        "max_output_tokens": 450 if troubleshoot else 520,
+        "max_output_tokens": 900 if troubleshoot else 800,
         "instruction": (
-            "FAST TECHNICAL RESPONSE (v69505): This budget applies to every routine Technical Support inquiry, "
+            "FAST TECHNICAL RESPONSE (v69513): This budget applies to every routine Technical Support inquiry, "
             "including product/vehicle compatibility, configuration, installation, wiring, feature, and "
             "troubleshooting questions. Lead with the verified answer. Keep routine answers to at most "
-            "250 words (troubleshooting: 180 words and at most 4 numbered actions). Include only decisive "
+            "160 words (troubleshooting: 120 words and at most 3 numbered actions). Include only decisive "
             "source-backed caveats and the relevant source links. Do not repeat facts or add an unsolicited "
-            "customer reply draft. Preserve exact vehicle/year/package matching, source authority, uncertainty, "
+            "customer reply draft or installation-resource section. Show an installation link only when the user "
+            "explicitly asks for a link, manual, video, diagram, or resource. Preserve exact vehicle/year/package "
+            "matching, source authority, uncertainty, "
             "and all safety rules. If evidence is insufficient, say so and ask only the needed question."
         ),
     }
