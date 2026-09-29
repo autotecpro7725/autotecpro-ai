@@ -106,10 +106,9 @@
 # All v69469-v69478 experimental print/download bridges are intentionally removed.
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
-# AutoTecPro AI v69509 - Technical troubleshooting and visual claim alignment
-# AutoTecPro AI v69513 - bounded Technical retrieval, concise complete responses, and auditable release proof
-AUTOTECPRO_RELEASE_VERSION = "v69513"
-AUTOTECPRO_RELEASE_BUILD = "v69513-technical-search-latency-completion-20260929"
+# AutoTecPro AI v69497 - vehicle-aware fast exact-image candidate filtering
+AUTOTECPRO_RELEASE_VERSION = "v69497"
+AUTOTECPRO_RELEASE_BUILD = "v69497-fast-exact-image-candidate-filter-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -543,38 +542,6 @@ diagnostic_log(
     exact_product_and_final_fitment_gates_preserved=True,
     topical_and_primary_sales_images_supported=True,
     exact_page_prewarm_limited_to_images_already_available_instantly=True,
-)
-diagnostic_log(
-    "v69498_typo_tolerant_vehicle_image_filter_ready",
-    fuzzy_vehicle_make_typo_repair=True,
-    unrelated_exact_page_fetch_skipped_before_network=True,
-    final_fitment_gate_preserved=True,
-)
-diagnostic_log(
-    "v69499_technical_exact_section_image_retrieval_ready",
-    prefetch_uses_role_expansion=True,
-    audio_aux_wire_section_terms_added=True,
-    generic_wiring_diagram_cannot_win_audio_role_by_section_score=True,
-    final_vehicle_year_provenance_gates_preserved=True,
-)
-diagnostic_log(
-    "v69500_parallel_technical_visual_prefetch_ready",
-    dedicated_visual_search_overlaps_answer_generation=True,
-    parallel_search_only_for_visual_intent=True,
-    final_image_authority_gates_unchanged=True,
-)
-diagnostic_log(
-    "v69501_mobile_canvas_and_view_link_ready",
-    dark_sticky_bottom_canvas=True,
-    all_autotecpro_source_links_labeled_view_link=True,
-    existing_markdown_links_preserved=True,
-    parallel_technical_visual_prefetch_preserved=True,
-)
-diagnostic_log(
-    "v69502_wordpress_visual_variant_dedupe_ready",
-    resize_suffix_variants_collapse=True,
-    wordpress_scaled_suffix_variants_collapse=True,
-    final_fitment_authority_gates_unchanged=True,
 )
 diagnostic_log(
     "v69484_login_fastpath_ready",
@@ -1408,19 +1375,6 @@ st.set_page_config(
     page_icon=PAGE_ICON,
     layout="wide",
     initial_sidebar_state="auto"
-)
-
-# v69513: expose an invisible, read-only release marker in the rendered DOM.
-# Production audits can now prove the exact deployed build without changing the
-# visible interface or relying on Streamlit server-log access.
-st.markdown(
-    (
-        '<span id="atp-runtime-release" '
-        f'data-atp-release="{html.escape(AUTOTECPRO_RELEASE_VERSION, quote=True)}" '
-        f'data-atp-build="{html.escape(AUTOTECPRO_RELEASE_BUILD, quote=True)}" '
-        'style="display:none!important" aria-hidden="true"></span>'
-    ),
-    unsafe_allow_html=True,
 )
 
 # v69007: browser-print flow/color hardening built only on the v69006 print layer.
@@ -9964,27 +9918,8 @@ def inline_format(text):
         for i, part in enumerate(parts):
             rebuilt += f"<strong>{part}</strong>" if i % 2 else part
         safe = rebuilt
-    # The chat uses a small HTML renderer rather than Streamlit's Markdown
-    # renderer. Convert only safe AutoTecPro Markdown links to real anchors here.
-    markdown_link_pattern_v69503 = re.compile(
-        r"\[([^\]]{1,180})\]\((https?://(?:www\.)?autotecpro\.com/[^\s)<>\"']+)\)",
-        flags=re.IGNORECASE,
-    )
-
-    def markdown_link_v69503(match):
-        label = match.group(1)
-        url = match.group(2).rstrip(".,;!?")
-        trailing = match.group(2)[len(url):]
-        return (
-            f'<a href="{url}" target="_blank" '
-            f'rel="noopener noreferrer">{label}</a>{trailing}'
-        )
-
-    safe = markdown_link_pattern_v69503.sub(markdown_link_v69503, safe)
-
-    # Bare AutoTecPro URLs retain the customer-facing View Link label.
-    autotecpro_url_pattern_v69503 = re.compile(
-        r"(?<![=\"'])https?://(?:www\.)?autotecpro\.com/[^\s<>\"']+",
+    product_url_pattern_v69496 = re.compile(
+        r"https?://(?:www\.)?autotecpro\.com/product/[^\s<>\"']+",
         flags=re.IGNORECASE,
     )
 
@@ -10001,7 +9936,7 @@ def inline_format(text):
             f'rel="noopener noreferrer">View Link</a>{trailing}'
         )
 
-    safe = autotecpro_url_pattern_v69503.sub(product_link_v69496, safe)
+    safe = product_url_pattern_v69496.sub(product_link_v69496, safe)
     return safe
 
 
@@ -10803,23 +10738,6 @@ def render_chat_message(
         if isinstance(image, dict)
         and str(image.get("source") or "").strip().lower() == "product_library"
     ]
-    refreshed_product_library_images_v69506 = []
-    for image_v69506 in product_library_final_images:
-        image_v69506 = dict(image_v69506)
-        storage_path_v69506 = str(image_v69506.get("storage_path") or "").strip()
-        if storage_path_v69506:
-            signed_url_v69506 = _product_library_signed_url(
-                storage_path_v69506,
-                expires=86400,
-            )
-            if signed_url_v69506:
-                image_v69506["data_url"] = signed_url_v69506
-        if not str(image_v69506.get("data_url") or "").strip():
-            image_v69506["data_url"] = str(
-                image_v69506.get("archive_web_url") or ""
-            ).strip()
-        refreshed_product_library_images_v69506.append(image_v69506)
-    product_library_final_images = refreshed_product_library_images_v69506
     regular_final_images = [
         image for image in (final_images or [])
         if not (
@@ -10835,15 +10753,6 @@ def render_chat_message(
     html_regular_images_v69271 = [
         image for image in regular_final_images if image not in generated_transport_images_v69271
     ]
-    latest_assistant_message_v69503 = False
-    if role != "user" and message_index is not None:
-        try:
-            current_messages_v69503 = list(st.session_state.get("messages") or [])
-            latest_assistant_message_v69503 = (
-                int(message_index) >= max(0, len(current_messages_v69503) - 1)
-            )
-        except Exception:
-            latest_assistant_message_v69503 = False
 
     if role == "user":
         icon_html = "👤"
@@ -10866,7 +10775,7 @@ def render_chat_message(
         f'<div class="chat-icon {icon_class}">{icon_html}</div>'
         f'<div class="chat-bubble {bubble_class}">'
         f'{html_from_text(visible_content, assistant_mode=(role != "user"))}'
-        f'{render_image_previews(html_regular_images_v69271, loading_mode="eager" if latest_assistant_message_v69503 else "lazy")}'
+        f'{render_image_previews(html_regular_images_v69271)}'
         f'</div>'
         f'</div>'
     )
@@ -12355,46 +12264,6 @@ diagnostic_log(
 process_pending_login_cookie_action()
 
 apply_app_layout_css()
-
-# v69501: Streamlit's sticky mobile composer/footer can retain a light theme
-# background even while the app canvas is dark. Paint the page/root and sticky
-# bottom wrappers explicitly after shared layout CSS so the safe-area band matches
-# the authenticated app background. The composer control itself keeps its existing
-# styling. Screen-only scope leaves login and print palettes untouched.
-st.markdown(
-    """
-    <style>
-    @media screen {
-        html:has(.stApp),
-        body:has(.stApp),
-        #root:has(.stApp) {
-            background-color: #050b16 !important;
-            color-scheme: dark !important;
-        }
-        .stApp,
-        [data-testid="stAppViewContainer"],
-        [data-testid="stBottom"],
-        [data-testid="stBottomBlockContainer"],
-        [data-testid="stChatInput"] {
-            background-color: #050b16 !important;
-        }
-        [data-testid="stBottom"],
-        [data-testid="stBottomBlockContainer"] {
-            background-image: linear-gradient(135deg, #050b16 0%, #0b1220 55%, #020617 100%) !important;
-        }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-diagnostic_log(
-    "v69501_dark_mobile_bottom_canvas_ready",
-    authenticated_screen_only=True,
-    sticky_bottom_and_safe_area_painted_dark=True,
-    chat_composer_control_styling_preserved=True,
-    print_palette_untouched=True,
-)
 
 # ============================================================
 # Header After Login
@@ -16970,28 +16839,6 @@ def serialize_images_marker(images):
     if not images:
         return ""
 
-    # Product Library photos are private Storage objects. Persist their metadata
-    # and storage path, not the full base64 bytes; the renderer renews a signed
-    # URL when restoring chat history. This keeps large galleries out of the
-    # Supabase message row and Streamlit session payload.
-    marker_images_v69506 = []
-    for image_v69506 in images or []:
-        if not isinstance(image_v69506, dict):
-            continue
-        if str(image_v69506.get("source") or "").strip().casefold() == "product_library":
-            compact_v69506 = {
-                key_v69506: image_v69506.get(key_v69506)
-                for key_v69506 in (
-                    "name", "source", "asset_type", "asset_subtype",
-                    "storage_path", "content_type", "archive_web_url",
-                )
-                if image_v69506.get(key_v69506) not in (None, "")
-            }
-            if compact_v69506.get("storage_path") or compact_v69506.get("archive_web_url"):
-                marker_images_v69506.append(compact_v69506)
-        else:
-            marker_images_v69506.append(image_v69506)
-
     # v69297: preserve the exact v69272 Reference execution path and visual
     # output behavior, while hardening only the post-generation message
     # serialization step so a successfully rendered generated image survives
@@ -17000,7 +16847,7 @@ def serialize_images_marker(images):
     primary_error_type_v69297 = ""
     primary_error_text_v69297 = ""
     try:
-        return "\n\n" + IMAGE_MARKER_PREFIX + json.dumps(marker_images_v69506, ensure_ascii=False) + IMAGE_MARKER_SUFFIX
+        return "\n\n" + IMAGE_MARKER_PREFIX + json.dumps(images, ensure_ascii=False) + IMAGE_MARKER_SUFFIX
     except Exception as primary_error_v69297:
         primary_error_type_v69297 = type(primary_error_v69297).__name__
         primary_error_text_v69297 = str(primary_error_v69297)[:300]
@@ -17017,15 +16864,11 @@ def serialize_images_marker(images):
         "graphic_v69273_source_sha256",
     )
     safe_images_v69297 = []
-    for image_v69297 in marker_images_v69506:
+    for image_v69297 in images or []:
         if not isinstance(image_v69297, dict):
             continue
         data_url_v69297 = str(image_v69297.get("data_url") or "")
-        product_library_reference_v69506 = bool(
-            str(image_v69297.get("source") or "").strip().casefold() == "product_library"
-            and (image_v69297.get("storage_path") or image_v69297.get("archive_web_url"))
-        )
-        if not data_url_v69297 and not product_library_reference_v69506:
+        if not data_url_v69297:
             continue
         safe_v69297 = {}
         for key_v69297 in safe_keys_v69297:
@@ -17038,8 +16881,7 @@ def serialize_images_marker(images):
                 safe_v69297[key_v69297] = str(value_v69297)
             else:
                 safe_v69297[key_v69297] = str(value_v69297)
-        if data_url_v69297:
-            safe_v69297["data_url"] = data_url_v69297
+        safe_v69297["data_url"] = data_url_v69297
         safe_v69297["name"] = str(safe_v69297.get("name") or image_v69297.get("filename") or "generated image")
         safe_images_v69297.append(safe_v69297)
 
@@ -17226,18 +17068,12 @@ def extract_images_from_message_content(content):
 
     clean_images = []
     for image in images:
-        if not isinstance(image, dict):
-            continue
-        is_product_library_reference_v69506 = bool(
-            str(image.get("source") or "").strip().casefold() == "product_library"
-            and (image.get("storage_path") or image.get("archive_web_url"))
-        )
-        if not image.get("data_url") and not is_product_library_reference_v69506:
+        if not isinstance(image, dict) or not image.get("data_url"):
             continue
 
         clean_image = {
             "name": str(image.get("name") or "uploaded image"),
-            "data_url": str(image.get("data_url") or ""),
+            "data_url": str(image.get("data_url")),
         }
 
         # Preserve optional generated-image metadata while remaining fully
@@ -17253,7 +17089,6 @@ def extract_images_from_message_content(content):
             "filename",
             "source",
             "asset_type",
-            "asset_subtype",
             "storage_path",
             "content_type",
             "archive_web_url",
@@ -17322,7 +17157,7 @@ def _render_image_previews_cached(images_json, loading_mode="lazy"):
     if not isinstance(images, list) or not images:
         return ""
 
-    grouped_cards_v69503 = {}
+    cards = []
     image_loading_v69490 = "eager" if str(loading_mode or "").casefold() == "eager" else "lazy"
 
     for image_index, image in enumerate(images):
@@ -17354,17 +17189,7 @@ def _render_image_previews_cached(images_json, loading_mode="lazy"):
         fetch_priority_v69490 = (
             "high" if image_loading_v69490 == "eager" and image_index == 0 else "auto"
         )
-        section_title_v69503 = ""
-        if str(image.get("source") or "").strip() == "website_knowledge":
-            section_title_v69503 = str(
-                image.get("website_section_heading_v69010")
-                or image.get("technical_authority_section_title_v69144")
-                or ""
-            ).strip()
-        group_key_v69503 = section_title_v69503.casefold() if section_title_v69503 else ""
-        grouped_cards_v69503.setdefault(
-            group_key_v69503, {"title": section_title_v69503, "cards": []}
-        )["cards"].append(
+        cards.append(
             f'<div class="{card_class}">'
             f'<label class="atp-enlarge-label" for="{lightbox_id}" '
             f'title="Click to enlarge image">'
@@ -17383,29 +17208,10 @@ def _render_image_previews_cached(images_json, loading_mode="lazy"):
             f'</div>'
         )
 
-    if not grouped_cards_v69503:
+    if not cards:
         return ""
 
-    rendered_groups_v69503 = []
-    for group_v69503 in grouped_cards_v69503.values():
-        group_cards_v69503 = list(group_v69503.get("cards") or [])
-        if not group_cards_v69503:
-            continue
-        title_v69503 = str(group_v69503.get("title") or "").strip()
-        heading_v69503 = (
-            '<div class="atp-chat-image-section-heading-v69503" '
-            'style="font-weight:700;margin:12px 0 6px 0;">'
-            + html.escape(title_v69503)
-            + '</div>'
-            if title_v69503 else ""
-        )
-        rendered_groups_v69503.append(
-            heading_v69503
-            + '<div class="chat-image-grid">'
-            + "".join(group_cards_v69503)
-            + '</div>'
-        )
-    return "".join(rendered_groups_v69503)
+    return '<div class="chat-image-grid">' + "".join(cards) + '</div>'
 
 
 
@@ -45347,15 +45153,10 @@ When a TECHNICAL TOOL ROUTING block is supplied, follow that workflow exactly.
 Only the selected workflow should run. Do not claim that a wiring image or PDF
 page is displayed unless image data is actually present in the conversation.
 
-The AutoTecPro application may provide verified, live WooCommerce REST API
-order data only when the user explicitly asks about an order or provides an
-order identifier and the application has retrieved that exact order.
-For general vehicle compatibility, product availability, fitment, specifications,
-or a new product inquiry, do not query, cite, or imply WooCommerce authority.
-Use the Technical Support Vector Store and approved AutoTecPro technical
-references instead. This workspace is not the product catalog or sales channel.
+The AutoTecPro application may also provide verified, live WooCommerce REST
+API order data for technical support and product identification.
 
-When exact WooCommerce order data is provided for an explicit order inquiry:
+When WooCommerce data is provided:
 - Treat it as the authoritative live order record.
 - Use it to identify the purchased product, SKU, quantity, selected options,
   vehicle details, order date, order status, customer note, shipping details,
@@ -45374,17 +45175,6 @@ For every Technical Support response:
 - Ignore any pricing found in Technical Support documents or earlier messages.
 - Focus only on compatibility, installation, configuration, troubleshooting,
   product identification, warranty procedure, and technical next steps.
-- For a new vehicle/product fitment inquiry, recommend a product page only when
-  the retrieved source explicitly matches the requested vehicle year, make,
-  model/trim, and relevant factory configuration. Confirm the linked page's
-  product name and screen size against the recommendation. If any identity or
-  specification conflicts, omit that product link and ask for the minimum detail
-  needed to verify; never substitute a nearby-year or different-screen product.
-- Present verified AutoTecPro website citations as a clickable “View Link” label.
-  Do not expose raw URLs unless the user asks to see them. Never invent a link.
-- Do not add an Installation Resources, Helpful Resources, or installation-link
-  section to an ordinary answer unless the user explicitly asks for a link,
-  manual, video, diagram, or installation resource. Answer the question directly.
 
 TECHNICAL ORDER ENRICHMENT WORKFLOW:
 When the application has already displayed a WooCommerce order, preserve that
@@ -45443,7 +45233,7 @@ enrichment sections below in this exact order when information is available:
 13. ## Installation Resources
     - Show every verified installation video, manual, PDF, wiring diagram, CANBUS
       reference, firmware link, or technical bulletin returned by file_search.
-    - Show each verified AutoTecPro resource as a clickable “View Link” label.
+    - Keep full URLs visible and clickable. Do not replace URLs with buttons.
     - Never invent a link. If no exact verified resource is found, say so.
 14. ## Customer Reply Draft
     - Always place this last and format it as Markdown blockquote paragraphs.
@@ -46870,10 +46660,7 @@ def _technical_recent_conversation_context_v69106(limit=6):
     if not rows:
         return ""
     bounded = []
-    total_chars = 0
-    # This context is supplementary only. Keep it small so prior long answers do
-    # not dominate the new query's prompt or prefill latency.
-    for row in rows[-max(2, min(int(limit or 6), 6)):]:
+    for row in rows[-max(2, min(int(limit or 6), 10)):]:
         if not isinstance(row, dict):
             continue
         role = str(row.get("role") or "").strip().lower()
@@ -46883,15 +46670,9 @@ def _technical_recent_conversation_context_v69106(limit=6):
         value = re.sub(r"\s+", " ", value).strip()
         if not value:
             continue
-        # Preserve exact user vehicle/menu wording. Assistant text is shorter
-        # because Technical file_search remains the factual authority.
-        value = value[: (700 if role == "user" else 450)]
-        remaining = 2200 - total_chars
-        if remaining <= 0:
-            break
-        value = value[:remaining]
-        total_chars += len(value)
-        bounded.append((role, value))
+        # Keep enough exact menu/vehicle wording for identity continuity while
+        # preventing a long old transcript from dominating the current query.
+        bounded.append((role, value[:1800]))
     if not bounded:
         return ""
     lines = [
@@ -49966,14 +49747,7 @@ def build_user_input(
             "text": response_mode_instruction,
         })
 
-    # Technical follow-ups have their own explicitly non-authoritative
-    # continuity block below. The generic ten-message memory duplicated that
-    # history and could add long prior answers to every request.
-    memory_text = (
-        ""
-        if str(assistant or "") == "🔧 Technical Support"
-        else _build_recent_memory_text_cached(_recent_memory_rows(10))
-    )
+    memory_text = _build_recent_memory_text_cached(_recent_memory_rows(10))
     if memory_text:
         content.append({"type": "input_text", "text": memory_text})
 
@@ -50212,13 +49986,13 @@ def _build_ai_request(
             "Do not use backslash line-break escapes and do not compress numbered instructions into paragraph text."
         )
         try:
-            technical_speed_profile_v69376 = _technical_speed_response_profile_v69576(prompt_text)
+            technical_speed_profile_v69376 = _technical_speed_response_profile_v69376(prompt_text)
         except Exception:
             technical_speed_profile_v69376 = {}
         if technical_speed_profile_v69376:
             instructions += "\n\n" + str(technical_speed_profile_v69376.get("instruction") or "")
             diagnostic_log(
-                "technical_response_budget_fastpath_v69576",
+                "technical_response_budget_fastpath_v69376",
                 max_output_tokens=int(technical_speed_profile_v69376.get("max_output_tokens") or 0),
             )
 
@@ -50228,37 +50002,6 @@ def _build_ai_request(
         "input": user_input,
         "max_output_tokens": int(technical_speed_profile_v69376.get("max_output_tokens") or MAX_AI_OUTPUT_TOKENS),
     }
-    if technical_speed_profile_v69376:
-        # v69513: Routine Technical answers are source-backed and tightly scoped.
-        # Avoid spending latency on hidden reasoning, request concise prose, and
-        # allow only the one file-search call already configured for this turn.
-        # Explicit deep/full requests do not receive this profile.
-        request["reasoning"] = {"effort": "none"}
-        request["text"] = {"verbosity": "low"}
-        request["max_tool_calls"] = 1
-        for tool in tools:
-            if isinstance(tool, dict) and tool.get("type") == "file_search":
-                # Six results keeps multiple source passages available while
-                # preventing broad Technical retrieval from dominating latency.
-                tool["max_num_results"] = 6
-        diagnostic_log(
-            "technical_latency_request_profile_v69513",
-            reasoning_effort="none",
-            text_verbosity="low",
-            max_tool_calls=1,
-            max_num_results=6,
-            max_output_tokens=int(request["max_output_tokens"]),
-            input_text_chars=sum(
-                len(str(part.get("text") or ""))
-                for message in user_input
-                for part in (message.get("content") or [])
-                if isinstance(part, dict) and part.get("type") == "input_text"
-            ),
-            file_search=any(
-                isinstance(tool, dict) and tool.get("type") == "file_search"
-                for tool in tools
-            ),
-        )
     if tools:
         request["tools"] = tools
         # v69012: Technical automatic image recovery must use the exact file_search
@@ -50402,17 +50145,6 @@ def _continuation_request(previous_response, original_request):
 
 class _StreamingNotSupportedError(RuntimeError):
     """Raised only when the installed OpenAI SDK rejects stream=True."""
-
-
-_AI_STREAM_REPLACE_SENTINEL_V69508 = "\x00ATP-STREAM-REPLACEMENT-V69508\x00"
-
-
-def _ai_stream_replacement_payload_v69508(value):
-    """Return complete fallback text carried as an internal stream-replace event."""
-    text = str(value or "")
-    if text.startswith(_AI_STREAM_REPLACE_SENTINEL_V69508):
-        return text[len(_AI_STREAM_REPLACE_SENTINEL_V69508):]
-    return None
 
 
 class _WorkspaceEmptyCompletionError(RuntimeError):
@@ -50810,19 +50542,9 @@ def _stream_one_ai_response(request):
     while True:
         while True:
             try:
-                provider_attempt_started_v69506 = time.perf_counter()
                 stream = chat_client_v69400.responses.create(
                     **active_request,
                     stream=True,
-                )
-                diagnostic_log(
-                    "ai_provider_stream_open_v69506",
-                    workspace=str(assistant),
-                    open_seconds=round(time.perf_counter() - provider_attempt_started_v69506, 3),
-                    file_search=any(
-                        isinstance(tool, dict) and tool.get("type") == "file_search"
-                        for tool in (active_request.get("tools") or [])
-                    ),
                 )
                 break
             except TypeError as error:
@@ -50909,49 +50631,19 @@ def _stream_one_ai_response(request):
                 raise
 
         received_text = False
-        first_text_delta_seen_v69506 = False
         final_response = None
         try:
             for event in stream:
                 event_type = str(getattr(event, "type", "") or "")
-                if event_type.startswith("response.file_search_call."):
-                    diagnostic_log(
-                        "ai_provider_file_search_phase_v69506",
-                        workspace=str(assistant),
-                        event=event_type,
-                        elapsed_seconds=round(time.perf_counter() - provider_attempt_started_v69506, 3),
-                    )
                 if event_type == "response.output_text.delta":
                     delta = str(getattr(event, "delta", "") or "")
                     if delta:
                         received_text = True
-                        if not first_text_delta_seen_v69506:
-                            first_text_delta_seen_v69506 = True
-                            diagnostic_log(
-                                "ai_provider_first_text_delta_v69506",
-                                workspace=str(assistant),
-                                elapsed_seconds=round(time.perf_counter() - provider_attempt_started_v69506, 3),
-                                file_search=any(
-                                    isinstance(tool, dict) and tool.get("type") == "file_search"
-                                    for tool in (active_request.get("tools") or [])
-                                ),
-                            )
                         yield delta
                 elif event_type == "response.refusal.delta":
                     delta = str(getattr(event, "delta", "") or "")
                     if delta:
                         received_text = True
-                        if not first_text_delta_seen_v69506:
-                            first_text_delta_seen_v69506 = True
-                            diagnostic_log(
-                                "ai_provider_first_text_delta_v69506",
-                                workspace=str(assistant),
-                                elapsed_seconds=round(time.perf_counter() - provider_attempt_started_v69506, 3),
-                                file_search=any(
-                                    isinstance(tool, dict) and tool.get("type") == "file_search"
-                                    for tool in (active_request.get("tools") or [])
-                                ),
-                            )
                         yield delta
                 elif event_type in {
                     "response.completed",
@@ -50959,12 +50651,6 @@ def _stream_one_ai_response(request):
                     "response.failed",
                 }:
                     final_response = getattr(event, "response", None)
-                    diagnostic_log(
-                        "ai_provider_stream_terminal_v69506",
-                        workspace=str(assistant),
-                        event=event_type,
-                        elapsed_seconds=round(time.perf_counter() - provider_attempt_started_v69506, 3),
-                    )
                 elif event_type == "error":
                     message = str(
                         getattr(event, "message", "")
@@ -50973,54 +50659,6 @@ def _stream_one_ai_response(request):
                     )
                     raise RuntimeError(message)
         except Exception as error:
-            if not received_text and isinstance(error, TypeError):
-                # Some SDK/transport combinations can construct the Responses
-                # stream successfully and then fail while decoding its first
-                # event. Preserve the exact request and retry once without
-                # streaming; this avoids turning an SDK stream incompatibility
-                # into a user-visible failed answer. Never retry after text was
-                # emitted, because that could duplicate or contradict content.
-                diagnostic_log(
-                    "ai_stream_preanswer_typeerror_nonstream_retry_v69507",
-                    workspace=str(assistant),
-                    file_search=any(
-                        isinstance(tool, dict) and tool.get("type") == "file_search"
-                        for tool in (active_request.get("tools") or [])
-                    ),
-                    error=str(error or "")[:300],
-                )
-                try:
-                    fallback_response_v69507 = chat_client_v69400.responses.create(
-                        **active_request
-                    )
-                except Exception as fallback_error_v69507:
-                    diagnostic_log(
-                        "ai_stream_preanswer_nonstream_retry_failed_v69507",
-                        workspace=str(assistant),
-                        error_type=type(fallback_error_v69507).__name__,
-                        status_code=getattr(fallback_error_v69507, "status_code", None),
-                    )
-                    raise fallback_error_v69507 from error
-                _capture_response_file_search_results_v69012(fallback_response_v69507)
-                fallback_text_v69507 = str(
-                    getattr(fallback_response_v69507, "output_text", "") or ""
-                )
-                if fallback_text_v69507:
-                    diagnostic_log(
-                        "ai_stream_preanswer_nonstream_retry_succeeded_v69507",
-                        workspace=str(assistant),
-                        elapsed_seconds=round(
-                            time.perf_counter() - provider_attempt_started_v69506, 3
-                        ),
-                    )
-                    yield fallback_text_v69507
-                    return fallback_response_v69507
-                diagnostic_log(
-                    "ai_stream_preanswer_nonstream_retry_empty_v69507",
-                    workspace=str(assistant),
-                    status=str(getattr(fallback_response_v69507, "status", "") or ""),
-                )
-                return fallback_response_v69507
             if (
                 not received_text
                 and not transient_pre_token_retry_used_v69400
@@ -51198,67 +50836,6 @@ def ask_ai_stream(
     except _StreamingNotSupportedError:
         # Compatibility with an older OpenAI SDK that does not support stream.
         _observe_silent_exception_v69451("ask_ai_stream@L48029")
-    except Exception as stream_error_v69508:
-        # A stream can fail after emitting partial text (for example, the
-        # connection closes before a terminal event). Retry the exact same
-        # request once without streaming, then tell the renderer to replace its
-        # partial draft with the complete answer. Never broaden or rewrite the
-        # evidence request. Do not retry explicit client-side 4xx failures.
-        status_v69508 = getattr(stream_error_v69508, "status_code", None)
-        retryable_status_v69508 = status_v69508 in {408, 409, 429} or (
-            status_v69508 is not None and int(status_v69508) >= 500
-        )
-        known_stream_termination_v69508 = (
-            isinstance(stream_error_v69508, (TypeError, RuntimeError))
-            and (
-                isinstance(stream_error_v69508, TypeError)
-                or "stream ended before a final response event" in str(stream_error_v69508).casefold()
-            )
-        )
-        transient_provider_error_v69508 = _openai_transient_pre_token_error_v69400(
-            stream_error_v69508
-        )
-        if retryable_status_v69508 or known_stream_termination_v69508 or transient_provider_error_v69508:
-            diagnostic_log(
-                "ai_stream_terminal_retry_started_v69508",
-                workspace=str(assistant),
-                error_type=type(stream_error_v69508).__name__,
-                status_code=status_v69508,
-                error=str(stream_error_v69508 or "")[:300],
-            )
-            try:
-                fallback_response_v69508 = _openai_chat_client_v69400().responses.create(
-                    **original_request
-                )
-                _capture_response_file_search_results_v69012(fallback_response_v69508)
-                fallback_text_v69508 = str(
-                    getattr(fallback_response_v69508, "output_text", "") or ""
-                )
-                fallback_status_v69508 = str(
-                    getattr(fallback_response_v69508, "status", "") or ""
-                ).strip().lower()
-                if fallback_text_v69508 and fallback_status_v69508 != "failed":
-                    diagnostic_log(
-                        "ai_stream_terminal_retry_succeeded_v69508",
-                        workspace=str(assistant),
-                        chars=len(fallback_text_v69508),
-                    )
-                    yield _AI_STREAM_REPLACE_SENTINEL_V69508 + fallback_text_v69508
-                    return fallback_response_v69508
-                diagnostic_log(
-                    "ai_stream_terminal_retry_no_complete_text_v69508",
-                    workspace=str(assistant),
-                    status=fallback_status_v69508,
-                    chars=len(fallback_text_v69508),
-                )
-            except Exception as fallback_error_v69508:
-                diagnostic_log(
-                    "ai_stream_terminal_retry_failed_v69508",
-                    workspace=str(assistant),
-                    error_type=type(fallback_error_v69508).__name__,
-                    status_code=getattr(fallback_error_v69508, "status_code", None),
-                )
-        raise
 
     # Non-streaming compatibility fallback with the same bounded continuation.
     request = original_request
@@ -64971,9 +64548,7 @@ def _website_image_retrieval_query_v68889(prompt_text, topic):
             "different-year power harness; connector; wiring; cable"
         ),
         "audio": (
-            "Audio Setup; AUX Audio Method; AUX-Wire.jpg; AUX wire; AUX cable; "
-            "newer-platform-aux-wire; audio-aux; F011_AUX_AUDIO; "
-            "Bluetooth audio; Factory AMP; audio connection guideline"
+            "Audio Setup; AUX; Bluetooth audio; Factory AMP"
         ),
         "weather": (
             "Weather setup; weather app"
@@ -65010,18 +64585,6 @@ def _website_image_retrieval_query_v68889(prompt_text, topic):
     )
 
 
-
-
-def _technical_generic_implicit_image_bypass_v69510(prompt_text):
-    """Skip unrequested Technical image searches when the vehicle is unidentified."""
-    if _website_image_explicit_visual_request_v68888(prompt_text):
-        return False
-    subject = _website_resolved_subject_identity_v69022(prompt_text, "")
-    return not bool(
-        subject.get("brands")
-        or subject.get("families")
-        or subject.get("years")
-    )
 
 
 def _website_image_visual_intent_v68883(prompt_text):
@@ -65084,24 +64647,10 @@ def _website_image_tokens_v68883(value):
 def _website_image_query_role_v68884(prompt_text):
     """Classify only explicit visual intent in the current Technical question."""
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    # Specific camera wiring/connector questions must outrank broad "harness"
-    # matches. A general head-unit rear photo cannot satisfy this visual request.
-    if (
-        re.search(r"\b(?:camera|reverse camera|backup camera|rear camera)\b", value)
-        and re.search(r"\b(?:harness|wiring|connector|adapter|pinout|trigger wire)\b", value)
-    ):
-        return "camera_harness"
     rules = (
         ("car_model_ac", (
             "car model", "carmodel", "car model setting", "car model / ac",
             "car model/ac", "ac model", "a/c model",
-        )),
-        ("camera_harness", (
-            "backup-camera harness", "backup camera harness",
-            "reverse-camera harness", "reverse camera harness",
-            "camera connector wiring", "camera harness connector",
-            "backup camera wiring", "reverse camera wiring",
-            "camera pinout", "camera trigger wire",
         )),
         ("factory_camera", (
             "factory camera", "original camera", "oem camera",
@@ -65119,9 +64668,7 @@ def _website_image_query_role_v68884(prompt_text):
             "fitment",
         )),
         ("audio", (
-            "audio", "aux", "bluetooth audio", "sound", "aux wire",
-            "audio harness", "audio connector", "audio-aux",
-            "newer-platform-aux-wire",
+            "audio", "aux", "bluetooth audio", "sound",
         )),
         ("weather", (
             "weather", "weather app",
@@ -65194,11 +64741,6 @@ def _website_image_role_score_v68884(query_role, payload):
     combined = " ".join((heading, nearby, caption, analysis))
 
     role_aliases = {
-        "camera_harness": (
-            "backup camera", "backup-camera", "reverse camera",
-            "camera harness", "camera connector", "camera wiring",
-            "camera pinout", "camera trigger", "ccd-12v", "reverse trigger",
-        ),
         "car_model_ac": (
             "car model / ac", "car model/ac", "car model", "carmodel",
             "ac model", "a/c model",
@@ -65218,9 +64760,7 @@ def _website_image_role_score_v68884(query_role, payload):
             "dashboard fitment", "dash fitment", "fitment",
         ),
         "audio": (
-            "audio", "aux", "bluetooth audio", "sound", "aux wire",
-            "audio harness", "audio connector", "audio-aux",
-            "newer-platform-aux-wire",
+            "audio", "aux", "bluetooth audio", "sound",
         ),
         "weather": ("weather", "weather app"),
         "navigation": ("offline navigation", "navigation", "gps"),
@@ -65264,34 +64804,6 @@ def _website_image_role_score_v68884(query_role, payload):
     if any(alias in analysis for alias in aliases):
         score += 10.0
 
-    # Exact audio/AUX metadata should outrank broad wiring references. A main
-    # wiring diagram may show connectors without documenting the audio path.
-    if query_role == "audio":
-        exact_audio_terms = (
-            "aux-wire", "aux wire", "audio-aux", "newer-platform-aux-wire",
-            "aux audio method", "audio connection guideline", "f011_aux_audio",
-        )
-        if any(term in combined for term in exact_audio_terms):
-            score += 24.0
-        if "main wiring diagram" in combined and not any(
-            term in combined for term in exact_audio_terms
-        ):
-            score -= 12.0
-
-    # Prefer the exact audio/AUX image section; a general wiring image can show
-    # connectors without documenting the audio path.
-    if query_role == "audio":
-        exact_audio_terms = (
-            "aux-wire", "aux wire", "audio-aux", "newer-platform-aux-wire",
-            "aux audio method", "audio connection guideline", "f011_aux_audio",
-        )
-        if any(term in combined for term in exact_audio_terms):
-            score += 24.0
-        if "main wiring diagram" in combined and not any(
-            term in combined for term in exact_audio_terms
-        ):
-            score -= 12.0
-
     if conflict_terms and any(term in heading for term in conflict_terms):
         score -= 30.0
 
@@ -65333,8 +64845,8 @@ def _website_image_metadata_matches_role_v69004(payload, query_role):
     except Exception:
         return False
     if role in {
-        "camera_harness", "car_model_ac", "factory_camera", "cargo_bed_camera",
-        "aftermarket_camera", "dashboard_fitment", "audio",
+        "car_model_ac", "factory_camera", "cargo_bed_camera",
+        "aftermarket_camera", "dashboard_fitment",
     }:
         return score >= 14.0
     return score >= 6.0
@@ -65348,15 +64860,12 @@ def _website_image_section_gate_v68884(prompt_text, payload):
 
     role_score = _website_image_role_score_v68884(query_role, payload)
     if query_role in {
-        "camera_harness",
         "car_model_ac",
         "factory_camera",
         "cargo_bed_camera",
         "aftermarket_camera",
         "dashboard_fitment",
     }:
-        return role_score >= 14.0
-    if query_role == "audio":
         return role_score >= 14.0
     return role_score >= 6.0
 
@@ -66522,29 +66031,15 @@ def _technical_final_image_rejection_reason_v69361(prompt_text, answer_text, ima
                 ]).casefold()
                 if "camera" not in combined_v69482:
                     return "strict_camera_metadata_missing"
-                image_role_v69482 = re.sub(
-                    r"[^a-z0-9]+", " ",
-                    str(meta_v69482.get("data-atp-image-role") or "").casefold(),
-                ).strip()
-                camera_wiring_role_v69482 = bool(
-                    "camera" in image_role_v69482
-                    and any(term in image_role_v69482 for term in (
-                        "harness", "wiring", "connector", "adapter", "pinout", "diagram", "trigger"
-                    ))
-                ) or bool(
-                    any(term in image_role_v69482 for term in ("wiring diagram", "wiring-diagram"))
-                    and any(term in combined_v69482 for term in (
-                        "camera harness", "camera wiring", "camera connector", "backup camera", "reverse camera"
-                    ))
-                )
+                harnessish_v69482 = any(term in combined_v69482 for term in ("harness", "wiring", "connector", "adapter", "ccd-v"))
                 diagnosticish_v69482 = any(term in combined_v69482 for term in (
                     "no-camera", "no camera", "no-image", "no image",
                     "reverse-no-trigger", "factory-camera-no-image",
                     "reverse-camera-no-image", "harness-problem",
                 ))
-                if strict_camera_kind_v69482 == "camera_harness" and not camera_wiring_role_v69482:
+                if strict_camera_kind_v69482 == "camera_harness" and not harnessish_v69482:
                     return "strict_camera_harness_role_mismatch"
-                if strict_camera_kind_v69482 == "camera_issue" and not (camera_wiring_role_v69482 or diagnosticish_v69482):
+                if strict_camera_kind_v69482 == "camera_issue" and not (harnessish_v69482 or diagnosticish_v69482):
                     return "strict_camera_diagnostic_role_mismatch"
                 if any(term in combined_v69482 for term in ("primary-product-image", "product hero", "after-installation-product-reference")):
                     return "strict_camera_generic_product_image"
@@ -67446,14 +66941,6 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_la
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not prompt:
         return []
-    # Reuse the current single prefetch call, but search the exact section/asset
-    # vocabulary for the detected role. This improves recall without adding a
-    # second remote lookup or weakening final compatibility checks.
-    query_role = _website_image_query_role_v68884(prompt)
-    search_prompt = (
-        _website_image_retrieval_query_v68889(prompt, query_role)
-        if query_role else prompt
-    )
     vector_store_ids = _configured_vector_store_ids(TECHNICAL_VECTOR_STORE_ID)
     if not vector_store_ids:
         return []
@@ -67468,14 +66955,13 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_la
             "AUTO_DISPLAY_IMAGE, IMAGE_ANALYSIS, SECTION_HEADING, NEARBY_INSTRUCTION_TEXT, "
             "ATP_WEB_IMAGE_JSON, or legacy raw HTML <img> tags in that same section. "
             "Do not broaden to unrelated sections or another fitment.\n\n"
-            f"USER REQUEST:\n{search_prompt[:4200]}\n"
+            f"USER REQUEST:\n{prompt[:2600]}\n"
         ),
         "tools": [{"type": "file_search", "vector_store_ids": vector_store_ids}],
         "tool_choice": "required",
         "include": ["file_search_call.results"],
         "max_output_tokens": 32,
     }
-    prefetch_started_v69499 = time.monotonic()
     try:
         rows = _website_image_response_rows_with_retry_v69047(
             request,
@@ -67490,9 +66976,6 @@ def _website_image_prefetch_file_search_results_v69015(prompt_text, workspace_la
     diagnostic_log(
         "website_image_prefetch_complete_v69015",
         result_count=len(rows),
-        elapsed_seconds=round(time.monotonic() - prefetch_started_v69499, 3),
-        query_role=query_role or "unclassified",
-        role_expansion=bool(query_role),
     )
     return rows
 
@@ -67729,7 +67212,7 @@ def _website_file_search_images_v69014(prompt_text, answer_text, result_rows):
     return output
 
 
-def _website_image_dedicated_file_search_results_v69013(prompt_text, answer_text="", workspace_label=None):
+def _website_image_dedicated_file_search_results_v69013(prompt_text, answer_text=""):
     """Run an independent Technical file_search dedicated to image-source discovery.
 
     This is intentionally invoked only after the durable image index and the ordinary
@@ -67738,7 +67221,7 @@ def _website_image_dedicated_file_search_results_v69013(prompt_text, answer_text
     records. It never generates or selects the final image; the existing deterministic
     vehicle/year/section/visual authority gates remain final.
     """
-    if str(workspace_label if workspace_label is not None else assistant or "") != "🔧 Technical Support":
+    if str(assistant or "") != "🔧 Technical Support":
         return []
     if not _website_image_visual_intent_v68883(prompt_text):
         return []
@@ -68100,33 +67583,6 @@ def _website_model_control_gate_v68885(prompt_text, image_record):
     return True
 
 
-def _website_image_unscoped_vehicle_gate_v69510(prompt_text, image):
-    """Reject vehicle-specific website visuals when the customer gave no vehicle."""
-    if not isinstance(image, dict):
-        return False
-    subject = _website_resolved_subject_identity_v69022(prompt_text, "")
-    if (
-        subject.get("brands")
-        or subject.get("families")
-        or subject.get("years")
-        or subject.get("product_codes")
-    ):
-        return True
-    candidate_text = " ".join((
-        _website_image_payload_identity_text_v69022(image),
-        str(image.get("website_page_title_v69010") or ""),
-        str(image.get("website_source_page_v69010") or ""),
-        str(image.get("website_section_heading_v69010") or ""),
-        str(image.get("website_nearby_instruction_text_v69010") or ""),
-        str(image.get("website_visual_analysis_v69010") or ""),
-    ))
-    return not bool(
-        _website_identity_brand_set_v69022(candidate_text)
-        or _website_identity_vehicle_families_v69022(candidate_text)
-        or _website_identity_years_v69022(candidate_text)
-    )
-
-
 def _website_image_final_authority_v68885(
     prompt_text,
     images,
@@ -68160,10 +67616,6 @@ def _website_image_final_authority_v68885(
     # a later exact fallback; only surviving exact deterministic evidence does.
     surviving_exact_deterministic_keys = set()
     for item in deterministic_images:
-        if not _website_image_unscoped_vehicle_gate_v69510(
-            effective_prompt_v69020, item
-        ):
-            continue
         if not _website_model_control_gate_v68885(effective_prompt_v69020, item):
             continue
         if not _website_image_resolved_record_gate_v69022(
@@ -68200,10 +67652,6 @@ def _website_image_final_authority_v68885(
             or str(image.get("data_url") or "").strip()
         )
 
-        if not _website_image_unscoped_vehicle_gate_v69510(
-            effective_prompt_v69020, image
-        ):
-            continue
         if not _website_model_control_gate_v68885(effective_prompt_v69020, image):
             continue
         if not _website_image_resolved_record_gate_v69022(
@@ -79139,23 +78587,6 @@ def _workspace_sales_image_candidate_scope_v69497(prompt_text, package):
         source_words = set(re.findall(r"[a-z]+", identity_text.casefold()))
         requested_brands = requested_words & known_brands_v69497
         source_brands = source_words & known_brands_v69497
-        # Recover common one or two character make typos (for example,
-        # "chysler") before deciding whether a candidate page fits the inquiry.
-        # Exact make names always win; fuzzy correction is limited to prompt
-        # tokens of at least four letters and a strong similarity threshold.
-        for token in requested_words - known_brands_v69497:
-            if len(token) < 4:
-                continue
-            best_brand = ""
-            best_ratio = 0.0
-            for brand in known_brands_v69497:
-                if len(brand) < 4 or abs(len(token) - len(brand)) > 2:
-                    continue
-                ratio = SequenceMatcher(None, token, brand).ratio()
-                if ratio > best_ratio:
-                    best_brand, best_ratio = brand, ratio
-            if best_brand and best_ratio >= 0.80:
-                requested_brands.add(best_brand)
         requested_brand_text = str(prompt_text or "").casefold()
         for brand in multiword_brands_v69497:
             if re.search(r"\b" + re.escape(brand) + r"\b", requested_brand_text):
@@ -80871,38 +80302,9 @@ def _website_automatic_related_image_recovery_v69049(
 
 
 def _dedupe_website_chat_images_v68883(images):
-    """Remove duplicate website images, including WordPress size variants."""
+    """Remove duplicates between deterministic index hits and model control hits."""
     output = []
     seen = set()
-
-    def visual_keys(image):
-        keys = set()
-        digest = str(image.get("website_image_sha256") or "").strip().casefold()
-        if digest:
-            keys.add("sha256:" + digest)
-        url = str(image.get("archive_web_url") or "").strip()
-        if url.startswith(("http://", "https://")):
-            try:
-                parsed = urlparse(url)
-                path = str(parsed.path or "")
-                # WordPress serves one source image under names such as
-                # Compatibility-19-scaled.jpg and Compatibility-19-768x549.jpg.
-                # These are display-size variants of the same authored visual.
-                if "/wp-content/uploads/" in path.casefold():
-                    path = re.sub(r"-\d{2,5}x\d{2,5}(?=\.[^.]+$)", "", path, flags=re.I)
-                    path = re.sub(r"[-_]scaled(?=\.[^.]+$)", "", path, flags=re.I)
-                keys.add(
-                    "url:" + str(parsed.netloc or "").casefold() + path.casefold()
-                )
-            except Exception:
-                keys.add("url:" + url.split("?", 1)[0].split("#", 1)[0].casefold())
-        data_url = str(image.get("data_url") or "").strip()
-        if data_url:
-            keys.add("data:" + hashlib.sha256(
-                data_url.encode("utf-8", errors="ignore")
-            ).hexdigest())
-        return keys
-
     for image in images or []:
         if not isinstance(image, dict):
             output.append(image)
@@ -80910,10 +80312,15 @@ def _dedupe_website_chat_images_v68883(images):
         if str(image.get("source") or "") != "website_knowledge":
             output.append(image)
             continue
-        keys = visual_keys(image)
-        if keys and keys & seen:
+        key = (
+            str(image.get("website_image_sha256") or "").strip()
+            or str(image.get("archive_web_url") or "").strip()
+            or str(image.get("data_url") or "").strip()
+        )
+        if key and key in seen:
             continue
-        seen.update(keys)
+        if key:
+            seen.add(key)
         output.append(image)
     return output
 
@@ -85763,44 +85170,14 @@ def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_im
     authority = dict(authority or {})
     selected = []
     seen = set()
-    package_text = str(authority.get("package_text") or "")
-    try:
-        query_role = _website_image_query_role_v68884(prompt_text)
-    except Exception:
-        query_role = ""
-    strict_camera_urls = None
-    if query_role == "camera_harness":
-        strict_camera_urls = set()
-        try:
-            strict_payloads = _website_structured_image_payloads_from_file_v69012(
-                package_text,
-                str(authority.get("filename") or ""),
-                str(authority.get("file_id") or ""),
-            )
-            strict_payloads.extend(_website_legacy_html_payloads_from_file_v69012(
-                package_text,
-                str(authority.get("filename") or ""),
-                str(authority.get("file_id") or ""),
-            ))
-            strict_camera_urls = {
-                str(item.get("image_url") or "").strip()
-                for item in strict_payloads
-                if isinstance(item, dict)
-                and _website_image_final_payload_gate_v68885(prompt_text, item)
-            }
-        except Exception:
-            strict_camera_urls = set()
 
     def add(url):
         url = str(url or "").strip()
-        if strict_camera_urls is not None and url not in strict_camera_urls:
-            return
         if url.startswith("https://") and url not in seen:
             seen.add(url)
             selected.append(url)
 
-    # Exact structural image URLs are primary and all must display. Camera-harness
-    # inquiries additionally require an exact topic match in the selected package.
+    # Exact structural image URLs are primary and all must display.
     for url in (authority.get("selected_image_urls_v69143") or []):
         add(url)
 
@@ -85810,6 +85187,7 @@ def _technical_inquiry_relevant_image_urls_v69158(authority, prompt_text, max_im
         for url in (segment.get("images") or []):
             add(url)
 
+    package_text = str(authority.get("package_text") or "")
     if not package_text:
         return selected[:max(1, int(max_images or 16))]
 
@@ -88509,12 +87887,6 @@ def _technical_exact_authority_chat_images_v69170(prompt_text, authority, max_im
         except Exception:
             pid = ""
         if source_id and pid and pid != source_id:
-            return
-
-        if (
-            _website_image_query_role_v68884(prompt_text) == "camera_harness"
-            and not _website_image_final_payload_gate_v68885(prompt_text, item)
-        ):
             return
 
         pfile = str(item.get("file_id_v69012") or item.get("file_id") or "").strip()
@@ -100485,7 +99857,6 @@ def _product_library_original_url(asset, expires=3600):
     return str(asset.get("archive_web_url") or "").strip()
 
 
-@st.cache_data(ttl=300, max_entries=512, show_spinner=False)
 def _product_library_signed_url(path, expires=3600):
     """Create a temporary URL for a private Product Library image."""
     clean_path = str(path or "").strip().lstrip("/")
@@ -104273,49 +103644,22 @@ def _technical_confirmed_car_model_fast_image_v69393(prompt_text, state):
 
 
 def _technical_strict_camera_harness_request_v69482(prompt_text):
-    """Classify camera troubleshooting separately from an explicit visual request.
-
-    Merely saying that a camera image is black describes a symptom. It must not
-    route the turn into the visual-only exact-harness path, which suppresses the
-    ordinary parallel image retrieval and unnecessarily narrows the answer.
-    """
+    """Classify camera/harness requests that require exact authored Technical imagery."""
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     if not value:
         return ""
     camera = bool(re.search(r"\b(?:camera|reverse camera|backup camera|rear camera)\b", value))
     if not camera:
         return ""
-    explicit_visual_request = bool(re.search(
-        r"\b(?:show|send|display|provide|find|see|view)\b.{0,70}\b"
-        r"(?:camera|harness|wiring|connector|adapter|photo|image|picture|diagram)\b|"
-        r"\b(?:camera|harness|wiring|connector|adapter)\b.{0,45}\b"
-        r"(?:photo|image|picture|diagram)\b.{0,35}\b"
-        r"(?:show|send|display|provide|find|see|view)\b",
-        value,
-    ))
-    camera_harness_topic = bool(re.search(
-        r"\b(?:camera harness|camera wiring|camera connector|camera adapter|"
-        r"camera pinout|camera wiring diagram|reverse camera wiring|"
-        r"(?:harness|wiring|connector|adapter|pinout|diagram).{0,40}"
-        r"(?:reverse|backup|rear)?\s*camera|"
-        r"(?:reverse|backup|rear)?\s*camera.{0,40}"
-        r"(?:harness|wiring|connector|adapter|pinout|diagram))\b",
-        value,
-    ))
-    if explicit_visual_request or camera_harness_topic:
-        return "camera_harness"
-    if re.search(
-        r"\b(?:no camera|camera (?:not|isn['’]?t|is not) (?:working|showing)|"
-        r"no image|black screen|black (?:camera )?image|(?:camera|video) (?:feed|image) is black|"
-        r"blank (?:camera )?image|no video signal|camera (?:problem|issue)|"
-        r"reverse (?:does not|doesn['’]?t) trigger|not trigger)\b",
-        value,
-    ):
+    if re.search(r"\b(?:camera harness|camera wiring|camera connector|camera adapter|show|photo|image|picture|diagram|wiring diagram)\b", value):
+        if any(term in value for term in ("harness", "wiring", "connector", "adapter", "show", "photo", "image", "picture", "diagram")):
+            return "camera_harness"
+    if re.search(r"\b(?:no camera|camera (?:not|isn['’]?t|is not) (?:working|showing)|no image|black screen|reverse (?:does not|doesn['’]?t) trigger|not trigger|camera problem|camera issue)\b", value):
         return "camera_issue"
     return ""
 
 
-def _technical_confirmed_camera_harness_images_v69482(prompt_text, state, max_images=4):
+def _technical_confirmed_camera_harness_images_v69482(prompt_text, state, max_images=2):
     """Bind only exact current-source camera/harness imagery from the confirmed package.
 
     The route is intentionally generic. It reads authored data-atp metadata from the
@@ -104438,9 +103782,10 @@ def _technical_confirmed_camera_harness_images_v69482(prompt_text, state, max_im
 
     ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
     output, seen = [], set()
-    # Show several images only when each is an exact reference in the same
-    # compatible package/year branch; the app-wide gallery limit remains four.
-    limit = 1 if request_kind == "camera_issue" else max(1, min(4, int(max_images or 4)))
+    # For an explicit camera/harness request, one exact routing-authority image is
+    # normally superior to a gallery. Keep at most two only when both are distinct
+    # exact references from the same compatible branch.
+    limit = 1 if request_kind == "camera_issue" else max(1, min(2, int(max_images or 2)))
     for _, _, _, record in ranked:
         key = str(record.get("archive_web_url") or record.get("data_url") or "").strip()
         if not key or key in seen:
@@ -104467,7 +103812,7 @@ def _technical_confirmed_camera_harness_images_v69482(prompt_text, state, max_im
     return output
 
 
-def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_images=4):
+def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_images=2):
     """Fast exact-image path from the already-confirmed package snapshot.
 
     This avoids page-index Supabase reads, full Technical image-index scans, and
@@ -104710,7 +104055,7 @@ def _technical_confirmed_semantic_fast_images_v69392(prompt_text, state, max_ima
     return output
 
 
-def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=4):
+def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=2):
     """Return authored first-response images from exactly the selected package/page.
 
     For audio/no-sound on the 2013–2019 Silverado/Sierra source this deterministically
@@ -104915,160 +104260,34 @@ def _technical_confirmed_package_exact_images_v69382(prompt_text, max_images=4):
     return output
 
 
-def _technical_speed_response_profile_v69576(prompt_text):
-    """Bound routine Technical Support answers while preserving requested depth."""
+def _technical_speed_response_profile_v69376(prompt_text):
+    """Return a narrow response-latency profile for ordinary Technical chat turns."""
     prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
     if not prompt:
         return {}
     lower = prompt.casefold()
-
-    # Keep generated files, explicit deep procedures, and order work at the
-    # established response budget. A question about a manual remains eligible.
-    if re.search(r"\b(?:create|write|generate|export|download)\b.{0,35}\b(?:pdf|docx|word document|report|manual)\b|\b(?:order #|woocommerce)\b", lower):
+    # Never alter document/export/order-enrichment behavior.
+    if re.search(r"\b(?:pdf|docx|word document|report|manual export|order #|woocommerce)\b", lower):
         return {}
-    asks_full_detail = bool(re.search(
-        r"\b(?:full|complete|comprehensive|in[- ]depth|deepest|detailed|step[- ]by[- ]step|all steps|entire procedure|exhaustive)\b",
-        lower,
-    ))
-    if asks_full_detail:
-        return {}
-
-    strict_camera_kind = _technical_strict_camera_harness_request_v69482(prompt)
-    if strict_camera_kind == "camera_harness":
-        return {
-            # Keep sufficient completion headroom: max_output_tokens also
-            # accounts for model reasoning tokens, not just visible prose.
-            "max_output_tokens": 700,
-            "instruction": (
-                "FAST EXACT CAMERA/HARNESS RESPONSE (v69513): Answer in at most 120 words. "
-                "State only the vehicle/year branch, exact source-supported camera/harness labels, "
-                "and any source-stated trigger condition or warning. Do not add generic installation "
-                "steps, guessed pin numbers, or claims that a photo/diagram is displayed. Say clearly "
-                "when the retrieved source does not confirm a camera-specific visual. Keep the exact "
-                "source internally; show its link only when the user asks for a link or resource. Preserve "
-                "all existing vehicle, year, package, and source authority rules."
-            ),
-        }
-
-    if strict_camera_kind == "camera_issue":
-        return {
-            "max_output_tokens": 900,
-            "instruction": (
-                "FAST CAMERA-DIAGNOSTIC RESPONSE (v69513): Answer in at most 130 words. "
-                "Give the likely signal-path cause and no more than three ordered checks. "
-                "Keep trigger detection separate from camera video. Use only verified vehicle/year "
-                "source facts; do not claim a wiring photo or diagram is displayed unless it is "
-                "actually attached. Show a source link only when the user asks for a link or resource."
-            ),
-        }
-
+    explicit_visual = bool(_website_image_explicit_visual_request_v68888(prompt))
+    config = bool(_technical_configuration_query_v69155(prompt))
     troubleshoot = bool(re.search(
         r"\b(?:no audio|no sound|not working|doesn['’]?t work|issue|problem|black screen|no power|"
-        r"carplay|android auto|bluetooth|camera|microphone|mic|troubleshoot|diagnose|error code|fault code)\b",
+        r"carplay|android auto|bluetooth|camera|microphone|mic|troubleshoot|diagnose)\b",
         lower,
     ))
+    if not (explicit_visual or config or troubleshoot):
+        return {}
     return {
-        "max_output_tokens": 900 if troubleshoot else 800,
+        "max_output_tokens": 700 if troubleshoot and not config else 520,
         "instruction": (
-            "FAST TECHNICAL RESPONSE (v69513): This budget applies to every routine Technical Support inquiry, "
-            "including product/vehicle compatibility, configuration, installation, wiring, feature, and "
-            "troubleshooting questions. Lead with the verified answer. Keep routine answers to at most "
-            "160 words (troubleshooting: 120 words and at most 3 numbered actions). Include only decisive "
-            "source-backed caveats and the relevant source links. Do not repeat facts or add an unsolicited "
-            "customer reply draft or installation-resource section. Show an installation link only when the user "
-            "explicitly asks for a link, manual, video, diagram, or resource. Preserve exact vehicle/year/package "
-            "matching, source authority, uncertainty, "
-            "and all safety rules. If evidence is insufficient, say so and ask only the needed question."
+            "FAST TECHNICAL RESPONSE (v69376): Optimize staff latency without changing factual authority. "
+            "Give the complete actionable answer in at most 350 words. Lead with the verified answer or most likely cause. "
+            "Use no more than 5 numbered troubleshooting steps unless the user explicitly asks for a full procedure. "
+            "Do not include a Customer Reply Draft unless explicitly requested. Do not repeat background, duplicate links, "
+            "or restate the same warning. Preserve every existing compatibility, generation, source, and verification safety rule."
         ),
     }
-
-
-def _technical_camera_exact_gallery_filter_v69504(images):
-    """Keep only images whose source metadata proves the strict camera/harness match."""
-    return [
-        image for image in (images or [])
-        if isinstance(image, dict) and bool(image.get("technical_camera_harness_exact_v69482"))
-    ]
-
-
-def _technical_camera_visual_claim_sync_v69504(answer_text, prompt_text, images):
-    """Align strict camera answer claims with the exact image records actually published."""
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip()
-    if _technical_strict_camera_harness_request_v69482(prompt) != "camera_harness":
-        return str(answer_text or "")
-
-    exact_images = _technical_camera_exact_gallery_filter_v69504(images)
-    if exact_images:
-        return str(answer_text or "")
-
-    corrected_section = (
-        "## Exact Visual Availability\n\n"
-        "No exact camera-wiring photo or diagram is attached to this reply. "
-        "The technical source link below is available for reference; I have not treated "
-        "general product or main-harness photos as camera-wiring visuals."
-    )
-    answer = str(answer_text or "")
-    # Product-library photos can be valid vehicle-matched product references, but
-    # the strict camera gallery below intentionally publishes only authored
-    # camera/wiring visuals. Remove the provider's product-photo section whenever
-    # that final gallery is empty; otherwise a correct exact-source answer can
-    # still falsely tell the user that photos are displayed below.
-    product_photo_section = re.compile(
-        r"(?ims)^#{1,6}\s*Product Photo Availability\s*$.*?(?=^#{1,6}\s|\Z)"
-    )
-    answer = product_photo_section.sub(
-        "## Product Photo Availability\n\n"
-        "No product photo is attached to this reply. The exact technical source "
-        "link is provided above; product-listing photos are not being presented "
-        "as camera-wiring evidence.",
-        answer,
-        count=1,
-    )
-    # The strict camera gallery gate removes all non-camera visuals from this
-    # camera-specific reply. Remove any provider text claiming that the separate
-    # Product Library photos were loaded or are displayed when none were published.
-    answer = re.sub(
-        r"(?i)(?:the )?verified product-library result confirms matching"
-        r"(?:\s+[\w/-]+){0,5}\s+product photos? (?:are|were) loaded for chat display\.?",
-        "No matching product photos are attached to this reply.",
-        answer,
-    )
-    answer = re.sub(
-        r"(?i)matching approved website images loaded for chat display:\s*\d+",
-        "No approved website images are attached to this reply",
-        answer,
-    )
-    heading_pattern = re.compile(
-        r"(?ims)^#{1,6}\s*Exact Visual Availability\s*$.*?(?=^#{1,6}\s|\Z)"
-    )
-    if heading_pattern.search(answer):
-        answer = heading_pattern.sub(corrected_section, answer, count=1)
-    else:
-        # Remove explicit unsupported promises if an answer omitted the expected heading.
-        answer = re.sub(
-            r"(?i)(?:the )?(?:exact|matching) (?:camera|tundra)? ?(?:wiring )?(?:photo|image|diagram)[^.\n]*(?:displayed|shown|attached)[^.\n]*[.]*",
-            "",
-            answer,
-        )
-        answer = answer.rstrip() + "\n\n" + corrected_section
-    return answer.strip()
-
-
-def _technical_product_lookup_is_unneeded_for_troubleshooting_v69508(prompt_text):
-    """Avoid irrelevant catalogue discriminator questions for support diagnosis."""
-    prompt = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
-    return bool(re.search(
-        r"\b(?:no audio|no sound|no power|won['’]?t power|won['’]?t turn on|"
-        r"black screen|blank screen|screen flicker|keeps rebooting|not booting|"
-        r"not working|doesn['’]?t work|stopped working|troubleshoot|diagnos(?:e|is)|"
-        r"error code|fault code|issue with|problem with)\b",
-        prompt,
-    ))
-
-
-def _technical_package_overlap_lookup_is_unneeded_for_troubleshooting_v69509(prompt_text):
-    """Avoid registry/package ambiguity work for diagnosis that needs no fitment choice."""
-    return _technical_product_lookup_is_unneeded_for_troubleshooting_v69508(prompt_text)
 
 def _technical_clear_photo_context_v68879():
     st.session_state.pop(TECHNICAL_PHOTO_CONTEXT_KEY_V68879, None)
@@ -105778,11 +104997,10 @@ def _product_library_cached_assets(product_code, product_id):
             or []
         )
 
-    # The full legacy catalogue is a cold fallback only. Exact code and product-id
-    # reads are authoritative and normally complete; indexing up to 5,000 unrelated
-    # assets on a cold lookup adds avoidable latency. Preserve recovery for legacy
-    # rows when both indexed reads miss entirely.
-    if normalized_code and not collected:
+    # A normalized scan is still required because Supabase equality matching is
+    # case-sensitive and older rows may have missing/incorrect product_id values.
+    # Keep it bounded to protect performance.
+    if normalized_code:
         all_assets = _product_library_cached_asset_catalog()
         asset_index = _product_library_cached_asset_index()
         used_legacy_scan = True
@@ -106152,8 +105370,8 @@ def _product_library_chat_lookup(prompt, max_images=None):
         image_limit = int(max_images) if max_images is not None else None
     except (TypeError, ValueError):
         image_limit = None
-    if image_limit is None or image_limit <= 0:
-        image_limit = 4
+    if image_limit is not None and image_limit <= 0:
+        image_limit = None
 
     if requested_subtypes:
         ranked_assets = sorted(
@@ -106185,14 +105403,15 @@ def _product_library_chat_lookup(prompt, max_images=None):
 
     images = []
     for asset in selected:
-        # Send image bytes from private storage directly to the browser. Signed
-        # URLs keep image payloads out of Python memory and saved chat history.
-        image_source = _product_library_signed_url(
-            asset.get("storage_path"),
-            expires=86400,
-        )
+        image_source = _product_library_asset_data_url(asset)
+
+        # The Manage Products page already uses this signed URL successfully,
+        # so use it as a direct browser-display fallback.
         if not image_source:
-            image_source = _product_library_asset_data_url(asset)
+            image_source = _product_library_signed_url(
+                asset.get("storage_path"),
+                expires=86400,
+            )
 
         if image_source:
             images.append({
@@ -110517,28 +109736,17 @@ else:
         technical_preflight_safe_answer_v69377 = ""
         technical_source_limited_direct_answer_v69388 = ""
         if assistant == "🔧 Technical Support":
-            technical_troubleshooting_preflight_bypass_v69509 = bool(
-                _technical_package_overlap_lookup_is_unneeded_for_troubleshooting_v69509(
+            try:
+                technical_package_overlap_v69377 = _technical_package_overlap_ambiguity_v69377(
                     technical_request_prompt_v68879
                 )
-            )
-            if technical_troubleshooting_preflight_bypass_v69509:
+            except Exception as overlap_error_v69377:
+                technical_package_overlap_v69377 = {}
                 diagnostic_log(
-                    "technical_troubleshooting_package_overlap_bypassed_v69509",
-                    prompt_chars=len(str(technical_request_prompt_v68879 or "")),
+                    "technical_package_overlap_detection_failed_v69377",
+                    error_type=type(overlap_error_v69377).__name__,
+                    error=str(overlap_error_v69377)[:500],
                 )
-            else:
-                try:
-                    technical_package_overlap_v69377 = _technical_package_overlap_ambiguity_v69377(
-                        technical_request_prompt_v68879
-                    )
-                except Exception as overlap_error_v69377:
-                    technical_package_overlap_v69377 = {}
-                    diagnostic_log(
-                        "technical_package_overlap_detection_failed_v69377",
-                        error_type=type(overlap_error_v69377).__name__,
-                        error=str(overlap_error_v69377)[:500],
-                    )
             if technical_package_overlap_v69377:
                 technical_package_overlap_safe_answer_v69377 = _technical_package_overlap_answer_v69377(
                     technical_package_overlap_v69377
@@ -111481,37 +110689,11 @@ else:
         technical_early_index_images_v69016 = []
         technical_image_prefetch_executor_v69015 = None
         technical_image_prefetch_future_v69015 = None
-        technical_image_dedicated_prefetch_future_v69500 = None
         technical_image_prefetch_cached_rows_v69016 = []
-        # v69510: implicit visual enrichment is unsafe and needlessly slow when a
-        # Technical troubleshooting request gives no vehicle identity. Keep image
-        # retrieval for explicit photo requests and identified vehicles; the normal
-        # Technical file_search still supplies the factual answer in every case.
-        technical_generic_implicit_image_bypass_v69510 = False
-        if assistant == "🔧 Technical Support":
-            technical_generic_implicit_image_bypass_v69510 = (
-                _technical_generic_implicit_image_bypass_v69510(
-                    technical_request_prompt_v68879
-                )
-            )
-            if technical_generic_implicit_image_bypass_v69510:
-                diagnostic_log(
-                    "technical_unscoped_implicit_image_search_bypassed_v69510",
-                    prompt_class="generic_troubleshooting",
-                    reason="no_vehicle_identity_and_no_explicit_visual_request",
-                )
         if (
             assistant == "🔧 Technical Support"
             and bool(use_file_search)
             and str(technical_request_prompt_v68879 or "").strip()
-            and not technical_generic_implicit_image_bypass_v69510
-            # Explicit camera harness/photo requests have the exact current-package
-            # resolver. A camera symptom (for example, a black camera image) is not
-            # itself a request for a wiring-only visual; overlap image retrieval with
-            # the answer and retain the same exact vehicle/year publication gates.
-            and _technical_strict_camera_harness_request_v69482(
-                technical_request_prompt_v68879
-            ) != "camera_harness"
         ):
             # v69373 speed path: compiled/hot Technical authority used to DISABLE
             # prefetch completely, forcing related images to start searching only
@@ -111568,7 +110750,7 @@ else:
                     try:
                         from concurrent.futures import ThreadPoolExecutor
                         technical_image_prefetch_executor_v69015 = ThreadPoolExecutor(
-                            max_workers=2, thread_name_prefix="atp-tech-image-prefetch"
+                            max_workers=1, thread_name_prefix="atp-tech-image-prefetch"
                         )
                         technical_image_prefetch_future_v69015 = (
                             technical_image_prefetch_executor_v69015.submit(
@@ -111577,24 +110759,6 @@ else:
                                 assistant,
                             )
                         )
-                        # v69500: run the answer-independent dedicated visual query
-                        # alongside the broad prompt prefetch. The old flow waited for
-                        # the answer, then issued this second remote search serially.
-                        # It remains visual-intent-only and passes through the same
-                        # strict candidate and final image authority checks.
-                        if _website_image_visual_intent_v68883(technical_request_prompt_v68879):
-                            technical_image_dedicated_prefetch_future_v69500 = (
-                                technical_image_prefetch_executor_v69015.submit(
-                                    _website_image_dedicated_file_search_results_v69013,
-                                    technical_request_prompt_v68879,
-                                    "",
-                                    assistant,
-                                )
-                            )
-                            diagnostic_log(
-                                "technical_image_parallel_prefetch_started_v69500",
-                                visual_intent=True,
-                            )
                     except Exception as error:
                         technical_image_prefetch_executor_v69015 = None
                         technical_image_prefetch_future_v69015 = None
@@ -111818,31 +110982,6 @@ else:
                 )[:80],
             )
 
-        # Troubleshooting asks (no sound, power, or boot, etc.) need the
-        # Technical knowledge path, not a Product Library product discriminator.
-        # Asking for screen size on an audio diagnosis adds latency and can
-        # prevent the requested checks from being returned. Keep the catalogue
-        # active for explicit product/photo requests and preserve the separate
-        # exact technical package authority path above.
-        technical_troubleshooting_lookup_bypass_v69508 = bool(
-            assistant == "🔧 Technical Support"
-            and _technical_product_lookup_is_unneeded_for_troubleshooting_v69508(
-                technical_request_prompt_v68879
-            )
-            and not _explicit_product_library_request(
-                technical_request_prompt_v68879
-            )
-            and not _product_library_prompt_requests_images(
-                technical_request_prompt_v68879
-            )
-        )
-        if technical_troubleshooting_lookup_bypass_v69508:
-            allow_product_library_lookup = False
-            diagnostic_log(
-                "technical_troubleshooting_product_lookup_bypassed_v69508",
-                prompt_chars=len(str(technical_request_prompt_v68879 or "")),
-            )
-
         if assistant == "🎨 Graphic Marketing":
             explicit_graphic_library_request_v69303 = _explicit_product_library_request(interaction_prompt)
             project_for_library_v69303 = get_graphic_project_state() or {}
@@ -111872,26 +111011,9 @@ else:
                     if assistant == "🔧 Technical Support"
                     else interaction_prompt
                 )
-                technical_nonvisual_size_reply_v69506 = bool(
-                    assistant == "🔧 Technical Support"
-                    and len(re.sub(r"\s+", " ", str(interaction_prompt or "")).strip()) <= 48
-                    and re.search(
-                        r"(?<!\d)\d{1,2}(?:\.\d)?\s*(?:\b(?:inch(?:es)?|in\.?)\b|\")",
-                        str(interaction_prompt or ""),
-                        re.IGNORECASE,
-                    )
-                    and not _product_library_prompt_requests_images(interaction_prompt)
+                product_library_lookup = _product_library_chat_lookup(
+                    product_library_prompt_v68879
                 )
-                if technical_nonvisual_size_reply_v69506:
-                    product_library_lookup = None
-                    diagnostic_log(
-                        "technical_size_clarification_skips_product_asset_lookup_v69506",
-                        reply=str(interaction_prompt or "")[:48],
-                    )
-                else:
-                    product_library_lookup = _product_library_chat_lookup(
-                        product_library_prompt_v68879
-                    )
 
                 # v68879: a Technical photo clarification that already supplies the
                 # requested screen/SYNC/climate detail must not be trapped in another
@@ -111914,7 +111036,7 @@ else:
                     )
                     product_library_lookup = None
 
-                if product_library_lookup is None and not technical_nonvisual_size_reply_v69506:
+                if product_library_lookup is None:
                     product_library_lookup = _product_library_fact_lookup(
                         product_library_prompt_v68879
                     )
@@ -112711,8 +111833,6 @@ else:
                     auto_visual_topic_v68888 = _website_image_auto_topic_v68888(
                         technical_request_prompt_v68879
                     )
-                    if technical_generic_implicit_image_bypass_v69510:
-                        auto_visual_topic_v68888 = ""
 
                 if (
                     assistant == "🔧 Technical Support"
@@ -113054,17 +112174,6 @@ else:
 
                         for delta in stream_source_v69370:
                             delta_text = str(delta or "")
-                            replacement_text_v69508 = _ai_stream_replacement_payload_v69508(delta_text)
-                            if replacement_text_v69508 is not None:
-                                streamed_answer = ""
-                                last_stream_render_chars_v69026 = 0
-                                last_stream_update = 0.0
-                                delta_text = replacement_text_v69508
-                                diagnostic_log(
-                                    "ai_stream_partial_replaced_by_complete_retry_v69508",
-                                    workspace=str(assistant),
-                                    chars=len(delta_text),
-                                )
                             if delta_text and not first_stream_delta_received:
                                 first_stream_delta_received = True
                                 loading_status_placeholder.empty()
@@ -115265,17 +114374,6 @@ else:
                             )
                         for delta in stream_source_v69158:
                             delta_text = str(delta or "")
-                            replacement_text_v69508 = _ai_stream_replacement_payload_v69508(delta_text)
-                            if replacement_text_v69508 is not None:
-                                streamed_answer = ""
-                                last_stream_render_chars_v69026 = 0
-                                last_stream_update = 0.0
-                                delta_text = replacement_text_v69508
-                                diagnostic_log(
-                                    "ai_stream_partial_replaced_by_complete_retry_v69508",
-                                    workspace=str(assistant),
-                                    chars=len(delta_text),
-                                )
                             if delta_text and not first_stream_delta_received:
                                 first_stream_delta_received = True
                                 loading_status_placeholder.empty()
@@ -115944,7 +115042,6 @@ else:
             assistant == "🔧 Technical Support"
             and not bool(locals().get("technical_exact_topic_images_v69409"))
             and not bool(technical_preflight_safe_answer_v69377)
-            and not technical_generic_implicit_image_bypass_v69510
             and not bool(locals().get("explicit_learning_requested"))
             and not bool(locals().get("technical_website_learning_requested_v68870"))
             and str(answer or "").strip()
@@ -115961,7 +115058,7 @@ else:
                         _technical_confirmed_semantic_fast_images_v69392(
                             technical_image_intent_v69394,
                             confirmed_state_fast_v69392,
-                            max_images=4,
+                            max_images=2,
                         )
                     )
                     if technical_confirmed_package_fast_images_v69392:
@@ -116008,7 +115105,6 @@ else:
         # state, which v69122 intentionally stopped binding for factual retrieval.
         if (
             assistant == "🔧 Technical Support"
-            and not technical_generic_implicit_image_bypass_v69510
             and not bool(locals().get("technical_v69050_v69125_baseline_v69154"))
             and str(answer or "").strip()
         ):
@@ -116069,11 +115165,7 @@ else:
         if (
             assistant == "🔧 Technical Support"
             and str(answer or "").strip()
-            and not technical_generic_implicit_image_bypass_v69510
             and not bool(technical_preflight_safe_answer_v69377)
-            and _technical_strict_camera_harness_request_v69482(
-                technical_request_prompt_v68879
-            ) != "camera_harness"
         ):
             active_package_state_v69115 = dict(
                 st.session_state.get("_technical_active_admin_package_v69113") or {}
@@ -116125,12 +115217,8 @@ else:
         if (
             assistant == "🔧 Technical Support"
             and not bool(locals().get("technical_exact_topic_authority_v69409"))
-            and not technical_generic_implicit_image_bypass_v69510
             and not bool(technical_preflight_safe_answer_v69377)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
-            and _technical_strict_camera_harness_request_v69482(
-                technical_request_prompt_v68879
-            ) != "camera_harness"
         ):
             existing_website_images_v69008 = [
                 image for image in (generated_images or [])
@@ -116176,11 +115264,7 @@ else:
             assistant == "🔧 Technical Support"
             and not bool(locals().get("technical_exact_topic_authority_v69409"))
             and str(answer or "").strip()
-            and not technical_generic_implicit_image_bypass_v69510
             and not bool(technical_preflight_safe_answer_v69377)
-            and _technical_strict_camera_harness_request_v69482(
-                technical_request_prompt_v68879
-            ) != "camera_harness"
         ):
             existing_product_bridge_v69365 = [
                 image for image in (generated_images or [])
@@ -116225,12 +115309,8 @@ else:
         if (
             assistant == "🔧 Technical Support"
             and not bool(technical_preflight_safe_answer_v69377)
-            and not technical_generic_implicit_image_bypass_v69510
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
             and not bool(locals().get("technical_confirmed_package_fast_images_v69392"))
-            and _technical_strict_camera_harness_request_v69482(
-                technical_request_prompt_v68879
-            ) != "camera_harness"
             and _website_image_universal_technical_candidate_v69014(
                 technical_request_prompt_v68879, answer
             )
@@ -116293,44 +115373,10 @@ else:
                             answer_result_rows_v69014 + prefetched_rows_v69015,
                         )
 
-                    # Consume the answer-independent visual retrieval already running
-                    # in parallel. Its rows are not trusted until the same deterministic
-                    # vehicle/year/section gates approve an image.
-                    dedicated_rows_v69014 = []
-                    dedicated_prefetch_completed_v69506 = False
-                    dedicated_prefetch_future_v69500 = locals().get(
-                        "technical_image_dedicated_prefetch_future_v69500"
-                    )
-                    if not universal_images_v69014 and dedicated_prefetch_future_v69500 is not None:
-                        try:
-                            dedicated_rows_v69014 = list(
-                                dedicated_prefetch_future_v69500.result(timeout=0.20) or []
-                            )
-                            dedicated_prefetch_completed_v69506 = True
-                            if dedicated_rows_v69014:
-                                universal_images_v69014 = _website_file_search_images_v69014(
-                                    technical_request_prompt_v68879,
-                                    answer,
-                                    answer_result_rows_v69014 + prefetched_rows_v69015 + dedicated_rows_v69014,
-                                )
-                            diagnostic_log(
-                                "technical_image_parallel_prefetch_consumed_v69500",
-                                result_count=len(dedicated_rows_v69014),
-                                recovered=len(universal_images_v69014 or []),
-                            )
-                        except Exception as error:
-                            diagnostic_log(
-                                "technical_image_parallel_prefetch_not_ready_v69500",
-                                error_type=type(error).__name__,
-                            )
-
-                    # Use one exact answer-aware search only when the overlapping
-                    # prefetch is still pending/failed. A completed empty search is a
-                    # valid negative; repeating file_search serially after generation
-                    # only delays the answer and cannot improve its exact-source basis.
+                    # If the prompt-only prefetch was not precise enough, preserve the
+                    # existing answer-aware dedicated search as the fail-safe fallback.
                     if (
                         not universal_images_v69014
-                        and not dedicated_prefetch_completed_v69506
                         and str(
                             (
                                 st.session_state.get(
@@ -116384,7 +115430,6 @@ else:
         if (
             assistant == "🔧 Technical Support"
             and not bool(technical_preflight_safe_answer_v69377)
-            and not technical_generic_implicit_image_bypass_v69510
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
             and str(answer or "").strip()
         ):
@@ -116463,7 +115508,6 @@ else:
         if (
             assistant == "🔧 Technical Support"
             and not bool(technical_preflight_safe_answer_v69377)
-            and not technical_generic_implicit_image_bypass_v69510
             and str(answer or "").strip()
         ):
             existing_technical_website_images_v69364 = [
@@ -117494,7 +116538,7 @@ else:
                 )
                 if not confirmed_images_v69382:
                     confirmed_images_v69382 = _technical_confirmed_package_exact_images_v69382(
-                        technical_request_prompt_v68879, max_images=4
+                        technical_request_prompt_v68879, max_images=2
                     )
             except Exception as confirmed_images_error_v69382:
                 confirmed_images_v69382 = []
@@ -117529,41 +116573,6 @@ else:
                 diagnostic_event="technical_absolute_final_publication_gate_v69363",
             )
             generated_images = list(assistant_images_to_save)
-
-        # v69504: a strict camera/harness request may publish only records whose
-        # authored semantic metadata proves a camera/harness visual in the exact
-        # requested branch. Product-library and generic product photos do not
-        # become camera evidence just because their vehicle/year match.
-        if (
-            assistant == "🔧 Technical Support"
-            and _technical_strict_camera_harness_request_v69482(
-                technical_request_prompt_v68879
-            ) == "camera_harness"
-        ):
-            camera_images_before_v69504 = list(assistant_images_to_save or [])
-            answer_before_camera_sync_v69504 = str(answer or "")
-            assistant_images_to_save = _technical_camera_exact_gallery_filter_v69504(
-                camera_images_before_v69504
-            )
-            camera_rejected_v69504 = len(camera_images_before_v69504) - len(assistant_images_to_save)
-            generated_images = list(assistant_images_to_save)
-            product_library_images = []
-            answer = _technical_camera_visual_claim_sync_v69504(
-                answer,
-                technical_request_prompt_v68879,
-                assistant_images_to_save,
-            )
-            if answer != answer_before_camera_sync_v69504:
-                stream_placeholder.markdown(
-                    _assistant_stream_html(answer),
-                    unsafe_allow_html=True,
-                )
-            diagnostic_log(
-                "technical_camera_absolute_gallery_lock_v69504",
-                exact_camera_images=len(assistant_images_to_save),
-                rejected_unverified_images=camera_rejected_v69504,
-                visual_claims_synchronized=True,
-            )
 
         if assistant == "🔧 Technical Support":
             resolved_visual_sources_v68879 = {
