@@ -107,8 +107,9 @@
 # AutoTecPro AI v69482 - durable website-image learning + strict Technical exact-image authority
 # AutoTecPro AI v69484 - faster authenticated entry by deferring authenticated-only CSS and non-active Graphic integrity work
 # AutoTecPro AI v69509 - Technical troubleshooting and visual claim alignment
-AUTOTECPRO_RELEASE_VERSION = "v69510"
-AUTOTECPRO_RELEASE_BUILD = "v69510-technical-unscoped-image-bypass-20260928"
+# AutoTecPro AI v69511 - camera symptom routing, bounded Technical responses, and exact image recovery
+AUTOTECPRO_RELEASE_VERSION = "v69511"
+AUTOTECPRO_RELEASE_BUILD = "v69511-camera-diagnostic-image-speed-20260928"
 
 # ============================================================
 # Core Imports / Streamlit Runtime Compatibility
@@ -104209,17 +104210,44 @@ def _technical_confirmed_car_model_fast_image_v69393(prompt_text, state):
 
 
 def _technical_strict_camera_harness_request_v69482(prompt_text):
-    """Classify camera/harness requests that require exact authored Technical imagery."""
+    """Classify camera troubleshooting separately from an explicit visual request.
+
+    Merely saying that a camera image is black describes a symptom. It must not
+    route the turn into the visual-only exact-harness path, which suppresses the
+    ordinary parallel image retrieval and unnecessarily narrows the answer.
+    """
     value = re.sub(r"\s+", " ", str(prompt_text or "")).strip().casefold()
     if not value:
         return ""
     camera = bool(re.search(r"\b(?:camera|reverse camera|backup camera|rear camera)\b", value))
     if not camera:
         return ""
-    if re.search(r"\b(?:camera harness|camera wiring|camera connector|camera adapter|show|photo|image|picture|diagram|wiring diagram)\b", value):
-        if any(term in value for term in ("harness", "wiring", "connector", "adapter", "show", "photo", "image", "picture", "diagram")):
-            return "camera_harness"
-    if re.search(r"\b(?:no camera|camera (?:not|isn['’]?t|is not) (?:working|showing)|no image|black screen|reverse (?:does not|doesn['’]?t) trigger|not trigger|camera problem|camera issue)\b", value):
+    explicit_visual_request = bool(re.search(
+        r"\b(?:show|send|display|provide|find|see|view)\b.{0,70}\b"
+        r"(?:camera|harness|wiring|connector|adapter|photo|image|picture|diagram)\b|"
+        r"\b(?:camera|harness|wiring|connector|adapter)\b.{0,45}\b"
+        r"(?:photo|image|picture|diagram)\b.{0,35}\b"
+        r"(?:show|send|display|provide|find|see|view)\b",
+        value,
+    ))
+    camera_harness_topic = bool(re.search(
+        r"\b(?:camera harness|camera wiring|camera connector|camera adapter|"
+        r"camera pinout|camera wiring diagram|reverse camera wiring|"
+        r"(?:harness|wiring|connector|adapter|pinout|diagram).{0,40}"
+        r"(?:reverse|backup|rear)?\s*camera|"
+        r"(?:reverse|backup|rear)?\s*camera.{0,40}"
+        r"(?:harness|wiring|connector|adapter|pinout|diagram))\b",
+        value,
+    ))
+    if explicit_visual_request or camera_harness_topic:
+        return "camera_harness"
+    if re.search(
+        r"\b(?:no camera|camera (?:not|isn['’]?t|is not) (?:working|showing)|"
+        r"no image|black screen|black (?:camera )?image|(?:camera|video) (?:feed|image) is black|"
+        r"blank (?:camera )?image|no video signal|camera (?:problem|issue)|"
+        r"reverse (?:does not|doesn['’]?t) trigger|not trigger)\b",
+        value,
+    ):
         return "camera_issue"
     return ""
 
@@ -104856,18 +104884,30 @@ def _technical_speed_response_profile_v69576(prompt_text):
             ),
         }
 
+    if strict_camera_kind == "camera_issue":
+        return {
+            "max_output_tokens": 420,
+            "instruction": (
+                "FAST CAMERA-DIAGNOSTIC RESPONSE (v69511): Answer in at most 160 words. "
+                "Give the likely signal-path cause and no more than four ordered checks. "
+                "Keep trigger detection separate from camera video. Use only verified vehicle/year "
+                "source facts; do not claim a wiring photo or diagram is displayed unless it is "
+                "actually attached. Include the exact source link when available."
+            ),
+        }
+
     troubleshoot = bool(re.search(
         r"\b(?:no audio|no sound|not working|doesn['’]?t work|issue|problem|black screen|no power|"
         r"carplay|android auto|bluetooth|camera|microphone|mic|troubleshoot|diagnose|error code|fault code)\b",
         lower,
     ))
     return {
-        "max_output_tokens": 700 if troubleshoot else 520,
+        "max_output_tokens": 450 if troubleshoot else 520,
         "instruction": (
             "FAST TECHNICAL RESPONSE (v69505): This budget applies to every routine Technical Support inquiry, "
             "including product/vehicle compatibility, configuration, installation, wiring, feature, and "
             "troubleshooting questions. Lead with the verified answer. Keep routine answers to at most "
-            "250 words (troubleshooting: 300 words and at most 6 numbered actions). Include only decisive "
+            "250 words (troubleshooting: 180 words and at most 4 numbered actions). Include only decisive "
             "source-backed caveats and the relevant source links. Do not repeat facts or add an unsolicited "
             "customer reply draft. Preserve exact vehicle/year/package matching, source authority, uncertainty, "
             "and all safety rules. If evidence is insufficient, say so and ask only the needed question."
@@ -111397,12 +111437,13 @@ else:
             and bool(use_file_search)
             and str(technical_request_prompt_v68879 or "").strip()
             and not technical_generic_implicit_image_bypass_v69510
-            # Strict camera/harness requests already have an exact current-package
-            # resolver and exact file_search-row image extraction. Do not start two
-            # broad image searches that cannot improve their topic authority.
-            and not _technical_strict_camera_harness_request_v69482(
+            # Explicit camera harness/photo requests have the exact current-package
+            # resolver. A camera symptom (for example, a black camera image) is not
+            # itself a request for a wiring-only visual; overlap image retrieval with
+            # the answer and retain the same exact vehicle/year publication gates.
+            and _technical_strict_camera_harness_request_v69482(
                 technical_request_prompt_v68879
-            )
+            ) != "camera_harness"
         ):
             # v69373 speed path: compiled/hot Technical authority used to DISABLE
             # prefetch completely, forcing related images to start searching only
@@ -115962,9 +116003,9 @@ else:
             and str(answer or "").strip()
             and not technical_generic_implicit_image_bypass_v69510
             and not bool(technical_preflight_safe_answer_v69377)
-            and not _technical_strict_camera_harness_request_v69482(
+            and _technical_strict_camera_harness_request_v69482(
                 technical_request_prompt_v68879
-            )
+            ) != "camera_harness"
         ):
             active_package_state_v69115 = dict(
                 st.session_state.get("_technical_active_admin_package_v69113") or {}
@@ -116019,9 +116060,9 @@ else:
             and not technical_generic_implicit_image_bypass_v69510
             and not bool(technical_preflight_safe_answer_v69377)
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
-            and not _technical_strict_camera_harness_request_v69482(
+            and _technical_strict_camera_harness_request_v69482(
                 technical_request_prompt_v68879
-            )
+            ) != "camera_harness"
         ):
             existing_website_images_v69008 = [
                 image for image in (generated_images or [])
@@ -116069,9 +116110,9 @@ else:
             and str(answer or "").strip()
             and not technical_generic_implicit_image_bypass_v69510
             and not bool(technical_preflight_safe_answer_v69377)
-            and not _technical_strict_camera_harness_request_v69482(
+            and _technical_strict_camera_harness_request_v69482(
                 technical_request_prompt_v68879
-            )
+            ) != "camera_harness"
         ):
             existing_product_bridge_v69365 = [
                 image for image in (generated_images or [])
@@ -116119,9 +116160,9 @@ else:
             and not technical_generic_implicit_image_bypass_v69510
             and not bool(locals().get("technical_exact_postbind_images_ready_v69249"))
             and not bool(locals().get("technical_confirmed_package_fast_images_v69392"))
-            and not _technical_strict_camera_harness_request_v69482(
+            and _technical_strict_camera_harness_request_v69482(
                 technical_request_prompt_v68879
-            )
+            ) != "camera_harness"
             and _website_image_universal_technical_candidate_v69014(
                 technical_request_prompt_v68879, answer
             )
